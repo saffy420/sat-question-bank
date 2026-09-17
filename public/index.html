@@ -2428,6 +2428,37 @@ function previewQuestion(id) {
 }
 
 // ---------------- session ----------------
+// --- exam (test_exams.cjs reads this block)
+// The real test: two Reading modules, a break, two Math modules; module 2 is the
+// harder set when module 1 clears the cut (~60%).
+const MODS = [
+  { sec: 'Reading & Writing', n: 27, ms: 32 * 60000, cut: 16 },
+  { sec: 'Reading & Writing', n: 27, ms: 32 * 60000 },
+  { sec: 'Math', n: 22, ms: 35 * 60000, cut: 13 },
+  { sec: 'Math', n: 22, ms: 35 * 60000 }];
+const BREAK_MS = 10 * 60000;
+const routeOf = (modIdx, raw) => raw >= MODS[modIdx].cut ? 'm2hard' : 'm2easy';
+// Raw -> scaled, piecewise linear through anchors that approximate the published
+// Bluebook conversion tables. An estimate, and the UI says so.
+const CURVE = {
+  'Reading & Writing': {
+    m2hard: [[0,330],[10,400],[15,440],[20,480],[25,520],[30,560],[35,600],[40,640],[45,690],[50,750],[54,800]],
+    m2easy: [[0,300],[5,350],[15,420],[25,480],[35,540],[45,590],[54,640]] },
+  'Math': {
+    m2hard: [[0,350],[10,440],[15,490],[20,540],[25,590],[30,640],[35,690],[40,750],[44,800]],
+    m2easy: [[0,300],[5,360],[15,430],[25,500],[35,570],[44,630]] } };
+function scaled(sec, route, raw) {
+  const a = CURVE[sec][route];
+  if (raw <= a[0][0]) return a[0][1];
+  for (let i = 1; i < a.length; i++) if (raw <= a[i][0]) {
+    const [x0, y0] = a[i - 1], [x1, y1] = a[i];
+    return Math.round((y0 + (y1 - y0) * (raw - x0) / (x1 - x0)) / 10) * 10;
+  }
+  return a[a.length - 1][1];
+}
+const scoreRange = (s) => [Math.max(200, s - 30), Math.min(800, s + 30)];
+// --- end exam
+
 function start(items, opts) {
   if (!items.length) return;
   const o = opts || {};
