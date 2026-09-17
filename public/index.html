@@ -1815,6 +1815,27 @@ function drawHomeStats() {
 const SECTIONS = ['Math', 'Reading & Writing'];
 const DIFFS = ['Easy', 'Medium', 'Hard'];
 
+// Official College Board order for domains and skills. Alphabetical put Advanced
+// Math before Algebra and Boundaries before Central Ideas.
+const DOM_ORDER = ['Information and Ideas', 'Craft and Structure', 'Expression of Ideas', 'Standard English Conventions',
+  'Algebra', 'Advanced Math', 'Problem-Solving and Data Analysis', 'Geometry and Trigonometry'];
+const SKILL_ORDER = [
+  'Central Ideas and Details', 'Inferences', 'Command of Evidence',
+  'Words in Context', 'Text Structure and Purpose', 'Cross-Text Connections',
+  'Rhetorical Synthesis', 'Transitions',
+  'Boundaries', 'Form, Structure, and Sense',
+  'Linear equations in one variable', 'Linear functions', 'Linear equations in two variables',
+  'Systems of two linear equations in two variables', 'Linear inequalities in one or two variables',
+  'Equivalent expressions', 'Nonlinear equations in one variable', 'Nonlinear functions',
+  'Ratios, rates, proportional relationships, and units', 'Percentages',
+  'One-variable data: Distributions and measures of center and spread',
+  'Two-variable data: Models and scatterplots', 'Probability and conditional probability',
+  'Inference from sample statistics and margin of error',
+  'Evaluating statistical claims: Observational studies and experiments',
+  'Area and volume', 'Lines, angles, and triangles', 'Right triangles and trigonometry', 'Circles'];
+const cbIdx = (k) => { const i = DOM_ORDER.indexOf(k), j = SKILL_ORDER.indexOf(k); return i >= 0 ? i : j >= 0 ? 100 + j : 1e9; };
+const cbSort = (list) => list.slice().sort((a, b) => cbIdx(a) - cbIdx(b) || a.localeCompare(b));
+
 function drawFilters() {
   dd($('dd-sec'), { label: 'Section', allLabel: 'Both sections',
     opts: SECTIONS.map(v => ({ v, label: v })),
@@ -1854,7 +1875,7 @@ function drawTopics() {
   const list = base(), t = tally(list);
   const groups = {};
   list.forEach(q => (groups[q.domain || 'Other'] = groups[q.domain || 'Other'] || new Set()).add(q.skill || 'Other'));
-  const doms = Object.keys(groups).sort();
+  const doms = cbSort(Object.keys(groups));
   const all = [...new Set(doms.flatMap(d => [...groups[d]]))];
   const sel = F.skills ? new Set(F.skills) : new Set(all);
 
@@ -1868,7 +1889,7 @@ function drawTopics() {
   };
 
   $('topic-list').innerHTML = doms.map(d => {
-    const sks = [...groups[d]].sort();
+    const sks = cbSort([...groups[d]]);
     const v = sks.reduce((o,sk) => { const x = t.skill[sk]||{a:0,c:0,n:0}; return {a:o.a+x.a,c:o.c+x.c,n:o.n+x.n}; }, {a:0,c:0,n:0});
     return `<div class="dom ${SHUT.has(d)?'shut':''}" data-d="${esc(d)}">
       <button class="dom-h"><span class="tick ${sks.every(sk=>sel.has(sk))?'on':''}" data-dom="${esc(d)}">${TICK}</span>${esc(d)}
@@ -2045,7 +2066,7 @@ function streak() {
 // an empty bar for a skill you have never touched says nothing about accuracy.
 const bars = (map) => Object.entries(map)
   .filter(([, v]) => v.a)
-  .sort((a, b) => b[1].a - a[1].a || a[0].localeCompare(b[0]))
+  .sort((a, b) => cbIdx(a[0]) - cbIdx(b[0]) || a[0].localeCompare(b[0]))
   .map(([k, v]) => `<div class="prog-item"><b>${esc(k)}</b>
     <span class="bar"><i style="width:${pctOf(v) || 0}%"></i></span>
     <span class="tl-a mono">${accHTML(pctOf(v))} &middot; ${v.c}/${v.a}</span></div>`)
@@ -2228,8 +2249,8 @@ function drawMistakes() {
     opts: [{ v: 'official', label: 'Official' }, { v: 'ai', label: 'AI' }],
     get: () => MK.bank, set: (x) => { MK.bank = x; drawMistakes(); } });
   dd($('md-topic'), { label: 'Topic', allLabel: 'All topics',
-    opts: Object.keys(groups).sort().flatMap(d =>
-      [{ v: d, label: d, head: true }].concat([...groups[d]].sort().map(sk => ({ v: sk, label: sk, group: d })))),
+    opts: cbSort(Object.keys(groups)).flatMap(d =>
+      [{ v: d, label: d, head: true }].concat(cbSort([...groups[d]]).map(sk => ({ v: sk, label: sk, group: d })))),
     get: () => MK.skills, set: (x) => { MK.skills = x; drawMistakes(); } });
 
   // A mistake you have since got right becomes Orange and moves to Corrected, so
@@ -2342,8 +2363,8 @@ function drawBrowse() {
   {
     const groups = {};
     browseBase().forEach(q => (groups[q.domain || 'Other'] = groups[q.domain || 'Other'] || new Set()).add(q.skill || 'Other'));
-    const opts = Object.keys(groups).sort().flatMap(d =>
-      [{ v: d, label: d, head: true }].concat([...groups[d]].sort().map(sk => ({ v: sk, label: sk, group: d }))));
+    const opts = cbSort(Object.keys(groups)).flatMap(d =>
+      [{ v: d, label: d, head: true }].concat(cbSort([...groups[d]]).map(sk => ({ v: sk, label: sk, group: d }))));
     dd($('bd-topic'), { label: 'Topic', allLabel: 'All topics',
       opts, get: () => FB.skills, set: (x) => { FB.skills = x; saveFB(); } });
   }
