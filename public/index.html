@@ -37,6 +37,7 @@
   --blue-bg: #eff6ff;
   --green: #16a34a;
   --green-bg: #f0fdf4;
+  --gold: #b8860b;
   --red: #dc2626;
   --red-bg: #fef2f2;
   --orange: #ea580c;
@@ -58,6 +59,7 @@
   --blue-bg: #1e3a5f;
   --green: #22c55e;
   --green-bg: #14291c;
+  --gold: #f2b632;
   --red: #f87171;
   --red-bg: #3a1a1a;
   --orange: #fb923c;
@@ -72,6 +74,36 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
 .btn-p { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
 .btn-p:hover:not(:disabled) { background: var(--blue-dark); border-color: var(--blue-dark); }
 .hide { display: none !important; }
+.exam-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; padding: 16px 20px; }
+.exam-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: var(--bg2); display: flex; flex-direction: column; gap: 8px; }
+.exam-card h4 { margin: 0; font-size: 16px; }
+.exam-card .meta { font-size: 12.5px; color: var(--dim); }
+.exam-card .frow { margin-top: auto; padding-top: 6px; }
+.exam-lbl { font-size: 13px; font-weight: 600; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42vw; }
+.hist-row { display: grid; grid-template-columns: 110px 1fr auto auto auto; gap: 14px; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.hist-row:last-child { border-bottom: 0; }
+.hist-row .hn { font-weight: 600; font-size: 14.5px; }
+.hist-row .hd { color: var(--dim); font-size: 12.5px; }
+.hist-row .hs { font-weight: 700; font-size: 16px; min-width: 52px; text-align: right; }
+.res-wrap.xr { max-width: 900px; }
+.xr-mod { display: grid; grid-template-columns: 1fr 90px 90px 90px; gap: 14px; padding: 10px 20px; border-bottom: 1px solid var(--border); font-size: 13.5px; align-items: center; }
+.xr-mod:last-child { border-bottom: 0; }
+.xr-mod.h { color: var(--dim); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.xr-dom { padding: 10px 20px 4px; font-weight: 700; font-size: 14.5px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; }
+.xr-dom:first-child { border-top: 0; }
+.xr-ans { font-size: 12.5px; color: var(--dim); white-space: nowrap; }
+.xr-ans b { color: var(--text); }
+.map-cell.answered { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+.brk { text-align: center; padding: 8px 4px; }
+.brk .t { font-size: 44px; font-weight: 700; letter-spacing: -.02em; margin: 10px 0 4px; }
+@media (max-width: 760px) {
+  .hist-row { grid-template-columns: 1fr auto; }
+  .hist-row .hs { text-align: left; }
+  .xr-mod { grid-template-columns: 1fr 60px 60px 70px; padding: 10px 14px; gap: 8px; }
+  .exam-lbl { display: none; }
+  .exam #btn-dash { font-size: 12px; }
+  .exam #btn-dash::after { content: none; }
+}
 .mono { font-variant-numeric: tabular-nums; }
 img { max-width: 100%; height: auto; }
 
@@ -352,7 +384,7 @@ select:hover { border-color: var(--border2); }
 .qnum { min-width: 34px; height: 34px; padding: 0 8px; border-radius: 9px; background: var(--text); color: var(--bg); font-weight: 700; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; }
 .flag-btn { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 500; color: var(--dim); border: 0; background: transparent; padding: 6px 8px; }
 .flag-btn .fi { font-size: 15px; }
-.flag-btn.on { color: var(--orange); font-weight: 600; }
+.flag-btn.on { color: var(--gold); font-weight: 600; }
 .passage { font-size: 16.5px; line-height: 1.75; }
 .passage p { margin: 0 0 16px; }
 .stem { font-size: 16px; line-height: 1.6; margin-bottom: 22px; }
@@ -489,10 +521,12 @@ mark.hl-b { background: #bfe3ff; }
 .map-cell.wrong { background: var(--red-bg); border-color: var(--red); color: var(--red); }
 .map-cell.corrected { background: var(--orange-bg); border-color: var(--orange); color: var(--orange); }
 .map-cell.current { outline: 2.5px solid var(--text); outline-offset: 1px; }
-.map-cell.flagged::after { content: "⚑"; position: absolute; top: -7px; right: -4px; font-size: 11px; color: var(--orange); }
+.map-cell.flagged::after { content: "⚑"; position: absolute; top: -7px; right: -4px; font-size: 11px; color: var(--gold); }
 .map-legend { display: flex; gap: 16px; margin-top: 14px; font-size: 12.5px; color: var(--dim); }
 .map-legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-right: 6px; vertical-align: -1px; border: 1.5px solid var(--border2); }
 .map-legend .l-corr::before { background: var(--green-bg); border-color: var(--green); }
+.map-legend .l-ans::before { background: var(--blue-bg); border-color: var(--blue); }
+.map-legend .l-flag::before { background: var(--panel); border-color: var(--gold); }
 .map-legend .l-wrong::before { background: var(--red-bg); border-color: var(--red); }
 .map-legend .l-corr-w::before { background: var(--orange-bg); border-color: var(--orange); }
 .map-legend .l-cur::before { outline: 2px solid var(--text); outline-offset: 1px; }
@@ -511,6 +545,12 @@ mark.hl-b { background: #bfe3ff; }
 .expl-panel .ep-h { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 700; }
 .expl-panel .ep-b { flex: 1; overflow-y: auto; padding: 14px; }
 .work.expl-shift .panes { margin-right: 540px; }
+.note-panel { position: fixed; right: 18px; top: 66px; bottom: 74px; width: 380px; min-width: 300px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,.22); z-index: 50; display: flex; flex-direction: column; overflow: hidden; }
+.note-panel .ep-h { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 700; }
+.note-panel .ep-b { flex: 1; display: flex; flex-direction: column; padding: 14px; }
+.note-panel .note-ta { flex: 1; min-height: 160px; resize: none; }
+.np-msg { color: var(--green); font-size: 12.5px; margin-top: 8px; min-height: 16px; }
+.work.note-shift .panes { margin-right: 400px; }
 .note-ta { width: 100%; box-sizing: border-box; min-height: 104px; resize: vertical; font: inherit; font-size: 14px; line-height: 1.5; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2); color: var(--text); }
 .note-chip { margin-top: 16px; padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--blue); border-radius: 8px; background: var(--bg2); font-size: 13.5px; white-space: pre-wrap; cursor: pointer; }
 .note-chip b { display: block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--dim2); margin-bottom: 4px; }
@@ -653,6 +693,8 @@ mark.hl-b { background: #bfe3ff; }
   .work.desmos-shift .panes { margin-left: 0; }
   /* no side to dock to: the same bottom sheet the calculator becomes */
   .work.expl-shift .panes { margin-right: 0; }
+  .work.note-shift .panes { margin-right: 0; }
+  .note-panel { left: 8px; right: 8px; top: auto; bottom: 68px; width: auto; min-width: 0; height: min(50vh, 380px); }
   .expl-panel { left: 8px; right: 8px; top: auto; bottom: 68px; width: auto; min-width: 0; height: min(68vh, 520px); }
   .panes { display: block; }
   .pane { overflow: visible; padding: 18px 16px 24px; }
@@ -710,6 +752,8 @@ mark.hl-b { background: #bfe3ff; }
    was clipped off the side. 375px fits the word with 27px to spare, so only the
    smallest phones lose it; "Show explanation" is spelled out in the More menu. */
 @media (max-width: 360px) {
+  .nav-i > span, .nav-gear::after { display: none; }
+  .nav-i[data-tab="practice"] > span::after { content: none; }
   #btn-expl { min-width: 0; padding: 9px 11px; font-size: 0; }
   #btn-note { min-width: 0; padding: 9px 11px; font-size: 15px; }
   #btn-expl::after { content: "\24D8"; font-size: 17px; }
@@ -728,6 +772,8 @@ mark.hl-b { background: #bfe3ff; }
     <button class="nav-i" data-tab="mistakes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l8 15H4z"/><path d="M12 9v4M12 16.2v.1"/></svg><span>Mistakes</span></button>
     <button class="nav-i" data-tab="practice"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v6H4z"/><path d="M4 15h9v4H4z"/></svg><span>Question Bank</span></button>
     <button class="nav-i" data-tab="browse"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Browse</span></button>
+    <button class="nav-i" data-tab="exams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg><span>Practice Exams</span></button>
+    <button class="nav-i" data-tab="history"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>History</span></button>
 
     <div class="nav-sp"></div>
     <div class="nav-user">
@@ -838,6 +884,20 @@ mark.hl-b { background: #bfe3ff; }
         <div class="panel"><div id="mk-list"></div></div>
       </div>
 
+      <div id="tab-exams" class="hide">
+        <div class="panel">
+          <div class="panel-h"><h3>Practice Exams</h3><span class="sub" style="color:var(--dim);font-size:13px">Full length &middot; adaptive module 2 &middot; 2 h 14 min at normal time</span></div>
+          <div class="exam-grid" id="exam-grid"></div>
+        </div>
+      </div>
+
+      <div id="tab-history" class="hide">
+        <div class="panel">
+          <div class="panel-h"><h3>History</h3><span class="sub" style="color:var(--dim);font-size:13px">Sessions are deleted 30 days after their last change</span></div>
+          <div id="hist-body"></div>
+        </div>
+      </div>
+
       <div id="tab-settings" class="hide">
         <div class="panel"><div class="panel-h"><h3>Settings</h3></div><div id="set-body"></div></div>
       </div>
@@ -874,6 +934,7 @@ mark.hl-b { background: #bfe3ff; }
     <div class="top-l">
       <button class="tbtn" id="btn-dash">&#8592; Dashboard</button>
       <button class="tbtn" id="btn-directions">Directions</button>
+      <span class="exam-lbl" id="exam-lbl"></span>
     </div>
     <div class="timer-box">
       <button class="tbtn" id="btn-hide-timer">Hide</button>
@@ -939,6 +1000,24 @@ mark.hl-b { background: #bfe3ff; }
 
 </div>
 
+<!-- ================= EXAM RESULTS ================= -->
+<div id="view-exam-res" class="hide">
+  <div class="res-wrap xr">
+    <div class="res-hero">
+      <h1 id="xr-title"></h1>
+      <div style="color:var(--dim);" id="xr-sub"></div>
+    </div>
+    <div class="cards" id="xr-cards"></div>
+    <div class="frow" id="xr-actions" style="margin:0 0 22px;"></div>
+    <div class="panel"><div class="panel-h"><h3>Modules</h3><span class="sub" id="xr-route" style="color:var(--dim);font-size:13px"></span></div><div id="xr-mods"></div></div>
+    <div id="xr-break"></div>
+    <div class="panel">
+      <div class="panel-h"><h3>Question review</h3><div class="seg" id="xr-filter"><button data-f="all" class="on">All</button><button data-f="missed">Missed</button><button data-f="marked">Marked</button></div></div>
+      <div class="res-list" id="xr-list" style="padding:14px 16px;margin:0;"></div>
+    </div>
+  </div>
+</div>
+
 <div id="modal-root"></div>
 <div id="overlay-root"></div>
 
@@ -957,6 +1036,7 @@ const LS = {
 };
 
 let QS = [], PROG = {}, LOG = [], NOTES = {};
+let SESS = {}, QBY = new Map(), EXAMS = [];
 let F;
 let S = null;
 let TAB = 'dash';
@@ -1098,7 +1178,7 @@ function tidyExpl(html) {
 // nothing local is merged in, so a stale local copy can never overwrite what the
 // server holds, and a failed fetch can never be mistaken for an empty account.
 async function loadProgress() {
-  PROG = {}; LOG = [];
+  PROG = {}; LOG = []; SESS = {};
   if (!authToken) { refresh(); return; }
   // Fetched independently: one endpoint failing must not discard what the other
   // returned. Sharing a try block meant a transient 500 on the log blanked the
@@ -1109,7 +1189,7 @@ async function loadProgress() {
     return r.json();
   };
   let lost = false;
-  NOTES = {};
+  NOTES = {}; SESS = {};
   try { (await get('/api/progress')).forEach(p => PROG[p.question_id] = p); }
   catch (e) { lost = true; }
   try { (await get('/api/notes')).forEach(n => NOTES[n.question_id] = n.body); }
@@ -1117,6 +1197,8 @@ async function loadProgress() {
   // One row per answer. `progress` only ever holds a question's latest state, so
   // it cannot say how many questions were done on a given day; this log can.
   try { LOG = await get('/api/attempts'); }
+  catch (e) { lost = true; }
+  try { (await get('/api/sessions')).forEach(r => { try { SESS[r.id] = { ...r, state: JSON.parse(r.state) }; } catch (e) {} }); }
   catch (e) { lost = true; }
   backfillProgress();
   backfillLog();
@@ -1205,7 +1287,7 @@ function refresh() {
 // so the first failure is usually followed by hundreds.
 // Rows are queued and re-sent instead, and the banner stays up while any wait.
 // --- sync
-const PENDING = { '/api/progress': [], '/api/attempts': [], '/api/notes': [] };
+const PENDING = { '/api/progress': [], '/api/attempts': [], '/api/notes': [], '/api/sessions': [] };
 const PUSH_MAX = 200;          // the Worker caps a request at 500 rows
 let retryTimer = null;
 
@@ -1227,7 +1309,8 @@ function push(url, rows) {
   // same question replaces the one waiting rather than queueing behind it. Attempts
   // are history and every one of them is kept.
   rows.forEach(r => {
-    const i = url === '/api/attempts' ? -1 : q.findIndex(x => x.question_id === r.question_id);
+    const key = r.question_id || r.id;
+    const i = url === '/api/attempts' ? -1 : q.findIndex(x => (x.question_id || x.id) === key);
     if (i >= 0) q[i] = r; else q.push(r);
   });
   return flush(url);
@@ -1269,6 +1352,25 @@ async function flush(url) {
 }
 
 const unsaved = () => Object.values(PENDING).reduce((n, q) => n + q.length, 0);
+
+// An exam or review session, one blob, debounced: an answer a second is one
+// write, not thirty. `get` is read at send time so the timings are current.
+let sessT = null, sessGet = null;
+function saveSession(get, now) {
+  sessGet = get;
+  clearTimeout(sessT);
+  const send = () => {
+    sessT = null;
+    const st = sessGet(); if (!st) return;
+    SESS[st.id] = { id: st.id, kind: st.kind, state: st, updated_at: Date.now() };
+    push('/api/sessions', [{ id: st.id, kind: st.kind, state: st }]);
+  };
+  if (now) send(); else sessT = setTimeout(send, 2000);
+}
+async function deleteSession(id) {
+  delete SESS[id];
+  if (authToken) fetch('/api/sessions/' + encodeURIComponent(id), { method: 'DELETE', headers: await sbHeaders() }).catch(() => {});
+}
 addEventListener('visibilitychange', () => { if (!document.hidden) Object.keys(PENDING).forEach(u => flush(u)); });
 
 // Failure only. Nothing is shown while saves succeed; a failed flush or a failed
@@ -1335,6 +1437,8 @@ async function load() {
         if (alts.length) q.answer = alts.join(' or ');
       }
     });
+    QBY = new Map(QS.map(q => [q.id, q]));
+    try { EXAMS = (await (await fetch('/exams.json')).json()).tests; } catch (e) { EXAMS = []; }
     await loadProgress();
     await loadSettings();
     const nAI = QS.filter(q => q.ai).length;
@@ -1437,7 +1541,7 @@ window.__dd = dd;   // reachable for the DOM assertions; harmless in production
 window.__qa = () => ({ QS, PROG, LOG, S, renderStem, isRight, focusSet, weakness, levelOf, pacing, trapCounts, guessing });
 
 const NAV = document.querySelectorAll('.nav-i');
-const TABS = ['practice','dash','browse','mistakes','settings'];
+const TABS = ['practice','dash','browse','mistakes','exams','history','settings'];
 
 // One entry point, so the boot-time tab and a rail click cannot drift apart.
 function setTab(t) {
@@ -1448,6 +1552,8 @@ function setTab(t) {
   if (t === 'browse') drawBrowse();
   if (t === 'mistakes') drawMistakes();
   if (t === 'settings') drawSettings();
+  if (t === 'exams') drawExams();
+  if (t === 'history') drawHistory();
 }
 NAV.forEach(b => b.onclick = () => setTab(b.dataset.tab));
 
@@ -2476,10 +2582,30 @@ function start(items, opts) {
     lvl: o.focus ? Math.round(items.reduce((n, q) => n + levelOf(q), 0) / items.length) : 3,
     streak: 0,
     setEnds: o.timing === 'set'
-      ? Date.now() + items.reduce((n, q) => n + targetOf(q), 0) : null
+      ? Date.now() + items.reduce((n, q) => n + targetOf(q), 0) : null,
+    // A practice-missed set remembers itself as a review session in History.
+    session: o.session || null
   };
+  // An exam module: the answers and flags live on the exam state so a save
+  // & quit carries them, and the clock is the module's, not the question's.
+  if (o.exam) {
+    const EX = o.exam, i = EX.modIdx, m = EX.mods[i];
+    S.exam = EX; S.ans = m.ans; S.flags = m.flags;
+    S.timing = EX.mode === 'normal' ? 'set' : 'off';
+    S.setEnds = S.timing === 'set' ? Date.now() + MODS[i].ms - m.elapsed : null;
+    S.modStart = Date.now() - m.elapsed;
+  }
+  // A finished exam, read-only: every question counts as checked so the choices
+  // paint right and wrong, and Next past the end returns to the results.
+  if (o.review) {
+    S.review = o.review;
+    S.ans = o.ans; S.flags = o.flags;
+    items.forEach(q => { S.checked[q.id] = true; S.tried[q.id] = true; });
+  }
+  $('view-test').classList.toggle('exam', !!o.exam);
   $('view-home').classList.add('hide');
   $('view-results').classList.add('hide');
+  $('view-exam-res').classList.add('hide');
   $('view-test').classList.remove('hide');
   loadQuestion();
   startTimer();
@@ -2507,7 +2633,10 @@ function renderQTimer() {
     if (over && S.auto && !S.checked[q.id]) { $('btn-next').click(); return; }
   } else if (S.timing === 'set' && S.setEnds) {
     const left = S.setEnds - Date.now();
+    if (S.exam && left <= 0) { endModule(); return; }
     over = left < 0; s = Math.round(Math.abs(left) / 1000);
+  } else if (S.exam) {
+    s = Math.round((Date.now() - S.modStart) / 1000);
   } else {
     s = Math.round((Date.now() - S.qStart) / 1000);
   }
@@ -2650,18 +2779,30 @@ function choiceHTML(q, c, picked, staticMode) {
 
 function loadQuestion() {
   closeExpl();
+  const np = $('note-panel');
+  if (np && np.dataset.qid) { clearTimeout(noteT); saveNote(np.dataset.qid, $('np-ta').value); }
   const q = curQ();
   const isMath = q.section === 'Math';
   $('btn-calc').classList.toggle('hide', !isMath);
   if (!isMath) closeDesmos();
   $('pos-lbl').textContent = `${S.i+1} of ${S.items.length}`;
   $('btn-back').disabled = S.i === 0;
-  $('btn-next').textContent = S.i === S.items.length - 1 ? 'Finish' : 'Next';
+  const ex = S.exam, rv = S.review, last = S.i === S.items.length - 1;
+  $('btn-next').textContent = last ? (ex ? 'Finish module' : rv ? 'Results' : 'Finish') : 'Next';
+  // An exam hides everything that would grade or reveal; a review hides the clock.
+  ['btn-expl', 'btn-export', 'btn-hide-timer'].forEach(id => $(id).classList.toggle('hide', !!ex));
+  $('btn-pause').classList.toggle('hide', !!ex || !!rv);
+  $('q-clock').classList.toggle('hide', !!rv);
+  $('exam-lbl').textContent = ex ? `${ex.name} \u00b7 ${MODS[ex.modIdx].sec} \u00b7 Module ${ex.modIdx % 2 + 1}`
+    : rv ? `${rv.name} \u00b7 Review` : '';
+  $('btn-dash').textContent = ex ? 'Save & quit' : rv ? '\u2190 Results' : '\u2190 Dashboard';
   S.qStart = Date.now();
   renderQTimer();
 
   renderPanes(q);
+  fillNotePanel(q);
   $('modal-root').innerHTML = '';
+  if (S.review) openExplanation();
 }
 
 function renderPanes(q) {
@@ -2705,30 +2846,37 @@ function renderPanes(q) {
   $('btn-flag').onclick = () => {
     S.flags[q.id] = !S.flags[q.id];
     $('btn-flag').classList.toggle('on', !!S.flags[q.id]);
+    touchExam();
   };
 }
 
 function renderAnswerArea(q) {
   const target = $('answer-area');
   // Before grading this is the pre-Check selection; after it, the answer given.
-  const picked = S.checked[q.id] ? S.ans[q.id] : S.sel[q.id];
+  const picked = S.exam || S.checked[q.id] ? S.ans[q.id] : S.sel[q.id];
   const checked = S.checked[q.id];
   let html = '';
   if (q.spr) {
     html += `<div class="gridin-wrap">
       <input class="gridin" id="gi" type="text" placeholder="Enter your answer" value="${esc(picked&&picked!=='TIMEOUT'?picked:'')}" ${checked?'disabled':''}>
-      ${!checked ? '<button class="btn-p" id="gi-submit" style="margin-top:12px;">Submit</button>' : ''}
+      ${!checked && !S.exam ? '<button class="btn-p" id="gi-submit" style="margin-top:12px;">Submit</button>' : ''}
       <div id="spr-verdict"></div>
     </div>`;
   } else {
     html += `<div class="choices" id="choices">${q.choices.map(c => choiceHTML(q, c, picked, false)).join('')}</div>`;
-    if (!checked) html += `<div style="margin-top:14px; color:var(--dim2); font-size:13px;">Choose one answer</div>`;
+    if (!checked) html += `<div style="margin-top:14px; color:var(--dim2); font-size:13px;">${S.exam ? 'Choose one answer \u00b7 saved as you go' : 'Choose one answer'}</div>`;
     else if (isRight(q, picked) === null) html += `<div class="verdict" style="color:var(--dim);">Not auto-scored \u2014 this question is missing the choice recorded as correct. See the explanation.</div>`;
   }
   target.innerHTML = html;
   mathify(target);
   renderNoteChip(q);
 
+  if (S.exam && q.spr) {
+    // No Submit and no verdict in an exam: the entry is the answer.
+    const gi = $('gi');
+    gi.oninput = () => { S.ans[q.id] = gi.value.trim(); touchExam(); };
+    return;
+  }
   if (q.spr) {
     const gi = $('gi');
     if (!checked) {
@@ -2759,6 +2907,15 @@ function renderAnswerArea(q) {
         koBtn.classList.toggle('on');
         el.classList.toggle('ko');
       };
+      if (S.exam) {
+        el.onclick = (e) => {
+          if (e.target.closest('.ko-btn, mark')) return;
+          S.ans[q.id] = letter;
+          target.querySelectorAll('.choice').forEach(x => x.classList.toggle('sel', x === el));
+          touchExam();
+        };
+        return;
+      }
       if (S.checked[q.id]) return;
       // Selecting must not re-render: a re-render throws away any highlight the
       // student has made inside a choice. Move the classes and the button by hand.
@@ -2821,6 +2978,26 @@ function isRight(q, val) {
 }
 
 // --- grade
+// Shared by the practice grader and the exam scorer: the record moves once per
+// question, the log takes every answer.
+function recordProgress(q, ok, now, ms) {
+  const p = PROG[q.id] || { question_id: q.id, attempts:0, corrects:0 };
+  p.attempts++;
+  p.corrects += (ok === true ? 1 : 0);
+  const wasWrong = p.marker === 'Red';
+  p.marker = ok === true ? (wasWrong ? 'Orange' : 'Green') : 'Red';
+  p.last_reviewed = now;
+  p.time_taken_ms = ms;
+  PROG[q.id] = p;
+  saveProgress([p]);
+}
+function recordAttempt(q, ok, now, ms, picked, changes) {
+  const ev = { question_id: q.id, ts: now, correct: ok === true ? 1 : 0, time_taken_ms: ms,
+               picked: String(picked == null ? '' : picked).slice(0, 32), changes: changes | 0 };
+  LOG.push(ev);
+  saveLog([ev]);
+}
+
 function grade(q) {
   const ok = isRight(q, S.ans[q.id]);
   const first = !S.tried[q.id];
@@ -2844,24 +3021,10 @@ function grade(q) {
 
   // Only the first Check on a question moves the record. Otherwise a student
   // walks any question to Green by clicking every option in turn.
-  if (first) {
-    const p = PROG[q.id] || { question_id: q.id, attempts:0, corrects:0 };
-    p.attempts++;
-    p.corrects += (ok === true ? 1 : 0);
-    const wasWrong = p.marker === 'Red';
-    p.marker = ok === true ? (wasWrong ? 'Orange' : 'Green') : 'Red';
-    p.last_reviewed = now;
-    p.time_taken_ms = ms;
-    PROG[q.id] = p;
-    saveProgress([p]);
-  }
-
+  if (first) recordProgress(q, ok, now, ms);
   // The attempt log is the history, and a retry is work that was really done.
-  const ev = { question_id: q.id, ts: now, correct: ok === true ? 1 : 0, time_taken_ms: ms,
-               picked: String(S.ans[q.id] == null ? '' : S.ans[q.id]).slice(0, 32),
-               changes: S.changes[q.id] | 0 };
-  LOG.push(ev);
-  saveLog([ev]);
+  recordAttempt(q, ok, now, ms, S.ans[q.id], S.changes[q.id]);
+  if (S.session) saveSession(reviewState);
 
   // The ladder. Two straight correct answers raise the target level, any miss
   // lowers it, and what is left of the set is reordered so the next question is the
@@ -2980,6 +3143,7 @@ function closeExpl() {
 function openExplanation(focusNote) {
   if (!S) return;
   closeExpl();
+  closeNotePanel();
   if (desmosOpen) closeDesmos();
   const q = curQ();
   const answered = !!S.checked[q.id];
@@ -3026,8 +3190,48 @@ function openExplanation(focusNote) {
   if (focusNote) $('note-ta').focus();
 }
 
-$('btn-note').onclick = () => openExplanation(true);
 $('btn-expl').onclick = () => openExplanation();
+
+// ---------------- notepad ----------------
+// A note while solving, docked right. It follows the question - Next saves what
+// was typed and loads the next question's note - and shares the right slot with
+// the explanation panel and the calculator: opening one closes the others.
+let noteT = null;
+function closeNotePanel() {
+  const np = $('note-panel');
+  if (np) { clearTimeout(noteT); saveNote(np.dataset.qid, $('np-ta').value); np.remove(); }
+  $('work').classList.remove('note-shift');
+}
+function fillNotePanel(q) {
+  const np = $('note-panel'); if (!np) return;
+  np.dataset.qid = q.id;
+  $('np-ta').value = NOTES[q.id] || '';
+  $('np-msg').textContent = NOTES[q.id] ? 'Saved \u2713' : '';
+}
+function openNotePanel() {
+  if (!S) return;
+  if ($('note-panel')) return $('np-ta').focus();
+  closeExpl();
+  if (desmosOpen) closeDesmos();
+  const np = document.createElement('div');
+  np.id = 'note-panel'; np.className = 'note-panel';
+  np.innerHTML = `<div class="ep-h"><span>\uD83D\uDCDD Notes</span><button class="icon-btn" id="np-close">\u2715</button></div>
+    <div class="ep-b"><textarea class="note-ta" id="np-ta" placeholder="Notes while you solve. Saved to this question and shown with it later."></textarea>
+    <div class="np-msg" id="np-msg"></div></div>`;
+  document.body.appendChild(np);
+  $('work').classList.add('note-shift');
+  fillNotePanel(curQ());
+  const save = () => {
+    saveNote(np.dataset.qid, $('np-ta').value);
+    if (S && curQ().id === np.dataset.qid) renderNoteChip(curQ());
+    $('np-msg').textContent = 'Saved \u2713';
+  };
+  $('np-ta').oninput = () => { clearTimeout(noteT); $('np-msg').textContent = ''; noteT = setTimeout(save, 1000); };
+  $('np-ta').onblur = () => { clearTimeout(noteT); save(); };
+  $('np-close').onclick = closeNotePanel;
+  $('np-ta').focus();
+}
+$('btn-note').onclick = openNotePanel;
 
 // The note, in the question, without opening anything. Click to edit it.
 function renderNoteChip(q) {
@@ -3056,6 +3260,8 @@ $('btn-next').onclick = () => {
     return;
   }
   if (S.i < S.items.length-1) { S.i++; loadQuestion(); }
+  else if (S.exam) confirmModal('Finish this module? You cannot come back to it.', endModule);
+  else if (S.review) { const EX = S.review; stopTimer(); S = null; closeExpl(); closeDesmos(); drawExamResults(EX); }
   else finish();
 };
 $('btn-back').onclick = () => { if (S && S.i > 0) { S.i--; loadQuestion(); } };
@@ -3069,7 +3275,7 @@ document.addEventListener('keydown', (e) => {
     const q = curQ();
     if (q.choices && q.choices.length && !S.checked[q.id]) {
       const c = q.choices[parseInt(e.key)-1];
-      if (c) { S.sel[q.id] = c.letter; renderAnswerArea(q); }
+      if (c) { if (S.exam) { S.ans[q.id] = c.letter; touchExam(); } else S.sel[q.id] = c.letter; renderAnswerArea(q); }
     }
   }
 });
@@ -3080,7 +3286,8 @@ $('btn-map').onclick = () => {
   const cells = S.items.map((q, idx) => {
     const cls = ['map-cell'];
     const prog = PROG[q.id];
-    const checked = S.checked[q.id];
+    const checked = S.exam ? false : S.checked[q.id];
+    if (S.exam && S.ans[q.id]) cls.push('answered');
     const verdict = checked ? isRight(q, S.ans[q.id]) : null;
     const ok = verdict === true;
     if (checked && verdict !== null) {
@@ -3098,7 +3305,7 @@ $('btn-map').onclick = () => {
   root.innerHTML = `<div class="modal-bg"><div class="modal">
     <h3>Questions</h3>
     <div class="map-grid">${cells}</div>
-    <div class="map-legend"><span class="l-corr">Correct</span><span class="l-wrong">Wrong</span><span class="l-corr-w">Corrected (was wrong)</span><span class="l-cur">Current</span></div>
+    <div class="map-legend">${S.exam ? '<span class="l-ans">Answered</span><span class="l-flag">Marked for review</span>' : '<span class="l-corr">Correct</span><span class="l-wrong">Wrong</span><span class="l-corr-w">Corrected (was wrong)</span>'}<span class="l-cur">Current</span></div>
     <div class="frow" style="margin-top:16px; justify-content:flex-end;"><button id="map-close">Close</button></div>
   </div></div>`;
   root.querySelectorAll('.map-cell').forEach(b => b.onclick = () => { S.i = parseInt(b.dataset.idx); root.innerHTML=''; loadQuestion(); });
@@ -3130,18 +3337,23 @@ $('btn-more').onclick = (e) => {
   const r = e.currentTarget.getBoundingClientRect();
   m.style.top = (r.bottom + 6) + 'px';
   m.style.right = Math.max(8, innerWidth - r.right) + 'px';
+  // An exam offers nothing that grades or reveals.
   m.innerHTML = `
-    <button id="mm-clear-ko">Clear eliminations</button>
+    <button id="mm-clear-ko">Clear eliminations</button>` + (S.exam ? '' : `
     <button id="mm-explanation">Show explanation</button>
-    <button id="mm-export">⧉ Copy for AI</button>`;
+    <button id="mm-export">⧉ Copy for AI</button>`);
   $('overlay-root').appendChild(m);
   $('mm-clear-ko').onclick = () => { S.ko[curQ().id] = []; loadQuestion(); closeMenus(); };
-  $('mm-explanation').onclick = () => { openExplanation(); closeMenus(); };
+  if ($('mm-explanation')) $('mm-explanation').onclick = () => { openExplanation(); closeMenus(); };
   // Left open on purpose - exportQuestion writes "Copied" back into the button
   // that was pressed, and the next click anywhere else closes the menu.
-  $('mm-export').onclick = (ev) => exportQuestion(ev.currentTarget);
+  if ($('mm-export')) $('mm-export').onclick = (ev) => exportQuestion(ev.currentTarget);
 };
-$('btn-dash').onclick = () => confirmModal('End this practice session? ' + (authToken ? 'Progress on answered questions is saved.' : 'You are not signed in, so this session’s answers are not kept.'), () => { stopTimer(); S = null; showHome(); });
+$('btn-dash').onclick = () => {
+  if (S && S.exam) return confirmModal('Save and quit? ' + (authToken ? 'The exam is kept in History and resumes where you left it.' : 'You are not signed in, so this exam cannot be resumed later.'), saveQuit);
+  if (S && S.review) { const EX = S.review; stopTimer(); S = null; closeExpl(); closeDesmos(); return drawExamResults(EX); }
+  confirmModal('End this practice session? ' + (authToken ? 'Progress on answered questions is saved.' : 'You are not signed in, so this session’s answers are not kept.'), () => { stopTimer(); S = null; showHome(); });
+};
 function closeMenus(){ document.querySelectorAll('.more-menu').forEach(x=>x.remove()); }
 document.addEventListener('click', (e) => { if (!e.target.closest('.more-menu')) closeMenus(); });
 
@@ -3233,7 +3445,7 @@ function closeDesmos() {
   if (was && S && S.items && S.items.length) renderPanes(curQ());
 }
 $('btn-calc').onclick = () => {
-  if (!desmosOpen) closeExpl();   // they dock on opposite sides; both open leaves 200px of question
+  if (!desmosOpen) { closeExpl(); closeNotePanel(); }   // they dock on opposite sides; both open leaves 200px of question
   desmosOpen = !desmosOpen;
   let dp = $('desmos-panel');
   $('work').classList.toggle('desmos-shift', desmosOpen);
@@ -3283,6 +3495,7 @@ $('btn-calc').onclick = () => {
 function finish() {
   stopTimer();
   S.ended = Date.now();
+  if (S.session) { S.session.finished = Date.now(); saveSession(reviewState, true); }
   let done = 0, right = 0;
   S.items.forEach(q => {
     if (!S.checked[q.id]) return;
@@ -3344,10 +3557,291 @@ function showHome() {
   S = null;
   $('view-test').classList.add('hide');
   $('view-results').classList.add('hide');
+  $('view-exam-res').classList.add('hide');
   $('view-home').classList.remove('hide');
-  closeDesmos();
+  closeDesmos(); closeNotePanel(); closeExpl();
   refresh();
   setTab(TAB);
+}
+
+
+// ---------------- practice exams ----------------
+const touchExam = () => { if (S && S.exam) saveSession(examState); };
+// Elapsed is read off the live clock at save time, so a save & quit and a
+// debounced save both carry the module's real time.
+function examState() {
+  const EX = S && S.exam; if (!EX) return null;
+  const m = EX.mods[EX.modIdx];
+  if (m && !m.done) m.elapsed = S.timing === 'set' ? Math.max(0, MODS[EX.modIdx].ms - (S.setEnds - Date.now())) : Date.now() - S.modStart;
+  return EX;
+}
+const fmtMs = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const fmtDate = (t) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+function drawExams() {
+  const live = Object.values(SESS).filter(r => r.kind === 'exam' && !r.state.finished);
+  $('exam-grid').innerHTML = EXAMS.map(t => {
+    const open = live.find(r => r.state.testId === t.id);
+    const n = t.rw.m1.length * 2 + t.math.m1.length * 2;
+    return `<div class="exam-card">
+      <h4>${esc(t.name)}</h4>
+      <span class="tag ${t.hard ? 't-hard' : ''}">${t.hard ? 'Harder · official + AI banks' : 'Official bank'}</span>
+      <div class="meta">${n} questions · 4 modules · Reading &amp; Writing then Math</div>
+      ${open ? `<div class="meta">In progress · module ${open.state.modIdx + 1} of 4</div>` : ''}
+      <div class="frow">${open
+        ? `<button class="btn-p" data-resume="${esc(open.id)}">Resume</button>`
+        : `<button class="btn-p" data-start="${esc(t.id)}">Start</button>`}</div>
+    </div>`;
+  }).join('') || '<div class="empty">No exams could be loaded.</div>';
+  $('exam-grid').querySelectorAll('[data-start]').forEach(b => b.onclick = () => examStartModal(EXAMS.find(t => t.id === b.dataset.start)));
+  $('exam-grid').querySelectorAll('[data-resume]').forEach(b => b.onclick = () => resumeExam(SESS[b.dataset.resume].state));
+}
+
+function examStartModal(t) {
+  const root = $('modal-root');
+  let mode = 'normal';
+  const draw = () => {
+    root.innerHTML = `<div class="modal-bg"><div class="modal" style="width:min(520px,92vw);">
+      <h2 class="fx-h">${esc(t.name)}</h2>
+      <p class="fx-sub">Reading &amp; Writing 2 × 27 questions (32 min each), a 10-minute break, then Math 2 × 22 questions (35 min each). Module 2 is harder or easier depending on module 1. Answers are not graded until the end.</p>
+      <div class="fx-row"><span class="fx-lab">Timing</span><div class="fx-opts">
+        <button class="fx-o${mode === 'normal' ? ' on' : ''}" data-m="normal">Normal time</button>
+        <button class="fx-o${mode === 'untimed' ? ' on' : ''}" data-m="untimed">No time limit</button></div></div>
+      <p class="fx-n">${authToken ? 'You can save &amp; quit at any point and resume from History.' : 'Not signed in: the exam runs, but it cannot be saved or resumed.'}</p>
+      <div class="frow" style="justify-content:flex-end;margin-top:16px;"><button data-x="1">Cancel</button>
+        <button class="btn-p" data-go="1">Start exam</button></div>
+    </div></div>`;
+    root.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { mode = b.dataset.m; draw(); });
+    root.querySelector('[data-x]').onclick = () => (root.innerHTML = '');
+    root.querySelector('[data-go]').onclick = () => { root.innerHTML = ''; startExam(t, mode); };
+    const bg = root.querySelector('.modal-bg');
+    bg.onclick = (e) => { if (e.target === bg) root.innerHTML = ''; };
+  };
+  draw();
+}
+
+function startExam(t, mode) {
+  const EX = {
+    id: 'ex_' + Date.now().toString(36), kind: 'exam', testId: t.id, name: t.name, mode,
+    modIdx: 0, route: {}, startedAt: Date.now(), finished: null, score: null,
+    mods: [t.rw.m1, null, t.math.m1, null].map(ids => ({ ids, ans: {}, flags: {}, elapsed: 0, done: false }))
+  };
+  saveSession(() => EX, true);
+  runModule(EX);
+}
+
+function resumeExam(EX) {
+  if (EX.finished) return drawExamResults(EX);
+  if (EX.modIdx === 2 && !EX.mods[2].ids) return breakScreen(EX);
+  runModule(EX);
+}
+
+function runModule(EX) {
+  const i = EX.modIdx, m = EX.mods[i], sec = MODS[i].sec;
+  const t = EXAMS.find(x => x.id === EX.testId);
+  if (!t) return;
+  if (!m.ids) m.ids = t[sec === 'Math' ? 'math' : 'rw'][EX.route[sec] || 'm2easy'];
+  const items = m.ids.map(id => QBY.get(id)).filter(Boolean);
+  start(items, { exam: EX });
+}
+
+function endModule() {
+  if (!S || !S.exam || S.ending) return;
+  S.ending = true;
+  const EX = S.exam, i = EX.modIdx, m = EX.mods[i];
+  examState();
+  stopTimer(); closeExpl(); closeNotePanel(); closeDesmos();
+  m.elapsed = Math.min(m.elapsed, MODS[i].ms * 4);
+  m.done = true;
+  if (MODS[i].cut) {
+    const raw = m.ids.reduce((n, id) => n + (isRight(QBY.get(id), m.ans[id]) === true ? 1 : 0), 0);
+    EX.route[MODS[i].sec] = routeOf(i, raw);
+  }
+  EX.modIdx = i + 1;
+  S = null;
+  $('modal-root').innerHTML = '';
+  if (i === 3) return finishExam(EX);
+  saveSession(() => EX, true);
+  if (i === 1) return breakScreen(EX);
+  runModule(EX);
+}
+
+function saveQuit() {
+  const EX = examState();
+  stopTimer(); closeExpl(); closeNotePanel();
+  saveSession(() => EX, true);
+  S = null;
+  showHome();
+  setTab(authToken ? 'history' : 'exams');
+}
+
+// The 10-minute break between Reading and Math. Skippable, and a save & quit
+// here resumes straight into Math.
+function breakScreen(EX) {
+  const root = $('modal-root');
+  $('view-home').classList.add('hide'); $('view-exam-res').classList.add('hide');
+  $('view-test').classList.remove('hide');
+  $('pane-q').innerHTML = ''; $('pane-a').innerHTML = '';
+  let left = BREAK_MS, tick = null;
+  const go = () => { clearInterval(tick); root.innerHTML = ''; runModule(EX); };
+  const draw = () => {
+    root.innerHTML = `<div class="modal-bg"><div class="modal brk" style="width:min(460px,92vw);">
+      <h2 class="fx-h">Break</h2>
+      <p class="fx-sub">Reading &amp; Writing is done. Math starts when you resume.</p>
+      ${EX.mode === 'normal' ? `<div class="t mono" id="brk-t">${fmtMs(left)}</div>` : ''}
+      <div class="frow" style="justify-content:center;margin-top:14px;"><button id="brk-quit">Save &amp; quit</button><button class="btn-p" id="brk-go">Resume now</button></div>
+    </div></div>`;
+    $('brk-go').onclick = go;
+    $('brk-quit').onclick = () => { clearInterval(tick); root.innerHTML = ''; saveSession(() => EX, true); showHome(); setTab(authToken ? 'history' : 'exams'); };
+  };
+  draw();
+  if (EX.mode === 'normal') tick = setInterval(() => { left -= 1000; const el = $('brk-t'); if (el) el.textContent = fmtMs(Math.max(0, left)); if (left <= 0) go(); }, 1000);
+}
+
+function finishExam(EX) {
+  const now = new Date().toISOString();
+  const score = { mods: [], missed: [], marked: [], breakdown: {}, sec: {} };
+  EX.mods.forEach(m => {
+    let raw = 0;
+    m.ids.forEach(id => {
+      const q = QBY.get(id); if (!q) return;
+      const ok = isRight(q, m.ans[id]);
+      if (ok === true) raw++; else score.missed.push(id);
+      if (m.flags[id]) score.marked.push(id);
+      const B = score.breakdown[q.section] = score.breakdown[q.section] || {};
+      const D = B[q.domain || 'Other'] = B[q.domain || 'Other'] || { a: 0, c: 0, skills: {} };
+      const K = D.skills[q.skill || 'Other'] = D.skills[q.skill || 'Other'] || { a: 0, c: 0 };
+      D.a++; K.a++; if (ok === true) { D.c++; K.c++; }
+      // Only an answered question reaches the record: a blank is a miss on the
+      // score, not a mistake to drill.
+      if (ok !== null && m.ans[id]) { recordProgress(q, ok, now, 0); recordAttempt(q, ok, now, 0, m.ans[id], 0); }
+    });
+    score.mods.push({ raw, n: m.ids.length, ms: m.elapsed });
+  });
+  ['Reading & Writing', 'Math'].forEach((sec, si) => {
+    const route = EX.route[sec] || 'm2easy';
+    const raw = score.mods[si * 2].raw + score.mods[si * 2 + 1].raw;
+    const sc = scaled(sec, route, raw);
+    score.sec[sec] = { raw, route, scaled: sc, range: scoreRange(sc) };
+  });
+  score.total = score.sec['Reading & Writing'].scaled + score.sec['Math'].scaled;
+  EX.score = score; EX.finished = Date.now();
+  saveSession(() => EX, true);
+  refresh();
+  drawExamResults(EX);
+}
+
+let XR_FILTER = 'all';
+function drawExamResults(EX) {
+  const sc = EX.score; if (!sc) return;
+  stopTimer();
+  $('view-home').classList.add('hide'); $('view-test').classList.add('hide'); $('view-results').classList.add('hide');
+  $('view-exam-res').classList.remove('hide');
+  const rw = sc.sec['Reading & Writing'], ma = sc.sec['Math'];
+  $('xr-title').textContent = EX.name;
+  $('xr-sub').textContent = `${fmtDate(EX.finished)} · ${EX.mode === 'normal' ? 'Normal time' : 'No time limit'} · scores are estimates`;
+  const tile = (k, v, r) => `<div class="card"><div class="k">${k}</div><div class="v mono">${v}</div>${r ? `<div class="hd" style="color:var(--dim);font-size:12.5px;margin-top:4px;">likely ${r[0]}–${r[1]}</div>` : ''}</div>`;
+  $('xr-cards').innerHTML = tile('Total', sc.total, [rw.range[0] + ma.range[0], rw.range[1] + ma.range[1]])
+    + tile('Reading &amp; Writing', rw.scaled, rw.range) + tile('Math', ma.scaled, ma.range)
+    + tile('Time', fmtMs(sc.mods.reduce((n, m) => n + m.ms, 0)));
+  $('xr-actions').innerHTML = `<button class="btn-p" id="xr-missed"${sc.missed.length ? '' : ' disabled'}>Practice missed (${sc.missed.length})</button>
+    <button id="xr-hist">History</button><button id="xr-home">Home</button>`;
+  $('xr-missed').onclick = () => practiceMissed(EX);
+  $('xr-hist').onclick = () => { showHome(); setTab('history'); };
+  $('xr-home').onclick = () => { showHome(); setTab('exams'); };
+  const rlab = (r) => r === 'm2hard' ? 'harder module 2' : 'easier module 2';
+  $('xr-route').textContent = `Reading & Writing: ${rlab(rw.route)} · Math: ${rlab(ma.route)}`;
+  $('xr-mods').innerHTML = `<div class="xr-mod h"><span>Module</span><span>Raw</span><span>Accuracy</span><span>Time</span></div>` +
+    sc.mods.map((m, i) => `<div class="xr-mod"><span>${MODS[i].sec} · Module ${i % 2 + 1}${i % 2 ? ` (${EX.route[MODS[i].sec] === 'm2hard' ? 'harder' : 'easier'})` : ''}</span>
+      <span class="mono">${m.raw}/${m.n}</span><span class="mono">${Math.round(m.raw / m.n * 100)}%</span><span class="mono">${fmtMs(m.ms)}</span></div>`).join('');
+  $('xr-break').innerHTML = ['Reading & Writing', 'Math'].map(sec => {
+    const B = sc.breakdown[sec] || {};
+    return `<div class="panel"><div class="panel-h"><h3>${sec}</h3><span class="sub" style="color:var(--dim);font-size:13px">${sc.sec[sec].raw} right · bar is accuracy</span></div>` +
+      cbSort(Object.keys(B)).map(d => `<div class="xr-dom"><span>${esc(d)}</span><span class="mono" style="font-weight:600">${accHTML(pctOf(B[d]))} · ${B[d].c}/${B[d].a}</span></div>` +
+        cbSort(Object.keys(B[d].skills)).map(k => { const v = B[d].skills[k]; return `<div class="prog-item"><b>${esc(k)}</b><span class="bar"><i style="width:${pctOf(v) || 0}%"></i></span><span class="tl-a mono">${accHTML(pctOf(v))} · ${v.c}/${v.a}</span></div>`; }).join('')).join('') + '</div>';
+  }).join('');
+  const all = EX.mods.flatMap(m => m.ids);
+  const missed = new Set(sc.missed), marked = new Set(sc.marked);
+  document.querySelectorAll('#xr-filter button').forEach(b => {
+    b.classList.toggle('on', b.dataset.f === XR_FILTER);
+    b.onclick = () => { XR_FILTER = b.dataset.f; drawExamResults(EX); };
+  });
+  $('xr-list').innerHTML = all.map((id, idx) => {
+    const q = QBY.get(id); if (!q) return '';
+    if (XR_FILTER === 'missed' && !missed.has(id)) return '';
+    if (XR_FILTER === 'marked' && !marked.has(id)) return '';
+    const m = EX.mods[Math.floor(idx / 27) < 2 ? Math.floor(idx / 27) : 2 + Math.floor((idx - 54) / 22)];
+    const a = m.ans[id];
+    const ok = isRight(q, a);
+    const ico = ok === true ? '<span style="color:var(--green)">✓</span>' : ok === false ? '<span style="color:var(--red)">✗</span>' : '<span style="color:var(--dim2)">—</span>';
+    return `<div class="res-item" data-idx="${idx}">
+      <div class="res-ico">${ico}</div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:600; font-size:14px;">${idx + 1}. ${esc(q.domain || q.section)}${marked.has(id) ? ' <span style="color:var(--gold)">⚑</span>' : ''}</div>
+        <div style="font-size:12.5px; color:var(--dim);">${esc(q.skill || '')} · ${esc(q.difficulty || '')}${q.ai ? ' · AI' : ''}</div>
+      </div>
+      <span class="xr-ans">${a ? `You: <b>${esc(a)}</b>` : 'Blank'} · Correct: <b>${esc(q.answer)}</b></span>
+    </div>`;
+  }).join('') || '<div class="empty">Nothing here.</div>';
+  $('xr-list').querySelectorAll('.res-item').forEach(el => el.onclick = () => openReview(EX, parseInt(el.dataset.idx)));
+}
+
+// Every question of a finished exam in the player, read-only, explanation open.
+function openReview(EX, idx) {
+  const ans = {}, flags = {};
+  EX.mods.forEach(m => { Object.assign(ans, m.ans); Object.assign(flags, m.flags); });
+  const items = EX.mods.flatMap(m => m.ids).map(id => QBY.get(id)).filter(Boolean);
+  start(items, { review: EX, ans, flags, timing: 'off' });
+  S.i = idx; loadQuestion();
+}
+
+// The missed questions as a practice set: graded, explained, untimed, and kept in
+// History as a review session so it can be picked up again.
+function practiceMissed(EX, sess) {
+  const ids = sess ? sess.ids : EX.score.missed;
+  const items = ids.map(id => QBY.get(id)).filter(Boolean);
+  if (!items.length) return;
+  const session = sess || { id: 'rv_' + EX.id, kind: 'review', examId: EX.id, name: EX.name + ' · missed', ids, i: 0, ans: {}, checked: {}, tried: {}, finished: null, startedAt: Date.now() };
+  start(items, { timing: 'off', session });
+  S.ans = session.ans; S.checked = session.checked; S.tried = session.tried;
+  S.i = Math.min(session.i || 0, items.length - 1);
+  loadQuestion();
+  if (!sess) saveSession(reviewState, true);
+}
+function reviewState() {
+  if (!S || !S.session) return null;
+  S.session.i = S.i;
+  return S.session;
+}
+
+function drawHistory() {
+  const el = $('hist-body');
+  if (!authToken) { el.innerHTML = '<div class="empty">Sign in to keep exam history. Exams still run as a guest, but they are not saved.</div>'; return; }
+  const rows = Object.values(SESS).sort((a, b) => b.updated_at - a.updated_at);
+  el.innerHTML = rows.map(r => {
+    const st = r.state, fin = !!st.finished;
+    const score = st.kind === 'exam' ? (st.score ? st.score.total : '—')
+      : `${Object.values(st.checked || {}).filter(Boolean).length}/${(st.ids || []).length}`;
+    const status = fin ? '<span class="pill green">Finished</span>' : '<span class="pill orange">In progress</span>';
+    const kind = st.kind === 'exam' ? '<span class="pill gray">Exam</span>' : '<span class="pill gray">Review</span>';
+    const acts = st.kind === 'exam'
+      ? (fin ? `<button data-view="${esc(r.id)}">View</button><button data-missed="${esc(r.id)}">Practice missed</button>` : `<button class="btn-p" data-resume="${esc(r.id)}">Resume</button>`)
+      : (fin ? '' : `<button class="btn-p" data-resume="${esc(r.id)}">Resume</button>`);
+    return `<div class="hist-row">
+      <span class="hd">${fmtDate(r.updated_at)}</span>
+      <span><span class="hn">${esc(st.name || r.id)}</span> <span class="hd">${st.mode === 'normal' ? '· timed' : st.mode ? '· untimed' : ''}</span></span>
+      <span class="frow" style="gap:6px">${kind}${status}</span>
+      <span class="hs mono">${score}</span>
+      <span class="frow" style="gap:6px">${acts}<button data-del="${esc(r.id)}" title="Delete">✕</button></span>
+    </div>`;
+  }).join('') || '<div class="empty">No sessions yet. Start a practice exam and it will appear here.</div>';
+  el.querySelectorAll('[data-resume]').forEach(b => b.onclick = () => {
+    const st = SESS[b.dataset.resume].state;
+    if (st.kind === 'exam') resumeExam(st); else practiceMissed(SESS[st.examId] ? SESS[st.examId].state : { id: st.examId, name: st.name }, st);
+  });
+  el.querySelectorAll('[data-view]').forEach(b => b.onclick = () => drawExamResults(SESS[b.dataset.view].state));
+  el.querySelectorAll('[data-missed]').forEach(b => b.onclick = () => practiceMissed(SESS[b.dataset.missed].state));
+  el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => confirmModal('Delete this session? This cannot be undone.', () => { deleteSession(b.dataset.del); drawHistory(); }));
 }
 
 // ---- Export a question to an AI assistant ----
