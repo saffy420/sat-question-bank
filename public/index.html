@@ -625,6 +625,8 @@ mark.hl-b { background: #bfe3ff; }
                                     line-height: 1.2; white-space: nowrap; }
   .nav-i[data-tab="practice"] > span { font-size: 0; }
   .nav-i[data-tab="practice"] > span::after { content: "Practice"; font-size: 10px; }
+  .nav-i[data-tab="exams"] > span { font-size: 0; }
+  .nav-i[data-tab="exams"] > span::after { content: "Exams"; font-size: 10px; }
   .nav-gear::after { content: "Settings"; }
   .nav-i.on > span, .nav-i.on::after { color: var(--mint); }
   .nav-brand, .nav-sp, .nav-av { display: none; }
@@ -754,6 +756,7 @@ mark.hl-b { background: #bfe3ff; }
 @media (max-width: 360px) {
   .nav-i > span, .nav-gear::after { display: none; }
   .nav-i[data-tab="practice"] > span::after { content: none; }
+  .nav-i[data-tab="exams"] > span::after { content: none; }
   #btn-expl { min-width: 0; padding: 9px 11px; font-size: 0; }
   #btn-note { min-width: 0; padding: 9px 11px; font-size: 15px; }
   #btn-expl::after { content: "\24D8"; font-size: 17px; }
@@ -2594,6 +2597,7 @@ function start(items, opts) {
     S.timing = EX.mode === 'normal' ? 'set' : 'off';
     S.setEnds = S.timing === 'set' ? Date.now() + MODS[i].ms - m.elapsed : null;
     S.modStart = Date.now() - m.elapsed;
+    S.i = Math.min(m.i || 0, items.length - 1);
   }
   // A finished exam, read-only: every question counts as checked so the choices
   // paint right and wrong, and Next past the end returns to the results.
@@ -2794,7 +2798,7 @@ function loadQuestion() {
   $('btn-pause').classList.toggle('hide', !!ex || !!rv);
   $('q-clock').classList.toggle('hide', !!rv);
   $('exam-lbl').textContent = ex ? `${ex.name} \u00b7 ${MODS[ex.modIdx].sec} \u00b7 Module ${ex.modIdx % 2 + 1}`
-    : rv ? `${rv.name} \u00b7 Review` : '';
+    : rv ? `${rv.name} \u00b7 Review` : S.session ? S.session.name : '';
   $('btn-dash').textContent = ex ? 'Save & quit' : rv ? '\u2190 Results' : '\u2190 Dashboard';
   S.qStart = Date.now();
   renderQTimer();
@@ -3572,7 +3576,10 @@ const touchExam = () => { if (S && S.exam) saveSession(examState); };
 function examState() {
   const EX = S && S.exam; if (!EX) return null;
   const m = EX.mods[EX.modIdx];
-  if (m && !m.done) m.elapsed = S.timing === 'set' ? Math.max(0, MODS[EX.modIdx].ms - (S.setEnds - Date.now())) : Date.now() - S.modStart;
+  if (m && !m.done) {
+    m.elapsed = S.timing === 'set' ? Math.max(0, MODS[EX.modIdx].ms - (S.setEnds - Date.now())) : Date.now() - S.modStart;
+    m.i = S.i;
+  }
   return EX;
 }
 const fmtMs = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
