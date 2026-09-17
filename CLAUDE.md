@@ -2622,3 +2622,67 @@ in the first six; confirmed to fail with the fix reverted. `window.__qa()` now
 exposes the live session `S`, because reading the ladder's target off the rendered
 stem is impossible - KaTeX triples the text (HTML plus the MathML annotation) and
 a math stem stripped of its notation is generic enough to match a dozen rows.
+
+### Practice exams, history, silent sync, and a notepad (2026-09-17)
+
+Spec `docs/superpowers/specs/2026-09-17-practice-exams-ui-fixes-design.md`, plan
+`docs/superpowers/plans/2026-09-17-practice-exams-ui-fixes.md`. The AI-bank branch
+(`claude/ai-sat-question-bank-c11305`) is merged in first; everything below sits on it.
+
+**Cross-Text Connections listed twice.** Not this bank: three AI rows (`ai_rw231`,
+`ai_rw256`, `ai_rw281`) filed the skill under Information and Ideas, and the topic
+dropdown groups skills under domains. Fixed in `tools/aiq/*.jsonl`, the local AI D1 and
+the remote (`migrations_ai/0002_cross_text_domain.sql`, applied). Every topic list -
+the three dropdowns, the Topics table, the dashboard domain/skill panels - now sorts
+with `cbSort()` over `DOM_ORDER`/`SKILL_ORDER`, the College Board's own order, instead
+of alphabetically (which put Advanced Math before Algebra).
+
+**Sync.** Every save cost a Supabase round-trip (`whoami`) and a `users` upsert.
+`whoami` now caches token -> user in isolate memory until the token's own `exp`;
+`touchUser` runs once per user per isolate. The client fetches with `keepalive`. The
+banner is a bottom-centre toast that appears only on a failed flush or read, has a
+close button, and once closed stays closed until the queue drains and a later flush
+fails again (`test_sync.cjs`).
+
+**Eliminator** is a sibling to the right of the choice (`.choice-row`), and `.choice.ko`
+draws one 2px line across the whole row.
+
+**Practice Exams** (rail tab). Five fixed tests in `public/exams.json`, ids only, built
+by `node tools/build_exams.cjs` from the two local sqlite files with a seeded PRNG - no
+id in two tests. Tests 1-3 are official rows on the CB domain blueprint (RW 7/8/5/7,
+Math 8/8/3/3 with 5 grid-ins); Hard Tests 1-2 are Hard-only, module 1 official Hard
+plus AI level 4, the harder module 2 mostly AI. Real structure: RW 27q/32min x2, 10-min
+break, Math 22q/35min x2; module 1 >= 16/27 (RW) or 13/22 (Math) earns the harder
+module 2. Normal time or no time limit; save & quit from the top bar. The exam block
+(`MODS`, `routeOf`, `CURVE`, `scaled`) is pure and lifted by `test_exams.cjs`. **The
+curves are piecewise-linear approximations of Bluebook's unpublished tables** - the UI
+says "estimate" and shows +/-30. Results page: scaled scores, per-module raw, domain ->
+skill bars, every question with your answer vs the key, filter All/Missed/Marked, click
+into a read-only player with the explanation open. "Practice missed" is an ordinary
+untimed practice set kept in History as a `review` session. Exam answers reach
+`progress`/`attempts` at the end through `recordProgress`/`recordAttempt`, which `grade()`
+now shares.
+
+**History** (rail tab, signed-in). `sessions(user_id, id, kind, state, updated_at)` -
+one JSON blob per exam or review, `migrations/0010_sessions.sql`, applied local and
+remote. `GET /api/sessions` deletes the caller's rows older than 30 days before
+returning the rest, so there is no cron. Saves ride `push()` (dedupe key is
+`question_id || id`), debounced 2s, immediate on quit and finish. Guests run exams in
+memory only.
+
+**Notepad.** `#btn-note` opens a 380px panel docked right (`.note-shift`), autosaves
+after 1s idle and on blur, follows the question on Next/Back, and shares the slot with
+the explanation panel and Desmos. The explanation panel keeps its own note box; both
+edit `NOTES[id]`.
+
+Verified in `wrangler dev`: a full untimed exam through all four modules and the break,
+save & quit and resume as a guest, the results page and review view, practice missed,
+the timed module ending itself at 0:00 (clock advanced by overriding `Date.now`), the
+notepad saving/following/reloading, 0 horizontal overflow on every tab at 375 and 320
+and Next inside the screen. Not verified: the signed-in path (no credentials here), so
+`/api/sessions` is covered by `test_worker_sql.cjs` only. This worktree's `public/qimg`
+is still a junction - do not deploy from here.
+
+**A failed write truncates the file.** `open(p, 'w')` truncates before the encoder
+throws, so a patch script that dies on a surrogate leaves a 0-byte `index.html`. Write
+to `.tmp` and `os.replace`, or check the file size after any scripted edit.
