@@ -70,3 +70,14 @@ CREATE TABLE IF NOT EXISTS notes (
 -- across databases, so this registry is what lets the progress/attempts/notes write
 -- guards stay exact for a question `questions` has never heard of.
 CREATE TABLE IF NOT EXISTS ai_ids (id TEXT PRIMARY KEY);
+
+-- One JSON blob per exam or review session. Read as a whole, rewritten as a whole;
+-- purged 30 days after its last write on the next read.
+CREATE TABLE IF NOT EXISTS sessions (
+  user_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  state TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, id)
+);

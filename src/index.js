@@ -138,6 +138,9 @@ const MAX_ATTEMPTS = 100000;
 const MAX_SETTINGS = 8000;
 // A note is prose about one question, not a document.
 const MAX_NOTE = 4000;
+// An exam session is ~150 answers plus timings; 64K is ten times that.
+const MAX_SESSION = 65536;
+const DAY = 86400000;
 const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
 
 export default {
@@ -324,6 +327,50 @@ export default {
         `INSERT INTO settings (user_id, json, updated_at) VALUES (?,?,datetime('now'))
          ON CONFLICT(user_id) DO UPDATE SET json=excluded.json, updated_at=excluded.updated_at`
       ).bind(u.id, blob).run();
+      return json({ ok: true });
+    }
+
+    // Exam and review sessions: one JSON blob each, owned by the caller, gone 30
+    // days after the last write. The purge rides the read so no cron is needed.
+    if (p === '/api/sessions' && req.method === 'GET') {
+      const u = await whoami(req, env);
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      await env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND updated_at < ?')
+        .bind(u.id, Date.now() - 30 * DAY).run();
+      const r = await env.DB.prepare(
+        'SELECT id, kind, state, updated_at FROM sessions WHERE user_id = ? ORDER BY updated_at DESC'
+      ).bind(u.id).all();
+      return json(r.results || []);
+    }
+
+    if (p === '/api/sessions' && req.method === 'POST') {
+      const u = await whoami(req, env);
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      const b = await req.json().catch(() => null);
+      const rows = (Array.isArray(b) ? b : [b])
+        .filter(r => r && typeof r.id === 'string' && r.id && r.state && typeof r.state === 'object')
+        .slice(0, 50);
+      if (!rows.length) return json({ ok: true, saved: 0 });
+      const stmt = env.DB.prepare(
+        `INSERT INTO sessions (user_id, id, kind, state, updated_at) VALUES (?,?,?,?,?)
+         ON CONFLICT(user_id, id) DO UPDATE SET
+           kind=excluded.kind, state=excluded.state, updated_at=excluded.updated_at`
+      );
+      const binds = [];
+      for (const r of rows) {
+        const st = JSON.stringify(r.state);
+        if (st.length > MAX_SESSION) return json({ error: 'too large' }, 413);
+        binds.push(stmt.bind(u.id, str(r.id, 64), str(r.kind, 16) || 'exam', st, Date.now()));
+      }
+      await env.DB.batch(binds);
+      return json({ ok: true, saved: rows.length });
+    }
+
+    if (p.startsWith('/api/sessions/') && req.method === 'DELETE') {
+      const u = await whoami(req, env);
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      await env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND id = ?')
+        .bind(u.id, p.slice('/api/sessions/'.length)).run();
       return json({ ok: true });
     }
 
