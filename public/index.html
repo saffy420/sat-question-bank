@@ -2766,7 +2766,7 @@ function choiceHTML(q, c, picked, staticMode) {
       if (nowCorrect === null) cls += (picked === letter ? ' sel' : ' dim');
       else if (nowCorrect && wasWrong) cls += ' corrected';
       else if (nowCorrect) cls += ' right';
-      else if (picked === letter) cls += ' wrong';
+      else if (picked === letter || (S.miss[q.id] || []).includes(letter)) cls += ' wrong';
       else cls += ' dim';
     }
   }
