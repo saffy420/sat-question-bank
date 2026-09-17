@@ -428,7 +428,11 @@ img.minl { mix-blend-mode: multiply; }
 .choice.corrected { border-color: var(--green); background: var(--green-bg); }
 .choice.corrected .badge { border-color: var(--green); background: var(--green); color: #fff; }
 .choice.dim { opacity: .55; }
-.ko-btn { flex: 0 0 22px; width: 22px; height: 22px; margin-top: 3px; border-radius: 50%; border: 1.5px dashed var(--border2); background: transparent; color: var(--dim2); font-size: 11px; font-weight: 700; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.choice-row { display: flex; align-items: center; gap: 10px; }
+.choice-row .choice { flex: 1; min-width: 0; position: relative; }
+.choice.ko { opacity: .55; }
+.choice.ko::after { content: ""; position: absolute; left: 12px; right: 12px; top: 50%; height: 2px; margin-top: -1px; background: var(--text); border-radius: 1px; pointer-events: none; }
+.ko-btn { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; border: 1.5px dashed var(--border2); background: transparent; color: var(--dim2); font-size: 12px; font-weight: 700; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .ko-btn:hover { border-color: var(--dim); color: var(--dim); }
 .chk-btn { flex: 0 0 auto; padding: 5px 12px; font-size: 13px; font-weight: 600; background: var(--blue); border-color: var(--blue); color: #fff; border-radius: 8px; }
 .chk-btn:hover:not(:disabled) { background: var(--blue-dark); border-color: var(--blue-dark); }
@@ -454,7 +458,7 @@ mark.hl-b { background: #bfe3ff; }
 #hl-bar button { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
 #hl-bar .hl-y { background: #fff3a3; } #hl-bar .hl-p { background: #ffc2e0; } #hl-bar .hl-b { background: #bfe3ff; }
 #hl-bar .hl-x { background: var(--panel); color: var(--dim); font-size: 14px; line-height: 1; border-color: var(--border); }
-.ko-btn.on { border-style: solid; border-color: var(--red); background: var(--red-bg); color: var(--red); text-decoration: line-through; }
+.ko-btn.on { border-style: solid; border-color: var(--red); background: var(--red-bg); color: var(--red); }
 
 .gridin-wrap { max-width: 420px; }
 .gridin { width: 100%; font-size: 18px; padding: 14px 16px; border: 1.5px solid var(--border); border-radius: 10px; font-weight: 500; }
@@ -2602,13 +2606,15 @@ function choiceHTML(q, c, picked, staticMode) {
       else cls += ' dim';
     }
   }
-  const ko = !staticMode && S.ko[q.id] && S.ko[q.id].includes(letter) ? ' on' : '';
-  return `<div class="${cls}" data-letter="${esc(letter)}">
+  const ko = !staticMode && S.ko[q.id] && S.ko[q.id].includes(letter);
+  if (ko) cls += ' ko';
+  // The eliminator sits beside the choice, not inside it, and the strike runs the
+  // full width of the row (a hotdog cut) rather than through the letter alone.
+  return `<div class="choice-row"><div class="${cls}" data-letter="${esc(letter)}">
     <span class="badge">${esc(letter)}</span>
     <span style="flex:1; min-width:0;">${body}</span>
-    ${staticMode ? '' : `<button class="ko-btn${ko}" data-ko="${esc(letter)}" title="Eliminate choice"><span style="text-decoration:line-through">${esc(letter)}</span></button>`}
     ${staticMode || checked || picked !== letter ? '' : `<button class="chk-btn" data-chk="${esc(letter)}">Check</button>`}
-  </div>`;
+  </div>${staticMode ? '' : `<button class="ko-btn${ko ? ' on' : ''}" data-ko="${esc(letter)}" title="Eliminate choice"><s>${esc(letter)}</s></button>`}</div>`;
 }
 
 function loadQuestion() {
@@ -2713,13 +2719,14 @@ function renderAnswerArea(q) {
   } else {
     target.querySelectorAll('.choice').forEach(el => {
       const letter = el.dataset.letter;
-      const koBtn = el.querySelector('.ko-btn');
+      const koBtn = el.parentElement.querySelector('.ko-btn');
       if (koBtn) koBtn.onclick = (e) => {
         e.stopPropagation();
         S.ko[q.id] = S.ko[q.id] || [];
         const idx = S.ko[q.id].indexOf(letter);
         if (idx >= 0) S.ko[q.id].splice(idx, 1); else S.ko[q.id].push(letter);
         koBtn.classList.toggle('on');
+        el.classList.toggle('ko');
       };
       if (S.checked[q.id]) return;
       // Selecting must not re-render: a re-render throws away any highlight the
