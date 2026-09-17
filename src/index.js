@@ -70,24 +70,35 @@ const asset = async (env, req) => {
 // Supabase's auth endpoint - which is the account's shared rate limit, so a curl
 // loop from one machine is an auth outage for everyone. Garbage now costs the
 // attacker a request and this Worker nothing.
-function looksLive(t) {
+const expOf = (t) => {
   const seg = t.split('.');
-  if (seg.length !== 3) return false;
+  if (seg.length !== 3) return 0;
   try {
     const c = JSON.parse(atob(seg[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof c.exp === 'number' && c.exp * 1000 > Date.now();
-  } catch (e) { return false; }
-}
+    return typeof c.exp === 'number' ? c.exp * 1000 : 0;
+  } catch (e) { return 0; }
+};
+function looksLive(t) { return expOf(t) > Date.now(); }
 
+// Token -> user, for as long as the token lives. A save used to cost a Supabase
+// round-trip every time; an access token lasts an hour, so one lookup covers a
+// sitting. The token's own exp is checked before the map, so an expired entry is
+// never served. ponytail: cleared at 1000 entries; an LRU if that ever matters.
+const WHO = new Map();
 async function whoami(req, env) {
   const t = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
   if (!t || !looksLive(t)) return null;
+  const hit = WHO.get(t);
+  if (hit) return hit;
   const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${t}`, apikey: env.SUPABASE_ANON_KEY }
   });
   if (!r.ok) return null;
   const u = await r.json().catch(() => null);
-  return u && u.id ? u : null;
+  if (!(u && u.id)) return null;
+  if (WHO.size > 1000) WHO.clear();
+  WHO.set(t, u);
+  return u;
 }
 
 // Every account that signs in gets a row, so progress has an owner to hang off and
@@ -97,13 +108,18 @@ async function whoami(req, env) {
 // budget - and once that budget is gone the read throws instead of returning the
 // account's answers, so a full database reads as "Could not load your saved
 // progress" on every reload. A read must not write.
+// Once per user per isolate: the row does not change between two saves in a
+// sitting, and every write here counts against D1's daily row-write cap.
+const TOUCHED = new Set();
 async function touchUser(env, u) {
+  if (TOUCHED.has(u.id)) return;
   const name = u.user_metadata?.full_name || u.user_metadata?.name || '';
   await env.DB.prepare(
     `INSERT INTO users (id, email, name) VALUES (?,?,?)
      ON CONFLICT(id) DO UPDATE SET email=excluded.email,
        name=CASE WHEN excluded.name<>'' THEN excluded.name ELSE users.name END`
   ).bind(u.id, u.email || '', name).run();
+  TOUCHED.add(u.id);
 }
 
 // A save is one sitting's worth of answers, never thousands. Without a ceiling a

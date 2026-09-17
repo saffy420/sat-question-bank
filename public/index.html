@@ -446,7 +446,9 @@ mark.hl-b { background: #bfe3ff; }
    player as well as on the home screens, and it sits above the phone tab bar. */
 #sync-bar { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 90; margin: 0 auto; max-width: 520px;
   padding: 10px 14px; border-radius: 10px; font-size: 13.5px; font-weight: 500; text-align: center;
-  background: var(--red-bg); color: var(--red); border: 1px solid var(--red); box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+  background: var(--red-bg); color: var(--red); border: 1px solid var(--red); box-shadow: 0 8px 24px rgba(0,0,0,.2);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; }
+#sync-bar button { flex: 0 0 auto; background: transparent; border: 0; color: inherit; font-size: 15px; line-height: 1; padding: 4px 6px; cursor: pointer; }
 @media (max-width: 760px) { #sync-bar { bottom: 76px; } }
 #hl-bar { position: fixed; z-index: 80; display: flex; align-items: center; gap: 6px; padding: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
 #hl-bar button { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
@@ -1242,7 +1244,8 @@ async function flush(url) {
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await sbHeaders()) },
-      body: JSON.stringify(batch)
+      body: JSON.stringify(batch),
+      keepalive: true
     });
     if (!r.ok) throw new Error(r.status);
     q.splice(0, batch.length);
@@ -1254,29 +1257,37 @@ async function flush(url) {
       retryTimer = null;
       Object.keys(PENDING).forEach(u => flush(u));
     }, 15000);
+    syncBanner(true);
   }
   inflight[url] = false;
-  syncBanner();
+  if (sent) syncBanner(false);
   if (sent && q.length) return flush(url);    // more than one batch was waiting
 }
 
 const unsaved = () => Object.values(PENDING).reduce((n, q) => n + q.length, 0);
 addEventListener('visibilitychange', () => { if (!document.hidden) Object.keys(PENDING).forEach(u => flush(u)); });
 
-// alert() blocks the page's JS thread - in the automation logs that reads as a
-// frozen renderer, and it is trivially dismissed and never seen again. A banner
-// says the same thing, stays for as long as it is true, and clears itself.
-let readWarn = '';
-function warnSync(msg) { readWarn = msg; syncBanner(); }
+// Failure only. Nothing is shown while saves succeed; a failed flush or a failed
+// read raises the toast, the cross hides it, and it stays hidden until the queue
+// has drained and a later flush fails again. (alert() was tried first: it blocks
+// the page's JS thread and is dismissed once and never seen again.)
+let readWarn = '', toastShut = false;
+function warnSync(msg) { readWarn = msg; toastShut = false; syncBanner(true); }
 
-function syncBanner() {
+function syncBanner(failed) {
   const n = unsaved();
-  const text = [readWarn, n ? `${n} answer${n === 1 ? '' : 's'} not saved yet \u2014 retrying. Keep this tab open.` : '']
+  const text = [readWarn, n ? `${n} answer${n === 1 ? '' : 's'} not saved yet — retrying.` : '']
     .filter(Boolean).join(' ');
   let b = $('sync-bar');
-  if (!text) { if (b) b.remove(); return; }
-  if (!b) { b = document.createElement('div'); b.id = 'sync-bar'; document.body.appendChild(b); }
-  b.textContent = text;
+  if (!text) { toastShut = false; if (b) b.remove(); return; }
+  if (!failed || toastShut) return;
+  if (!b) {
+    b = document.createElement('div'); b.id = 'sync-bar';
+    b.innerHTML = '<span id="sync-msg"></span><button id="sync-x" title="Dismiss">✕</button>';
+    document.body.appendChild(b);
+    $('sync-x').onclick = () => { toastShut = true; b.remove(); };
+  }
+  $('sync-msg').textContent = text;
 }
 
 // --- end sync ---

@@ -20,14 +20,16 @@ const PRE = `
   let authToken = 'tok';
   const els = {};
   const $ = (id) => els[id] || null;
+  // The toast is one div holding a message span and a close button; the stub
+  // registers both children when innerHTML is set, which is all the block does.
   const document = { hidden: false, body: { appendChild: (e) => (els[e.id] = e, e) },
-    createElement: () => ({ set textContent(v) { this._t = v; }, get textContent() { return this._t; },
-                            remove() { delete els[this.id]; } }) };
+    createElement: () => ({ set innerHTML(v) { els['sync-msg'] = { textContent: '' }; els['sync-x'] = {}; },
+                            remove() { delete els[this.id]; delete els['sync-msg']; delete els['sync-x']; } }) };
   const addEventListener = () => {};
   const sbHeaders = async () => ({ Authorization: 'Bearer tok' });
 `;
 const api = new Function(PRE + block +
-  '\nreturn { push, flush, PENDING, unsaved, warnSync, banner: () => ($("sync-bar")||{}).textContent, ' +
+  '\nreturn { push, flush, PENDING, unsaved, warnSync, banner: () => ($("sync-bar") ? $("sync-msg").textContent : undefined), close: () => $("sync-x").onclick(), ' +
   'setToken: (t) => { authToken = t; } };')();
 
 // One fetch stub. `fail` decides what the server does; `sent` records every body.
@@ -104,5 +106,24 @@ const reset = () => { fail = false; sent = []; P['/api/progress'].length = 0; P[
   await api.push('/api/progress', [{ question_id: 'a' }]);
   assert.match(api.banner(), /Could not load/, 'a read failure is not cleared by a write succeeding');
 
+  // The toast is failure-only and closable. Closed, it stays closed through further
+  // failures; it comes back only once the queue has drained and a later flush fails.
+  reset();
+  fail = true;
+  await api.push('/api/progress', [{ question_id: 'a' }]);
+  assert.match(api.banner(), /1 answer not saved/);
+  api.close();
+  assert.equal(api.banner(), undefined, 'the cross hides the toast');
+  await api.push('/api/progress', [{ question_id: 'b' }]);
+  assert.equal(api.banner(), undefined, 'a further failure does not reopen a closed toast');
+  fail = false;
+  await api.push('/api/progress', [{ question_id: 'c' }]);
+  assert.equal(api.unsaved(), 0);
+  assert.equal(api.banner(), undefined, 'nothing is shown on success');
+  fail = true;
+  await api.push('/api/progress', [{ question_id: 'd' }]);
+  assert.match(api.banner(), /1 answer not saved/, 'a new failure after a success shows the toast again');
+
   console.log('test_sync: all assertions passed');
+  process.exit(0);   // the retry timer would otherwise hold the process open
 })();
