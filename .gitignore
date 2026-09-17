@@ -20,6 +20,7 @@ tools/*
 !tools/apply_answerable.cjs
 !tools/d1_dump.cjs
 !tools/predeploy.cjs
+!tools/build_exams.cjs
 !tools/apply_ai.cjs
 !tools/fix_ai_defects.cjs
 !tools/fix_ai_reasoning.cjs
