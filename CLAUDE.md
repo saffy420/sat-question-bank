@@ -2159,3 +2159,466 @@ first `--write` here ran with the server up. It survived (the flush wrote the
 same rows back), but stop the server before writing - and note the re-run then
 found 0 rows to change and truncated the migration to 0 statements, which is why
 `--emit` exists as its own step.
+### A second bank: 100 AI questions, attempt analytics, adaptive focus practice (2026-09-07)
+
+Spec `docs/superpowers/specs/2026-09-07-ai-question-bank-design.md`, plan
+`docs/superpowers/plans/2026-09-07-ai-question-bank.md`.
+
+**The AI bank is a second D1 database**, `sat_ai_bank`, bound as `AI_DB`
+(`ce533bdc-…`). Its `questions` table carries the same column names as the main
+bank's plus `level`, so `/api/questions` runs the same SELECT twice and
+concatenates. Two consequences drove the design:
+
+- **D1's daily row-write cap is account-wide.** A second database isolates the AI
+  content from whatever else is editing the official bank; it buys no extra budget.
+- **D1 cannot join across databases.** `progress`, `attempts` and `notes` bound what
+  an account may write with `WHERE EXISTS (SELECT 1 FROM questions WHERE id = ?)`.
+  An AI id fails that guard in the main DB, so **every answer to an AI question would
+  have been dropped in silence**. `tools/apply_ai.cjs` therefore also writes a
+  one-column registry `ai_ids` into the *main* DB and each guard became
+  `EXISTS questions OR EXISTS ai_ids`. 100 tiny rows, and the bound stays exact.
+  Rejected: putting the user tables in the AI DB as well — that splits one account's
+  history across two databases and doubles every read, write and backfill path.
+
+**The rows.** 100 questions, 75 Reading & Writing / 25 Math, `source='AI'`,
+`difficulty='Hard'` (so every existing filter, dropdown and dashboard order array
+keeps working untouched) and `level` 4 or 5, which is the rank the focus ladder
+climbs. Official rows have no `level`; the client derives Easy/Medium/Hard = 1/2/3
+at load, so no official row changed.
+
+Each wrong choice carries a `trap` tag inside `choices_json` — an extra key the
+existing render ignores and the dashboard reads. The vocabulary is fixed (12 Math,
+12 Reading & Writing tags in `tools/apply_ai.cjs`) precisely so the tags aggregate.
+Explanations follow one template: a **Traps in this question** block first, then
+*Why A/B/C/D is right/wrong*, then the clean path.
+
+**Graphs are inline `<svg>`**, not crops: theme-aware through `currentColor`,
+nothing added to `/qimg`, no asset-cap risk, and none of the worktree-junction trap
+that has broken two deploys. 6 rows carry one; 1 carries an HTML table.
+
+**The validator is the thing that stops a bad question shipping.**
+`node tools/apply_ai.cjs <batch.jsonl>` refuses a batch on: a malformed id, a
+duplicate, a skill outside the official taxonomy, `level` outside 4–5, not exactly
+one correct choice, an answer letter absent from the choices, a grid-in answer the
+player's own `isRight()` could never accept, an empty or duplicated choice, a wrong
+choice with no trap tag or a tag outside the vocabulary, a trap tag on the *correct*
+choice, a missing Traps block, a missing per-choice paragraph, unbalanced `\(`,
+mojibake, an `<img>`, an `<svg>` with no `viewBox`/`role`/`<title>` or hardcoded
+black, and — for the evidence skills only — a rationale that never quotes the
+passage. `--check` validates without writing; `--test` is its self-check.
+
+Three calibration bugs in the validator itself, all of which rejected *correct*
+rows, and all worth remembering:
+
+1. **The quote check compared tokens with their punctuation attached**, so a
+   rationale ending a quotation on a comma where the passage ended on a period read
+   as not quoting at all. It compares words only now.
+2. **It demanded a quotation from every Reading & Writing row.** A Boundaries answer
+   is proved by clause structure and a Rhetorical Synthesis answer by the notes;
+   only the six evidence skills are asked to quote.
+3. **The duplicate-choice check ran on entity-stripped text**, so a Boundaries
+   question whose choices differ only by `&mdash;` looked like it had two identical
+   choices. It compares raw content.
+
+`tools/aiq/*.jsonl` is the source of record and is tracked (`.gitignore` negation);
+`d1_ai/` is regenerable and is not.
+
+**Metrics.** `migrations/0009_ai_bank.sql` adds `attempts.picked` (the letter, or
+the grid-in entry) and `attempts.changes` (selection switches before Check), plus
+`ai_ids`. Pacing needs no column — it is `time_taken_ms` against a section target
+(Math 95s, Reading & Writing 71s). `changes` counts *switches*, not first picks:
+choosing for the first time is not a second guess.
+
+The dashboard gains four panels, each a number and a graph: **Traps you fall for**
+(the wrong pick looked up in that question's own choices, ranked), **Pacing**
+(rushed under 60% of target / on pace / slow over 140%, plus mean time vs target per
+section), **Second-guessing** (mean switches, and accuracy when you changed against
+when you did not), and **Accuracy by level** (1–5, where 4 and 5 are the AI bank).
+All four read the attempt log, so a re-drill counts twice there exactly as it does
+in the activity chart.
+
+**Focus practice.** A mode switch beside Start practice opens a popup: Section,
+Bank (Official / AI / Both), 30 / 35 / 40 questions, Timing (Untimed / Whole set /
+Per question at 1×, 1.5×, 2×) and, under per-question timing only, auto-advance.
+Weakness per skill is `(misses + 1) / (attempts + 2)` — Laplace-smoothed, so an
+untouched skill scores 0.5 and surfaces instead of being invisible — and slots are
+allocated across skills in proportion to it. The ladder starts at the set's median
+level, `+1` after two consecutive correct (cap 5), `-1` on a miss (floor 1), and
+what is left of the set is reordered so the next question is the one nearest the new
+target.
+
+One bug worth keeping: **the round-robin ignored its own quota after the first
+pass**, so a 28/2 split came out 15/15 and the "weak skill" was not weighted at all.
+It is two phases now — quota first, then a free top-up so a skill running out of
+questions cannot shorten the set. `node test_focus.cjs` is what caught it.
+
+Per-question timing counts *down* and turns red past the target rather than cutting
+you off: the timing mistake is recorded, not punished, unless auto-advance is asked
+for.
+
+**Mistakes** gains a Bank dropdown (Official / AI / both), built with the same `dd()`
+component as the others, so `null` still means everything.
+
+**Legal.** Terms gains section 5, *AI-generated questions* — labeled in the app,
+filterable, in a separate database, not College Board material, not endorsed, may
+contain errors, and where they disagree with an official item the official item is
+the one to trust. Privacy now says the record includes which choice was picked and
+how many times the selection was changed, and what those are used for.
+
+**Verification.** `node test_metrics.cjs`, `test_focus.cjs`, `test_grade.cjs`
+(extended: the attempt now carries `picked`/`changes`, and the ladder promotes,
+demotes, caps, floors and stays off outside focus mode), `test_notes.cjs`,
+`test_sync.cjs`, `test_backfill.cjs`, `test_tidy_expl.cjs`, `test_worker_sql.cjs`
+(extended: the widened guard accepts a registered AI id and refuses an unregistered
+one on all three tables) and `tools/apply_ai.cjs --test` all pass.
+
+All 100 AI rows through the app's own render path in the browser: **0 empty, 0 KaTeX
+errors, 0 duplicate choice sets, 0 mojibake, 0 that fail to grade, 0 where a wrong
+choice grades right, 0 wrong choices without a trap tag, 0 explanations missing the
+Traps block or a per-choice paragraph.** The Math answers are additionally checked by
+arithmetic in the builder before the file is written.
+
+Driven by hand in the real player: the focus popup (per-question options disabled
+until Per question is chosen, question count and estimated minutes live), a focus set
+started over the AI bank with a 1.5× per-question countdown, a wrong Check recording
+`picked:"B"`, `changes:1` and marking Red, the four dashboard panels filling from that
+one attempt, the Bank filter cutting the mistake list to 0 when the bank the mistake
+belongs to is deselected, and two correct answers in a row advancing the set cleanly.
+0 horizontal overflow on all five tabs at 1280, 375 and 320px, the popup fitting
+inside the viewport at every one of them, and the AI chip measuring 7.25:1 contrast in
+both themes.
+
+**Applying it.** `node tools/apply_ai.cjs tools/aiq/*.jsonl` validates, writes the
+local AI D1, registers the ids in the local main DB, and emits `d1_ai/questions.sql`
+and `d1_ai/ids.sql` for the remote *from the whole table*, not from that run's diff.
+Remote order: `schema_ai.sql` → `d1_ai/questions.sql` on `AI_DB`, then
+`migrations/0009_ai_bank.sql` → `d1_ai/ids.sql` on `DB`.
+
+Remote state after this pass, verified against the remote rather than the tool that
+wrote it: AI DB 100 rows (Math 4×L4 + 21×L5, RW 24×L4 + 51×L5, identical to local),
+main DB `ai_ids` 100, `questions` still 3,770, and `progress` 7 / `attempts` 1 /
+`settings` 1 unchanged. **The application code is not deployed** — this worktree's
+`public/qimg` is a junction and `tools/predeploy.cjs` refuses it — so the live site
+still serves the official bank alone until a deploy from a checkout that has the
+crops.
+
+`window.__qa()` joins `window.__dd` as a hook for the DOM assertions: the render,
+grading and focus paths live inside the page's IIFE, so a sweep can only drive the
+real ones through it.
+
+**One trap the verification loop caught, worth remembering:** setting the real
+`database_id` in `wrangler.toml` after `d1 create` **re-keys the local miniflare
+file**. Miniflare names each local sqlite by a hash of the id, so the binding then
+points at a brand-new empty database while the old file keeps the rows, and
+`/api/questions` quietly drops back to 3,770 with no error anywhere. Re-import from
+`tools/aiq/*.jsonl` and delete the stale file; `localDbs()` in `tools/apply_ai.cjs`
+now throws when it finds two AI-shaped databases rather than picking one at random,
+because picking either silently is exactly how this hides. Stop `wrangler dev`
+first — it holds the local D1 in memory and flushes on shutdown over anything
+written underneath it.
+
+### The AI bank finished at 400, and the answer key that was 90% A (2026-09-08)
+
+`tools/aiq/*.jsonl` is 400 rows: 300 Reading & Writing, 100 Math. Local D1 holds
+them (`node tools/apply_ai.cjs tools/aiq/*.jsonl`), `/api/questions` returns
+4,170 = 3,770 official + 400 AI.
+
+**A Bank filter on the Question Bank screen.** Reported as "I can't see any
+option to choose the focus sessions or to go through the AI question bank". The
+Focus switch was already there beside Start practice; what was missing was any
+way to *select* the AI bank, so 400 rows were reachable only by luck of the
+shuffle. `dd-bank` is the same `dd()` multiselect the other filters use, `null`
+means both, and `F.bank` is migrated in at load so a returning visitor keeps
+their set. Picking AI alone reads "400 matching questions".
+
+**355 of the 396 multiple-choice rows had A as the correct answer.** Each
+question was authored with its answer written first, so A it was, every time -
+always picking A scored 90% and the bank was useless as practice. Found by
+counting the key, not by reading the questions; no single row looks wrong.
+
+`tools/balance_ai_answers.cjs` rotates each row's choices so the answer lands on
+`'ABCD'[n % 4]` for the nth multiple-choice row in file-then-line order. It is
+99/99/99/99 now, and the whole-bank walk below confirms it in the running app:
+picking A on all 400 gives 99 right and 297 wrong.
+
+Rotation rather than a shuffle, because the rotation amount is *measured from
+where the answer currently sits*: running the pass twice is a no-op, and a batch
+regenerated from its builder can be rebalanced without disturbing the others.
+Everything that names a letter moves with the choices - the choice content and
+its trap tag, the per-choice `Why X is right/wrong` paragraph, and the 20
+`Choice X` references inside Traps blocks. Those are remapped **in one pass**;
+doing A->B and then B->C in sequence carries the first substitution into the
+second.
+
+**`tools/audit_ai.cjs`** is the structural check `apply_ai.cjs` is not.
+`apply_ai.cjs` is the gate a batch must pass to be written (no answer, a trap tag
+off the vocabulary, an `<svg>` with no `<title>`); this one looks for what makes
+a row render or read wrong: markup balance in the stem, every choice and the
+explanation; a bar chart's `<rect>` heights against its own printed value labels,
+matched by x position; a label outside its `viewBox`; ragged table rows; a
+question naming an underlined portion with nothing underlined, or an underline
+swallowing the question sentence; unpaired `\( ... \)`; a bare `&`; mojibake;
+choice letters ABCD in order, non-empty and distinct; the key against the
+explanation's own "Why X is right"; a trap tag on the correct choice; a reference
+to a letter that does not exist. 400 rows, 0 findings.
+
+Two calibration notes. The bare-`&` check has to mask `\( ... \)` first: an
+`aligned` environment uses `&` as its alignment marker and the HTML parser leaves
+it alone when it does not open an entity, so `ai_m028` and `ai_m054` are correct
+as they stand. And an `<svg>` count taken after KaTeX runs is not the authored
+count - KaTeX emits its own `<svg>` for surds and stretchy delimiters, and those
+carry no `<title>` by design. Filter on `!s.closest('.katex')`.
+
+**`ai_rw080` named an underlined portion and underlined nothing**, carrying the
+text again in an italic "Underlined: ..." note below the passage. It is a real
+`<u>` span now. Four rows use one; all four render underlined in both themes,
+with the underline in the passage rather than over the question sentence.
+
+**Verified in the browser, all 400, twice over.**
+
+1. Through the app's own render path off `window.__qa()` - stem, choices and
+   rationale into the DOM, `renderMathInElement` over them: 0 KaTeX errors,
+   0 empty renders, 0 duplicate choice sets, 0 mojibake, 0 raw LaTeX, every
+   stored answer grading right and no distractor grading right, a Traps block in
+   every explanation, 13 authored `<svg>`s with a title, `role="img"`, a sensible
+   size and nothing drawn outside the viewBox.
+2. Through the **real player**, one question at a time: select a choice, press
+   Check, open the explanation, press Next - **400 walked, 0 skipped, 0
+   failures.** 396 multiple-choice and 4 grid-ins; exactly one choice marked
+   correct every time and the picked choice marked wrong exactly when it was; no
+   horizontal overflow; 13 graphs, the tables and the 4 underlines all rendering.
+
+Read by eye as well: all 13 graphs in a gallery in both themes (axes, tick
+labels, value labels and bar heights agreeing), the 4 tables (headers, borders,
+alignment) and the 4 underlined passages.
+
+Two traps in the *test harness*, both of which produce a false report rather than
+an obvious failure. Grading re-renders the choice list, so a node captured before
+Check is detached and still reads `sel` - re-query after pressing Check. And
+`btn-next` does not always advance by one: the explanation panel that opens on a
+miss eats the first press, so an advance loop keyed on "the position changed"
+races and silently skips questions. Wait for the position to reach exactly `i+1`
+and record anything skipped.
+
+**Not done: the remote.** `d1_ai/questions.sql` and `d1_ai/ids.sql` are written
+for all 400 but were not applied - the remote still has the 100 rows from
+2026-09-07. Applying them is `wrangler d1 execute` against `AI_DB` then `DB`, in
+that order, and the app itself still cannot be deployed from this worktree
+(`public/qimg` is a junction and `tools/predeploy.cjs` refuses it).
+
+### Reading all 400 AI questions, one at a time (2026-09-08)
+
+Every automated check the bank has was green - `apply_ai.cjs --check`,
+`audit_ai.cjs`, all eight `test_*.cjs`, a render sweep and a 400-question walk
+through the real player. Reading the questions found **34 that were still
+wrong**, in three classes none of those checks can see, because each one renders
+perfectly and is only wrong to *answer*.
+
+**1. Two grammatically correct choices (4 Boundaries items).** The prompt asks
+which choice "conforms to the conventions of Standard English", so a distractor
+that conforms is a second right answer however badly it fits the meaning. Four
+items offered a comma-plus-coordinating-conjunction or a comma appositive that
+is simply correct English - `ai_rw009` (`, and the`), `ai_rw034` (`, and`),
+`ai_rw168` (`, but below`), `ai_rw240` (`, and the`), `ai_rw215` (`, a`, a plain
+appositive against a keyed colon). Two of the four **said so in their own
+explanation** ("Choice C is grammatical. It is still wrong for this sentence"),
+which is the tell: an explanation that has to argue the distractor is legal but
+unwanted is describing a broken item. Each distractor keeps its teaching point
+with the comma removed, or becomes a splice.
+
+Deliberately left alone: colon against semicolon between two independent clauses
+where the second explains the first (`ai_rw053`, `ai_rw090`, `ai_rw118`,
+`ai_rw190`). Both marks are conventionally allowed there and College Board keys
+the colon anyway, so those follow the real test rather than a stricter rule.
+
+**2. Five stems no choice could complete.** `ai_rw291` opened a nonrestrictive
+clause the stem never closed, so *every* choice left the sentence ungrammatical,
+the keyed one included. `ai_rw245`, `ai_rw270` and `ai_rw295` are
+modifier-attachment items whose introductory participial phrase had no comma
+after it - every other item of that shape in the bank has one. `ai_rw124` keys
+the phrase "The remaining" against a stem reading `______ the other four were
+abandoned`, i.e. "The remaining the other four".
+
+**3. Three stems asked about "the underlined sentence" and underlined nothing**
+(`ai_rw020`, `ai_rw045`, `ai_rw075`). `audit_ai.cjs` matched `underlined
+portion` only, so it passed all three; it matches `underlined` now.
+
+**21 more rows were duplicates of an earlier row.** `math_02` turned out to
+mirror `math_01` almost question for question, and `math_04` repeats several
+again: the same cylinder scaling, the same `x^2+kx+36`, the same 30%-down-then-up
+(both 91%), the same `-5t^2+20t` projectile, the same 9-12-15 triangle asked for
+a sine, three copies of linear-`f`-from-two-points. RW had a second
+"Written in a shorthand no one could read" modifier item (the same sentence as
+`ai_rw145`), and a second Roman concrete, Voynich, Florence Price and
+medieval-account-book synthesis. A duplicate is not broken; it is worth nothing,
+because the second copy tests nothing the first did not. All 21 were rewritten in
+place, keeping id, section, domain, skill, difficulty and level so no filter and
+no part of the focus ladder moves.
+
+Note the **Jaccard scan on stems is useless for Math** and was not what found
+these: math stems are so formulaic that stripping the LaTeX leaves only
+boilerplate, and it reports `1.00` for pairs that share nothing but "What is the
+solution to the given equation?". It works on RW, where it found the shorthand
+pair and the Voynich pair at 0.45-0.56, and a surveyors-and-storm past-perfect
+pair at 0.32. Reading is what found the Math ones.
+
+**Two bugs introduced and caught while fixing, both worth remembering:**
+
+- **A bare `<` inside maths is markup.** `-8\lt k\lt 8` was first written
+  `-8<k<8`, and in HTML `<k` opens a tag whose name runs to the next `>`, so the
+  browser swallows the rest of the paragraph. `audit_ai.cjs`'s tag-balance check
+  caught it as "unclosed `<k>`". The dangerous form is `<` followed by a
+  **letter**; the ten other spans in the bank are all `<` before a digit, which
+  parsers leave as text.
+- **This shell eats one backslash inside a quoted heredoc.** A `python - <<'PY'`
+  patch containing `\angle` reached Python as `\angle`, where `\a` is BEL, so
+  the row shipped a control character and KaTeX left its `\( \)` unparsed. Use
+  the Write tool for anything containing backslashes, or build them with
+  `String.fromCharCode(92)`. `audit_ai.cjs` now fails any row carrying a control
+  character, which is what a LaTeX command that lost its backslash always leaves.
+
+**Verification.** `apply_ai.cjs --check`, `audit_ai.cjs` and
+`balance_ai_answers.cjs --test` are clean over all 400, and the answer key is
+still 99/99/99/99. All 33 rows changed after the first commit went through the
+app's own KaTeX path in the browser: 0 `.katex-error`, 0 spans of raw LaTeX
+(exclude `.katex` subtrees before this test - KaTeX keeps the source TeX in a
+hidden MathML annotation, so reading `textContent` flags every formula that
+rendered correctly), 0 control characters, 0 mojibake, four distinct lettered
+choices with the key among them and untagged, and a Traps block plus a
+per-choice paragraph in every one.
+
+**Not done: the local D1 import.** `tools/aiq/*.jsonl` is the source of record
+and is current; the local database still holds the pre-fix version of those 34
+rows. `wrangler dev` keeps the local D1 in memory and flushes it on shutdown, and
+two dev servers were running on 8787 and 8788 during this pass, so an import
+would have been overwritten. Stop them, then
+`node tools/apply_ai.cjs tools/aiq/*.jsonl`. The remote is still the 100 rows
+from 2026-09-07, as recorded above.
+
+### A second reading of all 400, and the distractor that proves nothing (2026-09-08)
+
+Every automated check was green - `apply_ai.cjs --check`, `audit_ai.cjs`, all
+eight `test_*.cjs`, a 400-row render sweep and a walk through the real player.
+Reading the questions again found **49 rows still wrong**, in two classes that
+every one of those checks passes, because each renders perfectly, grades
+correctly, and is only wrong to *read*. `tools/fix_ai_reasoning.cjs` applies all
+of it; it is idempotent and every edit is asserted.
+
+**1. A distractor whose value does not follow from its own derivation (25 Math
+rows).** The explanation names an error and prints a number the error does not
+produce. `ai_m052`: "4 comes from cross-multiplying against the wrong
+denominators, \(3(x-2)=5(x+6)\), **which gives \(-36=2x\) and not 4**" - the
+paragraph says outright that the button is wrong and ships anyway. A student who
+works the named error out lands on a value that is not offered, so the
+distractor teaches nothing and the explanation teaches the student to distrust
+it. Every one is fixed the same way: move the choice to the value the derivation
+actually produces (`ai_m052` -> -18, `ai_m033` B -> -6 and C -> -5, `ai_m082`
+A -> -19 and D -> 20, `ai_m090` A -> 140), or name the error that produces the
+printed value (`ai_m076`, whose B and C explanations were each other's).
+
+The tell, every time, is a sentence that has to argue around its own arithmetic:
+"and not 4", "No consistent computation produces it", "adjusting by 2 gives 4".
+Grep for the hedge, not for the number.
+
+**2. `ai_m053` could not be answered at all.** Line \(\ell\) is \(3x+4y=20\) and
+line \(k\) was "parallel to \(\ell\) and passes through \((8,-1)\)" - a point
+that satisfies \(3(8)+4(-1)=20\), so \(k\) **is** \(\ell\). The keyed answer
+\(4/3\) came from an arithmetic slip in the worked solution
+(\(x=\frac{20}{3}\cdot\frac{1}{5}\)), and the true intercept \((20/3,0)\) was
+sitting in choice D, tagged as a trap. The point is now \((4,6)\), off \(\ell\);
+\(k\) is \(y=-\frac{3}{4}x+9\) and crosses at \((12,0)\). Nothing structural can
+see this: four distinct choices, one key, a rationale that names it.
+
+**3. Stale bare-letter cross-references (23 RW rows, ~39 references).** Root
+cause, and it is in a tool: `tools/balance_ai_answers.cjs` rotates the choices
+and remaps `Choice X`, but a reference written as a bare "D contains 'grief'" or
+"A gives the edge contrast" is invisible to it, so it stayed pointing at whatever
+now sits at that letter. Every one is corrected *and* rewritten into `Choice X`
+form, so the next rotation moves it with the choice it names.
+
+**The root-cause fix is an audit rule**, not a smarter rebalancer: a bare A-D in
+explanation prose is now a finding. Three calibration notes, all of which cost a
+pass each:
+
+- **The `Why X is`/`Why X is wrong` headers are prose after `strip()`**, so the
+  first version flagged 396 of 400 rows. Mask them first.
+- **A question that labels its own material with letters talks about those
+  letters throughout** - "Program A", "set B", "Hospital A", "press B". Letters
+  the *stem* uses as labels are exempt, which is what separates a real reference
+  from `ai_m069`'s "so B has the greater standard deviation".
+- **"A" is also the indefinite article.** It is only flagged before a
+  third-person verb (a word ending in s, excluding `-ous`/`-ss`/`-us`/`-is`) and
+  never before a possessive, or "A publisher's list" and "A meticulous ledger"
+  read as references.
+
+**This shell eats one backslash inside a quoted heredoc, again.** A `python -
+<<'PY'` patch containing `\b` reached Python as `\b`, which is a **backspace
+character**, so the regex `/\b[A-Za-z]{2,}\s+([A-D])\b/` shipped with two control
+characters in it and silently matched nothing - while `\s` survived, because
+`\s` is not a valid Python escape and is left alone (that is what the
+`SyntaxWarning` is). The same trap is recorded above for `\angle`. Use the Write
+or Edit tool for anything containing backslashes. `audit_ai.cjs` catches this in
+the *data*; nothing was checking the tools, so check the tool file too:
+`[...s.matchAll(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g)]`.
+
+Also: `ai_rw067`'s distractor said neighborhoods were "already 9 percent below"
+where the stem and the explanation both say 8, and `ai_rw001` read "an
+judgement".
+
+**Verified.** `fix_ai_reasoning.cjs` run twice (49 rows, 100 edits, then 0);
+`apply_ai.cjs --check` 400 validated; `audit_ai.cjs` 400 audited, 0 findings, and
+confirmed to *fail* when one fixed row is reverted; `balance_ai_answers.cjs
+--test` OK with the key still 99/99/99/99; all eight `test_*.cjs` pass. Local D1
+re-imported (4,170 = 3,770 + 400 over `/api/questions`). All 400 AI rows through
+the app's own render path in the browser: **0 KaTeX errors, 0 raw LaTeX, 0
+mojibake, 0 empty renders, 0 duplicate choice sets, 0 rows where a distractor
+grades right or the key grades wrong**, 13 rows with an authored `<svg>`.
+
+**The new features, driven by hand in the real player.** Bank filter on the
+Question Bank: AI 400 / Official 3,770 / both 4,170 / neither 0. Focus popup:
+per-question options disabled until Per question is picked, then a 30-question
+AI set with a 1.5x countdown starting at 2:22 (Math target 95s). A wrong Check
+recorded `picked:"B"`, `changes:1`, `correct:0` and marked the row Red, and six
+attempts filled all four dashboard panels - Traps you fall for (worst tag),
+Pacing (rushed 100%, mean vs target per section), Second-guessing (0.17 switches;
+changed 0% against kept 40%), Accuracy by level (L4 40% 2/5, L5 0% 0/1). The
+Mistakes page's own Bank dropdown (`#md-bank`, separate from the practice one)
+cut 4 mistakes to 0 with AI deselected.
+
+Two harness notes worth keeping: the practice, mistakes and dashboard screens all
+live inside one `.board`, so `document.querySelector('#dd-bank')` finds the
+*practice* filter while the Mistakes tab is open - scope to `#tab-mistakes`. And
+matching the on-screen question back to a `QS` row by its stem text does not
+work, because `renderStem`/`tidySpace` rewrite the text; read the id off the
+attempt log after the Check instead.
+
+### Focus practice: 0.75x, and the ladder that had nothing to climb (2026-09-08)
+
+Per-question limit gains **0.75x**, and 1x is labelled `1x SAT pace` so the number
+being multiplied is visible. The target was already right - `TARGET_MS` is 35
+minutes over 22 Math questions (95s) and 32 over 27 Reading & Writing (71s).
+Measured live: Math 0.75x starts at 1:11, 2x at 3:10; RW 1x at 1:11, 1.5x at 1:46.
+
+**The adaptive difficulty was decorative.** `focusSet` fills round-robin over
+skills, so each skill contributes about one question, and each skill's list is
+sorted unseen-first - with thousands of unseen rows that collapses to "this
+skill's easiest unseen question", every time. A 35-question Math set came out 19
+level-1 and 16 level-2, and answering eight straight correct walked `S.lvl` from 1
+to 5 while **every question served stayed level 1**. The reorder was working; the
+set had one level in it.
+
+Balance the levels across the *set*, not within a skill: `take(k)` picks from the
+skill the question whose level is least represented so far, the existing
+unseen-first order still deciding ties. Same set is now 7/7/7/7/7 over levels 1-5,
+and the walk tracks - correct answers serve 1, 3, 4, 4, 5, 5; four misses then
+serve 4, 3, 2, 1.
+
+Interleaving *within* each skill was tried first and does nothing, for the same
+reason: the whole set comes out of the first round-robin pass, so only the rank-0
+question of each skill is ever reached.
+
+`test_focus.cjs` asserts the set spans >=3 levels and that a harder question lands
+in the first six; confirmed to fail with the fix reverted. `window.__qa()` now
+exposes the live session `S`, because reading the ladder's target off the rendered
+stem is impossible - KaTeX triples the text (HTML plus the MathML annotation) and
+a math stem stripped of its notation is generic enough to match a dozen rows.
