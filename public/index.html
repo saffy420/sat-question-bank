@@ -143,7 +143,6 @@ img { max-width: 100%; height: auto; }
 .board { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
 .board-h { flex: 0 0 auto; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 26px 32px 18px; }
 .board-h h1 { margin: 0; font-size: 25px; font-weight: 700; letter-spacing: -.025em; }
-.board-h .sub { font-size: 13px; color: var(--dim); margin-top: 4px; }
 .board-b { flex: 1; min-height: 0; overflow-y: auto; padding: 0 32px 48px; }
 
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 0 0 18px; }
@@ -222,11 +221,7 @@ select:hover { border-color: var(--border2); }
 .dom { border-bottom: 1px solid var(--border); }
 .dom:last-child { border-bottom: 0; }
 .dom-h { display: flex; align-items: center; gap: 13px; width: 100%; border: 0; border-radius: 0; background: transparent; color: var(--text); padding: 18px 20px 14px; font-size: 23px; font-weight: 700; letter-spacing: -.025em; }
-.dom-h:hover:not(:disabled) { background: var(--bg2); border-color: transparent; }
 .dom-h .cnt { margin-left: auto; font-size: 12.5px; font-weight: 500; color: var(--dim); }
-.dom-h .chev { color: var(--dim); transition: transform .15s; }
-.dom.shut .chev { transform: rotate(-90deg); }
-.dom.shut .dom-b { display: none; }
 .dom-b { padding-bottom: 8px; }
 .tl-row { padding: 8px 20px; cursor: pointer; }
 .tl-row:hover { background: var(--bg2); }
@@ -791,7 +786,6 @@ mark.hl-b { background: #bfe3ff; }
     <header class="board-h">
       <div>
         <h1 id="greet">Welcome back</h1>
-        <div class="sub" id="src-pill">Loading&#8230;</div>
       </div>
       <button class="theme-toggle" data-theme-toggle title="Toggle dark mode">&#127769;</button>
     </header>
@@ -1444,10 +1438,8 @@ async function load() {
     try { EXAMS = (await (await fetch('/exams.json')).json()).tests; } catch (e) { EXAMS = []; }
     await loadProgress();
     await loadSettings();
-    const nAI = QS.filter(q => q.ai).length;
-    $('src-pill').textContent = `${(QS.length - nAI).toLocaleString()} official College Board questions · ${nAI.toLocaleString()} AI questions harder than the official Hard · synced with Cloudflare D1`;
   } catch(e) {
-    $('src-pill').textContent = 'Could not reach the server — is server.js running?';
+    warnSync('Could not reach the server.');
   }
   refresh();
   setTab(TAB);
@@ -1993,7 +1985,6 @@ function saveF() { LS.set('filters', F); drawFilters(); }
 
 $('f-rand').onclick = () => { F.rand = !F.rand; saveF(); };
 
-const SHUT = new Set(LS.get('shut', []));
 
 function drawTopics() {
   const list = base(), t = tally(list);
@@ -2015,9 +2006,9 @@ function drawTopics() {
   $('topic-list').innerHTML = doms.map(d => {
     const sks = cbSort([...groups[d]]);
     const v = sks.reduce((o,sk) => { const x = t.skill[sk]||{a:0,c:0,n:0}; return {a:o.a+x.a,c:o.c+x.c,n:o.n+x.n}; }, {a:0,c:0,n:0});
-    return `<div class="dom ${SHUT.has(d)?'shut':''}" data-d="${esc(d)}">
-      <button class="dom-h"><span class="tick ${sks.every(sk=>sel.has(sk))?'on':''}" data-dom="${esc(d)}">${TICK}</span>${esc(d)}
-        <span class="cnt">${v.a}/${v.n} &middot; ${accHTML(pctOf(v))}</span>${CHEV}</button>
+    return `<div class="dom" data-d="${esc(d)}">
+      <div class="dom-h"><span class="tick ${sks.every(sk=>sel.has(sk))?'on':''}" data-dom="${esc(d)}">${TICK}</span>${esc(d)}
+        <span class="cnt">${v.a}/${v.n} &middot; ${accHTML(pctOf(v))}</span></div>
       <div class="dom-b">${sks.map(row).join('')}</div></div>`;
   }).join('') || '<div class="empty">No topics match these filters.</div>';
 
@@ -2035,12 +2026,6 @@ function drawTopics() {
   el.querySelectorAll('.dom-h .tick').forEach(t => t.onclick = (e) => {
     e.stopPropagation();
     toggle([...groups[t.dataset.dom]]);
-  });
-  el.querySelectorAll('.dom-h').forEach(h => h.onclick = () => {
-    const d = h.parentElement.dataset.d;
-    SHUT.has(d) ? SHUT.delete(d) : SHUT.add(d);
-    LS.set('shut', [...SHUT]);
-    h.parentElement.classList.toggle('shut');
   });
 }
 
