@@ -49,14 +49,14 @@ When changing Supabase project or canonical host, review these FIVE locations to
 
 ## Data sources and availability
 
-- The populated core bank, source PDFs and core baseline dump are absent from this checkout. Tracked UPDATE migrations contain real repair content but cannot reconstruct the full bank or insert missing rows into an empty schema.
+- The populated core bank, source PDFs and core baseline dump are absent from Git. Tracked UPDATE migrations cannot reconstruct the full bank or insert missing rows. This working copy has an ignored recovery from `https://helpmeaceit.page/api/questions`; fresh clones still need an external data source. The endpoint supplies display fields, not legacy `stem_text`, and availability is not guaranteed.
 - Core source PDFs are `OfficialSatMath.pdf` and `OfficialSatReading.pdf`. Join using printed `Question ID` and `questions.id`; historical `source_page` values are unusable, so do not assume a page index is available.
 - Extraction produces content and crops, not the complete metadata baseline. `tools/apply_math.cjs` UPDATEs existing IDs and leaves section/domain/skill/difficulty/source untouched. `tools/d1_dump.cjs` exports an existing bank; it cannot supply absent data.
 - Personal Bluebook practice-test rows were deliberately removed from the shared bank. Do not restore them merely to match an obsolete README or diary count.
 - `tools/aiq/*.jsonl` ships 400 complete AI-authored records: 300 Reading & Writing and 100 Math across 17 files. These tracked files are the source of record and are importable, not automatically imported by package scripts.
 - `tools/apply_ai.cjs` validates and upserts AI questions into initialized local `AI_DB`, registers IDs in main `DB.ai_ids`, and emits `d1_ai/questions.sql` plus `d1_ai/ids.sql`. D1 cannot join across the two databases; keep the registry synchronized.
 - AI rows use `source='AI'`, `difficulty='Hard'`, levels 4–5; official levels derive from Easy/Medium/Hard = 1/2/3. Preserve labels distinguishing AI from College Board material.
-- `public/qimg/` is gitignored and absent here. Do not claim current crop counts or disk sizes from diary measurements. A fresh checkout lacks the images needed by core questions.
+- `public/qimg/` is gitignored: recovered locally, absent from fresh clones. Fetch referenced crops separately from question JSON. Do not infer current asset counts or sizes from historical diary measurements.
 - `.wrangler/`, extraction outputs, backups and generated import SQL are not a reproducible core seed. Check actual prerequisites rather than assuming a sibling worktree has them.
 - Preserve the College Board personal-study license notice. Legal text in the SPA remains draft boilerplate with a `LEGAL_CONTACT` placeholder, not reviewed launch-ready policy.
 
