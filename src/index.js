@@ -151,8 +151,8 @@ export default {
     // One canonical host. Supabase only redirects an OAuth or confirmation link
     // back to an origin on its allowlist, so a session started on www and
     // finished on the apex (or the reverse) is a session dropped on the floor.
-    if (url.hostname === 'www.your-domain.example') {
-      url.hostname = 'your-domain.example';
+    if (url.hostname === 'www.roadto1600.org') {
+      url.hostname = 'roadto1600.org';
       return new Response(null, { status: 301, headers: harden(new Headers({ Location: url.toString() })) });
     }
 

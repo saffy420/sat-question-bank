@@ -47,7 +47,7 @@ All line references in this table are to `src/index.js`. Protected routes call `
 
 | Method | Path / match | Auth | Behavior | Lines |
 |---|---|---|---|---|
-| Any reaching Worker | Host `www.helpmeaceit.page` | Public | 301 to apex, retaining path/query; before all other branches | 148–157 |
+| Any reaching Worker | Host `www.roadto1600.org` | Public | 301 to apex, retaining path/query; before all other branches | 148–157 |
 | GET | `/api/questions` | Public | Core questions plus optional AI questions; AI query errors silently produce empty AI list | 159–182 |
 | GET | `/api/account` | Required | Upsert user, return user row; this GET writes | 184–190 |
 | GET | `/api/progress` | Required | Caller progress rows | 192–199 |

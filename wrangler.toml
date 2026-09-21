@@ -2,22 +2,22 @@ name = "sat-question-bank"
 main = "src/index.js"
 compatibility_date = "2024-12-16"
 
-# your-domain.example must be a zone on this Cloudflare account before a deploy can
+# roadto1600.org must be a zone on this Cloudflare account before a deploy can
 # claim these routes — see README. `custom_domain` makes Cloudflare create and own
 # the DNS record, so there is nothing to add by hand.
 [[routes]]
-pattern = "your-domain.example"
+pattern = "roadto1600.org"
 custom_domain = true
 
 [[routes]]
-pattern = "www.your-domain.example"
+pattern = "www.roadto1600.org"
 custom_domain = true
 
 [assets]
 directory = "./public"
 binding = "ASSETS"
 # Assets are served before the Worker runs, so "/" never reached the www -> apex
-# check in src/index.js and www.your-domain.example served the page on its own host.
+# check in src/index.js and www.roadto1600.org served the page on its own host.
 # Only "/" is routed through the Worker: sending the 4,843 crops through it too
 # would cost a Worker invocation per image for nothing.
 run_worker_first = ["/"]

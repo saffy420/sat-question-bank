@@ -34,7 +34,12 @@ When changing Supabase project or canonical host, review these FIVE locations to
 2. `wrangler.toml`: `[vars]` `SUPABASE_URL` / `SUPABASE_ANON_KEY` (and custom-domain routes when changing host).
 3. `src/index.js`: CSP `connect-src`.
 4. `public/_headers`: CSP `connect-src`.
-5. `src/index.js`: `www.helpmeaceit.page` -> `helpmeaceit.page` canonical redirect.
+5. `src/index.js`: `www.roadto1600.org` -> `roadto1600.org` canonical redirect.
+
+Adding or changing a domain later touches the same set: the two `[[routes]]`
+patterns in `wrangler.toml`, the redirect hostnames in `src/index.js`, the Supabase
+Site URL / redirect allowlist (must include the canonical origin and `/auth/callback`),
+and `.env.example`'s `CANONICAL_HOST` / `WWW_HOST` checklist entries.
 
 - Both CSP sources must agree: static assets can bypass Worker headers. Keep `frame-src https://www.desmos.com` in both for the SAT calculator embeds.
 - Preserve `run_worker_first = ["/"]` in `wrangler.toml`; it prevents asset-first handling from bypassing the root canonical redirect without routing every crop through Worker. Other existing static assets can still bypass the redirect.
