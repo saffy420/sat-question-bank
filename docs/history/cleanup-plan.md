@@ -46,9 +46,9 @@ Use three distinct statements near the top:
 
 Describe PDF extraction and its missing baseline/metadata prerequisites honestly. Also document the verified public API recovery option and separately fetched images, without promising permanent endpoint availability or legacy OCR recovery. Retain accurate feature/schema documentation; replace custom-domain walkthrough with pointer to SETUP.
 
-## Phase 8 — optional, not authorized
+## Phase 8 — UI map, later authorized
 
-Skip UI map unless explicitly requested. Do not split `public/index.html`.
+The user subsequently requested all phases, including this one. Produce `docs/ui-map.md` only. Do not split `public/index.html`.
 
 ## Deferred behavior defects
 
