@@ -25,8 +25,8 @@ run_worker_first = ["/"]
 [vars]
 # Publishable key — same pair the browser already ships; used only to call
 # Supabase's /auth/v1/user so the Worker can verify who a request belongs to.
-SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"
-SUPABASE_ANON_KEY = "sb_publishable_YOUR_PUBLISHABLE_KEY"
+SUPABASE_URL = "https://cxlzflzdlegosybkklma.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_M0q3BurnPJpEHlrrZAOdaQ_SpgvOPC1"
 
 [[d1_databases]]
 binding = "DB"
