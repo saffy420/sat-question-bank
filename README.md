@@ -1,71 +1,81 @@
 # SAT Question Bank
 
-A Bluebook-style SAT practice app over 3,843 questions extracted from the
-official College Board Educator Question Bank PDFs, plus a handful of personal
-Bluebook practice-test mistakes. Runs as a single Cloudflare Worker: the
-questions live in D1, the UI is one static HTML file.
+A Bluebook-style SAT practice app: one Cloudflare Worker, two D1 databases, and a single-file vanilla HTML/CSS/JS interface.
 
-Live: https://helpmeaceit.page
+- **The core bank (~3.8k official questions) is NOT in this repo and cannot be reconstructed from it.** Core repair SQL contains UPDATEs against rows that must already exist, not a baseline seed.
+- **400 AI-authored questions DO ship** in `tools/aiq/` and are importable through `tools/apply_ai.cjs`: 100 Math and 300 Reading & Writing across 17 files.
+- **`public/qimg/` figure crops are gitignored and absent from a fresh clone.** They were recovered in this working copy; they do not ship in Git.
+
+The original public endpoint `https://helpmeaceit.page/api/questions` was verified accessible during cleanup, returning 3,770 CollegeBoard and 400 AI display records. This is an optional external recovery source, not a repository seed or an availability guarantee. Figure crops must be downloaded separately; legacy OCR text is not supplied. See [bootstrap and recovery boundaries](docs/BOOTSTRAP.md).
 
 ## Features
 
-- **Practice sets** filtered by section, domain, difficulty and source
-- **Bluebook-style player** — two panes for questions with a passage, figure or
-  table; one full-width column for bare questions; choice elimination; flag for
-  review; per-question timer; question map
-- **Desmos** graphing and scientific calculators, docked left, on Math questions
-- **Math as text** — 1,156 questions carry their notation as LaTeX rendered with
-  KaTeX rather than as a cropped image, so it selects, scales and reflows. The
-  rest keep a crop, displayed at the source's own proportions
-- **Dashboard** — accuracy by section, domain and skill
-- **Browse** — search every question by domain, skill or id and preview it
-- **Copy for AI** — copies the question, choices, answer, your answer and the
-  official explanation as a plain-text prompt to paste into any AI assistant
-- **Accounts** through Supabase — Google or email and password. Every answer,
-  marker and star is written to D1 under the account, so progress follows you to
-  any device. Practice signed out and it is kept locally, then merged into the
-  account the first time you sign in
+- **Practice sets** filtered by section, domain, skill, difficulty and source; focus selection and a level ladder.
+- **Bluebook-style player** with passage/figure/table panes, choice elimination, flagging, timer, question map, highlighting and notepad.
+- **Desmos** graphing and scientific calculators docked on Math questions; external iframe availability is required.
+- **Math rendering** with KaTeX where notation is text, and separately supplied crops where image notation remains necessary.
+- **Dashboard and Mistakes** with accuracy, activity, skill breakdowns and retry practice.
+- **Browse** with search and question previews.
+- **Practice exams and History** with saved account sessions and explicitly estimated scores, not official Bluebook scoring. Tracked exam IDs need populated core data.
+- **Copy for AI** exports question content, choices, answers and explanation to paste into an assistant; no model API or tutor service is included.
+- **Supabase accounts** using Google or email/password with D1-backed progress, attempts, notes, settings and sessions. Guest answers are memory-only and are not merged on sign-in; guest preferences can persist locally. Known synchronization limits are recorded in [KNOWN-ISSUES](docs/KNOWN-ISSUES.md).
 
 ## Running it
 
-```bash
-npm install
-npm run dev      # wrangler dev on http://localhost:8787
+Follow [SETUP](docs/SETUP.md) for your own resources and all coupled auth/domain settings, then [BOOTSTRAP](docs/BOOTSTRAP.md) for verified fresh local initialization. Installing dependencies and starting Wrangler alone does not populate databases.
+
+```sh
+npm ci
+npm run dev -- --local
+npm test
 ```
 
-`wrangler dev` serves `public/` and reads the local D1 replica under
-`.wrangler/`. Deploy with `npm run deploy`.
+The verified tracked-AI-only bootstrap produces **0 core questions, 400 AI questions and 400 AI registry IDs**. Fixed core exams and missing crops remain unavailable. Supabase placeholders permit guest initialization but not real sign-in. Deployment is separate; `npm run deploy` uploads code/assets, not SQL, and its image guard requires a real populated crop directory.
 
 ## Layout
 
-```
-public/index.html   the whole app: markup, styles, logic
-public/qimg/        figure and notation crops (untracked, ~44M, 5,528 files)
-src/index.js        Worker: /api/questions, /api/progress, /api/attempts, assets
-schema.sql          questions, progress, users
-wrangler.toml       Worker name, D1 binding, asset directory
-tools/              PDF extractor and its glyph-decoding support
-tools/d1_dump.cjs   dumps the local D1 questions table as chunked INSERTs
+```text
+public/index.html   complete SPA: markup, styles and logic; not split
+public/exams.json   fixed exam IDs, not question bodies
+public/qimg/        ignored external figure and notation crops
+src/index.js       Worker API, authentication, CSP, redirect and asset fallback
+schema.sql         core questions and all user-state tables
+schema_ai.sql      AI question schema, including level
+migrations/        sequential historical core schema changes
+migrations_ai/     separate AI schema history
+data-fixes/        one-time UPDATE repairs; not fresh-setup seeds
+tools/aiq/         400 tracked AI-authored questions
+tools/apply_ai.cjs  validate/import AI bank and register its IDs
+tools/             extraction, repair, export and audit tools
+tests/             local regression tests and marked integration checks
+wrangler.toml      placeholder resources, two D1 bindings and static assets
+docs/history/      original diary, plans and cleanup provenance
 ```
 
-`CLAUDE.md` carries the working notes: how the extractor decodes math from
-vector paths, why the raster pages could not be decoded, and the recipe for
-rebuilding the remote D1 from the local one.
+`CLAUDE.md` contains standing development guidance, not the full historical diary. See [AUDIT](docs/AUDIT.md) for inherited hazards and [UI map](docs/ui-map.md) for navigation through the unsplit SPA.
 
 ## Schema
 
-`users` — `id` (the Supabase user id), `email`, `name`, `created_at`. A row is
-written the first time an account touches the API.
+Main `DB` contains:
 
-`progress` — `user_id`, `question_id`, `attempts`, `corrects`, `marker`,
-`last_reviewed`, `time_taken_ms`, `stars`, keyed on the first two.
+| Table | Purpose |
+|---|---|
+| `questions` | Core metadata, stem/choice/explanation HTML, answer, source and legacy OCR text |
+| `users` | Supabase user ID, email, name and creation time; touched by account GET and applicable writes |
+| `progress` | Latest per-user/question attempts, corrects, marker, review time, time taken and stars |
+| `attempts` | Append-only answer events with timestamp, correctness, time, picked answer and changes |
+| `settings` | Per-user JSON preferences |
+| `notes` | Per-user/question note text |
+| `sessions` | Per-user exam/review JSON state; old sessions purged on sessions GET |
+| `ai_ids` | AI question registry for write guards across separate D1 databases |
 
-`questions` — `id`, `external_id`, `section`, `domain`, `difficulty`, `skill`,
-`stem_html`, `choices_json`, `correct_answer`, `explanation_html`, `source`,
-`source_page`, `has_figure`, `stem_text`.
+`AI_DB.questions` shares core question columns and adds `level`. AI records use levels 4–5; official difficulty maps to levels 1–3. No parsed choices means grid-in; no dedicated type column exists. The public API combines display fields from both banks and omits legacy `stem_text`; an AI query failure can silently return core-only results.
 
-A question with no entries in `choices_json` is a grid-in; the client derives
-that rather than storing a type column.
+## PDF extraction is not a baseline import
+
+`tools/extract.py` expects external `OfficialSatMath.pdf` / `OfficialSatReading.pdf`, glyph-decoding inputs, and Python prerequisites such as PyMuPDF and Pillow; experimental raster tools also use NumPy and missing template data. No complete Python dependency manifest or source PDFs ship. Extraction produces content/crops, not the complete metadata baseline. `tools/apply_math.cjs` updates existing question IDs, so extraction alone cannot populate an empty core bank. Printed Question IDs are the join key; historical `source_page` is not a reliable page index.
+
+`tools/d1_dump.cjs` exports INSERTs from an already populated local bank; it cannot recover absent rows. Several tools hardcode or guess local SQLite filenames, so verify database identity and stop dev servers before using them. Never replay repairs indiscriminately over recovered/current content.
 
 ## License
 
@@ -73,27 +83,4 @@ Questions © College Board. This app is for personal study use only.
 
 ## Custom domain
 
-`wrangler.toml` claims `helpmeaceit.page` and `www.helpmeaceit.page` as custom
-domains. A deploy only succeeds once the domain is a zone on the same Cloudflare
-account:
-
-1. Cloudflare dashboard -> Add a site -> `helpmeaceit.page`.
-2. Cloudflare gives you two nameservers. Set them at the registrar the domain was
-   bought from, replacing whatever is there.
-3. Wait for the zone to read **Active** (minutes to a day, depending on the registrar).
-4. `wrangler deploy`. Cloudflare creates both DNS records itself; do not add an
-   A/CNAME record by hand, a custom-domain route owns it.
-
-Done, as of 2026-09-02. `www` 301s to the apex, because Supabase returns an OAuth
-or confirmation link to one allowlisted origin and a session started on one host
-and finished on the other is a session dropped. Assets are served before the
-Worker runs, so that check would never have seen `/`: `run_worker_first = ["/"]`
-in `[assets]` routes just the page through the Worker.
-
-The `*.workers.dev` URL is gone — `workers_dev` is not set in `wrangler.toml`, so
-the first deploy with custom domains disabled it. That is deliberate: one origin
-is the whole point of the redirect above. Add `workers_dev = true` to bring it back.
-
-Security headers live in **two** places and must agree: `public/_headers` covers
-static assets (a request that matches one never reaches the Worker) and the `CSP`
-constant in `src/index.js` covers the JSON API and `/auth/callback`.
+Use [SETUP](docs/SETUP.md). Both Wrangler routes, Worker canonical redirect, browser auth constants, Worker vars and both CSP policies must agree. Historical author-specific configuration is reference only, not permission to deploy to or modify those resources.
