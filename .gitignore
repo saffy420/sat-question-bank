@@ -40,3 +40,6 @@ d1_chunks/
 d1_ai/
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+# Question-bank snapshot (College Board content). Fetched once from the external
+# endpoint into data/questions.snapshot.json; never commit it in this public fork.
+data/
