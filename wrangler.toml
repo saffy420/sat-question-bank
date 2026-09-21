@@ -2,22 +2,22 @@ name = "sat-question-bank"
 main = "src/index.js"
 compatibility_date = "2024-12-16"
 
-# helpmeaceit.page must be a zone on this Cloudflare account before a deploy can
+# your-domain.example must be a zone on this Cloudflare account before a deploy can
 # claim these routes — see README. `custom_domain` makes Cloudflare create and own
 # the DNS record, so there is nothing to add by hand.
 [[routes]]
-pattern = "helpmeaceit.page"
+pattern = "your-domain.example"
 custom_domain = true
 
 [[routes]]
-pattern = "www.helpmeaceit.page"
+pattern = "www.your-domain.example"
 custom_domain = true
 
 [assets]
 directory = "./public"
 binding = "ASSETS"
 # Assets are served before the Worker runs, so "/" never reached the www -> apex
-# check in src/index.js and www.helpmeaceit.page served the page on its own host.
+# check in src/index.js and www.your-domain.example served the page on its own host.
 # Only "/" is routed through the Worker: sending the 4,843 crops through it too
 # would cost a Worker invocation per image for nothing.
 run_worker_first = ["/"]
@@ -25,13 +25,13 @@ run_worker_first = ["/"]
 [vars]
 # Publishable key — same pair the browser already ships; used only to call
 # Supabase's /auth/v1/user so the Worker can verify who a request belongs to.
-SUPABASE_URL = "https://lbwxzcdmhyhgtscthnaq.supabase.co"
-SUPABASE_ANON_KEY = "sb_publishable_jG8GJoT0puI7Roflw6yiFQ_IL7lSifr"
+SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_YOUR_PUBLISHABLE_KEY"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "sat_question_bank"
-database_id = "bb6bfa7f-2687-4e52-94e7-eedccd1fa05b"
+database_id = "00000000-0000-0000-0000-000000000001" # PLACEHOLDER: your main D1 UUID
 
 # The AI-authored bank, in its own database so the session auditing the official
 # bank cannot collide with it. D1's daily row-write cap is account-wide, so this
@@ -39,4 +39,5 @@ database_id = "bb6bfa7f-2687-4e52-94e7-eedccd1fa05b"
 [[d1_databases]]
 binding = "AI_DB"
 database_name = "sat_ai_bank"
-database_id = "ce533bdc-0621-477e-8ea8-a375bf943623"
+database_id = "00000000-0000-0000-0000-000000000002" # PLACEHOLDER: your AI D1 UUID
+migrations_dir = "migrations_ai"

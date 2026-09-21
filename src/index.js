@@ -16,7 +16,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "font-src 'self' data: https://cdn.jsdelivr.net",
   "img-src 'self' data:",
-  "connect-src 'self' https://lbwxzcdmhyhgtscthnaq.supabase.co",
+  "connect-src 'self' https://YOUR-PROJECT.supabase.co",
   // The SAT-locked Desmos calculators are iframed in. frame-src falls back to
   // default-src, so 'self' alone silently blanks the calculator panel.
   "frame-src https://www.desmos.com",
@@ -151,8 +151,8 @@ export default {
     // One canonical host. Supabase only redirects an OAuth or confirmation link
     // back to an origin on its allowlist, so a session started on www and
     // finished on the apex (or the reverse) is a session dropped on the floor.
-    if (url.hostname === 'www.helpmeaceit.page') {
-      url.hostname = 'helpmeaceit.page';
+    if (url.hostname === 'www.your-domain.example') {
+      url.hostname = 'your-domain.example';
       return new Response(null, { status: 301, headers: harden(new Headers({ Location: url.toString() })) });
     }
 

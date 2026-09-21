@@ -1024,8 +1024,8 @@ mark.hl-b { background: #bfe3ff; }
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-const SUPABASE_URL = 'https://lbwxzcdmhyhgtscthnaq.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_jG8GJoT0puI7Roflw6yiFQ_IL7lSifr';
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_YOUR_PUBLISHABLE_KEY';
 
 const LS = {
   get(k,d){ try{ const v=localStorage.getItem('satq_'+k); return v?JSON.parse(v):d; }catch(e){ return d; } },
