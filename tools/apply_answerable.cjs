@@ -142,7 +142,7 @@ for (const r of db.prepare("SELECT * FROM questions WHERE section='Math'").all()
   sql.push('UPDATE questions SET ' + FIELDS.map(f => `${f}=${esc(r[f])}`).join(', ')
            + ` WHERE id=${esc(r.id)};`);
 }
-const mig = path.join(root, 'migrations', '0006_math_answerable.sql');
+const mig = path.join(root, 'data-fixes', 'core', '0006_math_answerable.sql');
 fs.writeFileSync(mig, '-- Everything the local Math rows carry on top of the re-extraction that\n'
   + '-- goes up as d1_chunks: the text fixes, the prose unwrap, the answers that\n'
   + '-- existed only as a picture, two mangled stems, and the four-scatterplot\n'

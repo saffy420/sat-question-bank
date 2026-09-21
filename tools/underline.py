@@ -33,7 +33,7 @@ import extract as E            # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PDF = os.path.expanduser("~/Downloads/OfficialSatReading.pdf")
-MIGRATION = os.path.join(ROOT, "migrations", "0009_rw_underline.sql")
+MIGRATION = os.path.join(ROOT, "data-fixes", "core", "0009_rw_underline.sql")
 
 RULE_H = 2.0        # an underline is a hairline fill; anything taller is art
 RULE_W = 2.0        # ...and at least this wide, else it is a bullet or a dot

@@ -222,9 +222,9 @@ if (process.argv.includes('--emit')) {
     if (r.source !== 'Bluebook' && !ONE_OFF_ROWS.includes(r.id) && !FIELDS.some(f => MARK.test(r[f] || ''))) continue;
     out.push('UPDATE questions SET ' + FIELDS.map(f => f + '=' + esc(r[f])).join(', ') + ' WHERE id=' + esc(r.id) + ';');
   }
-  fs.writeFileSync('migrations/0002_math_text_fix.sql', out.join('\n') + '\n');
-  console.log('wrote migrations/0002_math_text_fix.sql (' + out.length + ' statements)');
+  fs.writeFileSync('data-fixes/core/0002_math_text_fix.sql', out.join('\n') + '\n');
+  console.log('wrote data-fixes/core/0002_math_text_fix.sql (' + out.length + ' statements)');
 } else if (write) {
-  fs.writeFileSync('migrations/0002_math_text_fix.sql', sql.join('\n') + '\n');
-  console.log('wrote migrations/0002_math_text_fix.sql (' + sql.length + ' statements)');
+  fs.writeFileSync('data-fixes/core/0002_math_text_fix.sql', sql.join('\n') + '\n');
+  console.log('wrote data-fixes/core/0002_math_text_fix.sql (' + sql.length + ' statements)');
 }

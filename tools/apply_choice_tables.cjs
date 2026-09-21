@@ -129,7 +129,7 @@ const tx = db.transaction(() => {
 });
 tx();
 
-const mig = path.join(root, 'migrations', '0005_math_render_fixes.sql');
+const mig = path.join(root, 'data-fixes', 'core', '0005_math_render_fixes.sql');
 fs.writeFileSync(mig, `-- Math render fixes: choice tables split back out of one\n` +
   `-- reconstructed block, two unparseable scraps, and spans holding no maths.\n` +
   sql.join('\n') + '\n');
