@@ -31,7 +31,7 @@ SUPABASE_ANON_KEY = "sb_publishable_M0q3BurnPJpEHlrrZAOdaQ_SpgvOPC1"
 [[d1_databases]]
 binding = "DB"
 database_name = "sat_question_bank"
-database_id = "00000000-0000-0000-0000-000000000001" # PLACEHOLDER: your main D1 UUID
+database_id = "f01978d5-ae12-49f5-900a-6f457376205f"
 
 # The AI-authored bank, in its own database so the session auditing the official
 # bank cannot collide with it. D1's daily row-write cap is account-wide, so this
@@ -39,5 +39,5 @@ database_id = "00000000-0000-0000-0000-000000000001" # PLACEHOLDER: your main D1
 [[d1_databases]]
 binding = "AI_DB"
 database_name = "sat_ai_bank"
-database_id = "00000000-0000-0000-0000-000000000002" # PLACEHOLDER: your AI D1 UUID
+database_id = "4c0fe455-4e45-4982-bbe2-46191af9c685"
 migrations_dir = "migrations_ai"
