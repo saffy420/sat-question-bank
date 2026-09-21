@@ -1,40 +1,67 @@
-# Fresh local D1 bootstrap
+# Local D1 bootstrap (snapshot recipe)
 
-This creates **0 core questions, 400 AI questions, and 400 main-database AI registry IDs**. The core bank and figure crops are not in Git. See SETUP for own-account configuration before deployment. Never use `--remote` for this local recipe.
+This fork seeds its banks from `data/questions.snapshot.json` (ignored, College
+Board content — never commit it), not from tracked migrations or data repairs.
+Never use `--remote` for this local recipe.
 
 ## Ordered recipe
 
-1. Use a fresh clone or detached worktree with no `.wrangler/` state. Install package dependencies with `npm ci` using a supported Node installation. `better-sqlite3` must load successfully; do not use `--ignore-scripts` as a substitute for its native binary. On Windows, use Windows Node/npm consistently rather than mixing Linux-built modules with Windows Node. Stop local dev servers before importing.
-2. Set both local D1 IDs once before initialization. Changing IDs later re-keys storage. Keep the main and AI IDs distinct. Use the root `wrangler.toml` and default `.wrangler/state` location: the importer discovers databases relative to its own source directory, not the current shell directory. An absolute importer path from another checkout would write to that checkout instead.
-3. From this fresh project root, initialize the main snapshot, then the AI snapshot:
-
+1. Stop every `wrangler dev` process. Direct sqlite writes race its in-memory state.
+2. Apply the schema snapshots only, once per fresh database:
    ```sh
    npx wrangler d1 execute DB --local --file=schema.sql
    npx wrangler d1 execute AI_DB --local --file=schema_ai.sql
    ```
-
-4. Apply **no subsequent historical migrations**. `schema.sql` already contains `migrations/0001_attempts.sql` through `0005_sessions.sql`; replaying `0004_ai_bank.sql` would add duplicate `picked`/`changes` columns. `schema_ai.sql` already contains `migrations_ai/0001_init.sql`. Skip all seven `data-fixes/` SQL files: they repair existing rows rather than seed a fresh bank. See [complete mapping](history/migration-map.md).
-5. Import all 17 tracked batches explicitly; this works without shell wildcard expansion on Windows:
-
+   `schema.sql` already contains every table (`questions`, `users`, `progress`,
+   `attempts` with `picked`/`changes`, `settings`, `notes`, `ai_ids`, `sessions`);
+   `schema_ai.sql` already contains the AI `questions` with `level`.
+3. Run the importer:
    ```sh
-   node tools/apply_ai.cjs tools/aiq/math_01.jsonl tools/aiq/math_02.jsonl tools/aiq/math_03.jsonl tools/aiq/math_04.jsonl tools/aiq/rw_01.jsonl tools/aiq/rw_02.jsonl tools/aiq/rw_03.jsonl tools/aiq/rw_04.jsonl tools/aiq/rw_05.jsonl tools/aiq/rw_06.jsonl tools/aiq/rw_07.jsonl tools/aiq/rw_08.jsonl tools/aiq/rw_09.jsonl tools/aiq/rw_10.jsonl tools/aiq/rw_11.jsonl tools/aiq/rw_12.jsonl tools/aiq/rw_13.jsonl
+   node tools/import_snapshot.cjs
    ```
-
-   The existing importer validates all 400 rows, writes `AI_DB.questions`, registers IDs in `DB.ai_ids`, and generates ignored `d1_ai/questions.sql` and `d1_ai/ids.sql`. `--check` validates only and is not an import. Do not execute generated SQL against any remote database as part of this recipe.
-6. Verify through Wrangler, not a substitute SQLite database:
-
+   It resolves the live local files through the current bindings (a marker table,
+   so stale files from previous `database_id` values are never picked up), writes
+   core rows to `DB.questions` with `stem_text = ''`, AI rows to `AI_DB.questions`
+   keeping `level`, registers every AI id in `DB.ai_ids`, and emits upsert chunks
+   to ignored `d1_chunks/` for later remote use. Reruns are safe (upserts).
+   Expected: `DB.questions=3770`, `AI_DB.questions=400`, `DB.ai_ids=400`.
+4. Verify through Wrangler:
    ```sh
-   npx wrangler d1 execute DB --local --command="SELECT count(*) AS core_questions FROM questions; SELECT count(*) AS ai_ids FROM ai_ids;"
-   npx wrangler d1 execute AI_DB --local --command="SELECT count(*) AS ai_questions FROM questions; SELECT section, count(*) AS count FROM questions GROUP BY section;"
+   npx wrangler d1 execute DB --local --command="SELECT count(*) AS core_q FROM questions; SELECT count(*) AS ai_ids FROM ai_ids;"
+   npx wrangler d1 execute AI_DB --local --command="SELECT count(*) AS ai_q FROM questions;"
    npm run dev -- --local
    ```
 
-Expected counts: core `0`; registry `400`; AI `400`, split Math `100` and Reading & Writing `300`. Core-based fixed exams cannot resolve their questions in this tracked-AI-only bootstrap. Missing crops are not restored by SQL import. Guest practice can use the shipped AI content; real sign-in requires your own Supabase configuration.
+## Never bulk-apply migrations to these databases
 
-## Verification evidence
+Do NOT run `wrangler d1 migrations apply` on a snapshot-built database.
+`schema.sql` already defines the columns that `migrations/0004_ai_bank.sql` ALTERs
+in, so a bulk apply fails on duplicate columns — and the data-repair files under
+`data-fixes/` UPDATE rows for problems the snapshot no longer has. The snapshot
+is already repaired content; see `history/migration-map.md` for the mapping.
 
-Verified on Windows with Wrangler 4.125.0 in a separate detached temporary worktree under `C:\Users\Leon\AppData\Local\Temp\opencode\sat-bootstrap`. Its own default `.wrangler/state` started empty. Both snapshots were executed by actual Wrangler local D1; the unchanged `tools/apply_ai.cjs` completed its native `better-sqlite3` import and emitted both SQL files. Subsequent Wrangler queries returned the exact counts above. Dependencies were resolved from the existing checkout using `NODE_PATH`; no repository dependency changes, fake D1 adapter, populated-bank copies, or remote writes were used. The main checkout's recovered databases were not used for this verification.
+Consequence: the `d1_migrations` ledger on these databases is empty by design.
+Future schema changes must therefore be applied individually, never by bulk
+apply: add the new file under `migrations/` (or `migrations_ai/`), fold its DDL
+into `schema.sql` (or `schema_ai.sql`) so fresh bootstraps stay one step, and
+run it explicitly — `npx wrangler d1 execute DB --local --file=migrations/NNNN_x.sql`
+and later the same with `--remote`. Do not hand-write rows into `d1_migrations`
+to fake a history the database never executed. Bulk `migrations apply` remains
+valid only for databases that were themselves built by running those migrations
+in order.
 
-## Optional external core recovery
+## Changing database IDs
 
-`https://helpmeaceit.page/api/questions` was independently verified accessible during cleanup and supplied a JSON array with 3,770 CollegeBoard rows and 400 AI rows. This is an external source, not reconstruction from Git; availability and future counts are not guaranteed. Save and inspect the response before importing only the intended source rows into initialized local databases. Display fields do not restore legacy OCR `stem_text` or a PDF metadata baseline. Fetch referenced `/qimg/` assets separately from that origin into ignored `public/qimg/`; the JSON does not contain crop bytes. Recovery in this working copy is documented in `history/cleanup-plan.md`; no tracked core-recovery importer is supplied. Do not replay historical repair SQL blindly over current recovered content.
+Changing a `database_id` in `wrangler.toml` re-keys local Miniflare storage: the
+next dev run uses a new, empty sqlite file and the populated one is left behind.
+The importer finds the live file via its marker, so it keeps working — but do
+not delete the stale files to "clean up"; back up first. The old populated bank
+from the author's IDs is still under `.wrangler/state/` for reference, not for use.
+
+## Remote (owner approval required)
+
+Schemas then chunks, in this order, only after explicit approval:
+`schema.sql` -> remote DB, `schema_ai.sql` -> remote AI_DB, then
+`d1_chunks/snapshot_main_*` -> remote DB, `d1_chunks/snapshot_ai_*` -> remote
+AI_DB, `d1_chunks/snapshot_ai_ids_*` -> remote DB. Each chunk was validated by
+applying it to scratch sqlite databases built from the same schemas.
