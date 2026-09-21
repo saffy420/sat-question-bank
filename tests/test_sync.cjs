@@ -7,11 +7,11 @@
 // The code lives inside the page's IIFE, so it is lifted by its markers rather
 // than copied here - a copy would drift from the one that ships.
 //
-//   node test_sync.cjs
+//   node tests/test_sync.cjs
 const fs = require('fs');
 const assert = require('assert');
 
-const page = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
+const page = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const block = page.slice(page.indexOf('// --- sync'), page.indexOf('// --- end sync ---'));
 if (!block) throw new Error('sync block not found in public/index.html');
 

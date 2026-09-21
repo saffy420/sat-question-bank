@@ -2,10 +2,10 @@
 // rows with no attempt behind them (the log only started being written on
 // 2026-08-30, and a refused write drops a row). backfillLog() reconstructs one
 // attempt per such question so the dashboard stops reporting 0 answered while
-// progress holds the answers. Run: node test_backfill.cjs
+// progress holds the answers. Run: node tests/test_backfill.cjs
 const fs = require('fs'), assert = require('assert');
 
-const src = fs.readFileSync('public/index.html', 'utf8');
+const src = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const body = src.match(/function backfillLog\(\)[\s\S]*?\n\}/)[0];
 // Evaluate the declaration with PROG/LOG in scope, the way the page has them.
 const make = new Function('getState', `

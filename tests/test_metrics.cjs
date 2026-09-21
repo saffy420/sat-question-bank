@@ -1,10 +1,10 @@
 // The derived metrics, lifted out of public/index.html by their markers so a copy
 // here cannot drift from what ships.
-//   node test_metrics.cjs
+//   node tests/test_metrics.cjs
 const fs = require('fs');
 const assert = require('assert');
 
-const src = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
+const src = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const m = src.match(/\/\/ --- metrics[\s\S]*?\n([\s\S]*?)\/\/ --- end metrics/);
 if (!m) throw new Error('no // --- metrics block in public/index.html');
 const api = new Function('QS', 'PROG', 'LOG',

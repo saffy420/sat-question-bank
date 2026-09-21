@@ -3,13 +3,13 @@
 // The function lives inside the page's IIFE, so it is lifted out by its markers
 // rather than duplicated here - a copy would drift from the one that ships.
 //
-//   node test_tidy_expl.cjs              run the assertions
-//   node test_tidy_expl.cjs --sweep      also run it over every row in the local
+//   node tests/test_tidy_expl.cjs              run the assertions
+//   node tests/test_tidy_expl.cjs --sweep      also run it over every row in the local
 //                                        D1 and report what it changed
 const fs = require('fs');
 const assert = require('assert');
 
-const page = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
+const page = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const block = page.slice(page.indexOf('// --- tidyExpl'), page.indexOf('// --- end tidyExpl ---'));
 if (!block) throw new Error('tidyExpl block not found in public/index.html');
 const tidyExpl = new Function(block + '\nreturn tidyExpl;')();
@@ -59,7 +59,7 @@ if (process.argv.includes('--sweep')) {
   // Over the whole bank: nothing may lose text, and every artifact counted in
   // the comment above tidyExpl must actually go.
   const Database = require('better-sqlite3');
-  const dir = __dirname + '/.wrangler/state/v3/d1/miniflare-D1DatabaseObject';
+  const dir = __dirname + '/../.wrangler/state/v3/d1/miniflare-D1DatabaseObject';
   const file = fs.readdirSync(dir).find(f => f.endsWith('.sqlite') && f !== 'metadata.sqlite');
   const rows = new Database(dir + '/' + file, { readonly: true })
     .prepare('select id, explanation_html from questions').all();

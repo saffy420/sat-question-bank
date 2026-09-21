@@ -38,3 +38,5 @@ backup/
 d1_chunks/
 # Regenerable from tools/aiq/*.jsonl by tools/apply_ai.cjs.
 d1_ai/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

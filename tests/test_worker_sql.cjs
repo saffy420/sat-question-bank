@@ -1,13 +1,13 @@
 // The two write statements in src/index.js, against the real schema. They exist to
 // bound what a signed-in account can write: a question_id the bank does not have
 // must not create a row, and the upsert must still behave for one it does.
-//   node test_worker_sql.cjs
+//   node tests/test_worker_sql.cjs
 const { DatabaseSync } = require('node:sqlite');
 const fs = require('fs');
 const assert = require('assert');
 
 const db = new DatabaseSync(':memory:');
-db.exec(fs.readFileSync(__dirname + '/schema.sql', 'utf8'));
+db.exec(fs.readFileSync(__dirname + '/../schema.sql', 'utf8'));
 db.exec("INSERT INTO questions (id) VALUES ('real1')");
 
 const P = db.prepare(`INSERT INTO progress

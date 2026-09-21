@@ -5,11 +5,11 @@
 // Its free variables (S, PROG, refresh, ...) resolve to globals at call time,
 // which is what lets them be stubbed.
 //
-//   node test_grade.cjs
+//   node tests/test_grade.cjs
 const fs = require('fs');
 const assert = require('assert');
 
-const page = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
+const page = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const block = page.slice(page.indexOf('// --- grade'), page.indexOf('// --- end grade ---'));
 if (!block) throw new Error('grade block not found in public/index.html');
 const grade = new Function(block + '\nreturn grade;')();

@@ -1,10 +1,10 @@
 // The focus-set picker and the difficulty ladder, lifted out of public/index.html
 // by their markers so a copy here cannot drift from what ships.
-//   node test_focus.cjs
+//   node tests/test_focus.cjs
 const fs = require('fs');
 const assert = require('assert');
 
-const src = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
+const src = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const m = src.match(/\/\/ --- focus[\s\S]*?\n([\s\S]*?)\/\/ --- end focus/);
 if (!m) throw new Error('no // --- focus block in public/index.html');
 const build = (QS, PROG) => new Function('QS', 'PROG',

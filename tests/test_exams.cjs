@@ -1,9 +1,9 @@
 // Self-check for the exam logic in public/index.html and for public/exams.json.
-//   node test_exams.cjs
+//   node tests/test_exams.cjs
 const fs = require('fs');
 const assert = require('assert');
 
-const page = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
+const page = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const block = page.slice(page.indexOf('// --- exam'), page.indexOf('// --- end exam'));
 if (!block) throw new Error('exam block not found');
 const { MODS, routeOf, CURVE, scaled, scoreRange } = new Function(block + '\nreturn { MODS, routeOf, CURVE, scaled, scoreRange };')();
@@ -29,7 +29,7 @@ assert.deepEqual(scoreRange(790), [760, 800]);
 assert.deepEqual(scoreRange(210), [200, 240]);
 
 // exams.json: five tests, full modules, no id twice, official tests hold no AI row.
-const ex = JSON.parse(fs.readFileSync(__dirname + '/public/exams.json', 'utf8'));
+const ex = JSON.parse(fs.readFileSync(__dirname + '/../public/exams.json', 'utf8'));
 assert.equal(ex.tests.length, 5);
 const seen = new Set();
 for (const t of ex.tests) for (const [key, n] of [['rw', 27], ['math', 22]]) for (const m of ['m1', 'm2easy', 'm2hard']) {

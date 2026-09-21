@@ -1,11 +1,11 @@
 // The two pieces of note/mistake logic that are not DOM: rebuilding a marker the
 // mistake bank lost, and the notes export. Both lifted out of public/index.html by
 // their markers so a copy here cannot drift from what ships.
-//   node test_notes.cjs
+//   node tests/test_notes.cjs
 const fs = require('fs');
 const assert = require('assert');
 
-const page = fs.readFileSync(__dirname + '/public/index.html', 'utf8');
+const page = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const lift = (name) => {
   const a = page.indexOf('// --- ' + name);
   const b = page.indexOf('// --- end ' + name + ' ---');
