@@ -8,11 +8,7 @@
 // allowances are the app's own <script> block and its style="" attributes.
 const CSP = [
   "default-src 'self'",
-  // static.cloudflareinsights.com is the Web Analytics beacon, which Cloudflare
-  // injects into the HTML itself, so it cannot be dropped from the page — leave it
-  // out and the only effect is a console error and no analytics. Its own POST goes
-  // to /cdn-cgi/rum on this origin, which 'self' already covers.
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com",
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "font-src 'self' data: https://cdn.jsdelivr.net",
   "img-src 'self' data:",
@@ -31,6 +27,8 @@ const harden = (h) => {
   h.set('X-Content-Type-Options', 'nosniff');
   h.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   h.set('X-Frame-Options', 'DENY');
+  h.set('Cache-Control', 'private, no-store');
+  h.set('X-Robots-Tag', 'noindex, nofollow');
   // Only honoured over HTTPS, so wrangler dev on http://localhost ignores it.
   h.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   return h;
@@ -62,8 +60,6 @@ const asset = async (env, req) => {
 
 // Resolve the caller from their Supabase access token. The old code trusted an
 // X-User-Id header, which let any client read or overwrite any account's progress.
-// Asking Supabase to validate the token costs one fetch and no crypto here, and it
-// works for both the Google and the email/password sign-ins.
 // Cheap pre-filter, not a verification: is this even shaped like a live JWT? The
 // signature still has to be checked by Supabase, but without this any stranger can
 // put a line of noise in Authorization and make the Worker spend a call on
@@ -82,20 +78,33 @@ function looksLive(t) { return expOf(t) > Date.now(); }
 
 // Token -> user, for as long as the token lives. A save used to cost a Supabase
 // round-trip every time; an access token lasts an hour, so one lookup covers a
-// sitting. The token's own exp is checked before the map, so an expired entry is
-// never served. ponytail: cleared at 1000 entries; an LRU if that ever matters.
+// sitting. Logout clears the browser cookie, not this cache or issued access tokens.
+// Cached tokens remain valid until expiry; membership denial is checked per request.
+// ponytail: cleared at 1000 entries; an LRU if that ever matters.
 const WHO = new Map();
+const COOKIE = '__Host-sat_session';
+const tokenOf = (req) => req.headers.has('Authorization')
+  ? (req.headers.get('Authorization').match(/^Bearer\s+([^\s]+)$/i)?.[1] || '')
+  : (req.headers.get('Cookie') || '').split(';').map(v => v.trim()).find(v => v.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1) || '';
+const sessionCookie = (token = '') => `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${token ? Math.max(0, Math.min(3600, Math.floor((expOf(token) - Date.now()) / 1000))) : 0}`;
 async function whoami(req, env) {
-  const t = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  const t = tokenOf(req);
   if (!t || !looksLive(t)) return null;
   const hit = WHO.get(t);
   if (hit) return hit;
   const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
     headers: { Authorization: `Bearer ${t}`, apikey: env.SUPABASE_ANON_KEY }
   });
-  if (!r.ok) return null;
+  if (r.status === 401 || r.status === 403) return null;
+  if (!r.ok) throw new Error('Authentication service unavailable');
   const u = await r.json().catch(() => null);
-  if (!(u && u.id)) return null;
+  if (!(u && u.id && u.email && u.email_confirmed_at)) return null;
+  const claims = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  if (claims.sub !== u.id ||
+      !u.identities?.some(identity => identity.provider === 'google') ||
+      u.identities.some(identity => !['google', 'email'].includes(identity.provider)) ||
+      !claims.amr?.some(entry => entry.method === 'oauth') ||
+      claims.amr.some(entry => !['oauth', 'totp', 'mfa/totp', 'mfa/phone', 'mfa/webauthn'].includes(entry.method))) return null;
   if (WHO.size > 1000) WHO.clear();
   WHO.set(t, u);
   return u;
@@ -145,6 +154,15 @@ const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
 
 export default {
   async fetch(req, env) {
+    try {
+      return await handleRequest(req, env);
+    } catch {
+      return json({ error: 'service unavailable' }, 503);
+    }
+  }
+};
+
+async function handleRequest(req, env) {
     const url = new URL(req.url);
     const p = url.pathname;
 
@@ -154,6 +172,91 @@ export default {
     if (url.hostname === 'www.roadto1600.org') {
       url.hostname = 'roadto1600.org';
       return new Response(null, { status: 301, headers: harden(new Headers({ Location: url.toString() })) });
+    }
+
+    if (!['GET', 'HEAD'].includes(req.method) &&
+        (req.headers.get('Origin') !== url.origin || req.headers.get('Sec-Fetch-Site') === 'cross-site')) {
+      return json({ error: 'forbidden origin' }, 403);
+    }
+    const pages = { '/': '/landing.html', '/login': '/login.html', '/privacy': '/privacy.html', '/terms': '/terms.html', '/auth/callback': '/login.html' };
+    const aliases = { '/landing.html': '/', '/login.html': '/login', '/privacy.html': '/privacy', '/terms.html': '/terms', '/index.html': '/app', '/app/': '/app' };
+    const redirect = (to) => new Response(null, { status: 302, headers: harden(new Headers({ Location: to })) });
+    if (['GET', 'HEAD'].includes(req.method)) {
+      if (Object.hasOwn(aliases, p)) return redirect(aliases[p]);
+      if (Object.hasOwn(pages, p)) return asset(env, new Request(new URL(pages[p], url), req));
+      if (['/site.css', '/site.js', '/auth.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
+    }
+    if (p === '/api/auth/logout' && req.method === 'POST') {
+      const res = json({ ok: true });
+      res.headers.set('Set-Cookie', sessionCookie());
+      return res;
+    }
+    const apiMethods = {
+      '/api/auth/session': ['POST'], '/api/questions': ['GET'], '/api/account': ['GET'],
+      '/api/progress': ['GET', 'POST'], '/api/attempts': ['GET', 'POST'],
+      '/api/notes': ['GET', 'POST'], '/api/settings': ['GET', 'POST'], '/api/sessions': ['GET', 'POST']
+    };
+    const isAPI = p === '/api' || p.startsWith('/api/');
+    const knownAPI = apiMethods[p]?.includes(req.method) ||
+      (/^\/api\/sessions\/[^/]+$/.test(p) && req.method === 'DELETE');
+    if (isAPI && !knownAPI) return json({ error: 'not found' }, 404);
+    const restrictedAsset = ['GET', 'HEAD'].includes(req.method) &&
+      (p === '/app' || p === '/exams.json' || /^\/qimg\/[^/]+\.(?:png|jpg|jpeg|webp|svg)$/i.test(p));
+    if (!knownAPI && !restrictedAsset) {
+      const res = await asset(env, new Request(new URL('/404.html', url), { method: req.method === 'HEAD' ? 'HEAD' : 'GET' }));
+      return new Response(res.body, { status: 404, headers: res.headers });
+    }
+    let u;
+    try {
+      if (p === '/api/auth/session' && !req.headers.has('Authorization')) return json({ error: 'bearer required' }, 401);
+      u = await whoami(req, env);
+      if (!u) {
+        if (p === '/app') return redirect('/login');
+        return json({ error: 'unauthorized' }, 401);
+      }
+      let membership = await env.DB.prepare('SELECT status FROM membership WHERE user_id = ?').bind(u.id).first();
+      if (!membership && p === '/api/auth/session') {
+        const status = u.email.toLowerCase().endsWith('@ccs.us') ? 'approved' : 'pending';
+        await env.DB.prepare('INSERT INTO membership (user_id, email, status) VALUES (?, ?, ?) ON CONFLICT(user_id) DO NOTHING')
+          .bind(u.id, u.email, status).run();
+        membership = await env.DB.prepare('SELECT status FROM membership WHERE user_id = ?').bind(u.id).first();
+      }
+      if (!['approved', 'pending'].includes(membership?.status)) {
+        const res = p === '/app' ? redirect('/login?denied=1') : json({ error: 'membership denied' }, 403);
+        res.headers.set('Set-Cookie', sessionCookie());
+        return res;
+      }
+      if (p === '/api/auth/session') {
+        const res = json({ user_id: u.id, status: membership.status });
+        res.headers.set('Set-Cookie', sessionCookie(tokenOf(req)));
+        return res;
+      }
+    } catch {
+      return json({ error: 'authentication unavailable' }, 503);
+    }
+    if (restrictedAsset) return asset(env, p === '/app' ? new Request(new URL('/index.html', url), req) : req);
+
+    let rows;
+    if (req.method === 'POST' && ['/api/progress', '/api/attempts', '/api/notes', '/api/sessions'].includes(p)) {
+      const b = await req.json().catch(() => null);
+      rows = Array.isArray(b) ? b : [b];
+      if (rows.length > MAX_ROWS) return json({ error: 'too many rows', limit: MAX_ROWS }, 413);
+      const validID = id => typeof id === 'string' && id.trim().length > 0 && id.length <= 64;
+      if (rows.some(r => !r || typeof r !== 'object' || Array.isArray(r) ||
+          !validID(p === '/api/sessions' ? r.id : r.question_id) ||
+          (p === '/api/attempts' && (typeof r.ts !== 'string' || !r.ts.trim() || r.ts.length > 32)) ||
+          (p === '/api/sessions' && (!r.state || typeof r.state !== 'object' || Array.isArray(r.state))))) {
+        return json({ error: 'invalid row or missing ID' }, 400);
+      }
+      if (!rows.length) return json({ saved: 0, acknowledged: [] });
+      if (p !== '/api/sessions') {
+        const ids = [...new Set(rows.map(r => r.question_id))];
+        const known = await env.DB.batch(ids.map(id => env.DB.prepare(
+          'SELECT id FROM questions WHERE id = ? UNION SELECT id FROM ai_ids WHERE id = ?'
+        ).bind(id, id)));
+        const unknown = ids.filter((id, i) => !known[i].results?.length);
+        if (unknown.length) return json({ error: 'unknown question IDs', unknown }, 400);
+      }
     }
 
     if (p === '/api/questions' && req.method === 'GET') {
@@ -166,31 +269,19 @@ export default {
       // the client derives a level for the official rows from their difficulty.
       const [core, ai] = await Promise.all([
         env.DB.prepare(`SELECT ${cols} FROM questions`).all(),
-        env.AI_DB
-          ? env.AI_DB.prepare(`SELECT ${cols}, level FROM questions`).all().catch(() => ({ results: [] }))
-          : Promise.resolve({ results: [] })
+        env.AI_DB.prepare(`SELECT ${cols}, level FROM questions`).all()
       ]);
       const r = { results: [...(core.results || []), ...(ai.results || [])] };
-      // 8.3MB, identical for everyone, and it needs no session. Uncached that is a
-      // full table scan and 8.3MB of egress for every request anyone cares to make,
-      // which is a cost attack that costs the attacker a curl loop. Let Cloudflare
-      // answer from its own edge cache instead; the bank changes on a deploy, not
-      // on a request.
-      const res = json(r.results || []);
-      res.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600');
-      return res;
+      return json(r.results || []);
     }
 
     if (p === '/api/account' && req.method === 'GET') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
-      await touchUser(env, u);
       const r = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(u.id).first();
       return json(r || {});
     }
 
     if (p === '/api/progress' && req.method === 'GET') {
-      const u = await whoami(req, env);
       // Not an empty list: a rejected token that reads back as "no rows" is
       // indistinguishable from an account whose progress has been wiped.
       if (!u) return json({ error: 'unauthorized' }, 401);
@@ -199,13 +290,7 @@ export default {
     }
 
     if (p === '/api/progress' && req.method === 'POST') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
-      const b = await req.json().catch(() => null);
-      const rows = (Array.isArray(b) ? b : [b])
-        .filter(r => r && typeof r.question_id === 'string' && r.question_id)
-        .slice(0, MAX_ROWS);
-      if (!rows.length) return json({ ok: true, saved: 0 });
       await touchUser(env, u);
       // Only a question that exists. Without this the primary key bounds nothing:
       // question_id is whatever the client typed, so an account can write rows for
@@ -219,18 +304,18 @@ export default {
            last_reviewed=excluded.last_reviewed, time_taken_ms=excluded.time_taken_ms,
            stars=MAX(progress.stars, excluded.stars)`
       );
-      await env.DB.batch(rows.map(r => stmt.bind(
+      const results = await env.DB.batch(rows.map(r => stmt.bind(
         u.id, str(r.question_id, 64), r.attempts | 0, r.corrects | 0,
         str(r.marker, 16) || 'Red', str(r.last_reviewed, 32) || null,
         r.time_taken_ms | 0, r.stars | 0, str(r.question_id, 64), str(r.question_id, 64))));
-      return json({ ok: true, saved: rows.length });
+      return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0),
+        acknowledged: rows.filter((r, i) => results[i].meta.changes > 0) });
     }
 
     // The attempt log. `progress` is overwritten on every answer, so it cannot say
     // how many questions were done on a given day; these rows can. Append-only:
     // a repeat of the same (question, timestamp) is ignored rather than updated.
     if (p === '/api/attempts' && req.method === 'GET') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
       const r = await env.DB.prepare(
         'SELECT question_id, ts, correct, time_taken_ms, picked, changes FROM attempts WHERE user_id = ? ORDER BY ts'
@@ -239,36 +324,37 @@ export default {
     }
 
     if (p === '/api/attempts' && req.method === 'POST') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
-      const b = await req.json().catch(() => null);
-      const rows = (Array.isArray(b) ? b : [b])
-        .filter(r => r && typeof r.question_id === 'string' && r.question_id
-                       && typeof r.ts === 'string' && r.ts)
-        .slice(0, MAX_ROWS);
-      if (!rows.length) return json({ ok: true, saved: 0 });
       // One count for the batch, not one per row.
       const held = await env.DB.prepare('SELECT COUNT(*) AS n FROM attempts WHERE user_id = ?')
         .bind(u.id).first();
-      if ((held?.n || 0) + rows.length > MAX_ATTEMPTS) return json({ error: 'log full' }, 429);
+      const existing = await env.DB.batch(rows.map(r => env.DB.prepare(
+        'SELECT 1 FROM attempts WHERE user_id = ? AND question_id = ? AND ts = ?'
+      ).bind(u.id, r.question_id, r.ts)));
+      const added = new Set(rows.filter((r, i) => !existing[i].results.length)
+        .map(r => JSON.stringify([r.question_id, r.ts]))).size;
+      if ((held?.n || 0) + added > MAX_ATTEMPTS) return json({ error: 'log full' }, 429);
       const stmt = env.DB.prepare(
         `INSERT OR IGNORE INTO attempts
            (user_id, question_id, ts, correct, time_taken_ms, picked, changes)
          SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM questions WHERE id = ?)
                                  OR EXISTS(SELECT 1 FROM ai_ids   WHERE id = ?)`
       );
-      await env.DB.batch(rows.map(r => stmt.bind(
+      const results = await env.DB.batch(rows.map(r => stmt.bind(
         u.id, str(r.question_id, 64), str(r.ts, 32), r.correct ? 1 : 0, r.time_taken_ms | 0,
         str(r.picked, 32) || null, r.changes | 0,
         str(r.question_id, 64), str(r.question_id, 64))));
-      return json({ ok: true, saved: rows.length });
+      const persisted = await env.DB.batch(rows.map(r => env.DB.prepare(
+        'SELECT 1 FROM attempts WHERE user_id = ? AND question_id = ? AND ts = ?'
+      ).bind(u.id, r.question_id, r.ts)));
+      return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0),
+        acknowledged: rows.filter((r, i) => persisted[i].results.length > 0) });
     }
 
     // One note per question: why you missed it, in your own words. Same shape as
     // progress - keyed on (user, question), rewritten in place, and bounded by that
     // primary key once question_id has to name a real question.
     if (p === '/api/notes' && req.method === 'GET') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
       const r = await env.DB.prepare(
         'SELECT question_id, body, updated_at FROM notes WHERE user_id = ?').bind(u.id).all();
@@ -276,13 +362,7 @@ export default {
     }
 
     if (p === '/api/notes' && req.method === 'POST') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
-      const b = await req.json().catch(() => null);
-      const rows = (Array.isArray(b) ? b : [b])
-        .filter(r => r && typeof r.question_id === 'string' && r.question_id)
-        .slice(0, MAX_ROWS);
-      if (!rows.length) return json({ ok: true, saved: 0 });
       // An emptied note is a delete, not a blank row - otherwise clearing one still
       // costs a row and the export has to filter empties back out.
       const del = env.DB.prepare('DELETE FROM notes WHERE user_id = ? AND question_id = ?');
@@ -293,19 +373,19 @@ export default {
          ON CONFLICT(user_id, question_id) DO UPDATE SET
            body=excluded.body, updated_at=excluded.updated_at`
       );
-      await env.DB.batch(rows.map(r => {
+      const results = await env.DB.batch(rows.map(r => {
         const body = str(r.body, MAX_NOTE).trim();
         const qid = str(r.question_id, 64);
         return body ? put.bind(u.id, qid, body, qid, qid) : del.bind(u.id, qid);
       }));
-      return json({ ok: true, saved: rows.length });
+      return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0),
+        acknowledged: rows.filter((r, i) => results[i].meta.changes > 0 || !str(r.body, MAX_NOTE).trim()) });
     }
 
     // Preferences, one JSON blob per account, so they follow the user across
     // devices. Resolved from the token like everything else here: a client that
     // names someone else's id gets its own row, not theirs.
     if (p === '/api/settings' && req.method === 'GET') {
-      const u = await whoami(req, env);
       // 401, not {}, for the same reason the progress and attempts reads say 401:
       // an empty object reads as "this account has no settings row yet", and the
       // client answers that by pushing its own defaults up over the account's.
@@ -317,7 +397,6 @@ export default {
     }
 
     if (p === '/api/settings' && req.method === 'POST') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
       const b = await req.json().catch(() => null);
       if (!b || typeof b !== 'object' || Array.isArray(b)) return json({ error: 'bad body' }, 400);
@@ -330,27 +409,17 @@ export default {
       return json({ ok: true });
     }
 
-    // Exam and review sessions: one JSON blob each, owned by the caller, gone 30
-    // days after the last write. The purge rides the read so no cron is needed.
+    // Sessions older than 30 days stay stored but are excluded from reads.
     if (p === '/api/sessions' && req.method === 'GET') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
-      await env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND updated_at < ?')
-        .bind(u.id, Date.now() - 30 * DAY).run();
       const r = await env.DB.prepare(
-        'SELECT id, kind, state, updated_at FROM sessions WHERE user_id = ? ORDER BY updated_at DESC'
-      ).bind(u.id).all();
+        'SELECT id, kind, state, updated_at FROM sessions WHERE user_id = ? AND updated_at >= ? ORDER BY updated_at DESC'
+      ).bind(u.id, Date.now() - 30 * DAY).all();
       return json(r.results || []);
     }
 
     if (p === '/api/sessions' && req.method === 'POST') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
-      const b = await req.json().catch(() => null);
-      const rows = (Array.isArray(b) ? b : [b])
-        .filter(r => r && typeof r.id === 'string' && r.id && r.state && typeof r.state === 'object')
-        .slice(0, 50);
-      if (!rows.length) return json({ ok: true, saved: 0 });
       const stmt = env.DB.prepare(
         `INSERT INTO sessions (user_id, id, kind, state, updated_at) VALUES (?,?,?,?,?)
          ON CONFLICT(user_id, id) DO UPDATE SET
@@ -362,26 +431,20 @@ export default {
         if (st.length > MAX_SESSION) return json({ error: 'too large' }, 413);
         binds.push(stmt.bind(u.id, str(r.id, 64), str(r.kind, 16) || 'exam', st, Date.now()));
       }
-      await env.DB.batch(binds);
-      return json({ ok: true, saved: rows.length });
+      const results = await env.DB.batch(binds);
+      return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0), acknowledged: rows });
     }
 
     if (p.startsWith('/api/sessions/') && req.method === 'DELETE') {
-      const u = await whoami(req, env);
       if (!u) return json({ error: 'unauthorized' }, 401);
+      let id;
+      try { id = decodeURIComponent(p.slice('/api/sessions/'.length)); }
+      catch { return json({ error: 'invalid session ID encoding' }, 400); }
+      if (!id.trim() || id.length > 64) return json({ error: 'invalid session ID' }, 400);
       await env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND id = ?')
-        .bind(u.id, p.slice('/api/sessions/'.length)).run();
+        .bind(u.id, id).run();
       return json({ ok: true });
     }
 
-    // OAuth and the email-confirmation link both land here with the session in the
-    // URL fragment. Serving the app itself lets supabase-js parse and persist it
-    // under its own storage key; the previous hand-rolled page stashed the token
-    // under "sb_token", which supabase-js never reads, so the session was dropped.
-    if (p === '/auth/callback') {
-      return asset(env, new Request(new URL('/', req.url), req));
-    }
-
-    return asset(env, req);
-  }
-};
+    return json({ error: 'not found' }, 404);
+}

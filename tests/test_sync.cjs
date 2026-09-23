@@ -17,7 +17,9 @@ if (!block) throw new Error('sync block not found in public/index.html');
 
 // Everything the block reaches for that a page would have provided.
 const PRE = `
-  let authToken = 'tok';
+  let authToken = 'tok', uid = 'u1', loggingOut = false, SESS = {}, NOTES = {};
+  let SET = { theme: 'dark' };
+  const LS = { set() {} };
   const els = {};
   const $ = (id) => els[id] || null;
   // The toast is one div holding a message span and a close button; the stub
@@ -28,15 +30,16 @@ const PRE = `
   const addEventListener = () => {};
   const sbHeaders = async () => ({ Authorization: 'Bearer tok' });
 `;
-const api = new Function(PRE + block +
+const settings = page.slice(page.indexOf('async function saveSettings()'), page.indexOf('// A change to one setting:'));
+const api = new Function(PRE + block + settings +
   '\nreturn { push, flush, PENDING, unsaved, warnSync, banner: () => ($("sync-bar") ? $("sync-msg").textContent : undefined), close: () => $("sync-x").onclick(), ' +
-  'setToken: (t) => { authToken = t; } };')();
+  'setToken: (t) => { authToken = t; }, setOwner: (id) => { uid = id; resetPending(id); }, saveSettings, deleteSession, saveSession, SESS };')();
 
 // One fetch stub. `fail` decides what the server does; `sent` records every body.
 let fail = false, sent = [];
 global.fetch = async (url, opt) => {
   sent.push({ url, rows: JSON.parse(opt.body) });
-  return fail ? { ok: false, status: 429 } : { ok: true, status: 200 };
+  return fail ? { ok: false, status: 429 } : { ok: true, status: 200, json: async () => ({ saved: JSON.parse(opt.body).length, acknowledged: JSON.parse(opt.body) }) };
 };
 const P = api.PENDING;
 const reset = () => { fail = false; sent = []; P['/api/progress'].length = 0; P['/api/attempts'].length = 0; api.warnSync(''); };
@@ -123,6 +126,85 @@ const reset = () => { fail = false; sent = []; P['/api/progress'].length = 0; P[
   fail = true;
   await api.push('/api/progress', [{ question_id: 'd' }]);
   assert.match(api.banner(), /1 answer not saved/, 'a new failure after a success shows the toast again');
+
+  const normalFetch = global.fetch;
+  const ack = (rows, saved = rows.length) => ({ ok: true, json: async () => ({ saved, acknowledged: rows }) });
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  reset();
+  api.setOwner('u1');
+  let release;
+  global.fetch = (_url, opt) => new Promise(resolve => { release = () => resolve(ack(JSON.parse(opt.body))); });
+  const original = { question_id: 'a', marker: 'Red', state: { n: 1 } };
+  const writing = api.push('/api/progress', [original]);
+  await tick();
+  original.state.n = 99;
+  assert.equal(P['/api/progress'][0].state.n, 1);
+  await api.push('/api/progress', [{ question_id: 'a', marker: 'Green' }]);
+  global.fetch = async () => ({ ok: false, status: 503 });
+  release(); await writing;
+  assert.equal(P['/api/progress'].length, 1);
+  assert.equal(P['/api/progress'][0].marker, 'Green');
+
+  for (const response of [
+    { saved: 1 },
+    { saved: 1, acknowledged: [{ question_id: 'other' }] },
+    { saved: 1, acknowledged: [{ question_id: 'a', marker: 'Green' }] },
+    { saved: 2, acknowledged: [{ question_id: 'a' }, { question_id: 'a' }] },
+    { saved: -1, acknowledged: [{ question_id: 'a' }] },
+    { saved: 2, acknowledged: [{ question_id: 'a' }] }
+  ]) {
+    api.setOwner('u1');
+    global.fetch = async () => ({ ok: true, json: async () => response });
+    await api.push('/api/progress', [{ question_id: 'a' }]);
+    assert.equal(api.unsaved(), 1, JSON.stringify(response));
+  }
+  api.setOwner('u1');
+  global.fetch = async () => ack([{ question_id: 'a' }], 0);
+  await api.push('/api/attempts', [{ question_id: 'a' }]);
+  assert.equal(api.unsaved(), 0, 'idempotently satisfied rows need no new writes');
+  global.fetch = async () => ack([{ question_id: 'a' }]);
+  await api.push('/api/progress', [{ question_id: 'a' }, { question_id: 'b' }]);
+  assert.deepEqual(P['/api/progress'], [{ question_id: 'b' }]);
+
+  api.setOwner('u1');
+  global.fetch = (_url, opt) => new Promise(resolve => { release = () => resolve(ack(JSON.parse(opt.body))); });
+  const oldWrite = api.push('/api/progress', [{ question_id: 'old' }]);
+  await tick();
+  api.setOwner('u2');
+  global.fetch = async () => ({ ok: false, status: 503 });
+  await api.push('/api/progress', [{ question_id: 'new' }]);
+  release(); await oldWrite;
+  assert.deepEqual(P['/api/progress'], [{ question_id: 'new' }]);
+  api.setOwner('u1');
+  let requests = 0;
+  global.fetch = async () => { requests++; return ack([]); };
+  const changing = api.push('/api/notes', [{ question_id: 'old', body: 'private' }]);
+  api.setOwner('u2');
+  await changing;
+  assert.equal(requests, 0, 'account change while acquiring headers cancels request');
+
+  api.setOwner('u1');
+  global.fetch = normalFetch; fail = false; sent = [];
+  await api.push('/api/sessions', Array.from({ length: 201 }, (_, i) => ({ id: 's' + i, state: { n: i } })));
+  assert.deepEqual(sent.map(s => s.rows.length), [200, 1]);
+  assert.equal(api.unsaved(), 0);
+  global.fetch = async () => ({ ok: false, status: 500 });
+  await api.saveSettings();
+  assert.match(api.banner(), /Settings could not be saved/);
+  api.SESS['a /%'] = { id: 'a /%' };
+  assert.equal(await api.deleteSession('a /%'), false);
+  assert.ok(api.SESS['a /%']);
+  assert.match(api.banner(), /Session could not be deleted/);
+  let deleteUrl;
+  global.fetch = async url => { deleteUrl = url; return { ok: true }; };
+  assert.equal(await api.deleteSession('a /%'), true);
+  assert.equal(deleteUrl, '/api/sessions/a%20%2F%25');
+  assert.equal(api.SESS['a /%'], undefined);
+  global.fetch = async () => ({ ok: false, status: 503 });
+  await api.push('/api/sessions', [{ id: 'pending', state: {} }]);
+  api.SESS.pending = { id: 'pending' };
+  assert.equal(await api.deleteSession('pending'), false);
+  assert.ok(api.SESS.pending);
 
   console.log('test_sync: all assertions passed');
   process.exit(0);   // the retry timer would otherwise hold the process open

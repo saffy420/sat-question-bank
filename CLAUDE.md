@@ -19,7 +19,7 @@
 - `src/index.js` is the real server: a Cloudflare Worker, not a Node server. `public/index.html` is the single-file vanilla HTML/CSS/JS SPA with an inline IIFE; preserve existing helpers and test extraction markers.
 - `wrangler.toml` binds `public/` as `ASSETS`, the main D1 as `DB`, and the separate AI bank as `AI_DB`.
 - `schema.sql` defines core questions and all user data: users, progress, attempts, settings, notes, sessions, and `ai_ids`. `schema_ai.sql` defines AI questions, including `level`.
-- `/api/questions` explicitly selects display fields and concatenates both banks; legacy OCR `stem_text` stays off the wire. AI query errors currently fall back to core-only results; a successful response does not prove AI availability.
+- `/api/questions` explicitly selects display fields and concatenates both banks; legacy OCR `stem_text` stays off the wire. AI query errors return 503, not successful core-only results; an empty AI bank can still return 200. Responses are `private, no-store`; do not claim edge hits or scan avoidance without measurement.
 - Account/progress/attempts/notes/settings/sessions routes use authenticated identity. Unsupported API paths/methods fall through to assets; do not assume JSON 404/405 handling.
 - `/auth/callback` serves the SPA so Supabase consumes and persists its own URL session. Do not replace it with custom token storage or a redirect that strips the fragment.
 - Custom 404 handling lives in Worker `asset()`. Do not substitute asset-router `not_found_handling = "404-page"`; that previously intercepted API and callback routes.
@@ -73,8 +73,8 @@ and `.env.example`'s `CANONICAL_HOST` / `WWW_HOST` checklist entries.
 - Re-extraction overwrites repaired content. Inspect and reapply the relevant math-text, choice-table, answerability and underline repairs; regenerate complete intended deltas rather than empty second-run diffs.
 - Back up before destructive data changes. For table replacement, load and verify staging before swapping; check references and user data first.
 - Verify deletions by the deleted predicate, not by an unaffected total. Verify remote changes against the deployed endpoint as well as the database/tool output.
-- D1 row-write budget is account-wide; adding a database does not increase it. Avoid writes in read paths. Current exceptions must be acknowledged: account GET calls `touchUser`, sessions GET purges the caller's records older than 30 days.
-- `touchUser` is cached once per user per isolate. Progress GET does not call it; preserve this distinction to avoid making saved answers unreadable when writes fail.
+- D1 row-write budget is account-wide; adding a database does not increase it. Keep GET routes read-only: account GET does not create a users row; sessions GET filters records older than 30 days without deleting them. Old sessions remain stored; no scheduled purge exists.
+- `touchUser` is cached once per user per isolate and called only by progress POST. Do not add it to GET routes or make saved answers unreadable when writes fail.
 - `npm run deploy` uploads code/assets, not SQL migrations. Use its predeploy hook rather than bypassing it with direct Wrangler deploy.
 - `tools/predeploy.cjs` rejects missing crops, symlinks/junctions, and directories with fewer than 4,000 entries. That threshold is a guard, not a measured asset count or proof of completeness.
 - Deploy only with a real crop directory; Wrangler's asset walker can omit junction contents even when ordinary file listing sees them. Verify the uploaded manifest and actual image responses.
@@ -89,7 +89,9 @@ and `.env.example`'s `CANONICAL_HOST` / `WWW_HOST` checklist entries.
 - Update `PROG`/`LOG` before `refresh()` so dashboard, topic counts and mistakes agree immediately. Keep `tally()` shared and calendar activity keyed to local days.
 - Guest answers are memory-only; do not resurrect the removed localStorage guest merge. Await auth initialization before loading account state; await live `sbHeaders()` for protected requests.
 - Failed reads must not overwrite account settings with defaults. Progress/log backfills are in-memory only, and stored progress always wins.
-- Retry queues keep attempts append-only and dedupe state by `question_id || id`; failures must remain visible without blocking alerts. Do not treat current queue code as a lossless guarantee; audit records known races and batch-limit mismatches.
+- Retry queues keep attempts append-only, snapshot rows, dedupe state by `question_id || id`, and bind pending/inflight work to its account. Clear queues/debounce on account change; never replay old work under a new token. Queues are memory-only, not lossless across reload or account exit.
+- Client batches cap at 200; Worker row-write batches cap at 500 and reject excess rather than truncate. `saved` counts row-operation changes; `acknowledged` contains submitted snapshots, including idempotently satisfied attempts/note clears. Remove only exact acknowledged snapshots, never a count or newer replacement. See `docs/KNOWN-ISSUES.md` for resolution evidence and limits.
+- Settings POST and session DELETE must check HTTP status and show failures. Keep local history until deletion succeeds; block deletion during pending session saves. Both use manual retry. URI-encode deletion IDs in the client and decode exactly once on the Worker.
 - Filters use `null` for all and `[]` for none; preserve old-storage migrations and separate practice/Browse/Mistakes state. Use `cbSort()` with domain/skill order instead of alphabetical taxonomy.
 - Focus selection weights weak skills and balances levels across the whole set; balancing within each skill alone can leave no harder questions for the ladder. Two correct promote, a miss demotes, bounded at levels 1–5.
 - Practice-exam scores are estimates, not official Bluebook scoring. Preserve estimated-score disclosure; exam completion uses shared progress/attempt recording. Guests do not gain durable History.

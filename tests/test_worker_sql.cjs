@@ -84,8 +84,7 @@ N2.run('u2', 'ai_NOPE',  'nope',                  'ai_NOPE',  'ai_NOPE');
 assert.strictEqual(db.prepare("SELECT COUNT(*) n FROM notes WHERE user_id='u2'").get().n, 1,
   'notes guard must accept a registered AI id and refuse an unregistered one');
 
-// Sessions: an upsert rewrites in place, and the read-side purge drops only rows
-// older than 30 days.
+// Sessions: an upsert rewrites in place; reads filter without deleting old rows.
 const SP = db.prepare(`INSERT INTO sessions (user_id, id, kind, state, updated_at) VALUES (?,?,?,?,?)
  ON CONFLICT(user_id, id) DO UPDATE SET kind=excluded.kind, state=excluded.state, updated_at=excluded.updated_at`);
 const NOW = 1_800_000_000_000, DAY = 86400000;
@@ -94,10 +93,10 @@ SP.run('u1', 'ex1', 'exam', '{"modIdx":2}', NOW + 1);
 SP.run('u1', 'old', 'exam', '{}', NOW - 31 * DAY);
 SP.run('u2', 'ex1', 'exam', '{"other":1}', NOW);
 assert.strictEqual(db.prepare("SELECT state FROM sessions WHERE user_id='u1' AND id='ex1'").get().state, '{"modIdx":2}', 'session upsert did not overwrite');
-db.prepare('DELETE FROM sessions WHERE user_id = ? AND updated_at < ?').run('u1', NOW - 30 * DAY);
-const left = db.prepare("SELECT id FROM sessions WHERE user_id='u1' ORDER BY id").all().map(r => r.id);
-assert.deepStrictEqual(left, ['ex1'], 'purge must drop only the 31-day-old row');
-assert.strictEqual(db.prepare("SELECT COUNT(*) n FROM sessions WHERE user_id='u2'").get().n, 1, 'purge is per user');
+const left = db.prepare('SELECT id FROM sessions WHERE user_id=? AND updated_at>=? ORDER BY id').all('u1', NOW - 30 * DAY).map(r => r.id);
+assert.deepStrictEqual(left, ['ex1'], 'read must exclude the 31-day-old row');
+assert.strictEqual(db.prepare("SELECT COUNT(*) n FROM sessions WHERE user_id='u1'").get().n, 2, 'read must not delete expired rows');
+assert.strictEqual(db.prepare("SELECT COUNT(*) n FROM sessions WHERE user_id='u2'").get().n, 1, 'read must preserve other users');
 
 console.log('ok');
 
