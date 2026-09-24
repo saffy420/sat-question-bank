@@ -5,7 +5,7 @@
 **Final Reviewer:** ses_f2a7ee742ffesKhWUV4Bi4PbNU — PASS (actual diff verified, unit 51/51 rerun)
 **Post-round2 Test Developer:** ses_f2a906b3cffe53VH0AdZEfVnn1 — focused 4/4, full 10/10, CLI screenshots; 2/5 repairs used
 **Baseline commit:** 00cebf32 (task00b, committed)
-**Task01 status:** Uncommitted, STOP pending user acceptance. No task02/commit/push/deploy authorized.
+**Task01 status:** APPROVED by user 2026-09-24 and committed locally as `c98300e2` (`feat: admin roles, dashboard, shared stats`), verified in Git history. No push/deploy. Task02 explicitly NOT started.
 
 ## Scope delivered
 
@@ -64,10 +64,10 @@ No source changes were made during any review retry. Repair rounds: 2/5.
 
 ## Next session
 
-- User must accept task01 uncommitted state before any commit.
+- User approved task01 and authorized the local commit on 2026-09-24; committed as `c98300e2`. Task02 not started by explicit instruction.
 - 0007 migration must be applied to any target database before deploy that requires role data.
 - `ADMIN_EMAILS` must be configured in production `wrangler.toml` before role-based admin access works.
-- Task02 (builder) cannot start until task01 user acceptance and commit.
+- Task02 (builder) NOT started: user approved task01 but explicitly declined to begin task02. It needs a fresh go-ahead.
 - Role demotion timing and roster 500 limit are known limitations to address in a future session if they become blockers.
 
 ## Changed files (per Developer report)

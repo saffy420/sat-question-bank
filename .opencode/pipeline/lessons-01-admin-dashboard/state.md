@@ -6,11 +6,11 @@ User requires NEW agent instance every delegation, including repair/rerun/review
 
 ## Current terminal state
 
-**Stage:** Documentation after independent Reviewer PASS
+**Stage:** Complete — task01 approved and committed; idle until user starts task02
 **Final Reviewer:** ses_f2a7ee742ffesKhWUV4Bi4PbNU — PASS (actual diff verified, unit 51/51 rerun)
 **Post-round2 Test Developer:** ses_f2a906b3cffe53VH0AdZEfVnn1 — focused 4/4, full 10/10, CLI screenshots; 2/5 repairs used
 **Baseline:** 00cebf32 task00b committed; handoff corrected directly by parent
-**Task01:** Uncommitted, STOP pending user acceptance. No commit/push/deploy.
+**Task01:** APPROVED by user 2026-09-24 and committed locally as `c98300e2` (preceded by `137c29f1` marking task00b handoff). No push/deploy. Task02 NOT started by explicit instruction.
 **Documentation agent (ses_f2a7aeb62ffeIkCWhw9EHFN8oi, fresh delegation):** Read all pipeline artifacts, verified git status, wrote handoff.md and updated state.md and STATUS.md. No source/test changes made.
 
 **Git status:** 16 modified files, 17 untracked files (including new task pipeline directory, .omp/, .serena/, docs/roadto1600-lessons-prompt.md, nul, odd root files). Unrelated untracked preserved.
@@ -34,10 +34,10 @@ Two prior reviewer sessions did not produce usable verdicts: ses_f2a820929ffez7C
 
 ## Pending
 
-- User acceptance of task01 uncommitted state before any commit.
+- User accepted task01 and it is committed at `c98300e2`; nothing pending for that gate.
 - 0007 migration must be applied to any target database before deploy requiring role data.
 - Production `ADMIN_EMAILS` must be configured before role-based admin access works in production.
 - Role demotion is next-session, not instant (documented limitation).
-- Task02 (builder) blocked until task01 user acceptance and commit.
+- Task02 (builder) NOT started; user declined to begin it in this session.
 - All G1–G6 closed; G4 Lessons-empty only checkpoint exception.
 - Serena `initial_instructions` not exposed; not loaded.
