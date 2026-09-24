@@ -1,7 +1,7 @@
 # Handoff: lessons-00b-e2e-harness
 
 ## Status
-**REVIEWER PASS** — 2026-09-24. Independent Reviewer full6/6 once. Task00b uncommitted, awaiting explicit user acceptance/commit authorization. No push/deploy. Task01 not started.
+**REVIEWER PASS / COMMITTED** — 2026-09-24. Independent Reviewer full6/6 once. Task00b committed as `00cebf32` (`test: add local-only E2E harness and isolated auth/seed`), verified in local Git history. User confirmed commit and authorized proceeding with task01. No push/deploy performed by this continuation. Pre-review/uncommitted descriptions below are historical.
 
 ## Goal
 Build isolated local browser harness and test sign-in for Live Lessons e2e checkpoints (BRIEF §12.5 task00b). No feature code, no production auth change, no commit/push/deploy. Complete C1–C4 browser checkpoints, helper suite, and full e2e regression.
@@ -82,7 +82,7 @@ All 00b checkpoints pass. E2E helper fixture uses real WS (loopback `ws@8.21.0`)
 - **No commits/push/deploy**. All changes uncommitted.
 
 ## Next session
-1. **User acceptance required** before any commit of task00b artifacts. One local commit per task, no push/deploy (commit policy).
-2. After user approval: commit task00b uncommitted changes, update `state.md` to committed.
-3. **Task01 not started** — awaiting task00b commit authorization and subsequent task01 STOP approval.
+1. Task00b commit verified: `00cebf32`. Earlier uncommitted/no-commit statements describe the original handoff, not current status.
+2. User authorized task01 continuation on 2026-09-24. Proceed with `lessons-01-admin-dashboard`; its STOP gate applies after completion, before task02.
+3. No new commit, push, or deployment authorized by this continuation.
 4. Future tasks 04/07 will need real lesson WS secrecy and decodedHTML/client-state leak checks under G1-A.
