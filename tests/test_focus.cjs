@@ -7,10 +7,12 @@ const assert = require('assert');
 const src = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const m = src.match(/\/\/ --- focus[\s\S]*?\n([\s\S]*?)\/\/ --- end focus/);
 if (!m) throw new Error('no // --- focus block in public/index.html');
-const build = (QS, PROG) => new Function('QS', 'PROG',
-  'const levelOf = (q) => q.level || ({easy:1,medium:2,hard:3})[String(q.difficulty||"").toLowerCase()] || 2;'
-  + m[1] + '; return { weakness, focusSet, nextLevel };')(QS, PROG);
+let stats;
+const build = (QS, PROG) => new Function('QS', 'PROG', 'Stats',
+  'const levelOf = Stats.levelOf;' + m[1] + '; return { weakness, focusSet, nextLevel };')(QS, PROG, stats);
 
+import('../public/shared/stats.js').then(module => {
+stats = module;
 const QS = [];
 for (let i = 0; i < 40; i++)
   QS.push({ id: 'w' + i, section: 'Math', skill: 'Weak', source: 'CollegeBoard',
@@ -68,3 +70,4 @@ assert.strictEqual(f.nextLevel(5, 2, true), 5, 'level is capped at 5');
 assert.strictEqual(f.nextLevel(3, 0, false), 2, 'a miss demotes');
 assert.strictEqual(f.nextLevel(1, 0, false), 1, 'level floors at 1');
 console.log('focus: all cases hold');
+}).catch(e => { console.error(e); process.exitCode = 1; });

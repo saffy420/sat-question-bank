@@ -75,4 +75,45 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 
 **Commit:** Awaiting explicit user acceptance. No push/deploy. Task01 not started.
 
-(End of file - total ~65+ lines)
+---
+
+## 2026-09-24 — Task 01: Admin Dashboard (Reviewer PASS)
+
+**Shipped:** Admin dashboard implementation complete, uncommitted, awaiting user acceptance/commit. Artifacts in `.opencode/pipeline/lessons-01-admin-dashboard/`:
+- `spec.md`, `research.md`, `developer.md`, `e2e.md`, `review.md`, `state.md`, `handoff.md`
+- `migrations/0007_admin_history.sql`, `public/admin.html`, `public/admin.js`, `public/shared/stats.js`, `public/shared/renderer.js`
+- `tests/test_admin.cjs`, `tests/test_auth_routing.cjs`, `tests/test_sync.cjs`
+- `public/admin.js` (new), `public/shared/` module pair
+- CLI screenshots: `e2e/CLI-C4-MC-graded.png`, `e2e/CLI-C4-SPR-graded-round1.png`, `e2e/CLI-round2-admin-MC.png`, `e2e/CLI-round2-admin-SPR.png`, `e2e/CLI-round2-Browse-MC.png`, `e2e/CLI-round2-Browse-SPR.png`, `e2e/CLI-C1-list.png`, `e2e/CLI-C2-overview.png`, `e2e/CLI-C2-MC.png`, `e2e/CLI-C2-SPR.png`
+
+**Evidence:**
+- Developer `rtk npm test`: 51/51 passed, 0 failed.
+- Focused `rtk node --test tests/test_admin.cjs tests/test_auth_routing.cjs tests/test_grade.cjs tests/test_metrics.cjs tests/test_focus.cjs tests/test_sync.cjs`: 43/43 passed.
+- `rtk node --check src/index.js public/admin.js public/shared/stats.js public/shared/renderer.js`: passed.
+- `rtk git.exe diff --check`: passed (Windows Git future-CRLF warnings only).
+- Reviewer `rtk npm test`: 51/51 passed, 0 failed (actual diff verified).
+- Test Developer focused 4/4, full suite 10/10, CLI screenshots 2/5 repairs.
+- Final Reviewer ses_f2a7ee742ffesKhWUV4Bi4PbNU: PASS, actual diff inspected, prior findings independently resolved, unit 51/51 rerun, no blockers.
+
+**E2E:** 4 task01 specs passed, 0 failed. Full suite 10/10 (six task00b + four task01). No skips/only/fixme, no fixed readiness sleeps or inflated timeouts. CLI browser captures at 1366×768 confirmed admin list, detail tabs, route gates, and practice MC/SPR history capture.
+
+**Scope delivered:** Roles (migration 0007, role session-sync via ADMIN_EMAILS, demotion-next-session limitation), admin all tabs (Students list with search/sort/pagination, Overview/By skill/Mistakes/Traps/Pacing/Second-guessing/History/Lessons), shared stats module (`public/shared/stats.js`), shared renderer (`public/shared/renderer.js`), prospective answer history capture and validation, read-only admin API with full route gating (401/403/404/503 matrix).
+
+**Review:** PASS (Reviewer session `ses_f2a7ee742ffesKhWUV4Bi4PbNU`). Repair count 2/5. Prior review retry tooling issues documented honestly: ses_f2a820929ffez7CY8geLgsfHKO returned unusable ELL; ses_f2a807da1ffeNpFchmk5z61hPT blocked on CRLF tooling — neither treated as PASS. Final Reviewer completed substantive independent review. No source changes during review retries.
+
+**Deviations from BRIEF.md:**
+1. G4: Lessons tab honestly unavailable until task09 (approved checkpoint exception).
+2. Production `ADMIN_EMAILS` blank in `wrangler.toml`; no admin promotion possible without configuration.
+3. 0007 migration not applied to any production database; required before future deploy needing role data.
+4. Role demotion is next-session, not instant (documented limitation).
+5. Roster returns 413 above 500 matching members (documented ceiling, SQL aggregation needed if exceeded).
+6. Local-only test auth continues from task00b; no production auth changes.
+7. Serena `initial_instructions` unavailable to parent session; no claim loaded.
+
+**Limits:** Production ADMIN_EMAILS blank/configure and 0007 migration required before any future deploy that needs role data. Local seed only; no deployment now. Role demotion next-session limitation. Roster 500 limit. Legacy unknown direction for pre-task01 attempts. Official trap metadata sparse. Mojibake normalization unit-proven but no dedicated browser fixture. Local TLS probe noise noted; no production/CDN behavior claimed.
+
+**Commit:** Awaiting explicit user acceptance. No push/deploy. Task02 blocked until task01 user acceptance and commit. No commit/push/deploy/remote data mutation.
+
+**Correcting event — 2026-09-24:** Task00b handoff corrected directly by parent (commit 00cebf32). Task01 remains uncommitted per user STOP instruction. Fresh agent every delegation; no task_id resume.
+
+(End of file)

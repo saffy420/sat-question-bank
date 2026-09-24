@@ -4,11 +4,15 @@
 const fs = require('fs');
 const assert = require('assert');
 
+const { pathToFileURL } = require('node:url');
 const src = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
-const m = src.match(/\/\/ --- metrics[\s\S]*?\n([\s\S]*?)\/\/ --- end metrics/);
-if (!m) throw new Error('no // --- metrics block in public/index.html');
-const api = new Function('QS', 'PROG', 'LOG',
-  m[1] + '; return { trapCounts, pacing, guessing, levelOf, targetOf };');
+assert.match(src, /import \* as Stats from '\/shared\/stats.js'/);
+const stats = import(pathToFileURL(__dirname + '/../public/shared/stats.js'));
+const api = (QS, PROG, LOG) => ({
+  trapCounts: () => statsModule.trapCounts(QS, LOG), pacing: () => statsModule.pacing(QS, LOG),
+  guessing: () => statsModule.guessing(LOG), levelOf: q => statsModule.levelOf(q), targetOf: q => statsModule.targetOf(q)
+});
+let statsModule;
 
 const QS = [
   { id: 'q1', section: 'Math', difficulty: 'Hard',
@@ -22,6 +26,8 @@ const LOG = [
   { question_id: 'q1', ts: 'T2', correct: 1, time_taken_ms: 95000, picked: 'A', changes: 3 },
   { question_id: 'ai_rw001', ts: 'T3', correct: 0, time_taken_ms: 200000, picked: 'C', changes: 1 }
 ];
+stats.then(module => {
+statsModule = module;
 const a = api(QS, {}, LOG);
 
 assert.deepStrictEqual(a.trapCounts(), [['sign-flip', 1], ['too-extreme', 1]],
@@ -52,3 +58,4 @@ assert.strictEqual(a.levelOf(QS[1]), 5, 'an AI row keeps its stored level');
 assert.strictEqual(a.levelOf(QS[2]), 1, 'official Easy is level 1');
 assert.strictEqual(a.targetOf(QS[1]), 71000, 'Reading & Writing target');
 console.log('metrics: all cases hold');
+}).catch(e => { console.error(e); process.exitCode = 1; });

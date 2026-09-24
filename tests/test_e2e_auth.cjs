@@ -26,7 +26,7 @@ test('production default rejects test login even with injected flag; bundle/impo
 
 test('local flag required on issue AND every resolution; no remote fallback, cookie enters /app', async t => {
   const worker = (await local).default;
-  const env = { E2E_TEST_MODE: '1', DB: { prepare: () => ({ bind: () => ({ first: async () => ({ status: 'approved' }) }) }) },
+  const env = { E2E_TEST_MODE: '1', DB: { prepare: () => ({ bind: () => ({ first: async () => ({ status: 'approved' }), run: async () => ({}) }) }) },
     ASSETS: { fetch: async () => new Response('app') } };
   t.mock.method(global, 'fetch', () => { throw new Error('unexpected network'); });
   assert.equal((await login(worker, {})).status, 404);

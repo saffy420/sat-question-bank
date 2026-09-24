@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT,
   name TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
+  created_at TEXT DEFAULT (datetime('now')),
+  role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'admin'))
 );
 -- One row per answer. `progress` keeps only the latest state of a question, so a
 -- re-drill overwrote the date it was last seen and any per-day history with it.
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   time_taken_ms INTEGER DEFAULT 0,
   picked TEXT,
   changes INTEGER DEFAULT 0,
+  answer_history_json TEXT,
   UNIQUE (user_id, question_id, ts)
 );
 CREATE INDEX IF NOT EXISTS attempts_user_ts ON attempts (user_id, ts);

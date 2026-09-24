@@ -420,7 +420,8 @@ test('client clears account data, rejects switched tokens, and gates startup', a
   const config = readFileSync(root + 'wrangler.toml', 'utf8');
   assert.match(config, /run_worker_first = true/);
   assert.match(config, /html_handling = "none"/);
-  for (const script of page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(script[1]);
+  for (const script of page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))
+    new vm.Script(script[1].replace(/^import .*;\s*$/gm, '')); // module imports validated by runtime tests
   const worker = readFileSync(root + 'src/index.js', 'utf8');
   const headers = readFileSync(root + 'public/_headers', 'utf8');
   assert.doesNotMatch(worker + headers, /static\.cloudflareinsights\.com/);

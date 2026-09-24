@@ -24,6 +24,9 @@ html_handling = "none"
 # Supabase's /auth/v1/user so the Worker can verify who a request belongs to.
 SUPABASE_URL = "https://cxlzflzdlegosybkklma.supabase.co"
 SUPABASE_ANON_KEY = "sb_publishable_M0q3BurnPJpEHlrrZAOdaQ_SpgvOPC1"
+# Comma-separated validated Google email allowlist; blank means nobody promoted.
+# Role syncs on /api/auth/session only. DB role stays authoritative between syncs.
+ADMIN_EMAILS = ""
 
 [[d1_databases]]
 binding = "DB"

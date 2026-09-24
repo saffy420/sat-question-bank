@@ -14,6 +14,28 @@ async function free(port) {
 }
 (async () => {
   for (const port of ports) await free(port);
+  // Existing isolated state predates 0007; fresh state uses schema snapshot directly.
+  const base = [resolve(root, 'node_modules/wrangler/bin/wrangler.js'), 'd1', 'execute', 'DB', '--local', '--config', 'wrangler.e2e.toml', '--persist-to', '.wrangler/state-e2e'];
+  const inspect = spawnSync(process.execPath, [...base, '--command', "SELECT name FROM sqlite_master WHERE type='table' AND name='users'", '--json'],
+    { cwd: root, encoding: 'utf8', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+  if (inspect.status !== 0) throw new Error('Cannot inspect local E2E core schema: ' + inspect.stderr);
+  const hasUsers = JSON.parse(inspect.stdout)[0]?.results?.length > 0;
+  if (hasUsers) {
+    const columns = spawnSync(process.execPath, [...base, '--command', 'PRAGMA table_info(users)', '--json'],
+      { cwd: root, encoding: 'utf8', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+    if (columns.status !== 0) throw new Error('Cannot inspect users columns: ' + columns.stderr);
+    const role = JSON.parse(columns.stdout)[0]?.results?.some(c => c.name === 'role');
+    const history = spawnSync(process.execPath, [...base, '--command', 'PRAGMA table_info(attempts)', '--json'],
+      { cwd: root, encoding: 'utf8', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+    if (history.status !== 0) throw new Error('Cannot inspect attempts columns: ' + history.stderr);
+    const hasHistory = JSON.parse(history.stdout)[0]?.results?.some(c => c.name === 'answer_history_json');
+    if (role !== hasHistory) throw new Error('Partial 0007 schema; inspect owned local state before reseeding');
+    if (!role) {
+      const upgrade = spawnSync(process.execPath, [...base, '--file', 'migrations/0007_admin_history.sql'],
+        { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+      if (upgrade.status !== 0) throw new Error('0007 isolated E2E upgrade failed');
+    }
+  }
   for (const [binding, file] of [['DB', 'schema.sql'], ['AI_DB', 'schema_ai.sql'], ['DB', 'tools/e2e_core.sql'], ['AI_DB', 'tools/e2e_ai.sql']]) {
     const args = [resolve(root, 'node_modules/wrangler/bin/wrangler.js'), 'd1', 'execute', binding, '--local', '--config', 'wrangler.e2e.toml', '--persist-to', '.wrangler/state-e2e', '--file', file];
     const result = spawnSync(process.execPath, args, { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });

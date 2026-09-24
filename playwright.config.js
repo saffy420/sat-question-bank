@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 const localhost = port => `https://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: 'tests/e2e',
-  outputDir: '.opencode/pipeline/lessons-00b-e2e-harness/e2e/results',
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || '.opencode/pipeline/lessons-00b-e2e-harness/e2e/results',
   reporter: [['list']],
   use: {
     baseURL: localhost(8787),

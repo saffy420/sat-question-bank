@@ -1,3 +1,5 @@
+import { breakdown, normalizeQuestion, direction } from '../public/shared/stats.js';
+
 // SAT Question Bank — Cloudflare Worker
 // Serves static assets + /api/questions + /api/progress + /api/attempts.
 
@@ -150,6 +152,53 @@ const MAX_NOTE = 4000;
 // An exam session is ~150 answers plus timings; 64K is ten times that.
 const MAX_SESSION = 65536;
 const DAY = 86400000;
+const adminPath = p => p === '/admin' || p.startsWith('/admin/') || p === '/admin.html';
+const adminAPI = p => p === '/api/admin' || p.startsWith('/api/admin/');
+const PAGE_SIZE = 25;
+const pageOf = url => { const s = url.searchParams.get('page') ?? '1'; return /^[1-9]\d{0,5}$/.test(s) ? Number(s) : null; };
+const validHistory = r => {
+  if (r.answer_history_json == null) return true;
+  if (typeof r.answer_history_json !== 'string' || r.answer_history_json.length > 8192) return false;
+  let h; try { h = JSON.parse(r.answer_history_json); } catch { return false; }
+  return Array.isArray(h) && h.length > 0 && h.length <= 128 && h.every((v, i) =>
+    v && typeof v === 'object' && !Array.isArray(v) && typeof v.answer === 'string' &&
+    v.answer.length > 0 && v.answer.length <= 32 && v.answer.trim() === v.answer &&
+    Number.isInteger(v.atMs) && v.atMs >= 0 && v.atMs <= DAY &&
+    (i === 0 || v.atMs >= h[i - 1].atMs)) && h.at(-1).answer === r.picked;
+};
+// Only the session POST synchronizes env promotion/demotion. Existing roles remain until next sign-in.
+async function syncRole(env, u) {
+  const name = u.user_metadata?.full_name || u.user_metadata?.name || '';
+  const emails = String(env.ADMIN_EMAILS || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  const role = emails.includes(u.email.toLowerCase()) ? 'admin' : 'student';
+  await env.DB.prepare(`INSERT INTO users (id, email, name, role) VALUES (?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET email=excluded.email,
+      name=CASE WHEN excluded.name<>'' THEN excluded.name ELSE users.name END, role=excluded.role`)
+    .bind(u.id, u.email, name, role).run();
+}
+async function bank(env) {
+  const cols = 'id, external_id, section, domain, difficulty, skill, stem_html, choices_json, correct_answer, explanation_html, source, source_page, has_figure';
+  const [core, ai] = await Promise.all([
+    env.DB.prepare(`SELECT ${cols} FROM questions`).all(),
+    env.AI_DB.prepare(`SELECT ${cols}, level FROM questions`).all()
+  ]);
+  return [...(core.results || []), ...(ai.results || [])];
+}
+async function adminData(env, id, questionBank = null) {
+  const [progress, attempts, questions] = await Promise.all([
+    env.DB.prepare('SELECT question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id = ?').bind(id).all(),
+    env.DB.prepare('SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json FROM attempts WHERE user_id = ? ORDER BY ts').bind(id).all(),
+    questionBank || bank(env)
+  ]);
+  const qs = questions.map(normalizeQuestion);
+  const prog = Object.fromEntries((progress.results || []).map(p => [p.question_id, p]));
+  const log = attempts.results || [];
+  const stats = breakdown(qs, prog, log);
+  const byId = new Map(qs.map(q => [q.id, q]));
+  const directions = { 'right-to-wrong': 0, 'wrong-to-right': 0, unchanged: 0, unknown: 0 };
+  log.forEach(x => { directions[direction(byId.get(x.question_id) || { answer: '', choices: [] }, x)]++; });
+  return { qs, prog, log, stats, directions };
+}
 const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
 
 export default {
@@ -179,12 +228,12 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       return json({ error: 'forbidden origin' }, 403);
     }
     const pages = { '/': '/landing.html', '/login': '/login.html', '/privacy': '/privacy.html', '/terms': '/terms.html', '/auth/callback': '/login.html' };
-    const aliases = { '/landing.html': '/', '/login.html': '/login', '/privacy.html': '/privacy', '/terms.html': '/terms', '/index.html': '/app', '/app/': '/app' };
+    const aliases = { '/landing.html': '/', '/login.html': '/login', '/privacy.html': '/privacy', '/terms.html': '/terms', '/index.html': '/app', '/app/': '/app', '/admin.html': '/admin' };
     const redirect = (to) => new Response(null, { status: 302, headers: harden(new Headers({ Location: to })) });
     if (['GET', 'HEAD'].includes(req.method)) {
-      if (Object.hasOwn(aliases, p)) return redirect(aliases[p]);
+      if (Object.hasOwn(aliases, p) && !adminPath(p)) return redirect(aliases[p]);
       if (Object.hasOwn(pages, p)) return asset(env, new Request(new URL(pages[p], url), req));
-      if (['/site.css', '/site.js', '/auth.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
+      if (['/site.css', '/site.js', '/auth.js', '/shared/stats.js', '/shared/renderer.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
     }
     if (p === '/api/auth/logout' && req.method === 'POST') {
       const res = json({ ok: true });
@@ -199,10 +248,10 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     const isAPI = p === '/api' || p.startsWith('/api/');
     const knownAPI = apiMethods[p]?.includes(req.method) ||
       (/^\/api\/sessions\/[^/]+$/.test(p) && req.method === 'DELETE');
-    if (isAPI && !knownAPI) return json({ error: 'not found' }, 404);
+    if (isAPI && !knownAPI && !adminAPI(p)) return json({ error: 'not found' }, 404);
     const restrictedAsset = ['GET', 'HEAD'].includes(req.method) &&
-      (p === '/app' || p === '/exams.json' || /^\/qimg\/[^/]+\.(?:png|jpg|jpeg|webp|svg)$/i.test(p));
-    if (!knownAPI && !restrictedAsset) {
+      (p === '/app' || adminPath(p) || p === '/admin.js' || p === '/exams.json' || /^\/qimg\/[^/]+\.(?:png|jpg|jpeg|webp|svg)$/i.test(p));
+    if (!knownAPI && !restrictedAsset && !adminAPI(p)) {
       const res = await asset(env, new Request(new URL('/404.html', url), { method: req.method === 'HEAD' ? 'HEAD' : 'GET' }));
       return new Response(res.body, { status: 404, headers: res.headers });
     }
@@ -211,7 +260,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       if (p === '/api/auth/session' && !req.headers.has('Authorization')) return json({ error: 'bearer required' }, 401);
       u = await resolveIdentity(req, env);
       if (!u) {
-        if (p === '/app') return redirect('/login');
+        if (p === '/app' || adminPath(p) || p === '/admin.js') return redirect('/login');
         return json({ error: 'unauthorized' }, 401);
       }
       let membership = await env.DB.prepare('SELECT status FROM membership WHERE user_id = ?').bind(u.id).first();
@@ -222,17 +271,89 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         membership = await env.DB.prepare('SELECT status FROM membership WHERE user_id = ?').bind(u.id).first();
       }
       if (!['approved', 'pending'].includes(membership?.status)) {
-        const res = p === '/app' ? redirect('/login?denied=1') : json({ error: 'membership denied' }, 403);
+        const res = p === '/app' || adminPath(p) || p === '/admin.js' ? redirect('/login?denied=1') : json({ error: 'membership denied' }, 403);
         res.headers.set('Set-Cookie', sessionCookie());
         return res;
       }
       if (p === '/api/auth/session') {
+        await syncRole(env, u);
         const res = json({ user_id: u.id, status: membership.status });
         res.headers.set('Set-Cookie', sessionCookie(tokenOf(req)));
         return res;
       }
     } catch {
       return json({ error: 'authentication unavailable' }, 503);
+    }
+    if (adminPath(p) || adminAPI(p) || p === '/admin.js') {
+      let role;
+      try { role = await env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(u.id).first(); }
+      catch { return json({ error: 'authorization unavailable' }, 503); }
+      if (!role || !['student', 'admin'].includes(role.role)) return json({ error: 'authorization unavailable' }, 503);
+      if (role.role !== 'admin') return adminPath(p) || p === '/admin.js' ? redirect('/app') : json({ error: 'forbidden' }, 403);
+      if (p === '/admin.js') return asset(env, req);
+      if (adminPath(p)) {
+        if (!['GET', 'HEAD'].includes(req.method)) return json({ error: 'not found' }, 404);
+        if (p === '/admin.html') return redirect('/admin');
+        return asset(env, new Request(new URL('/admin.html', url), req));
+      }
+      if (req.method !== 'GET') return json({ error: 'not found' }, 404);
+      if (p === '/api/admin/students') {
+        const page = pageOf(url); if (!page) return json({ error: 'invalid page' }, 400);
+        const search = (url.searchParams.get('search') || '').trim();
+        if (search.length > 100) return json({ error: 'invalid search' }, 400);
+        const sort = url.searchParams.get('sort') || 'name', asc = url.searchParams.get('order') !== 'desc';
+        const sorts = ['name', 'done', 'accuracy', 'weakest', 'avgMs', 'guessRate', 'lastActive'];
+        if (!sorts.includes(sort)) return json({ error: 'invalid sort' }, 400);
+        const term = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
+        const where = `FROM membership m JOIN users u ON u.id=m.user_id
+          WHERE m.status IN ('approved','pending') AND u.role='student'
+          AND (u.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\')`;
+        // ponytail: compute club roster before sorting; move aggregates into SQL if club grows past a few hundred.
+        const users = await env.DB.prepare(`SELECT u.id, u.email, u.name, m.status ${where} LIMIT 501`).bind(term, term).all();
+        // ponytail: explicit club-size ceiling; use SQL materialized aggregates when >500 members.
+        if ((users.results || []).length > 500) return json({ error: 'Student list exceeds supported size' }, 413);
+        const questions = await bank(env);
+        const students = await Promise.all((users.results || []).map(async student => {
+          const { stats } = await adminData(env, student.id, questions);
+          const weak = Object.entries(stats.skills).filter(([, v]) => v.a).sort((a, b) => a[1].c / a[1].a - b[1].c / b[1].a || a[0].localeCompare(b[0]))[0];
+          const n = Object.values(stats.paceSection).reduce((sum, x) => sum + x.n, 0);
+          const ms = Object.values(stats.paceSection).reduce((sum, x) => sum + x.ms, 0);
+          const target = Object.values(stats.paceSection).reduce((sum, x) => sum + x.target, 0);
+          return { ...student, done: stats.tally.att, accuracy: stats.tally.att ? Math.round(100 * stats.tally.corr / stats.tally.att) : null,
+            weakest: weak?.[0] || null, avgMs: n ? ms / n : null, targetMs: n ? target / n : null,
+            guessRate: stats.guessing.n ? stats.guessing.changedN / stats.guessing.n : null, lastActive: stats.lastActive };
+        }));
+        students.sort((a, b) => {
+          const x = a[sort], y = b[sort];
+          if (x == null || y == null) return (x == null) - (y == null) || a.id.localeCompare(b.id);
+          const cmp = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y));
+          return (asc ? cmp : -cmp) || a.id.localeCompare(b.id);
+        });
+        return json({ students: students.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), total: students.length,
+          page, pages: Math.max(1, Math.ceil(students.length / PAGE_SIZE)) });
+      }
+      const match = /^\/api\/admin\/students\/([^/]+)(?:\/(history))?$/.exec(p);
+      if (match) {
+        let id; try { id = decodeURIComponent(match[1]); } catch { return json({ error: 'invalid ID' }, 400); }
+        if (!id || id.length > 128) return json({ error: 'invalid ID' }, 400);
+        const student = await env.DB.prepare(`SELECT u.id, u.name, u.email, m.status FROM users u JOIN membership m ON m.user_id=u.id
+          WHERE u.id=? AND u.role='student' AND m.status IN ('approved','pending')`).bind(id).first();
+        if (!student) return json({ error: 'not found' }, 404);
+        const page = pageOf(url); if (!page) return json({ error: 'invalid page' }, 400);
+        if (match[2]) {
+          const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM attempts WHERE user_id = ?').bind(id).first();
+          const rows = await env.DB.prepare(`SELECT question_id, ts, correct, picked, changes, time_taken_ms, answer_history_json
+            FROM attempts WHERE user_id = ? ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?`).bind(id, PAGE_SIZE, (page - 1) * PAGE_SIZE).all();
+          return json({ results: rows.results || [], total: total.n, page, pages: Math.max(1, Math.ceil(total.n / PAGE_SIZE)) });
+        }
+        const { qs, prog, log, stats, directions } = await adminData(env, id);
+        const latest = new Map();
+        for (const x of log) if (!latest.has(x.question_id) || x.ts >= latest.get(x.question_id).ts) latest.set(x.question_id, x);
+        const mistakes = qs.filter(q => ['Red', 'Orange'].includes(prog[q.id]?.marker)).map(q => ({ question_id: q.id, marker: prog[q.id].marker,
+          picked: latest.get(q.id)?.picked || null, question: q }));
+        return json({ student, stats, directions, mistakes, totalHistory: log.length });
+      }
+      return json({ error: 'not found' }, 404);
     }
     if (restrictedAsset) return asset(env, p === '/app' ? new Request(new URL('/index.html', url), req) : req);
 
@@ -244,7 +365,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       const validID = id => typeof id === 'string' && id.trim().length > 0 && id.length <= 64;
       if (rows.some(r => !r || typeof r !== 'object' || Array.isArray(r) ||
           !validID(p === '/api/sessions' ? r.id : r.question_id) ||
-          (p === '/api/attempts' && (typeof r.ts !== 'string' || !r.ts.trim() || r.ts.length > 32)) ||
+           (p === '/api/attempts' && (typeof r.ts !== 'string' || !r.ts.trim() || r.ts.length > 32 || !validHistory(r))) ||
           (p === '/api/sessions' && (!r.state || typeof r.state !== 'object' || Array.isArray(r.state))))) {
         return json({ error: 'invalid row or missing ID' }, 400);
       }
@@ -262,22 +383,13 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     if (p === '/api/questions' && req.method === 'GET') {
       // Not SELECT *: stem_text is a legacy OCR column nothing renders, and it
       // is 15% of a payload the client downloads whole.
-      const cols = 'id, external_id, section, domain, difficulty, skill, stem_html,' +
-        ' choices_json, correct_answer, explanation_html, source, source_page, has_figure';
-      // The AI bank is a second D1 database, and D1 cannot join across one, so the
-      // two banks are concatenated here rather than in SQL. `level` exists only there;
-      // the client derives a level for the official rows from their difficulty.
-      const [core, ai] = await Promise.all([
-        env.DB.prepare(`SELECT ${cols} FROM questions`).all(),
-        env.AI_DB.prepare(`SELECT ${cols}, level FROM questions`).all()
-      ]);
-      const r = { results: [...(core.results || []), ...(ai.results || [])] };
-      return json(r.results || []);
+      // Shared bank read; AI_DB failures stay 503 rather than core-only success.
+      return json(await bank(env));
     }
 
     if (p === '/api/account' && req.method === 'GET') {
       if (!u) return json({ error: 'unauthorized' }, 401);
-      const r = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(u.id).first();
+      const r = await env.DB.prepare('SELECT id, email, name, created_at FROM users WHERE id = ?').bind(u.id).first();
       return json(r || {});
     }
 
@@ -318,7 +430,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     if (p === '/api/attempts' && req.method === 'GET') {
       if (!u) return json({ error: 'unauthorized' }, 401);
       const r = await env.DB.prepare(
-        'SELECT question_id, ts, correct, time_taken_ms, picked, changes FROM attempts WHERE user_id = ? ORDER BY ts'
+        'SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json FROM attempts WHERE user_id = ? ORDER BY ts'
       ).bind(u.id).all();
       return json(r.results || []);
     }
@@ -336,14 +448,14 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       if ((held?.n || 0) + added > MAX_ATTEMPTS) return json({ error: 'log full' }, 429);
       const stmt = env.DB.prepare(
         `INSERT OR IGNORE INTO attempts
-           (user_id, question_id, ts, correct, time_taken_ms, picked, changes)
-         SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM questions WHERE id = ?)
+           (user_id, question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json)
+          SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM questions WHERE id = ?)
                                  OR EXISTS(SELECT 1 FROM ai_ids   WHERE id = ?)`
       );
       const results = await env.DB.batch(rows.map(r => stmt.bind(
         u.id, str(r.question_id, 64), str(r.ts, 32), r.correct ? 1 : 0, r.time_taken_ms | 0,
-        str(r.picked, 32) || null, r.changes | 0,
-        str(r.question_id, 64), str(r.question_id, 64))));
+        str(r.picked, 32) || null, r.changes | 0, r.answer_history_json ?? null,
+         str(r.question_id, 64), str(r.question_id, 64))));
       const persisted = await env.DB.batch(rows.map(r => env.DB.prepare(
         'SELECT 1 FROM attempts WHERE user_id = ? AND question_id = ? AND ts = ?'
       ).bind(u.id, r.question_id, r.ts)));

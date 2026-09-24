@@ -1019,7 +1019,9 @@ mark.hl-b { background: #bfe3ff; }
 <div id="modal-root"></div>
 <div id="overlay-root"></div>
 
-<script>
+<script type="module">
+import * as Stats from '/shared/stats.js';
+import * as SharedRenderer from '/shared/renderer.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1109,15 +1111,7 @@ LS.set('filters', F);
 
 // ---------------- data ----------------
 // The PDF extractor wrote some text as UTF-8 bytes decoded through CP437.
-const MOJIBAKE = [
-  ['\u0393\u00ea\u00c6', '\u2212'], ['\u0393\u00e5\u00c6', '\u2192'], ['\u0393\u00ea\u00dc', '\u221a'],
-  ['\u0393\u00c7\u00f6', '\u2014'], ['\u0393\u00c7\u00f4', '\u2013'], ['\u0393\u00c7\u00d6', '\u2019'],
-  ['\u0393\u00c7\u00a3', '\u201c'], ['\u0393\u00c7\u00a5', '\u201d'], ['\u0393\u00c7\u00aa', '\u2026'],
-  ['\u0393\u00eb\u00f1', '\u2264'], ['\u0393\u00eb\u00d1', '\u2265'], ['\u0393\u00eb\u00e1', '\u2260'],
-  ['\u0393\u00eb\u00ea', '\u2248'], ['\u00a4\u00c7', '\u03c0'], ['\u251c\u00f9', '\u00d7'],
-  ['\u252c\u00b0', '\u00b0'], ['\u252c\u2557', '\u00b7'], ['\u252c\u2593', '\u00b2']
-];
-const demoji = (h) => MOJIBAKE.reduce((a, [bad, good]) => a.split(bad).join(good), h || '');
+const demoji = Stats.demoji;
 // Some stems have the rationale appended to them. It is already in explanation_html,
 // and leaving it in the stem prints the answer above the choices.
 const LEAKED_RATIONALE = /<p>\s*(?:<strong>\s*)?Rationale\b[\s\S]*$/i;
@@ -1456,40 +1450,11 @@ async function load() {
     if (qRes.status === 401 || qRes.status === 403) { leaveAccount(qRes.status === 403); return; }
     if (!qRes.ok) throw new Error('Questions unavailable');
     QS = await qRes.json();
-    QS.forEach(q => {
-      try { q.choices = typeof q.choices_json === 'string' ? JSON.parse(q.choices_json) : (q.choices_json || []); }
-      catch(e){ q.choices = []; }
-      try {
-        const a = typeof q.correct_answer === 'string' ? JSON.parse(q.correct_answer) : (q.correct_answer || []);
-        q.answer = Array.isArray(a) ? a.join('') : String(a);
-      } catch(e){ q.answer = q.correct_answer || ''; }
+    QS = QS.map(raw => {
+      const q = Stats.normalizeQuestion(raw);
       q.stem_html = tidySpace(demoji(q.stem_html).replace(LEAKED_RATIONALE, ''));
       q.explanation_html = tidyExpl(demoji(q.explanation_html));
-      q.answer = demoji(q.answer);
-      q.choices.forEach((c, i) => {
-        if (c.content) c.content = demoji(c.content);
-        if (!String(c.letter == null ? '' : c.letter).trim()) c.letter = 'ABCD'[i] || String(i + 1);
-      });
-      q.spr = !q.choices.length;
-      q.ai = q.source === 'AI';
-      q.level = levelOf(q);
-      if (q.choices.length) {
-        const m = q.answer.match(/^\s*([A-D])\s*[\u2014\u2013-]\s*\S/);
-        if (m) q.answer = m[1];
-      }
-      // A grid-in with no stored answer normally states it in its own rationale,
-      // either as "The correct answer is either 8 or 9" or as a closing "Note that
-      // 1/6, .1666, ... are examples of ways to enter a correct answer". Every
-      // token in either sentence is an accepted entry, so all of them are kept.
-      if (!q.answer && q.spr) {
-        const t = q.explanation_html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-        // A token may open with a dot (".5", ".1666"), and the ", or" branch matters:
-        // without it "7, 8, or 13" stops at 8.
-        const m = t.match(/correct answer is\s*:?\s*(?:either\s+)?(\.?[0-9][0-9.\/]*(?:\s*,?\s*(?:or|and)\s*\.?[0-9][0-9.\/]*|\s*,\s*\.?[0-9][0-9.\/]*)*)/i)
-               || t.match(/Note that\s+(\.?[0-9][0-9.\/]*(?:\s*,?\s*(?:or|and)\s*\.?[0-9][0-9.\/]*|\s*,\s*\.?[0-9][0-9.\/]*)*)\s+are examples of ways to enter a correct answer/i);
-        const alts = m ? (m[1].match(/\.?[0-9][0-9.\/]*/g) || []).map(x => x.replace(/\.$/, '')) : [];
-        if (alts.length) q.answer = alts.join(' or ');
-      }
+      return q;
     });
     QBY = new Map(QS.map(q => [q.id, q]));
     try { EXAMS = (await (await fetch('/exams.json')).json()).tests; } catch (e) { EXAMS = []; }
@@ -1701,7 +1666,7 @@ function greet() {
 // topic list is drawn from this too, so the two can never disagree.
 // Red is a question whose last answer was wrong; Orange is one you got wrong and
 // have since corrected. Both are questions you have got wrong, so both drill.
-const everWrong = (id) => { const p = PROG[id]; return !!p && (p.marker === 'Red' || p.marker === 'Orange'); };
+const everWrong = id => Stats.everWrong(PROG, id);
 
 function base() {
   const secs = F.sec ? new Set(F.sec) : null;
@@ -1729,23 +1694,7 @@ function pool() {
 // --- focus (test_focus.cjs reads this block)
 // How likely this skill is to be missed next, Laplace-smoothed so a skill with no
 // attempts scores 0.5 and surfaces instead of being invisible.
-function weakness(list) {
-  const acc = new Map();
-  const byId = new Map();
-  list.forEach(q => {
-    const k = q.skill || 'Other';
-    if (!acc.has(k)) acc.set(k, { a: 0, m: 0 });
-    byId.set(q.id, k);
-  });
-  Object.entries(PROG).forEach(([id, p]) => {
-    const k = byId.get(id); if (!k || !p.attempts) return;
-    const v = acc.get(k);
-    v.a += p.attempts; v.m += p.attempts - (p.corrects || 0);
-  });
-  const out = new Map();
-  acc.forEach((v, k) => out.set(k, (v.m + 1) / (v.a + 2)));
-  return out;
-}
+const weakness = list => Stats.weakness(list, PROG);
 
 // The set: slots allocated across skills in proportion to how weak they are, then
 // filled with never-seen questions before ones already drilled.
@@ -1819,70 +1768,12 @@ const nextLevel = (lvl, streak, ok) =>
 
 // One pass over a list of questions and the progress rows. The dashboard reads
 // the whole bank, the topic list reads only what the dropdowns left.
-function tally(list) {
-  const byId = new Map((list || QS).map(q => [q.id, q]));
-  const t = { att:0, corr:0, ms:0, sec:{}, dom:{}, skill:{} };
-  const b = (m,k) => (m[k] = m[k] || { a:0, c:0, n:0 });
-  byId.forEach(q => { b(t.sec, q.section||'Other').n++; b(t.dom, q.domain||'Other').n++; b(t.skill, q.skill||'Other').n++; });
-  Object.entries(PROG).forEach(([id,p]) => {
-    const q = byId.get(id);
-    if (!q || !p.attempts) return;
-    const right = p.marker === 'Green' || p.marker === 'Orange';
-    t.att++; if (right) t.corr++; t.ms += p.time_taken_ms || 0;
-    [b(t.sec,q.section||'Other'), b(t.dom,q.domain||'Other'), b(t.skill,q.skill||'Other')]
-      .forEach(x => { x.a++; if (right) x.c++; });
-  });
-  return t;
-}
+const tally = list => Stats.tally(list || QS, PROG);
 
-// --- metrics (test_metrics.cjs reads this block)
-// Official rows carry no `level`; their difficulty is the rank. AI rows carry 4 or 5.
-const LVL = { easy: 1, medium: 2, hard: 3 };
-const levelOf = (q) => q.level || LVL[String(q.difficulty || '').toLowerCase()] || 2;
-
-// SAT pacing: 35 minutes for 22 Math questions, 32 for 27 Reading & Writing.
-const TARGET_MS = { Math: 95000, 'Reading & Writing': 71000 };
-const targetOf = (q) => TARGET_MS[q.section] || 85000;
-
-// Which trap each miss walked into. The wrong pick is looked up in that question's
-// own choices, so the tag travels with the question rather than being re-derived.
-function trapCounts() {
-  const byId = new Map(QS.map(q => [q.id, q]));
-  const n = {};
-  LOG.forEach(x => {
-    if (x.correct || !x.picked) return;
-    const q = byId.get(x.question_id); if (!q || !q.choices) return;
-    const c = q.choices.find(c => c.letter === x.picked);
-    if (c && c.trap) n[c.trap] = (n[c.trap] || 0) + 1;
-  });
-  return Object.entries(n).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-}
-
-// Under 60% of the section target is rushed, over 140% is slow, between is on pace.
-function pacing() {
-  const byId = new Map(QS.map(q => [q.id, q]));
-  const out = { rushed: 0, onPace: 0, slow: 0, ms: {}, n: {} };
-  LOG.forEach(x => {
-    const q = byId.get(x.question_id); if (!q || !x.time_taken_ms) return;
-    const t = targetOf(q), r = x.time_taken_ms / t;
-    out[r < 0.6 ? 'rushed' : r > 1.4 ? 'slow' : 'onPace']++;
-    out.ms[q.section] = (out.ms[q.section] || 0) + x.time_taken_ms;
-    out.n[q.section] = (out.n[q.section] || 0) + 1;
-  });
-  return out;
-}
-
-// Second-guessing: how often a selection is switched before Check, and whether
-// switching helps. Attempts logged before this shipped carry no `changes` at all.
-function guessing() {
-  const seen = LOG.filter(x => x.changes != null);
-  const tot = seen.reduce((n, x) => n + (x.changes | 0), 0);
-  const ch = seen.filter(x => (x.changes | 0) > 0), st = seen.filter(x => !(x.changes | 0));
-  const acc = (l) => l.length ? Math.round(l.filter(x => x.correct).length / l.length * 100) : null;
-  return { mean: seen.length ? tot / seen.length : 0, n: seen.length,
-           changedAcc: acc(ch), steadyAcc: acc(st), changedN: ch.length };
-}
-// --- end metrics
+const { levelOf, targetOf, TARGET_MS } = Stats;
+const trapCounts = () => Stats.trapCounts(QS, LOG);
+const pacing = () => Stats.pacing(QS, LOG);
+const guessing = () => Stats.guessing(LOG);
 
 const pctOf = (v) => v.a ? Math.round(v.c/v.a*100) : null;
 const accHTML = (pct) => pct == null ? '&mdash;'
@@ -1904,24 +1795,7 @@ const DIFFS = ['Easy', 'Medium', 'Hard'];
 
 // Official College Board order for domains and skills. Alphabetical put Advanced
 // Math before Algebra and Boundaries before Central Ideas.
-const DOM_ORDER = ['Information and Ideas', 'Craft and Structure', 'Expression of Ideas', 'Standard English Conventions',
-  'Algebra', 'Advanced Math', 'Problem-Solving and Data Analysis', 'Geometry and Trigonometry'];
-const SKILL_ORDER = [
-  'Central Ideas and Details', 'Inferences', 'Command of Evidence',
-  'Words in Context', 'Text Structure and Purpose', 'Cross-Text Connections',
-  'Rhetorical Synthesis', 'Transitions',
-  'Boundaries', 'Form, Structure, and Sense',
-  'Linear equations in one variable', 'Linear functions', 'Linear equations in two variables',
-  'Systems of two linear equations in two variables', 'Linear inequalities in one or two variables',
-  'Equivalent expressions', 'Nonlinear equations in one variable', 'Nonlinear functions',
-  'Ratios, rates, proportional relationships, and units', 'Percentages',
-  'One-variable data: Distributions and measures of center and spread',
-  'Two-variable data: Models and scatterplots', 'Probability and conditional probability',
-  'Inference from sample statistics and margin of error',
-  'Evaluating statistical claims: Observational studies and experiments',
-  'Area and volume', 'Lines, angles, and triangles', 'Right triangles and trigonometry', 'Circles'];
-const cbIdx = (k) => { const i = DOM_ORDER.indexOf(k), j = SKILL_ORDER.indexOf(k); return i >= 0 ? i : j >= 0 ? 100 + j : 1e9; };
-const cbSort = (list) => list.slice().sort((a, b) => cbIdx(a) - cbIdx(b) || a.localeCompare(b));
+const { DOM_ORDER, SKILL_ORDER, cbSort } = Stats;
 
 function drawFilters() {
   dd($('dd-sec'), { label: 'Section', allLabel: 'Both sections',
@@ -2144,9 +2018,8 @@ function streak() {
 // (attempted out of the bank) next to an accuracy percentage, so the bar and the
 // number disagreed and the scale read as broken. Rows with no attempt are out:
 // an empty bar for a skill you have never touched says nothing about accuracy.
-const bars = (map) => Object.entries(map)
-  .filter(([, v]) => v.a)
-  .sort((a, b) => cbIdx(a[0]) - cbIdx(b[0]) || a[0].localeCompare(b[0]))
+const bars = (map) => cbSort(Object.keys(map).filter(k => map[k].a))
+  .map(k => [k, map[k]])
   .map(([k, v]) => `<div class="prog-item"><b>${esc(k)}</b>
     <span class="bar"><i style="width:${pctOf(v) || 0}%"></i></span>
     <span class="tl-a mono">${accHTML(pctOf(v))} &middot; ${v.c}/${v.a}</span></div>`)
@@ -2176,14 +2049,8 @@ function drawDash() {
 
   // Difficulty is read off the log, not off PROG, so answering a question twice
   // counts twice here the same way it counts twice in the chart above it.
-  const qid = new Map(QS.map(q => [q.id, q]));
-  const dm = {};
-  LOG.forEach(x => {
-    const q = qid.get(x.question_id); if (!q) return;
-    const k = q.difficulty || 'Unknown';
-    const v = dm[k] = dm[k] || { a:0, c:0, n:0 };
-    v.a++; v.n++; if (x.correct) v.c++;
-  });
+  const summary = Stats.breakdown(QS, PROG, LOG);
+  const dm = summary.diff;
   const order = ['Easy','Medium','Hard','Unknown'];
   const ds = Object.keys(dm).sort((x, y) => order.indexOf(x) - order.indexOf(y));
   $('db-diffs').innerHTML = ds.map(k => {
@@ -2235,12 +2102,7 @@ function drawDash() {
 
   // Accuracy by level, over the log rather than the marker, so a re-drill counts
   // twice here exactly as it does in the chart above.
-  const lv = {};
-  LOG.forEach(x => {
-    const q = qid.get(x.question_id); if (!q) return;
-    const v = lv[levelOf(q)] = lv[levelOf(q)] || { a: 0, c: 0 };
-    v.a++; if (x.correct) v.c++;
-  });
+  const lv = summary.level;
   const lks = Object.keys(lv).sort();
   $('db-levels').innerHTML = lks.length
     ? lks.map(k => `<div class="prog-item"><b>Level ${k}${k >= 4 ? ' &middot; AI' : ''}</b>
@@ -2481,11 +2343,7 @@ function previewQuestion(id) {
       <strong>${esc(q.id)} · ${esc(q.section)} · ${esc(q.difficulty)}</strong>
       <button id="pv-close">Close</button>
     </div>
-    <div class="cb" style="max-height:56vh; overflow-y:auto;">${renderStem(q)}
-      <div class="choices" style="margin-top:16px;">${q.choices.map(c => choiceHTML(q, c, null, true)).join('')}</div>
-      ${q.spr ? `<div class="ans-line" style="margin-top:14px;">Answer: ${esc(q.answer)||'(see image)'}</div>` : ''}
-    </div>
-    <div style="margin-top:14px; color:var(--dim); font-size:13.5px;" class="cb expl">${q.explanation_html||''}</div>
+    ${SharedRenderer.previewHTML(q, document)}
   </div></div>`;
   mathify(root);
   $('pv-close').onclick = () => root.innerHTML = '';
@@ -2530,7 +2388,7 @@ function start(items, opts) {
   S = {
     items, i: 0,
     ans: {}, checked: {}, flags: {}, ko: {},
-    sel: {}, miss: {}, tried: {}, noted: {}, changes: {},
+     sel: {}, miss: {}, tried: {}, noted: {}, changes: {}, history: {},
     started: Date.now(), ended: null,
     qStart: Date.now(),
     paused: false, timerHidden: false,
@@ -2635,13 +2493,7 @@ function mathify(root) {
 
 // Graphs, tables and figures are context: they belong beside the question the
 // way a Reading passage does, not stacked above the answer choices.
-function splitContext(html) {
-  const d = document.createElement('div');
-  d.innerHTML = html;
-  const ctx = document.createElement('div');
-  d.querySelectorAll('.qfig, .qtable, .qimg').forEach(n => ctx.appendChild(n));
-  return { context: ctx.innerHTML.trim(), body: d.innerHTML.trim() };
-}
+const splitContext = html => SharedRenderer.splitContext(html, document);
 
 let lbScale = 1, lbX = 0, lbY = 0;
 function openLightbox(src) {
@@ -2688,54 +2540,8 @@ document.addEventListener('click', e => {
 });
 
 const H3_LABEL = /<h3>\s*(?:Passage|Prompt|Question)\s*<\/h3>/gi;
-
-function renderStem(q) {
-  let html = q.stem_html || '';
-  html = html.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
-  html = html.replace(H3_LABEL, '');
-  return html;
-}
-
-function choiceHTML(q, c, picked, staticMode) {
-  const letter = c.letter || '?';
-  const isGraphImg = c.img && (c.img.includes('_stem.') || c.img.includes('_a.') || c.img.includes('_b.') || c.img.includes('_c.') || c.img.includes('_d.'));
-  let body = '';
-  if (c.img && isGraphImg) {
-    body = `<img src="${esc(c.img)}" alt="Choice ${esc(letter)}">`;
-  } else if (c.img) {
-    body = `<img src="${esc(c.img)}" alt="Choice ${esc(letter)}">`;
-  } else {
-    let content = c.content || '';
-    content = content.replace(/<p>/gi, '').replace(/<\/p>/gi, '');
-    body = `<span>${content}</span>`;
-  }
-  const checked = !staticMode && S.checked[q.id];
-  let cls = 'choice';
-  if (!staticMode) {
-    if (picked === letter && !checked) cls += ' sel';
-    // Retry mode: the letters already tried stay red, and nothing else is marked.
-    if (!checked && (S.miss[q.id] || []).includes(letter)) cls += ' wrong';
-    if (checked) {
-      const prog = PROG[q.id];
-      const wasWrong = prog && prog.marker === 'Red';
-      const nowCorrect = isRight(q, letter);
-      if (nowCorrect === null) cls += (picked === letter ? ' sel' : ' dim');
-      else if (nowCorrect && wasWrong) cls += ' corrected';
-      else if (nowCorrect) cls += ' right';
-      else if (picked === letter || (S.miss[q.id] || []).includes(letter)) cls += ' wrong';
-      else cls += ' dim';
-    }
-  }
-  const ko = !staticMode && S.ko[q.id] && S.ko[q.id].includes(letter);
-  if (ko) cls += ' ko';
-  // The eliminator sits beside the choice, not inside it, and the strike runs the
-  // full width of the row (a hotdog cut) rather than through the letter alone.
-  return `<div class="choice-row"><div class="${cls}" data-letter="${esc(letter)}">
-    <span class="badge">${esc(letter)}</span>
-    <span style="flex:1; min-width:0;">${body}</span>
-    ${staticMode || checked || picked !== letter ? '' : `<button class="chk-btn" data-chk="${esc(letter)}">Check</button>`}
-  </div>${staticMode ? '' : `<button class="ko-btn${ko ? ' on' : ''}" data-ko="${esc(letter)}" title="Eliminate choice"><s>${esc(letter)}</s></button>`}</div>`;
-}
+const renderStem = SharedRenderer.renderStem;
+const choiceHTML = (q, c, picked, staticMode) => SharedRenderer.choiceHTML(q, c, picked, staticMode, S, PROG);
 
 function loadQuestion() {
   closeExpl();
@@ -2840,7 +2646,13 @@ function renderAnswerArea(q) {
   if (q.spr) {
     const gi = $('gi');
     if (!checked) {
-      const submit = () => { S.ans[q.id] = gi.value.trim(); grade(q); };
+      // A committed grid value, not every intermediate keystroke ("0" while typing "0.5").
+      gi.onchange = () => rememberAnswer(q, gi.value.trim());
+      const submit = () => {
+        S.ans[q.id] = gi.value.trim();
+        rememberAnswer(q, S.ans[q.id]);
+        grade(q);
+      };
       $('gi-submit').onclick = submit;
       gi.onkeydown = (e) => { if (e.key === 'Enter') submit(); };
       // Retry mode leaves the box open on a wrong entry, so the verdict has to be
@@ -2886,6 +2698,7 @@ function renderAnswerArea(q) {
         // guess. Read back by the dashboard's Second-guessing panel.
         if (S.sel[q.id] && S.sel[q.id] !== letter) S.changes[q.id] = (S.changes[q.id] || 0) + 1;
         S.sel[q.id] = letter;
+        rememberAnswer(q, letter);
         target.querySelectorAll('.choice').forEach(x => {
           if (x !== el) x.classList.remove('sel');
           const b = x.querySelector('.chk-btn');
@@ -2905,36 +2718,15 @@ function renderAnswerArea(q) {
   }
 }
 
-function isRight(q, val) {
-  if (!val || val === 'TIMEOUT') return false;
-  const a = String(q.answer||'').trim().toUpperCase();
-  if (!a) return null;
-  if (q.spr) {
-    // A grid-in accepts several spellings of one value — 5/2 and 2.5, and a decimal
-    // truncated or rounded to fill the grid (1/6 as .1666 or .1667) — and some
-    // questions accept genuinely different values ("either 8 or 9"). Comparing the
-    // stored string to the typed one caught none of that: 88 rows store a fraction
-    // and 7 store a list, so a right answer was being marked wrong.
-    const clean = (s) => String(s).toUpperCase().replace(/[\s,$]/g,'');
-    const num = (s) => {
-      const m = /^(-?[0-9]+(?:\.[0-9]+)?)\/(-?[0-9]+(?:\.[0-9]+)?)$/.exec(s);
-      return m ? Number(m[1]) / Number(m[2]) : parseFloat(s);
-    };
-    const vv = clean(val), vf = num(vv);
-    const dp = (vv.split('.')[1] || '').length;
-    return a.split(/\s+OR\s+|,/).map(clean).filter(Boolean).some(av => {
-      const af = num(av);
-      if (isNaN(af) || isNaN(vf)) return av === vv;
-      if (Math.abs(af - vf) < 1e-9) return true;
-      // ponytail: only at grid precision. The real grid is 4 characters wide, so
-      // ".1667" is an answer of 1/6 and ".2" is not; three decimals is the proxy.
-      if (dp < 3) return false;
-      const f = Math.pow(10, dp);
-      return Math.round(af * f) / f === vf || Math.trunc(af * f) / f === vf;
-    });
-  }
-  if (!q.choices.some(c => String(c.letter||'').trim().toUpperCase() === a)) return null;
-  return a === String(val).trim().toUpperCase();
+const isRight = Stats.isRight;
+function rememberAnswer(q, answer) {
+  if (!S.history || !answer || answer.length > 32) return;
+  const h = (S.history[q.id] ||= []);
+  if (h.at(-1)?.answer === answer) return;
+  if (q.spr && h.length && !S.exam) S.changes[q.id] = (S.changes[q.id] || 0) + 1;
+  const event = { answer, atMs: Math.min(86400000, Math.max(0, Date.now() - (S.started || Date.now()))) };
+  // ponytail: keep first and most recent 127 edits; raise bound only if real usage needs more.
+  if (h.length >= 128) h[h.length - 1] = event; else h.push(event);
 }
 
 // --- grade
@@ -2954,12 +2746,14 @@ function recordProgress(q, ok, now, ms) {
 function recordAttempt(q, ok, now, ms, picked, changes) {
   const ev = { question_id: q.id, ts: now, correct: ok === true ? 1 : 0, time_taken_ms: ms,
                picked: String(picked == null ? '' : picked).slice(0, 32), changes: changes | 0 };
+  if (S.history?.[q.id]?.length) ev.answer_history_json = JSON.stringify(S.history[q.id]);
   LOG.push(ev);
   saveLog([ev]);
 }
 
 function grade(q) {
   const ok = isRight(q, S.ans[q.id]);
+  if (S.history) rememberAnswer(q, S.ans[q.id]);
   const first = !S.tried[q.id];
   S.tried[q.id] = true;
 
@@ -2984,6 +2778,8 @@ function grade(q) {
   if (first) recordProgress(q, ok, now, ms);
   // The attempt log is the history, and a retry is work that was really done.
   recordAttempt(q, ok, now, ms, S.ans[q.id], S.changes[q.id]);
+  if (S.history) S.history[q.id] = []; // next retry is a separate scored attempt
+  S.changes[q.id] = 0;
   if (S.session) saveSession(reviewState);
 
   // The ladder. Two straight correct answers raise the target level, any miss
@@ -3235,7 +3031,10 @@ document.addEventListener('keydown', (e) => {
     const q = curQ();
     if (q.choices && q.choices.length && !S.checked[q.id]) {
       const c = q.choices[parseInt(e.key)-1];
-      if (c) { if (S.exam) { S.ans[q.id] = c.letter; touchExam(); } else S.sel[q.id] = c.letter; renderAnswerArea(q); }
+      if (c) { if (S.exam) { S.ans[q.id] = c.letter; touchExam(); } else {
+        if (S.sel[q.id] && S.sel[q.id] !== c.letter) S.changes[q.id] = (S.changes[q.id] || 0) + 1;
+        S.sel[q.id] = c.letter; rememberAnswer(q, c.letter); renderAnswerArea(q);
+      } }
     }
   }
 });
@@ -3767,6 +3566,7 @@ function practiceMissed(EX, sess) {
   const session = sess || { id: 'rv_' + EX.id, kind: 'review', examId: EX.id, name: EX.name + ' · missed', ids, i: 0, ans: {}, checked: {}, tried: {}, finished: null, startedAt: Date.now() };
   start(items, { timing: 'off', session });
   S.ans = session.ans; S.checked = session.checked; S.tried = session.tried;
+  S.history = session.history || (session.history = {});
   S.i = Math.min(session.i || 0, items.length - 1);
   loadQuestion();
   if (!sess) saveSession(reviewState, true);
