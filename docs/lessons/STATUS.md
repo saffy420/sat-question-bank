@@ -116,4 +116,6 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 
 **Correcting event — 2026-09-24:** Task00b handoff corrected directly by parent (commit 00cebf32). Task01 remains uncommitted per user STOP instruction. Fresh agent every delegation; no task_id resume.
 
+**Correcting event — 2026-09-24 (task01 acceptance):** User approved task01 and authorized its local commit. Actual commits: `137c29f1` (task00b handoff correction), `c98300e2` (`feat: admin roles, dashboard, shared stats` — task01 source/tests/docs, 31 files), `a3911a90` (task01 handoff/state marked committed). No push, no deploy, no remote mutation. Task02 (builder) NOT started — user explicitly declined to begin it in this session. Screenshots under `.opencode/pipeline/*/e2e/` remain gitignored/local. Entries above describing task00b/task01 as uncommitted are historical as of their writing and superseded by this event.
+
 (End of file)
