@@ -1,4 +1,9 @@
 .env
+.dev.vars*
+.e2e.*.env
+.opencode/pipeline/*/e2e/
+playwright-report/
+test-results/
 .wrangler/
 node_modules/
 *.db
@@ -11,6 +16,9 @@ extract_rw/
 # The extractor is the only way to rebuild the bank from the PDFs, so keep its
 # source. The blobs it reads and writes (glyph index, jsonl dumps) stay out.
 tools/*
+!tools/e2e_*.cjs
+!tools/e2e_*.sql
+!tools/e2e_unset.env
 !tools/*.py
 !tools/glyph_labels.json
 !tools/apply_math.cjs

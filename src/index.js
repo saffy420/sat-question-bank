@@ -162,7 +162,7 @@ export default {
   }
 };
 
-async function handleRequest(req, env) {
+export async function handleRequest(req, env, resolveIdentity = whoami) {
     const url = new URL(req.url);
     const p = url.pathname;
 
@@ -209,7 +209,7 @@ async function handleRequest(req, env) {
     let u;
     try {
       if (p === '/api/auth/session' && !req.headers.has('Authorization')) return json({ error: 'bearer required' }, 401);
-      u = await whoami(req, env);
+      u = await resolveIdentity(req, env);
       if (!u) {
         if (p === '/app') return redirect('/login');
         return json({ error: 'unauthorized' }, 401);

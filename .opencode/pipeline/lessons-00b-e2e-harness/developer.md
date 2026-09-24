@@ -1,0 +1,24 @@
+# Developer handoff — lessons-00b-e2e-harness
+
+Developer scope complete; browser adapter/specs/screenshots reserved for fresh Test Developer.
+
+## Files
+- `src/index.js`: exported handler with default production `whoami` resolver, no test imports/flags.
+- `src/index.e2e.js`: loopback-only login/session resolver, allowlisted accounts, strict flag on issuance and resolution, 64 random server-held sessions, one-hour expiry, same-origin JSON POST with 1024-byte cap, seeded-membership check, secure HttpOnly cookie before `/app`.
+- `wrangler.e2e.toml`, `wrangler.e2e-production.toml`: local synthetic D1 IDs, no routes or Supabase bindings; production config untouched.
+- `tools/e2e_server.cjs`: fixed 8787 enabled, 8788 flag-unset, 8789 production-entry/flag-set; explicitly empty tracked `tools/e2e_unset.env` suppresses `.dev.vars` and environment. `--var E2E_TEST_MODE:1` supplies only enabled/production-entry modes; Wrangler 4.125.0 `--env-file` alone did not create Worker binding. Loopback IP, `--local`, fixed `.wrangler/state-e2e` always.
+- `tools/e2e_seed.cjs`, `tools/e2e_core.sql`, `tools/e2e_ai.sql`: both schema snapshots; owned rows, 5 approved accounts, 3 core and 1 AI question plus registry. Seed refuses occupied harness ports or CLI overrides. SQL repeats safely; existing unrelated rows untouched.
+- `tools/e2e_smoke.cjs`: finite local HTTPS request smoke (certificate trust disabled only for this local probe), stops servers. Real Chromium cookie proof in `repair1.md`.
+- `playwright.config.js`: Chromium, `use.baseURL`, 1366x768, three Playwright-owned web servers, no reuse, task artifact path. `package.json`/lock: exact `@playwright/test@1.63.0` dev dependency and scripts. `.gitignore`: generated artifacts, local vars and explicit tool allowlist; tracked `tools/e2e_unset.env` holds empty override. `tests/test_e2e_auth.cjs`: auth and esbuild in-memory production import graph checks.
+
+## Commands / results
+- `rtk npm test`: 46/46 pass, including existing auth negatives; no project lint/type/build scripts exist.
+- `rtk npm run e2e:seed` twice: success, same owned dataset; `rtk node tools/e2e_smoke.cjs`: enabled cookie `/app` 200, `/api/questions` 4 rows incl AI and SPR; unset login 404/token 401; production-entry with flag login 404. All local. Smoke ran again after SQL updates.
+- Historical pre-Test-Developer `rtk node node_modules/@playwright/test/cli.js test --list` exited `No tests found`; Test Developer later added specs and reported HTTP cookie failure in `e2e.md`. Repair round 1 browser probe now passes; no full browser suite claimed.
+- Local production graph proof: `esbuild.build({ entryPoints:['src/index.js'], bundle:true, write:false, metafile:true })` in unit test; no e2e inputs or flag/login strings. No deployment/dry-run commands.
+- `rtk git.exe diff --check`: clean. No commit/push/deploy. Workerd: WSL shell executes Linux binary; Windows Serena shell has incompatible Linux-only installed workerd (`@cloudflare/workerd-linux-64` vs required Windows binary); run Node/Wrangler from WSL shell unless reinstalling on Windows separately. Local HTTP smoke passed in WSL.
+
+## Security limits / next browser checks
+- E2E sessions live only in Worker memory: reload loses them; token-bearing cookie is secure on loopback under Wrangler local runtime. 64-cap eviction, one-hour timeout; `E2E_TEST_MODE` checked each resolver call. No production Supabase fallback. Seeded admin is label, not production role. Practice bank intentionally still includes answers. `public/` unchanged.
+- Repair round 1 switched fixed local servers to HTTPS; see `repair1.md`. Run `rtk npm run e2e:seed` with all dev servers stopped, then `rtk npm run test:e2e` after Test Developer updates fixture URLs. Browser fixture login POST `/api/e2e/login` with `Origin: https://127.0.0.1:8787`, `Content-Type: application/json`, body `{ "account": "e2e-admin" }` or student. Preserve returned secure cookie in same browser context **before** `page.goto('/app')`; install browser-only Supabase adapter before page scripts, return `{ access_token: token, user }` from login JSON. `/api/auth/session` SPA bootstrap must succeed; do not inject Authorization into every HTTP request. Three targets: `https://127.0.0.1:8787`, `:8788`, `:8789`. Set `ignoreHTTPSErrors: true` on independently constructed browser contexts; root `use` setting does not propagate to `browser.newContext()`. For controlled fixture WebSockets use `wss:` rather than `ws:`. Validate real renderer MC content and SPR input, independent contexts, forbidden remote traffic, offline/throttle/leak helpers and screenshots. Use `rtk node tools/e2e_smoke.cjs` separately only when Playwright servers stopped.
+- Intentional note marker lives in explanation (`E2E_EXPL_MARKER_*`); no lesson notes tables exist in 00b. Test Developer may extend owned fixture data in its allowed files. No Chromium binary downloaded or browser checks run here.

@@ -1,0 +1,19 @@
+name = "sat-question-bank-local-e2e"
+main = "src/index.e2e.js"
+compatibility_date = "2024-12-16"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+html_handling = "none"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sat_local_e2e_core"
+database_id = "00000000-0000-4000-8000-0000000000e1"
+
+[[d1_databases]]
+binding = "AI_DB"
+database_name = "sat_local_e2e_ai"
+database_id = "00000000-0000-4000-8000-0000000000e2"
