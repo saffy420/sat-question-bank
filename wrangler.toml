@@ -1,6 +1,8 @@
 name = "sat-question-bank"
 main = "src/index.js"
 compatibility_date = "2024-12-16"
+# Account has no workers.dev subdomain; publishing there fails code 10063.
+workers_dev = false
 
 # roadto1600.org must be a zone on this Cloudflare account before a deploy can
 # claim these routes — see README. `custom_domain` makes Cloudflare create and own
