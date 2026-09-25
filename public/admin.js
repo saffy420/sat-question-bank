@@ -1,5 +1,5 @@
-import { cbSort, DOM_ORDER } from './shared/stats.js';
-import { previewHTML } from './shared/renderer.js';
+import { cbSort, DOM_ORDER, isRight } from './shared/stats.js';
+import { previewHTML, renderStem, splitContext, choiceHTML } from './shared/renderer.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -102,21 +102,31 @@ function preview(m) {
   $('close-preview').onclick = () => host.replaceChildren(); mathify(host); $('close-preview').focus();
 }
 // --- instructor live room ---
-let liveSocket, liveId, liveState, liveOffset = 0, liveBest = Infinity, liveRetry, liveClock;
+let liveSocket, liveId, liveState, liveOffset = 0, liveBest = Infinity, liveRetry, liveClock, liveSort = 'name';
 function liveSend(type, fields = {}) { if (liveSocket?.readyState === WebSocket.OPEN) liveSocket.send(JSON.stringify({ type, ...fields })); }
 function drawLive() {
   const s = liveState; if (!s) return;
-  const q = s.question;
+  const q = s.question, revealed = s.phase === 'REVEALED' || s.phase === 'ENDED';
+  const stem = q && splitContext(renderStem(q), document);
+  const responses = Object.entries(s.roster || {}).map(([id,name]) => ({ id, name, r: s.responses?.[id]?.[s.questionId] }));
+  responses.sort((a,b) => liveSort === 'status' ? Number(!!b.r?.locked)*2 + Number(!!b.r?.answer) - Number(!!a.r?.locked)*2 - Number(!!a.r?.answer) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name));
   body.innerHTML = `<div class="panel"><h2>${esc(s.title)} · Session ${esc(s.sessionId)}</h2><strong class="join-code">${esc(s.code)}</strong>
     <p>Join URL: <a href="${esc(location.origin + '/app?join=' + s.code)}">${esc(location.origin + '/app?join=' + s.code)}</a></p><p id="live-link">${liveSocket?.readyState === WebSocket.OPEN ? 'Connected' : 'Reconnecting…'}</p>
     <p>${esc(s.phase)} · ${s.count} joined · Q ${s.index+1}/${s.total} · <span id="live-timer"></span></p>
-    <div class="frow"><button data-live="start">Start lesson</button><button data-live="startQuestion">Start question</button><button data-live="addTime">+15s</button><button data-live="endNow">End now</button><button data-live="next">Next</button><button data-live="endSession">End session</button><label><input id="live-lock" type="checkbox" ${s.lockedJoin ? 'checked' : ''}> Lock joining</label></div>
-    <h3>Students</h3><div id="live-roster">${Object.entries(s.roster || {}).map(([id,name]) => `<p>${esc(name)} <button data-kick="${esc(id)}">Remove</button></p>`).join('') || 'No students yet.'}</div>
-    ${q ? `<h3>Question ${esc(q.id)}</h3><div class="cb">${q.stem_html}</div><div class="choices">${q.choices.map(c => `<p>${esc(c.letter)} · ${c.content || ''}</p>`).join('')}</div><p>${esc((s.responses && Object.values(s.responses).filter(r => r[q.id]?.answer).length) || 0)} selected</p>` : ''}
+    <div class="frow"><button data-live="start" ${s.status !== 'lobby' ? 'disabled' : ''}>Start lesson</button><button data-live="startQuestion" ${s.phase !== 'READY' || s.status !== 'live' ? 'disabled' : ''}>Start question</button><button data-live="addTime" ${s.phase !== 'ANSWERING' ? 'disabled' : ''}>+15s</button><button data-live="endNow" ${s.phase !== 'ANSWERING' ? 'disabled' : ''}>End now</button><button data-live="next" ${s.phase !== 'REVEALED' || s.index+1 === s.total ? 'disabled' : ''}>Next</button><button data-live="endSession" ${s.phase === 'ENDED' ? 'disabled' : ''}>End session</button><label><input id="live-lock" type="checkbox" ${s.lockedJoin ? 'checked' : ''} ${s.phase === 'ENDED' ? 'disabled' : ''}> Lock joining</label></div>
+    <h3>Students</h3><div id="live-roster">${Object.entries(s.roster || {}).map(([id,name]) => `<p>${esc(name)} <button data-kick="${esc(id)}" ${s.phase === 'ENDED' ? 'disabled' : ''}>Remove</button></p>`).join('') || 'No students yet.'}</div>
+    ${q ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:18px"><section><h3>Question ${esc(q.id)}</h3><div class="cb">${stem.context ? `<div class="passage">${stem.context}</div>` : ''}${stem.body}<div class="choices">${q.choices.map(c => choiceHTML(q,c,null,true)).join('')}</div></div><p>✓ Correct: ${esc(q.answer || 'Unavailable')}</p><details><summary>Official explanation</summary>${q.explanation_html || ''}</details><details><summary>My notes</summary>${notesHTML(s.notes || '')}</details></section>
+      <section><h3>Responses · ${responses.filter(x => x.r?.answer).length}/${responses.length} in</h3><label>Sort <select id="live-sort"><option value="name" ${liveSort === 'name' ? 'selected' : ''}>Name</option><option value="status" ${liveSort === 'status' ? 'selected' : ''}>Status</option></select></label>
+      ${responses.map(({name,r}) => `<p>${r?.locked ? '●' : r?.answer ? '◐' : '○'} ${esc(name)} · ${esc(r?.answer || '—')} ${r?.answer ? isRight(q,r.answer) ? '✓' : '✗' : ''}</p>`).join('')}
+      ${revealed && s.distribution ? `<h3>Distribution</h3>${s.distribution.map((g,i) => `<button data-group="${i}" style="display:block;width:100%;text-align:left">${esc(g.label)} ${'█'.repeat(Math.min(30,g.count))} ${g.count}${g.correct ? ' ✓' : ''}</button>`).join('')}<div id="live-group" role="status"></div>` : ''}
+      <label><input id="live-class" type="checkbox" ${s.classResults ? 'checked' : ''} ${s.phase === 'ENDED' ? 'disabled' : ''}> Show class results</label></section></div>` : ''}
     <p id="live-error" role="alert"></p></div>`;
-  body.querySelectorAll('[data-live]').forEach(b => { b.disabled = s.phase === 'ENDED'; b.onclick = () => liveSend(b.dataset.live, b.dataset.live === 'addTime' ? { sec: 15 } : {}); });
+  body.querySelectorAll('[data-live]').forEach(b => b.onclick = () => liveSend(b.dataset.live, b.dataset.live === 'addTime' ? { sec: 15 } : {}));
   $('live-lock').onchange = e => liveSend('lockJoin', { bool: e.target.checked });
   body.querySelectorAll('[data-kick]').forEach(b => b.onclick = () => liveSend('kick', { userId: b.dataset.kick }));
+  if ($('live-sort')) $('live-sort').onchange = e => { liveSort = e.target.value; drawLive(); };
+  if ($('live-class')) $('live-class').onchange = e => liveSend('classResults', { bool: e.target.checked });
+  body.querySelectorAll('[data-group]').forEach(b => b.onclick = () => { $('live-group').innerHTML = `<strong>${esc(s.distribution[+b.dataset.group].label)}</strong>${s.distribution[+b.dataset.group].users.map(u => `<p>${esc(u.name)} · ${u.ms == null ? 'Unavailable' : time(u.ms)}</p>`).join('') || '<p>No students</p>'}`; });
   mathify(body); liveTick();
 }
 function liveTick() {

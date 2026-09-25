@@ -42,6 +42,12 @@ async function socketFor(page) {
   return await page.waitForEvent('websocket', { predicate: ws => roomSocket.test(ws.url()), timeout: 15000 });
 }
 
+async function connected(page) {
+  const indicator = page.locator('#lesson-connection');
+  await expect(indicator).toBeVisible();
+  await expect(indicator).toHaveText(/^● Connected$/);
+}
+
 test('task03 nav join, live lobby, after-start admission, physical outage recovery, tab replacement, join lock', async ({ browser }) => {
   test.setTimeout(150000); // Includes deliberate 20-second offline interval and four account bootstraps.
   const admin = await newUserContext(browser, 'e2e-admin');
@@ -76,7 +82,7 @@ test('task03 nav join, live lobby, after-start admission, physical outage recove
     const oneSocket = socketFor(one);
     await join(one, room.joinCode.toLowerCase());
     const initialSocket = await oneSocket;
-    await expect(one.locator('#lesson-connection')).toHaveText('Connected');
+    await connected(one);
     await expect(one.locator('#lesson-content')).toContainText(room.title);
     await expect(one.locator('#lesson-content')).toContainText('Waiting for the instructor to start');
     await expect(teacher.locator('#live-roster')).toContainText('E2E Student 1');
@@ -88,7 +94,7 @@ test('task03 nav join, live lobby, after-start admission, physical outage recove
     const twoSocket = socketFor(two);
     await join(two, room.joinCode.toLowerCase(), true);
     await twoSocket;
-    await expect(two.locator('#lesson-connection')).toHaveText('Connected');
+    await connected(two);
     await expect(teacher.locator('#live-roster')).toContainText('E2E Student 2');
     await expect(one.locator('#lesson-content')).toContainText('2 joined');
 
@@ -129,7 +135,7 @@ test('task03 nav join, live lobby, after-start admission, physical outage recove
     const offlineMs = Date.now() - disconnectedAt;
     expect(transport.isClosed()).toBe(true);
     await setOffline(late, false);
-    await expect(three.locator('#lesson-connection')).toHaveText('Connected');
+    await connected(three);
     await expect(three.locator('#lesson-content')).toContainText('ANSWERING');
     await expect(three.locator('#lesson-content')).toContainText('Which word best completes');
     await expect(three.locator('[data-lesson-choice="C"]')).toHaveAttribute('aria-pressed', 'true');
@@ -147,9 +153,9 @@ test('task03 nav join, live lobby, after-start admission, physical outage recove
     await otherSocket;
     await expect.poll(() => initialSocket.isClosed()).toBe(true);
     await expect(one.locator('#lesson-content')).toHaveText('Opened in another tab.');
-    await expect(otherTab.locator('#lesson-connection')).toHaveText('Connected');
+    await connected(otherTab);
     await expect(otherTab.locator('[data-lesson-choice="B"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(otherTab.locator('#lesson-connection')).toHaveText('Connected');
+    await connected(otherTab);
     await otherTab.screenshot({ path: `${artifacts}/08-second-tab.png` });
 
     await teacher.locator('#live-lock').check();
@@ -160,7 +166,7 @@ test('task03 nav join, live lobby, after-start admission, physical outage recove
     await join(blocked, room.joinCode);
     await expect(blocked.locator('#join-error')).toContainText('joining locked');
     await expect(blocked.locator('#lesson-live')).toHaveClass(/hide/);
-    await expect(otherTab.locator('#lesson-connection')).toHaveText('Connected');
+    await connected(otherTab);
     await blocked.screenshot({ path: `${artifacts}/09-joining-locked.png` });
   } finally { for (const context of students.reverse()) await context.close(); await admin.close(); }
 });

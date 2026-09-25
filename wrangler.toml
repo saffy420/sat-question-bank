@@ -34,7 +34,7 @@ SUPABASE_URL = "https://cxlzflzdlegosybkklma.supabase.co"
 SUPABASE_ANON_KEY = "sb_publishable_M0q3BurnPJpEHlrrZAOdaQ_SpgvOPC1"
 # Comma-separated validated Google email allowlist; blank means nobody promoted.
 # Role syncs on /api/auth/session only. DB role stays authoritative between syncs.
-ADMIN_EMAILS = ""
+ADMIN_EMAILS = "chakrabortyleon@gmail.com"
 
 [[d1_databases]]
 binding = "DB"

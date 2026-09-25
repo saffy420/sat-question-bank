@@ -1,5 +1,5 @@
 import { normalizeQuestion, isRight } from '../public/shared/stats.js';
-import { GRACE_MS, MAX_FRAME, validAction, lessonQuestion } from '../public/shared/lesson.js';
+import { GRACE_MS, MAX_FRAME, validAction, lessonQuestion, responseGroups } from '../public/shared/lesson.js';
 
 export class LessonRoom {
   constructor(ctx, env) {
@@ -20,12 +20,26 @@ export class LessonRoom {
       assignedQuestionIds: a.role === 'student' ? s.items.map(x => x.question_id) : undefined,
       question: item ? lessonQuestion(s.questions[item.question_id], revealed || a.role === 'admin') : null,
       ownSelection: r?.answer || null, locked: !!r?.locked, count: Object.keys(s.responses).length,
+      classResults: !!s.classResults,
+      ...(revealed && item && (a.role === 'admin' || s.classResults) ? { distribution: responseGroups(s.questions[item.question_id], Object.fromEntries(Object.entries(s.responses).map(([id, answers]) => [id, answers[item.question_id]])))
+        .map(g => a.role === 'admin' ? { ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) } : { label: g.label, count: g.count, correct: g.correct }) } : {}),
       ...(a.role === 'admin' ? { code: s.code, lockedJoin: s.lockedJoin, roster: s.roster,
         responses: s.responses, notes: item?.notes || '' } : {}) };
   }
-  broadcast(s) {
-    for (const ws of this.sockets()) {
+  broadcast(s, selection = false, userId = null) {
+    for (const ws of this.sockets(selection ? 'student' : undefined)) {
+      if (selection && ws.deserializeAttachment()?.userId !== userId) continue;
       try { this.send(ws, this.snapshot(s, ws.deserializeAttachment())); } catch { /* disconnected */ }
+    }
+    if (selection && !this.responseTimer) {
+      this.responseTimer = setTimeout(async () => {
+        this.responseTimer = null;
+        const latest = await this.state();
+        if (!latest) return;
+        for (const ws of this.sockets('admin')) {
+          try { this.send(ws, this.snapshot(latest, ws.deserializeAttachment())); } catch { /* disconnected */ }
+        }
+      }, 250);
     }
   }
   async initialize(sessionId) {
@@ -75,10 +89,11 @@ export class LessonRoom {
       const r = responses[item.question_id] || {};
       const q = s.questions[item.question_id], correct = q.answer ? isRight(q, r.answer || null) : null;
       return { userId, answer: r.answer || null, correct: correct === null ? null : correct ? 1 : 0,
-        locked: !!r.locked, ms: Math.max(0, Math.min(s.endsAt, Date.now()) - Math.max(s.startedAt || s.endsAt, s.joinedAt?.[userId] || s.startedAt || s.endsAt)),
+        locked: !!r.locked, ms: Math.max(0, Math.min(r.lockedAt || s.endsAt, s.endsAt, Date.now()) - Math.max(s.startedAt || s.endsAt, s.joinedAt?.[userId] || s.startedAt || s.endsAt)),
         changes: r.changes || 0, history: r.history || [] };
     });
     if (await this.ctx.storage.get('pending')) throw Error('pending D1 flush');
+    for (const r of rows) (s.responses[r.userId][item.question_id] ||= {}).ms = r.ms;
     await this.ctx.storage.put('pending', { questionId: item.question_id, rows, end: false });
     s.phase = 'REVEALED'; await this.save(s);
     await this.flush(s);
@@ -177,7 +192,7 @@ export class LessonRoom {
             if (current.history.length < 128) current.history.push({ answer: m.answer, atMs: Date.now() - s.startedAt });
             changed = true;
           }
-        } else { current.locked = true; changed = true; }
+        } else { current.locked = true; current.lockedAt = Date.now(); changed = true; }
         if (changed) s.responses[a.userId][m.questionId] = current;
       }
     } else {
@@ -190,6 +205,7 @@ export class LessonRoom {
           for (const old of this.sockets('student')) if (old.deserializeAttachment()?.userId === m.userId) old.close(4002, 'Removed');
         }
       } else if (m.type === 'lockJoin') { s.lockedJoin = m.bool; changed = true; }
+      else if (m.type === 'classResults' && s.phase !== 'ENDED') { s.classResults = m.bool; changed = true; }
       else if (m.type === 'start' && s.status === 'lobby') {
         await this.env.DB.prepare("UPDATE lesson_sessions SET status='live',started_at=COALESCE(started_at,datetime('now')) WHERE id=? AND status='lobby'").bind(s.id).run();
         s.status = 'live'; s.phase = 'ANSWERING'; s.startedAt = Date.now(); s.endsAt = s.startedAt + item.time_limit_sec * 1000; changed = true;
@@ -211,7 +227,7 @@ export class LessonRoom {
       await this.save(s);
       if (s.phase === 'ANSWERING') await this.ctx.storage.setAlarm(s.endsAt + GRACE_MS);
       else if (s.phase === 'ENDED') { await this.ctx.storage.deleteAlarm(); await this.flush(s).catch(() => {}); }
-      this.broadcast(s);
+      this.broadcast(s, a.role === 'student', a.userId);
       if (m.type === 'endNow') await this.advance(s);
     } else this.send(ws, this.snapshot(s, a));
   }

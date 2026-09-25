@@ -1,0 +1,9 @@
+# lessons-04 focused research
+
+Task03 delivers DO `src/lesson-room.js` (snapshot, select/lock, 750ms grace, flush), shared projection/protocol `public/shared/lesson.js`, student lesson view `public/index.html:3688+`, instructor `public/admin.js:104+`. `public/shared/stats.js:isRight` already grades SPR, but numeric parser is nested and no response grouping exists. `public/shared/renderer.js` exposes renderer hooks; reuse, don't copy question renderer.
+
+Missing §6: early-submit confirmation and locked waiting; reveal styling/collapsed explanation; live response panel/status/correctness; distribution + named instructor popovers; anonymous opt-in class chart; normalized exact-value SPR grouping; response batching ≤4/sec. Existing selection broadcasts full admin snapshots per event, not rate limited. DO finalization computes `ms` from question start/join; ensure per-question correct/time shown without pre-reveal student grading leak. Student client pending selection needs correct reconnect/locked behavior.
+
+Security: approved G1-A narrows secrecy to lesson HTTP/WS/state, not existing practice bank. Student projection must omit answer/explanation/trap before reveal and notes/named peer responses always. G2 freezes UI at deadline, reveals after 750ms; no grace answer disclosure. Server authority and DO durability preserved; D1 only lifecycle writes. Existing `captureLeaks` helper catches response bodies/frames but needs phase-aware assertions and lesson client-state checks. Seed has MC/SPR and 3 students; task03 E2E has reusable join/connection patterns. SPR grouping must use deterministic exact numeric keys (1/2=.5), keep distinct rounded-but-accepted values, retain `isRight` grader unchanged.
+
+Scope guard: annotations task05, Desmos task06, self-paced task07, history task09. No production deploy or remote data mutation.

@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
+const { Script } = require('node:vm');
 globalThis.WebSocketPair = function WebSocketPair() { const stub = () => ({ accepted:false, send(){}, close(){}, serializeAttachment(){} }); return { 0: stub(), 1: stub() }; };
 const origin = 'https://roadto1600.org';
 const protocol = () => import('../public/shared/lesson.js');
@@ -21,6 +22,14 @@ function fixture() {
   const socket = (userId, role='student') => { const sent=[]; const ws={ deserializeAttachment:()=>({userId,role}), send:x=>sent.push(JSON.parse(x)), close:(code)=>{ ws.code=code; sockets.splice(sockets.indexOf(ws),1); } }; sockets.push(ws); return {ws,sent}; };
   return { ctx, env, storage, sockets, writes, s, socket };
 }
+test('live student inline module parses and uses shared renderer with confirmation', () => {
+  const html = readFileSync(require('node:path').join(__dirname,'../public/index.html'),'utf8');
+  const js = html.split('<script type="module">')[1].split('</script>')[0].replace(/^import .*;\r?\n/gm,'');
+  new Script(js);
+  assert.match(js, /SharedRenderer\.choiceHTML\(/);
+  assert.match(js, /SharedRenderer\.splitContext\(/);
+  assert.match(js, /Have you double checked your answer and made sure it/);
+});
 test('origin/upgrade gate and role action allowlist', async () => {
   const { validAction } = await protocol();
   const { validLessonUpgrade } = await workerModule();
@@ -104,6 +113,64 @@ test('reconnect ownership rejects wrong client without mutating selection', asyn
   try { await req(f.s.clients.alice); assert.fail('Node Response cannot accept status 101; runtime acceptance covered by dry-run'); }
   catch (e) { assert.match(String(e), /init\["status"\] must be in the range of 200 to 599/); }
   assert.deepEqual((await room.state()).responses.alice, {});
+});
+test('distribution uses exact SPR numeric values, leaves rounded answers distinct, counts choice blanks', async () => {
+  const { responseGroups } = await protocol();
+  const q = { spr:true, answer:'1/3', choices:[] };
+  const groups = responseGroups(q, { a:{answer:'1/2'}, b:{answer:'2/4'}, c:{answer:'.5'}, d:{answer:'.333'}, e:{answer:'0.333'}, f:{}, g:{answer:'1/3'} });
+  assert.equal(groups.find(g => g.key === '0.5').count, 3);
+  assert.equal(groups.find(g => g.key === '0.333').count, 2);
+  assert.equal(groups.find(g => g.key === 'blank').count, 1);
+  assert.equal(groups.find(g => g.key === '0.333').correct, true);
+  assert.equal(groups.find(g => g.key === String(1/3)).count,1);
+  const mc = responseGroups({ spr:false, answer:'B', choices:[{letter:'A'},{letter:'B'},{letter:'C'}] }, { a:{answer:'A'}, b:{answer:'B'}, c:{} });
+  assert.deepEqual(Object.fromEntries(mc.map(g => [g.key,g.count])), { A:1, B:1, C:0, blank:1 });
+  assert.equal(mc.find(g => g.key === 'B').correct, true);
+});
+test('class results remain anonymous, admin sees names/time only after reveal, role gate persists toggle', async () => {
+  const { LessonRoom } = await roomModule(), { validAction } = await protocol(); const f = fixture(), room = new LessonRoom(f.ctx,f.env);
+  assert.equal(validAction({type:'classResults',bool:true},'student'),false);
+  assert.equal(validAction({type:'classResults',bool:true},'admin'),true);
+  f.s.classResults = true; f.s.responses.alice.q = { answer:'B', ms:1234 };
+  const before = JSON.stringify(room.snapshot(f.s,{role:'student',userId:'bob'}));
+  assert.equal(before.includes('distribution'),false);
+  for (const secret of ['Alice','Bob','SECRET_EXPLANATION','PRIVATE_NOTE','TRAP_SECRET']) assert.equal(before.includes(secret),false);
+  f.s.phase = 'REVEALED';
+  const student = room.snapshot(f.s,{role:'student',userId:'bob'}), admin = room.snapshot(f.s,{role:'admin',userId:'teacher'});
+  assert.equal(student.distribution.find(g => g.label === 'B').count,1);
+  assert.equal(JSON.stringify(student).includes('Alice'),false);
+  assert.equal(JSON.stringify(student).includes('1234'),false);
+  assert.deepEqual(admin.distribution.find(g => g.label === 'B').users,[{name:'Alice',ms:1234}]);
+  f.s.classResults = false; assert.equal(room.snapshot(f.s,{role:'student',userId:'bob'}).distribution,undefined);
+  await room.save(f.s);
+  const teacher = f.socket('teacher','admin'), bob = f.socket('bob');
+  await room.webSocketMessage(bob.ws, JSON.stringify({type:'classResults',bool:true}));
+  assert.equal(bob.sent.at(-1).error,'invalid action');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({type:'classResults',bool:true}));
+  assert.equal((await room.state()).classResults,true);
+});
+test('admin selection snapshots throttle to four per second and eventually contain latest state', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx,f.env);
+  const teacher = f.socket('teacher','admin'), alice = f.socket('alice'); await room.save(f.s);
+  for (let i = 0; i < 8; i++) await room.webSocketMessage(alice.ws,JSON.stringify({type:'select',questionId:'q',answer:i % 2 ? 'B':'A'}));
+  assert.equal(teacher.sent.length,0);
+  await new Promise(resolve => setTimeout(resolve,300));
+  assert.equal(teacher.sent.length,1);
+  assert.equal(teacher.sent[0].responses.alice.q.answer,'B');
+  assert.equal(f.writes.length,0);
+});
+test('deadline freezes selection, finalizes blank and early lock once with time', async () => {
+  const { LessonRoom } = await roomModule(), { GRACE_MS } = await protocol(); const f = fixture(), room = new LessonRoom(f.ctx,f.env);
+  const alice = f.socket('alice'); await room.save(f.s);
+  await room.webSocketMessage(alice.ws,JSON.stringify({type:'select',questionId:'q',answer:'B'}));
+  await room.webSocketMessage(alice.ws,JSON.stringify({type:'lock',questionId:'q'}));
+  let s = await room.state(); s.startedAt = Date.now()-10000; s.responses.alice.q.lockedAt = s.startedAt+2000; s.endsAt = Date.now() - GRACE_MS - 10; await room.save(s);
+  await room.alarm();
+  const rows = f.writes.filter(([sql]) => sql.includes('session_responses'));
+  assert.equal(rows.length,2);
+  assert.deepEqual(rows.map(([,args]) => [args[1],args[3],args[4],args[5]]), [['alice','B',1,1],['bob',null,0,0]]);
+  assert.equal(rows[0][1][6],2000);
+  await room.alarm(); assert.equal(f.writes.length,2);
 });
 test('one live student socket replacement closes old transport; lock and selection persist across wake', async () => {
   const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx,f.env);

@@ -3686,35 +3686,50 @@ async function exportQuestion(btn) {
 }
 
 // ---------------- live lesson (independent of practice state) ----------------
-let lessonSocket, lessonState, lessonId, lessonClientId, lessonPending, lessonOffset = 0, lessonBestRTT = Infinity, lessonRetry, lessonClock;
+let lessonSocket, lessonState, lessonId, lessonClientId, lessonPending, lessonLockPending = false, lessonOffset = 0, lessonBestRTT = Infinity, lessonRetry, lessonClock;
 const lessonRoot = $('lesson-content');
 function lessonDraw() {
   const s = lessonState; if (!s) return;
-  const active = s.phase === 'ANSWERING' && Date.now() + lessonOffset < s.endsAt && !s.locked;
-  const q = s.question;
-  lessonRoot.innerHTML = `<div class="frow"><h2>${esc(s.title)}</h2><button id="lesson-leave">Leave view</button><span id="lesson-connection">${lessonSocket?.readyState === WebSocket.OPEN ? 'Connected' : 'Reconnecting…'}</span></div>
-    <p>${s.phase === 'READY' && s.status === 'lobby' ? 'Waiting for the instructor to start…' : esc(s.phase)} · ${s.count} joined · Q ${s.index + 1} / ${s.total} · <span id="lesson-clock"></span></p>
-    ${q ? `<div class="cb">${SharedRenderer.renderStem(q)}</div>${q.spr ? `<label>Grid-in <input id="lesson-grid" maxlength="32" value="${esc(s.ownSelection || '')}" ${active ? '' : 'disabled'}></label><button id="lesson-pick" ${active ? '' : 'disabled'}>Select</button>`
-      : `<div class="choices">${q.choices.map(c => `<button data-lesson-choice="${esc(c.letter)}" ${active ? '' : 'disabled'} aria-pressed="${s.ownSelection === c.letter}">${SharedRenderer.choiceHTML(q, c, null, true)}</button>`).join('')}</div>`}
-      <button id="lesson-lock" ${active ? '' : 'disabled'}>Lock answer</button>${s.phase === 'REVEALED' ? `<p>Correct answer: ${esc(q.answer)}</p><div class="cb">${q.explanation_html || ''}</div>` : ''}` : ''}
+  const active = s.phase === 'ANSWERING' && Date.now() + lessonOffset < s.endsAt && !s.locked && !lessonLockPending;
+  const q = s.question, revealed = s.phase === 'REVEALED' || s.phase === 'ENDED';
+  const picked = lessonPending?.questionId === s.questionId ? lessonPending.answer : s.ownSelection;
+  const stem = q ? SharedRenderer.splitContext(SharedRenderer.renderStem(q), document) : null;
+  const editingGrid = document.activeElement?.id === 'lesson-grid' && s.phase === 'ANSWERING' ? { value: $('lesson-grid').value, start: $('lesson-grid').selectionStart } : null;
+  lessonRoot.innerHTML = `<div class="frow"><h2>${esc(s.title)}</h2><span>Q ${s.index + 1} / ${s.total}</span><span id="lesson-clock"></span><span id="lesson-connection">${lessonSocket?.readyState === WebSocket.OPEN ? '● Connected' : 'Reconnecting…'}</span><button id="lesson-leave">Leave view</button></div>
+    <p>${s.phase === 'READY' && s.status === 'lobby' ? 'Waiting for the instructor to start…' : esc(s.phase)} · ${s.count} joined</p>
+    ${q ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px"><div class="cb">${stem.context ? `<div class="passage">${stem.context}</div>` : ''}</div><div class="cb">${stem.body}
+      ${q.spr ? `<label>Grid-in <input id="lesson-grid" maxlength="32" value="${esc(picked || '')}" ${active ? '' : 'disabled'}></label><button id="lesson-pick" ${active ? '' : 'disabled'}>Select</button>`
+      : `<div class="choices">${q.choices.map(c => `<button data-lesson-choice="${esc(c.letter)}" ${active ? '' : 'disabled'} aria-pressed="${picked === c.letter}" style="display:block;width:100%;text-align:left;border:0;background:transparent;padding:0">${SharedRenderer.choiceHTML(q, c, null, true).replace('class="choice"', `class="choice${revealed ? c.letter === q.answer ? ' right' : picked === c.letter ? ' wrong' : '' : picked === c.letter ? ' sel' : ''}"`)}</button>`).join('')}</div>`}
+      ${active ? '<button id="lesson-lock">Submit</button>' : !revealed && (s.locked || lessonLockPending) ? '<p>Answer locked in. Waiting for time to end…</p>' : ''}
+      ${revealed ? `<p>Correct answer: ${esc(q.answer)}${q.spr ? ` · Your answer: ${esc(picked || 'blank')} · ${esc(Stats.isRight(q, picked) ? 'Correct' : 'Incorrect')}` : ''}</p><details><summary>Official explanation</summary>${q.explanation_html || ''}</details>` : ''}</div></div>
+      ${revealed && s.classResults && s.distribution ? `<h3>Class results</h3>${s.distribution.map(g => `<p>${esc(g.label)} ${'█'.repeat(Math.min(30,g.count))} ${g.count}${g.correct ? ' ✓' : ''}</p>`).join('')}` : ''}` : ''}
     <p id="lesson-error" role="alert"></p>`;
-  $('lesson-leave').onclick = () => { clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000); lessonId = null; lessonState = null; $('lesson-live').classList.add('hide'); };
+  $('lesson-leave').onclick = () => { clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000); lessonId = null; lessonState = null; lessonLockPending = false; $('lesson-live').classList.add('hide'); };
   lessonRoot.querySelectorAll('[data-lesson-choice]').forEach(b => b.onclick = () => lessonSelect(s.questionId, b.dataset.lessonChoice));
   if ($('lesson-pick')) $('lesson-pick').onclick = () => lessonSelect(s.questionId, $('lesson-grid').value.trim());
-  if ($('lesson-lock')) $('lesson-lock').onclick = () => lessonSend({ type: 'lock', questionId: s.questionId });
+  if ($('lesson-grid')) $('lesson-grid').oninput = e => { if (e.target.value.trim() && /^[-\d./]{1,32}$/.test(e.target.value.trim())) lessonSelect(s.questionId, e.target.value.trim()); };
+  if ($('lesson-lock')) $('lesson-lock').onclick = () => {
+    const root = $('modal-root');
+    root.innerHTML = '<div class="modal-bg" style="z-index:101"><div class="modal" role="dialog" aria-modal="true"><p>Have you double checked your answer and made sure it\'s right?</p><button id="lesson-confirm">Yes, submit</button><button id="lesson-back">Go back</button></div></div>';
+    $('lesson-back').onclick = () => root.replaceChildren();
+    $('lesson-confirm').onclick = () => { root.replaceChildren(); if (lessonState?.questionId !== s.questionId || lessonState.phase !== 'ANSWERING' || Date.now() + lessonOffset >= lessonState.endsAt) return; if (lessonPending) lessonSend(lessonPending); lessonSend({ type: 'lock', questionId: s.questionId }); lessonLockPending = true; lessonDraw(); };
+  };
   mathify(lessonRoot); lessonTick();
+  if (editingGrid && $('lesson-grid') && active) { $('lesson-grid').value = editingGrid.value; $('lesson-grid').focus(); $('lesson-grid').setSelectionRange(editingGrid.start, editingGrid.start); }
 }
 function lessonTick() {
   if (!lessonState || !$('lesson-clock')) return;
   const remaining = lessonState.endsAt ? Math.max(0, lessonState.endsAt - Date.now() - lessonOffset) : 0;
   $('lesson-clock').textContent = lessonState.endsAt ? fmtMs(remaining) : '';
+  $('lesson-clock').style.color = lessonState.phase === 'ANSWERING' && remaining <= 5000 ? '#bd2424' : lessonState.phase === 'ANSWERING' && remaining <= 10000 ? '#b56a00' : '';
   if (lessonState.phase === 'ANSWERING' && remaining === 0) lessonRoot.querySelectorAll('[data-lesson-choice],#lesson-pick,#lesson-grid,#lesson-lock').forEach(el => el.disabled = true);
 }
 function lessonSend(m) { if (lessonSocket?.readyState === WebSocket.OPEN) lessonSocket.send(JSON.stringify(m)); }
 function lessonSelect(questionId, answer) {
+  if (!answer || lessonState?.phase !== 'ANSWERING' || lessonState.locked || lessonLockPending || Date.now() + lessonOffset >= lessonState.endsAt) return;
   lessonPending = { type: 'select', questionId, answer };
   lessonSend(lessonPending);
-  lessonRoot.querySelectorAll('[data-lesson-choice]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lessonChoice === answer)));
+  lessonRoot.querySelectorAll('[data-lesson-choice]').forEach(b => { b.setAttribute('aria-pressed', String(b.dataset.lessonChoice === answer)); b.querySelector('.choice')?.classList.toggle('sel', b.dataset.lessonChoice === answer); });
 }
 function lessonConnect() {
   if (!lessonId || loggingOut) return;
@@ -3729,9 +3744,11 @@ function lessonConnect() {
       if (rtt >= 0 && rtt < lessonBestRTT) { lessonBestRTT = rtt; lessonOffset = data.serverNow - (data.sentAt + rtt / 2); }
     } else if (data.type === 'snapshot') {
       if (lessonPending && (data.questionId !== lessonPending.questionId || data.ownSelection === lessonPending.answer || data.phase !== 'ANSWERING' || data.locked)) lessonPending = null;
+      if (data.locked || data.phase !== 'ANSWERING' || data.questionId !== lessonState?.questionId) lessonLockPending = false;
       lessonState = data; lessonDraw();
       if (lessonPending && Date.now() + lessonOffset < data.endsAt) lessonSend(lessonPending);
-    } else if (data.type === 'error') { if (data.error === 'question closed' || data.error === 'answer locked') lessonPending = null; const el = $('lesson-error'); if (el) el.textContent = data.error; }
+      if (lessonLockPending && data.phase === 'ANSWERING' && Date.now() + lessonOffset < data.endsAt) lessonSend({ type: 'lock', questionId: data.questionId });
+    } else if (data.type === 'error') { if (data.error === 'question closed' || data.error === 'answer locked') lessonPending = null; if (data.error === 'question closed' || data.error === 'invalid answer') { lessonLockPending = false; lessonDraw(); } const el = $('lesson-error'); if (el) el.textContent = data.error; }
   };
   socket.onclose = e => {
     if (socket !== lessonSocket || !lessonId || e.code === 4001 || e.code === 4002) {

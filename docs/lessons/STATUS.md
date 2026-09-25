@@ -164,4 +164,38 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 
 **Next:** Fresh top-level session for task04, per task session boundary. Task04 ends at user Chromebook STOP.
 
-(End of file)
+---
+
+## 2026-09-25 — Task 04: Instructor-Paced Lesson (Reviewer PASS, uncommitted)
+
+**Shipped:** Full instructor-paced lesson implementation (BRIEF §6). Artifacts in `.opencode/pipeline/lessons-04-instructor-paced/`:
+- `spec.md`, `research.md`, `e2e.md`, `state.md`, `handoff.md`
+- Student live player (`public/index.html:3688+`), instructor view (`public/admin.js:104+`)
+- Phase-secrecy guarantees, exact-value SPR grouping, distribution/chart features
+- Nine checkpoint screenshots in `e2e/` (gitignored, local only)
+- `tests/e2e/lessons-04-instructor-paced/paced.spec.js` — permanent focused E2E spec
+
+**Evidence:**
+- `rtk npm test` — PASS 69/69 unit tests (Reviewer independently ran 69/69).
+- `rtk npx playwright test tests/e2e/lessons-04-instructor-paced/paced.spec.js --workers=1` — PASS 1/1 focused E2E (~20.8s).
+- `rtk npm run test:e2e` — PASS 13/13 full suite (repeated after screenshot-path edit: PASS 13/13, 1.4m).
+- `rtk git.exe diff --check && rtk proxy node --check tests/e2e/lessons-03-realtime-core/realtime.spec.js` — PASS.
+- `rtk npm run e2e:seed` — PASS; isolated local DB, ports free before seeding.
+- Independent Reviewer: deep PASS, no blockers. All 9 BRIEF §12.5 task04 checkpoints verified.
+
+**E2E:** 1/1 focused, 13/13 full. All task04 checkpoints pass: response panel ○/◐/● live; early-submit modal Go back keeps editing and Yes locks/hides correctness; at 0 unsubmitted selection finalizes; reveal colors correct; distribution counts match and clicked bar lists names; Show class results toggles student chart; +15s and End now work; SPR responses group by normalized value; no pre-reveal answer/explanation/notes and no notes any phase. App repair: modal stacking in `public/index.html`. Test repair: task03 `Connected` indicator updated to require visible `#lesson-connection` with `● Connected`.
+
+**Review:** PASS. Non-blocking findings recorded: ephemeral 250ms debounce (within spec), SPR input narrower than parser (cosmetic, no grading impact), color E2E gap (visual screenshot only, no programmatic color assertion).
+
+**Deviations from spec/BRIEF:**
+1. SPR distribution groups exact deterministic numeric values (1/2=.5); rounded-but-grader-accepted distinct inputs kept separate per approved spec wording.
+2. Task03 `Connected` exact-text test repaired to match `● Connected` indicator (text plus visual dot), not weaker substring.
+3. Modal stacking fix in `public/index.html` — app repair discovered during task04 E2E, not a spec deviation.
+
+**Limits:** Local E2E only; no production/real Chromebook validation. Practice-bank G1-A exception: `/api/questions` answer exposure remains approved exception; lesson-channel secrecy assertions limited to lesson channels only. Local self-signed TLS generates noisy `SSLV3_ALERT_CERTIFICATE_UNKNOWN` workerd log lines during teardown; test results pass. No production D1 migration applied. Screenshots gitignored, local only.
+
+**User Approval — 2026-09-25:** Task04 Reviewer PASS confirmed. No commit/push/deploy performed. User STOP remains: real Chromebook test required before any further action. No task05 (annotations), task06 (Desmos), task07 (self-paced), or task09 (history) started. No commit, push, deploy, or remote data mutation without explicit user authorization.
+
+**Next:** User real Chromebook test. STOP for any further task/production action until Chromebook validation completes.(End of file)
+
+**Correcting event — 2026-09-25 (task04 release authorization):** User explicitly authorized local commit and production deploy of task04, plus `chakrabortyleon@gmail.com` admin access, so earlier no-commit/no-deploy STOP no longer blocks this release. Real Chromebook testing remains pending. Production D1 migration state and Cloudflare authentication must be verified before deployment; no claim of deployed or signed-in access until checked.

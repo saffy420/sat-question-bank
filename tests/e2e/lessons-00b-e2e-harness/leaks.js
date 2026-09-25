@@ -2,16 +2,20 @@
 const lessonChannel = url => new URL(url).pathname.startsWith('/api/lessons/');
 const forbiddenKeys = /^(?:correct(?:_answer|Answer)?|answerKey|explanation(?:_html|Html)?|rationale(?:_html|Html)?|instructorNotes|notes|trap(?:s|_tags|Tags)?)$/i;
 
-export function inspectPayload(body, { marker = /E2E_EXPL_MARKER_|E2E_NOTES_MARKER_/ } = {}) {
+export function inspectPayload(body, { marker = /E2E_EXPL_MARKER_|E2E_NOTES_MARKER_/, phaseAware = false, peers = [] } = {}) {
   const violations = [];
   const text = typeof body === 'string' ? body : String(body);
-  if (marker.test(text)) violations.push('private marker');
   let parsed;
-  try { parsed = JSON.parse(text); } catch { return violations; }
+  try { parsed = JSON.parse(text); } catch { /* non-JSON frames still checked for private markers */ }
+  const revealed = phaseAware && ['REVEALED', 'ENDED'].includes(parsed?.phase);
+  if (phaseAware && !revealed && parsed?.question && typeof parsed.question === 'object' && Object.hasOwn(parsed.question, 'answer')) violations.push('$.question.answer');
+  if (phaseAware ? /E2E_NOTES_MARKER_/.test(text) || (!revealed && /E2E_EXPL_MARKER_/.test(text)) : marker.test(text)) violations.push('private marker');
+  if (phaseAware) for (const peer of peers) if (text.includes(peer)) violations.push(`named peer ${peer}`);
+  if (!parsed || typeof parsed !== 'object') return violations;
   const visit = (value, path) => {
     if (!value || typeof value !== 'object') return;
     for (const [key, child] of Object.entries(value)) {
-      if (forbiddenKeys.test(key)) violations.push(`${path}.${key}`);
+      if (forbiddenKeys.test(key) && (!phaseAware || !revealed || !/^(?:correct(?:_answer|Answer)?|answerKey|explanation(?:_html|Html)?|rationale(?:_html|Html)?)$/i.test(key))) violations.push(`${path}.${key}`);
       visit(child, `${path}.${key}`);
     }
   };
@@ -19,13 +23,13 @@ export function inspectPayload(body, { marker = /E2E_EXPL_MARKER_|E2E_NOTES_MARK
   return violations;
 }
 
-export function captureLeaks(context, { scope = lessonChannel, marker } = {}) {
+export function captureLeaks(context, { scope = lessonChannel, marker, phaseAware = false, peers = [] } = {}) {
   const bodies = [];
   const frames = [];
   const errors = [];
   const pending = new Set();
   const seen = new WeakSet();
-  const record = (transport, url, body, list) => list.push({ transport, url, body, violations: inspectPayload(body, { marker }) });
+  const record = (transport, url, body, list) => list.push({ transport, url, body, violations: inspectPayload(body, { marker, phaseAware, peers }) });
   const attach = page => {
     if (seen.has(page)) return;
     seen.add(page);

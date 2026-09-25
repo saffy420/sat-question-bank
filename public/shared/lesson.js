@@ -1,23 +1,57 @@
-// Shared lesson protocol: only these actions exist in task03.
+import { isRight } from './stats.js';
+
+// Shared lesson protocol.
 export const GRACE_MS = 750;
 export const CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
-export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin'];
+export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults'];
 export const STUDENT_ACTIONS = ['select', 'lock'];
 export const MAX_FRAME = 2048;
 export function validAction(m, role) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return false;
-  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
+  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
   if (!Object.hasOwn(fields, m.type) || Object.keys(m).some(k => !fields[m.type].includes(k))) return false;
   if (m.type !== 'ping' && !(role === 'admin' ? ADMIN_ACTIONS : STUDENT_ACTIONS).includes(m.type)) return false;
   if (m.type === 'ping') return Number.isSafeInteger(m.sentAt) && m.sentAt >= 0;
   if (m.type === 'addTime') return m.sec === 15;
-  if (m.type === 'lockJoin') return typeof m.bool === 'boolean';
+  if (m.type === 'lockJoin' || m.type === 'classResults') return typeof m.bool === 'boolean';
   if (m.type === 'kick') return typeof m.userId === 'string' && m.userId.length > 0 && m.userId.length <= 128;
   if (m.type === 'select') return typeof m.questionId === 'string' && m.questionId.length <= 64 && typeof m.answer === 'string' && m.answer.length > 0 && m.answer.length <= 32;
   if (m.type === 'lock') return typeof m.questionId === 'string' && m.questionId.length <= 64;
   return true;
 }
 // Never project by copying a full normalized bank row or choices (trap tags).
+// Exact parsed numeric values share a bucket; grading still uses isRight unchanged.
+export function responseGroups(q, responses) {
+  const groups = new Map();
+  const numeric = text => {
+    const v = String(text).replace(/[\s,$]/g, '');
+    const m = /^(-?(?:\d+(?:\.\d*)?|\.\d+))(?:\/(-?(?:\d+(?:\.\d*)?|\.\d+)))?$/.exec(v);
+    if (!m) return null;
+    const n = Number(m[1]) / (m[2] === undefined ? 1 : Number(m[2]));
+    return Number.isFinite(n) ? String(n) : null;
+  };
+  for (const [userId, r] of Object.entries(responses)) {
+    const answer = r?.answer || '';
+    const value = q.spr && answer ? numeric(answer) : null;
+    const key = !answer ? 'blank' : q.spr ? value ?? answer.trim() : answer;
+    const group = groups.get(key) || { key, label: !answer ? 'blank' : value ?? answer, count: 0, correct: answer ? isRight(q, answer) : false, users: [] };
+    group.count++;
+    group.users.push({ userId, ms: r?.ms ?? null });
+    groups.set(key, group);
+  }
+  if (!q.spr) for (const c of q.choices) if (!groups.has(c.letter)) groups.set(c.letter, { key: c.letter, label: c.letter, count: 0, correct: isRight(q, c.letter), users: [] });
+  if (!groups.has('blank')) groups.set('blank', { key: 'blank', label: 'blank', count: 0, correct: false, users: [] });
+  const sorted = [...groups.values()].sort((a,b) => q.spr ? b.count-a.count || a.label.localeCompare(b.label) : a.key === 'blank' ? 1 : b.key === 'blank' ? -1 : q.choices.findIndex(c => c.letter === a.key) - q.choices.findIndex(c => c.letter === b.key));
+  if (q.spr && sorted.length > 7) {
+    const keep = sorted.slice(0,6);
+    const correct = sorted.slice(6).find(g => g.correct);
+    if (correct) keep.push(correct);
+    const other = sorted.filter(g => !keep.includes(g));
+    keep.push({ key: 'other', label: 'other', count: other.reduce((n,g) => n+g.count,0), correct: false, users: other.flatMap(g => g.users) });
+    return keep;
+  }
+  return sorted;
+}
 export function lessonQuestion(q, reveal = false) {
   return { id: q.id, section: q.section, stem_html: (q.stem_html || '').replace(/<p>\s*(?:<strong>\s*)?Rationale\b[\s\S]*$/i, '').replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, ''),
     choices: (q.choices || []).map(c => ({ letter: c.letter, content: c.content || '', img: c.img || '' })), spr: q.spr,
