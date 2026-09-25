@@ -1,4 +1,4 @@
-import { breakdown, normalizeQuestion, direction } from '../public/shared/stats.js';
+import { breakdown, normalizeQuestion, direction, cbSort } from '../public/shared/stats.js';
 
 // SAT Question Bank — Cloudflare Worker
 // Serves static assets + /api/questions + /api/progress + /api/attempts.
@@ -200,6 +200,136 @@ async function adminData(env, id, questionBank = null) {
   return { qs, prog, log, stats, directions };
 }
 const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+export const padSessionId = id => String(id).padStart(5, '0');
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+// Rejection sampling avoids modulo bias when mapping secure random bytes to 31 symbols.
+const joinCode = () => {
+  let code = '';
+  while (code.length < 6) for (const b of crypto.getRandomValues(new Uint8Array(12))) {
+    if (b < Math.floor(256 / CODE_CHARS.length) * CODE_CHARS.length) code += CODE_CHARS[b % CODE_CHARS.length];
+    if (code.length === 6) break;
+  }
+  return code;
+};
+const lessonId = s => /^[1-9]\d{0,8}$/.test(s) ? Number(s) : null;
+const lessonBody = b => b && !Array.isArray(b) && typeof b === 'object' &&
+  typeof b.title === 'string' && b.title.trim().length > 0 && b.title.trim().length <= 200 &&
+  ['instructor', 'self'].includes(b.mode) && Array.isArray(b.items) && b.items.length <= MAX_ROWS &&
+  b.items.every(x => x && typeof x === 'object' && !Array.isArray(x) &&
+    typeof x.question_id === 'string' && x.question_id.length > 0 && x.question_id.length <= 64 &&
+    Number.isInteger(x.time_limit_sec) && x.time_limit_sec >= 5 && x.time_limit_sec <= 10800 &&
+    typeof x.notes === 'string' && x.notes.length <= MAX_NOTE) &&
+  new Set(b.items.map(x => x.question_id)).size === b.items.length;
+async function lessonDetail(env, id) {
+  const lesson = await env.DB.prepare('SELECT * FROM lessons WHERE id=?').bind(id).first();
+  if (!lesson) return null;
+  const items = await env.DB.prepare('SELECT question_id, time_limit_sec, notes FROM lesson_questions WHERE lesson_id=? ORDER BY position').bind(id).all();
+  return { ...lesson, items: items.results || [] };
+}
+async function lessonRoutes(req, env, url, p, u) {
+  const method = req.method;
+  if (p === '/api/admin/questions' && method === 'GET') {
+    const page = pageOf(url), params = url.searchParams;
+    const section = params.get('section') || '', domains = params.getAll('domain'), skills = params.getAll('skill');
+    const difficulties = params.getAll('difficulty'), usage = params.get('lessonUsage') || 'show-all', search = (params.get('search') || '').trim().toLowerCase();
+    if (!page || !['','Math','Reading & Writing'].includes(section) ||
+        [domains,skills,difficulties].some(v => v.length > 30) || [...domains,...skills].some(s => !s || s.length > 150) ||
+        difficulties.some(d => !['Easy','Medium','Hard'].includes(d)) || !['show-all','hide-all'].includes(usage) || search.length > 100 || !['','show-all','hide-all'].includes(params.get('lessonUsage') || '') ||
+        [...params.keys()].some(k => !['page','section','domain','skill','difficulty','lessonUsage','search'].includes(k))) return json({ error: 'invalid filter' }, 400);
+    const bankRows = (await bank(env)).map(normalizeQuestion);
+    const used = await env.DB.prepare('SELECT question_id, session_id FROM question_lesson_usage ORDER BY used_at, session_id').all();
+    const usageById = new Map();
+    for (const r of used.results || []) { if (!usageById.has(r.question_id)) usageById.set(r.question_id, []); usageById.get(r.question_id).push(padSessionId(r.session_id)); }
+    const rows = bankRows.filter(q => (!section || q.section === section) && (!domains.length || domains.includes(q.domain)) && (!skills.length || skills.includes(q.skill)) &&
+      (!difficulties.length || difficulties.includes(q.difficulty)) && (usage !== 'hide-all' || !usageById.has(q.id)) &&
+      (!search || [q.id,q.skill,q.stem_html?.replace(/<[^>]*>/g, ' ')].some(v => String(v || '').toLowerCase().includes(search))));
+    const domainOrder = cbSort([...new Set(rows.map(q => q.domain || ''))]), skillOrder = cbSort([...new Set(rows.map(q => q.skill || ''))]);
+    rows.sort((a,b) => domainOrder.indexOf(a.domain || '') - domainOrder.indexOf(b.domain || '') ||
+      skillOrder.indexOf(a.skill || '') - skillOrder.indexOf(b.skill || '') || a.id.localeCompare(b.id));
+    return json({ questions: rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE).map(q => ({ ...q, usedInLesson: usageById.get(q.id) || [] })),
+      total: rows.length, page, pages: Math.max(1, Math.ceil(rows.length/PAGE_SIZE)),
+      domains: cbSort([...new Set(bankRows.filter(q => !section || q.section === section).map(q => q.domain).filter(Boolean))]),
+      skillsByDomain: Object.fromEntries(cbSort([...new Set(bankRows.filter(q => !section || q.section === section).map(q => q.domain).filter(Boolean))]).map(d =>
+        [d, cbSort([...new Set(bankRows.filter(q => q.domain === d && (!section || q.section === section)).map(q => q.skill).filter(Boolean))])])) });
+  }
+  if (p === '/api/admin/lessons' && method === 'GET') {
+    const rows = await env.DB.prepare(`SELECT l.*, COUNT(DISTINCT q.question_id) AS questionCount,
+      COALESCE(SUM(q.time_limit_sec),0) AS totalSec,
+      (SELECT COUNT(*) FROM lesson_sessions s WHERE s.lesson_id=l.id) AS timesRun,
+      (SELECT MAX(created_at) FROM lesson_sessions s WHERE s.lesson_id=l.id) AS lastRun
+      FROM lessons l LEFT JOIN lesson_questions q ON q.lesson_id=l.id GROUP BY l.id ORDER BY l.updated_at DESC, l.id DESC`).all();
+    return json(rows.results || []);
+  }
+  const m = /^\/api\/admin\/lessons\/([^/]+)(?:\/(duplicate|sessions))?$/.exec(p);
+  if (!m && !(p === '/api/admin/lessons' && method === 'POST')) return json({ error: 'not found' }, 404);
+  const id = m && lessonId(m[1]);
+  if (m && !id) return json({ error: 'invalid lesson ID' }, 400);
+  if (m && m[2] === 'sessions' && method === 'GET') {
+    if (!await env.DB.prepare('SELECT id FROM lessons WHERE id=?').bind(id).first()) return json({ error: 'not found' }, 404);
+    const rows = await env.DB.prepare('SELECT id, join_code, status, created_at, started_at, ends_at, ended_at FROM lesson_sessions WHERE lesson_id=? ORDER BY id DESC').bind(id).all();
+    return json((rows.results || []).map(r => ({ ...r, paddedId: padSessionId(r.id) })));
+  }
+  if (m && !m[2] && method === 'GET') {
+    const detail = await lessonDetail(env, id);
+    return json(detail || { error: 'not found' }, detail ? 200 : 404);
+  }
+  if (m && !m[2] && method === 'DELETE') {
+    if (!await env.DB.prepare('SELECT id FROM lessons WHERE id=?').bind(id).first()) return json({ error: 'not found' }, 404);
+    if (await env.DB.prepare('SELECT id FROM lesson_sessions WHERE lesson_id=? LIMIT 1').bind(id).first()) return json({ error: 'lesson has sessions' }, 409);
+    await env.DB.prepare('DELETE FROM lesson_questions WHERE lesson_id=?').bind(id).run();
+    await env.DB.prepare('DELETE FROM lessons WHERE id=?').bind(id).run();
+    return json({ ok: true });
+  }
+  if (m && m[2] === 'sessions' && method === 'POST') {
+    const lesson = await lessonDetail(env,id);
+    if (!lesson) return json({ error: 'not found' }, 404);
+    if (!lesson.items.length) return json({ error: 'empty lesson' }, 400);
+    const snapshot = JSON.stringify({ title: lesson.title, mode: lesson.mode, items: lesson.items });
+    for (let i=0;i<10;i++) {
+      const code = joinCode();
+      try {
+        const result = await env.DB.prepare('INSERT INTO lesson_sessions (lesson_id, join_code, snapshot_json) VALUES (?,?,?)').bind(id,code,snapshot).run();
+        const sessionId = result.meta.last_row_id;
+        return json({ sessionId, paddedId: padSessionId(sessionId), joinCode: code });
+      } catch (e) { if (!/UNIQUE constraint failed: lesson_sessions.join_code/i.test(String(e))) throw e; }
+    }
+    return json({ error: 'join codes unavailable' }, 503);
+  }
+  if (m && m[2] === 'duplicate' && method === 'POST') {
+    const old = await lessonDetail(env,id);
+    if (!old) return json({ error: 'not found' }, 404);
+    return saveLesson(env, u, { title: old.title + ' (copy)', mode: old.mode, items: old.items });
+  }
+  if ((!m && method === 'POST') || (m && !m[2] && method === 'PUT')) {
+    const text = await req.text();
+    if (text.length > 1000000) return json({ error: 'too large' }, 400);
+    let b; try { b = JSON.parse(text); } catch { return json({ error: 'invalid lesson' }, 400); }
+    if (!lessonBody(b)) return json({ error: 'invalid lesson' }, 400);
+    if (m && !await env.DB.prepare('SELECT id FROM lessons WHERE id=?').bind(id).first()) return json({ error: 'not found' }, 404);
+    return saveLesson(env,u,b,id);
+  }
+  return json({ error: 'not found' }, 404);
+}
+async function saveLesson(env, u, b, id = null) {
+  const ids = b.items.map(x => x.question_id);
+  if (ids.length) {
+    const known = await env.DB.batch(ids.map(q => env.DB.prepare('SELECT id FROM questions WHERE id=? UNION SELECT id FROM ai_ids WHERE id=?').bind(q,q)));
+    if (known.some(x => !x.results?.length)) return json({ error: 'unknown question IDs' }, 400);
+  }
+  // Reserve an explicit ID so each child uses the same parent, even when inserts change last_insert_rowid().
+  for (let attempt = 0; attempt < (id ? 1 : 10); attempt++) {
+    const target = id || (await env.DB.prepare("SELECT COALESCE((SELECT seq FROM sqlite_sequence WHERE name='lessons'),0)+1 AS id").first()).id;
+    const statements = id ? [env.DB.prepare('UPDATE lessons SET title=?, mode=?, updated_at=datetime(\'now\') WHERE id=?').bind(b.title.trim(), b.mode, target),
+      env.DB.prepare('DELETE FROM lesson_questions WHERE lesson_id=?').bind(target)] :
+      [env.DB.prepare('INSERT INTO lessons (id, title, mode, created_by) VALUES (?,?,?,?)').bind(target, b.title.trim(), b.mode, u.id)];
+    for (const [position, item] of b.items.entries()) statements.push(env.DB.prepare(
+      'INSERT INTO lesson_questions (lesson_id, position, question_id, time_limit_sec, notes) VALUES (?,?,?,?,?)'
+    ).bind(target,position,item.question_id,item.time_limit_sec,item.notes));
+    try { await env.DB.batch(statements); return json({ id: target }); }
+    catch (e) { if (id || !/UNIQUE constraint failed: lessons.id/i.test(String(e))) throw e; }
+  }
+  return json({ error: 'lesson ID unavailable' }, 503);
+}
 
 export default {
   async fetch(req, env) {
@@ -295,6 +425,10 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         if (!['GET', 'HEAD'].includes(req.method)) return json({ error: 'not found' }, 404);
         if (p === '/admin.html') return redirect('/admin');
         return asset(env, new Request(new URL('/admin.html', url), req));
+      }
+      if (p === '/api/admin/questions' || p === '/api/admin/lessons' || p.startsWith('/api/admin/lessons/')) {
+        try { return await lessonRoutes(req, env, url, p, u); }
+        catch { return json({ error: 'service unavailable' }, 503); }
       }
       if (req.method !== 'GET') return json({ error: 'not found' }, 404);
       if (p === '/api/admin/students') {

@@ -20,6 +20,10 @@ INSERT INTO questions (id,external_id,section,domain,difficulty,skill,stem_html,
  ('e2e-core-spr','e2e-core-spr','Math','Algebra','Easy','Linear Equations in One Variable','<p>Enter the value of 6 / 2.</p>','[]','3','<p>E2E_EXPL_MARKER_SPR: 6 / 2 = 3.</p>','College Board')
 ON CONFLICT(id) DO UPDATE SET section=excluded.section, choices_json=excluded.choices_json, stem_html=excluded.stem_html, explanation_html=excluded.explanation_html, correct_answer=excluded.correct_answer;
 INSERT OR IGNORE INTO ai_ids (id) VALUES ('e2e-ai-rw');
+-- A completed local lesson usage row exercises Hide all without relying on live-session task03.
+INSERT OR IGNORE INTO lessons (id,title,mode,created_by) VALUES (900001,'E2E usage fixture','instructor','e2e-admin');
+INSERT OR IGNORE INTO lesson_sessions (id,lesson_id,join_code,status,snapshot_json) VALUES (900001,900001,'E2ESE2','ended','{"title":"E2E usage fixture","mode":"instructor","items":[]}');
+INSERT OR IGNORE INTO question_lesson_usage (question_id,session_id) VALUES ('e2e-core-spr',900001);
 -- Admin dashboard owned demo attempts: legacy unknown plus prospective direction and timed history.
 INSERT OR IGNORE INTO progress (user_id,question_id,attempts,corrects,marker,last_reviewed,time_taken_ms) VALUES
  ('e2e-student-1','e2e-core-rw',2,0,'Red','2026-09-23T12:00:00Z',42000),
