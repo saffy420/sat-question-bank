@@ -118,4 +118,38 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 
 **Correcting event — 2026-09-24 (task01 acceptance):** User approved task01 and authorized its local commit. Actual commits: `137c29f1` (task00b handoff correction), `c98300e2` (`feat: admin roles, dashboard, shared stats` — task01 source/tests/docs, 31 files), `a3911a90` (task01 handoff/state marked committed). No push, no deploy, no remote mutation. Task02 (builder) NOT started — user explicitly declined to begin it in this session. Screenshots under `.opencode/pipeline/*/e2e/` remain gitignored/local. Entries above describing task00b/task01 as uncommitted are historical as of their writing and superseded by this event.
 
+---
+
+## 2026-09-24 — Task 02: Lesson Templates & Builder (Reviewer PASS, committed)
+
+**Shipped:** Admin-only lesson templates (§4): filter/add/reorder/remove, per-question time + notes, autosave, library, frozen session row + join code. Artifacts in `.opencode/pipeline/lessons-02-builder/`:
+- `research.md`, `spec.md`, `state.md`, `e2e.md`
+- `migrations/0008_lessons.sql`, `schema.sql` snapshot update
+- `public/admin.html`, `public/admin.js` (builder UI + helpers), `src/index.js` (admin lesson routes)
+- `tests/test_lessons_builder.cjs`, `tests/e2e/lessons-02-builder/builder.spec.js`
+- `tools/e2e_core.sql`, `tools/e2e_seed.cjs` (0008 upgrade + builder seed)
+- Screenshots: `.opencode/pipeline/lessons-02-builder/e2e/01..07-*.png` (gitignored/local)
+
+**Evidence:**
+- `rtk npm test`: 55/55 pass (includes 4 new lessons tests: dual-path migration, role/400/404/503 matrix, frozen snapshot, collision retry, oldest-first usage).
+- `rtk npm run test:e2e`: 11/11 pass at 1366×768 (one pre-existing `DOM_ORDER` import bug found and fixed in `public/admin.js` during E2E; C2 repro then pass).
+- `rtk node --check src/index.js public/admin.js` and `rtk git.exe diff --check`: pass (LF warnings only).
+- Independent deep Reviewer: PASS, no blockers.
+
+**E2E:** Task02 builder spec covers the full §12.5 checkpoint list: domain+skill filters, add, drag reorder, remove/re-add, custom times with live total, notes with math + escaped script preview, save/reload persistence, used-question badge + "Hide all lesson questions", Save & start session join code + lobby session. Screenshots 01–07 recorded in `e2e.md`.
+
+**Review:** PASS. Non-blocking findings recorded in `state.md`: snapshot DDL plain `CREATE TABLE` (not `IF NOT EXISTS`), seed completeness checks 4 of 8 tables, four inert future-session tables in 0008 (no task02 consumers), default times 60/90 explicit per spec (not `TARGET_MS`), session create does not write `question_lesson_usage` (future task).
+
+**Scope delivered:** migration 0008 (lessons, lesson_questions, lesson_sessions with partial-unique join code, question_lesson_usage + future inert tables), admin API (questions filter/pagination with `usedInLesson`, lesson CRUD transactional replace, duplicate, session create with frozen `snapshot_json`, past sessions), builder UI (three columns, DnD + keyboard reorder, time chips/custom mm:ss, escaped bounded markdown + KaTeX notes preview, debounced autosave, library grid), `padSessionId` helper.
+
+**Deviations from spec/BRIEF:**
+1. `defaultTime` uses explicit 60/90 seconds per spec's stated defaults, not `TARGET_MS` (95/71) — spec wording conflict resolved in favor of explicit values; unit + E2E assert 60/90.
+2. Pre-existing full-suite failure (`DOM_ORDER` missing import in `public/admin.js`) fixed as part of task02 E2E validation; one-line import only.
+
+**Limits:** Local E2E only; no production D1 migration applied; no DO/WS/student lesson UI; join codes unique only among non-ended sessions; `usedInLesson` badges depend on seed/task03 usage writers.
+
+**Commit:** User approved task02 STOP. Local commit `b5dd02fd` (`feat: admin lesson templates and builder`, 13 files, 772 insertions). No push, no deploy, no remote mutation. Task03 not started.
+
+**Correcting event — 2026-09-24 (task02 acceptance):** User approved task02 and authorized its local commit. Actual commit: `b5dd02fd`. Baseline untracked files (`.omp/`, `.serena/`, `docs/roadto1600-lessons-prompt.md`, root junk) preserved untouched. This entry supersedes the pre-approval "commit pending" language in `state.md`.
+
 (End of file)
