@@ -24,6 +24,12 @@ INSERT OR IGNORE INTO ai_ids (id) VALUES ('e2e-ai-rw');
 INSERT OR IGNORE INTO lessons (id,title,mode,created_by) VALUES (900001,'E2E usage fixture','instructor','e2e-admin');
 INSERT OR IGNORE INTO lesson_sessions (id,lesson_id,join_code,status,snapshot_json) VALUES (900001,900001,'E2ESE2','ended','{"title":"E2E usage fixture","mode":"instructor","items":[]}');
 INSERT OR IGNORE INTO question_lesson_usage (question_id,session_id) VALUES ('e2e-core-spr',900001);
+-- Task03: 55s real outage fixture; subsequent 7s/6s lifecycle questions.
+INSERT OR IGNORE INTO lessons (id,title,mode,created_by) VALUES (900002,'E2E realtime room','instructor','e2e-admin');
+INSERT OR IGNORE INTO lesson_questions (lesson_id,position,question_id,time_limit_sec,notes) VALUES
+ (900002,0,'e2e-core-rw',55,'E2E_NOTES_MARKER_LIVE'),
+ (900002,1,'e2e-core-math',7,''),
+ (900002,2,'e2e-core-spr',6,'');
 -- Admin dashboard owned demo attempts: legacy unknown plus prospective direction and timed history.
 INSERT OR IGNORE INTO progress (user_id,question_id,attempts,corrects,marker,last_reviewed,time_taken_ms) VALUES
  ('e2e-student-1','e2e-core-rw',2,0,'Red','2026-09-23T12:00:00Z',42000),

@@ -8,6 +8,14 @@ binding = "ASSETS"
 run_worker_first = true
 html_handling = "none"
 
+[[durable_objects.bindings]]
+name = "LESSON_ROOM"
+class_name = "LessonRoom"
+
+[[migrations]]
+tag = "lesson-room-v1"
+new_sqlite_classes = ["LessonRoom"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "sat_local_e2e_core"

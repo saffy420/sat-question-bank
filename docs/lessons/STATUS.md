@@ -152,4 +152,16 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 
 **Correcting event — 2026-09-24 (task02 acceptance):** User approved task02 and authorized its local commit. Actual commit: `b5dd02fd`. Baseline untracked files (`.omp/`, `.serena/`, `docs/roadto1600-lessons-prompt.md`, root junk) preserved untouched. This entry supersedes the pre-approval "commit pending" language in `state.md`.
 
+---
+
+## 2026-09-25 — Task 03: Realtime Core (Reviewer PASS, uncommitted)
+
+**Shipped:** Local instructor-paced lobby and minimal answering lifecycle with SQLite-backed `LessonRoom` Durable Object, WebSocket hibernation, server deadlines/750ms grace, durable snapshots/alarms, authenticated join and role-safe student payloads. Production and both local E2E Wrangler configs bind room; E2E entry re-exports class. Student Join lesson modal, instructor live lobby, selection/lock, reconnect, one-student-socket replacement and joining lock. Full instructor presentation/distribution remains task04.
+
+**Evidence:** `rtk npm test` 64/64; focused task03 browser spec 1/1; full `rtk npm run test:e2e` 12/12. All six task03 browser checkpoints passed at 1366×768, including physical WebSocket closure plus measured 20-second offline recovery. Screenshots and per-checkpoint assertions: `.opencode/pipeline/lessons-03-realtime-core/e2e.md`. Independent scoped deep Reviewer: PASS, no blockers. Earlier app repairs: membership scope caused room GET 503; admin WS missing client parameter caused reconnect; second-tab explicit join failed ownership transfer. Browser spec fixed upstream hook order. All rerun to green.
+
+**Limits:** Local seed/browser only; no production/real Chromebook validation. Practice bank remains answer-bearing per approved G1-A exception; lesson channels project role/phase-safe fields. Task04 instructor-paced full reveal/distribution UX not started. No commit, push, deploy, or remote data mutation. Handoff: `.opencode/pipeline/lessons-03-realtime-core/handoff.md`.
+
+**Next:** Fresh top-level session for task04, per task session boundary. Task04 ends at user Chromebook STOP.
+
 (End of file)

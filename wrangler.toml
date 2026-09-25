@@ -19,6 +19,14 @@ binding = "ASSETS"
 run_worker_first = true
 html_handling = "none"
 
+[[durable_objects.bindings]]
+name = "LESSON_ROOM"
+class_name = "LessonRoom"
+
+[[migrations]]
+tag = "lesson-room-v1"
+new_sqlite_classes = ["LessonRoom"]
+
 [vars]
 # Publishable key — same pair the browser already ships; used only to call
 # Supabase's /auth/v1/user so the Worker can verify who a request belongs to.

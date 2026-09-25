@@ -1,5 +1,6 @@
 import { cbSort, DOM_ORDER } from './shared/stats.js';
 import { previewHTML } from './shared/renderer.js';
+
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const fmt = x => x == null ? 'Unavailable' : `${x}%`;
@@ -25,7 +26,8 @@ document.querySelectorAll('[data-section]').forEach(b => b.onclick = async () =>
   b.setAttribute('aria-current','page'); $('title').textContent = b.dataset.section;
   if (b.dataset.section === 'Students') { detail = null; loadList(); }
    else if (b.dataset.section === 'Lessons') { showLibrary(); }
-   else { ++viewToken; message.textContent = ''; body.innerHTML = `<div class="panel">${esc(b.dataset.section)} unavailable until later task.</div>`; }
+    else if (b.dataset.section === 'Live') { showLive(); }
+    else { ++viewToken; message.textContent = ''; body.innerHTML = `<div class="panel">${esc(b.dataset.section)} unavailable until later task.</div>`; }
 });
 async function loadList() {
   clearTimeout(loadList.timer);
@@ -99,6 +101,50 @@ function preview(m) {
   host.innerHTML = `<div class="panel preview"><button id="close-preview">Close preview</button><h3>${esc(q.id)} · ${esc(q.section)} · ${esc(q.difficulty)}</h3>${previewHTML(q, document, m.picked)}<p>Student answer: ${esc(m.picked || 'Unavailable')} · Correct answer: ${esc(q.answer || 'Unavailable')}</p></div>`;
   $('close-preview').onclick = () => host.replaceChildren(); mathify(host); $('close-preview').focus();
 }
+// --- instructor live room ---
+let liveSocket, liveId, liveState, liveOffset = 0, liveBest = Infinity, liveRetry, liveClock;
+function liveSend(type, fields = {}) { if (liveSocket?.readyState === WebSocket.OPEN) liveSocket.send(JSON.stringify({ type, ...fields })); }
+function drawLive() {
+  const s = liveState; if (!s) return;
+  const q = s.question;
+  body.innerHTML = `<div class="panel"><h2>${esc(s.title)} · Session ${esc(s.sessionId)}</h2><strong class="join-code">${esc(s.code)}</strong>
+    <p>Join URL: <a href="${esc(location.origin + '/app?join=' + s.code)}">${esc(location.origin + '/app?join=' + s.code)}</a></p><p id="live-link">${liveSocket?.readyState === WebSocket.OPEN ? 'Connected' : 'Reconnecting…'}</p>
+    <p>${esc(s.phase)} · ${s.count} joined · Q ${s.index+1}/${s.total} · <span id="live-timer"></span></p>
+    <div class="frow"><button data-live="start">Start lesson</button><button data-live="startQuestion">Start question</button><button data-live="addTime">+15s</button><button data-live="endNow">End now</button><button data-live="next">Next</button><button data-live="endSession">End session</button><label><input id="live-lock" type="checkbox" ${s.lockedJoin ? 'checked' : ''}> Lock joining</label></div>
+    <h3>Students</h3><div id="live-roster">${Object.entries(s.roster || {}).map(([id,name]) => `<p>${esc(name)} <button data-kick="${esc(id)}">Remove</button></p>`).join('') || 'No students yet.'}</div>
+    ${q ? `<h3>Question ${esc(q.id)}</h3><div class="cb">${q.stem_html}</div><div class="choices">${q.choices.map(c => `<p>${esc(c.letter)} · ${c.content || ''}</p>`).join('')}</div><p>${esc((s.responses && Object.values(s.responses).filter(r => r[q.id]?.answer).length) || 0)} selected</p>` : ''}
+    <p id="live-error" role="alert"></p></div>`;
+  body.querySelectorAll('[data-live]').forEach(b => { b.disabled = s.phase === 'ENDED'; b.onclick = () => liveSend(b.dataset.live, b.dataset.live === 'addTime' ? { sec: 15 } : {}); });
+  $('live-lock').onchange = e => liveSend('lockJoin', { bool: e.target.checked });
+  body.querySelectorAll('[data-kick]').forEach(b => b.onclick = () => liveSend('kick', { userId: b.dataset.kick }));
+  mathify(body); liveTick();
+}
+function liveTick() {
+  const el = $('live-timer'); if (!el || !liveState) return;
+  el.textContent = liveState.endsAt ? `${Math.ceil(Math.max(0, liveState.endsAt - Date.now() - liveOffset) / 1000)}s` : '';
+}
+function connectLive() {
+  if (!liveId) return;
+  const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/lessons/${liveId}/ws`);
+  liveSocket = socket;
+  socket.onopen = () => liveSend('ping', { sentAt: Date.now() });
+  socket.onmessage = e => { const m = JSON.parse(e.data);
+    if (m.type === 'pong') { const rtt = Date.now() - m.sentAt; if (rtt >= 0 && rtt < liveBest) { liveBest = rtt; liveOffset = m.serverNow - m.sentAt - rtt/2; } }
+    else if (m.type === 'snapshot') { liveState = m; drawLive(); }
+    else if (m.type === 'error' && $('live-error')) $('live-error').textContent = m.error;
+  };
+  socket.onclose = e => { if (liveSocket !== socket || !liveId || e.code === 4001) return; if ($('live-link')) $('live-link').textContent = 'Reconnecting…'; liveRetry = setTimeout(connectLive, 1500); };
+}
+async function showLive(id = null) {
+  clearTimeout(liveRetry); clearInterval(liveClock); liveSocket?.close(1000); liveId = null; ++viewToken;
+  if (!id) { busy('Loading live rooms…'); try { const lessons = await api('/api/admin/lessons');
+    const rows = await Promise.all(lessons.map(l => api(`/api/admin/lessons/${l.id}/sessions`)));
+    body.innerHTML = `<div class="panel"><h2>Live rooms</h2>${rows.flat().filter(s => s.status !== 'ended').map(s => `<p><a href="/admin/live/${s.id}">Session ${esc(s.paddedId)} · ${esc(s.status)}</a></p>`).join('') || 'No open rooms.'}</div>`; message.textContent = ''; }
+    catch(e) { fail(e, () => showLive()); } return; }
+  liveId = id; history.replaceState(null, '', `/admin/live/${id}`); busy('Connecting to live room…');
+  try { const s = await api(`/api/lessons/${id}`); if (liveId !== id) return; liveState = s; message.textContent = ''; drawLive(); connectLive(); liveClock = setInterval(() => { liveTick(); liveSend('ping', { sentAt: Date.now() }); }, 1000); }
+  catch(e) { fail(e, () => showLive(id)); }
+}
 // --- lesson builder helpers ---
 const defaultTime = q => q.section === 'Math' ? 90 : 60;
 const totalTime = items => items.reduce((n, x) => n + x.time_limit_sec, 0);
@@ -168,7 +214,7 @@ async function openLesson(id, start = false) {
     body.querySelectorAll('[name="mode"]').forEach(r => r.onchange = () => { lesson.mode = r.value; changed(); });
     $('save-lesson').onclick = () => saveLesson().catch(e => { message.textContent = e.message; });
     $('retry-save').onclick = $('save-lesson').onclick;
-    $('save-start').onclick = async () => { try { await saveLesson(); const s = await api(`${lessonURL()}/sessions`, 'POST'); $('join-result').innerHTML = `<p>Session ${esc(s.paddedId)}</p><strong class="join-code">${esc(s.joinCode)}</strong><p>Join URL: <span>${esc(location.origin + '/app?join=' + encodeURIComponent(s.joinCode))}</span></p>`; } catch(e) { $('join-result').textContent = e.message; } };
+    $('save-start').onclick = async () => { try { await saveLesson(); const s = await api(`${lessonURL()}/sessions`, 'POST'); $('join-result').innerHTML = `<p>Session ${esc(s.paddedId)}</p><strong class="join-code">${esc(s.joinCode)}</strong><p>Join URL: <span>${esc(location.origin + '/app?join=' + encodeURIComponent(s.joinCode))}</span></p><p><a href="/admin/live/${s.sessionId}">Open live room</a></p>`; } catch(e) { $('join-result').textContent = e.message; } };
     renderItems(); renderFilters(); await loadQuestions(); if (start) $('save-start').click();
   } catch(e) { if (token === viewToken) fail(e, () => openLesson(id, start)); }
 }
@@ -235,7 +281,12 @@ function renderEditor() {
   $('lesson-notes').oninput = e => { x.notes = e.target.value; changed(); previewNotes(); };
   previewNotes(); showQuestion(questionCache.get(x.question_id), $('editor-question'));
 }
+const liveRoute = location.pathname.match(/^\/admin\/live\/([1-9]\d{0,8})$/);
+if (liveRoute) { document.querySelector('[data-section="Students"]').removeAttribute('aria-current'); document.querySelector('[data-section="Live"]').setAttribute('aria-current','page'); $('title').textContent = 'Live'; showLive(liveRoute[1]); }
+else if (location.pathname === '/admin/live') { document.querySelector('[data-section="Students"]').removeAttribute('aria-current'); document.querySelector('[data-section="Live"]').setAttribute('aria-current','page'); $('title').textContent = 'Live'; showLive(); }
+else {
 const lessonRoute = location.pathname.match(/^\/admin\/lessons\/(new|\d+\/edit)$/);
 if (lessonRoute) { document.querySelector('[data-section="Students"]').removeAttribute('aria-current'); document.querySelector('[data-section="Lessons"]').setAttribute('aria-current','page'); $('title').textContent = 'Lessons'; openLesson(lessonRoute[1] === 'new' ? null : lessonRoute[1].split('/')[0]); }
 else if (location.pathname === '/admin/lessons') { document.querySelector('[data-section="Students"]').removeAttribute('aria-current'); document.querySelector('[data-section="Lessons"]').setAttribute('aria-current','page'); $('title').textContent = 'Lessons'; showLibrary(); }
 else loadList();
+}

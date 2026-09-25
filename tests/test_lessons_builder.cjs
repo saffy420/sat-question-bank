@@ -45,7 +45,7 @@ async function fixture(t) {
   db.prepare("INSERT INTO users(id,email,role) VALUES(?,'admin@ccs.us','admin')").run(id);
   db.prepare("INSERT INTO membership(user_id,email,status) VALUES(?,'admin@ccs.us','approved')").run(id);
   const request = (path, token = 'admin', method = 'GET', body) => handleRequest(new Request(origin + path, { method, headers: { ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(method !== 'GET' ? { Origin: origin } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }), env, async req => req.headers.get('Authorization') === 'Bearer admin' ? { id, email: 'admin@ccs.us' } : req.headers.get('Authorization') === 'Bearer student' ? { id: 'student', email: 'student@ccs.us' } : null);
-  t.after(() => db.close()); return { db, request };
+  t.after(() => db.close()); return { db, env, id, request };
 }
 const body = { title: 'Lesson', mode: 'instructor', items: [{ question_id: 'q1', time_limit_sec: 60, notes: '<script>alert(1)</script> \\(x\\)' }, { question_id: 'ai1', time_limit_sec: 90, notes: '' }] };
 const data = async response => { assert.equal(response.status, 200, await response.clone().text()); return response.json(); };
@@ -97,6 +97,48 @@ test('save, replace, duplicate, session snapshot stays frozen, collisions retry,
   assert.deepEqual(list.skillsByDomain.Algebra,['Linear equations in one variable','Linear functions']);
   assert.equal((await data(await request('/api/admin/lessons'))).find(l => l.id === id).timesRun >= 1,true);
   assert.equal((await data(await request(`/api/admin/lessons/${id}/sessions`))).length,2);
+});
+
+test('approved lesson GET reaches room; pending membership stays blocked', async t => {
+  const { db, env, id, request } = await fixture(t);
+  const created = await data(await request('/api/admin/lessons', 'admin', 'POST', { ...body, items: [body.items[0]] }));
+  const session = await data(await request(`/api/admin/lessons/${created.id}/sessions`, 'admin', 'POST'));
+  env.LESSON_ROOM = { getByName: name => {
+    assert.equal(name, String(session.sessionId));
+    return { fetch: async req => {
+      assert.equal(req.method, 'POST');
+      assert.deepEqual(await req.json(), { sessionId: session.sessionId, userId: id,
+        role: 'admin', name: 'admin@ccs.us', ws: false, join: false, clientId: null });
+      return Response.json({ phase: 'READY' });
+    } };
+  } };
+  assert.deepEqual(await data(await request(`/api/lessons/${session.sessionId}`)), { phase: 'READY' });
+  db.prepare("UPDATE membership SET status='pending' WHERE user_id=?").run(id);
+  const denied = await request(`/api/lessons/${session.sessionId}`);
+  assert.equal(denied.status, 403);
+  assert.deepEqual(await denied.json(), { error: 'membership not approved' });
+});
+
+test('admin WebSocket upgrades without student client ID; student sockets require one', async t => {
+  const { env, id, request } = await fixture(t);
+  const created = await data(await request('/api/admin/lessons', 'admin', 'POST', { ...body, items: [body.items[0]] }));
+  const session = await data(await request(`/api/admin/lessons/${created.id}/sessions`, 'admin', 'POST'));
+  const { handleRequest } = await import('../src/index.js');
+  const upgrade = (token, client = '') => handleRequest(new Request(`${origin}/api/lessons/${session.sessionId}/ws${client}`, {
+    headers: { Upgrade: 'websocket', Origin: origin, Authorization: `Bearer ${token}` }
+  }), env, async () => token === 'admin' ? { id, email: 'admin@ccs.us' } : { id: 'student', email: 'student@ccs.us' });
+  let forwarded = 0;
+  env.LESSON_ROOM = { getByName: () => ({ fetch: async req => {
+    forwarded++;
+    assert.equal(req.headers.get('Upgrade'), 'websocket');
+    const context = JSON.parse(req.headers.get('X-Lesson-Context'));
+    assert.equal(context.role, 'admin'); assert.equal(context.clientId, null);
+    return Response.json({ accepted: true });
+  } }) };
+  assert.equal((await upgrade('admin')).status, 200);
+  assert.equal(forwarded, 1);
+  assert.equal((await upgrade('student')).status, 400);
+  assert.equal(forwarded, 1);
 });
 
 test('builder time and notes checks use actual client helpers', async () => {

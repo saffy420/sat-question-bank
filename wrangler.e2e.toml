@@ -8,6 +8,14 @@ binding = "ASSETS"
 run_worker_first = true
 html_handling = "none"
 
+[[durable_objects.bindings]]
+name = "LESSON_ROOM"
+class_name = "LessonRoom"
+
+[[migrations]]
+tag = "lesson-room-v1"
+new_sqlite_classes = ["LessonRoom"]
+
 [vars]
 ADMIN_EMAILS = "e2e-admin@e2e.test"
 

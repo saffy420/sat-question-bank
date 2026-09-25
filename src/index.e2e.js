@@ -1,4 +1,5 @@
 import { handleRequest } from './index.js';
+export { LessonRoom } from './lesson-room.js';
 
 const accounts = new Set(['e2e-admin', 'e2e-student-1', 'e2e-student-2', 'e2e-student-3', 'e2e-student-4']);
 const sessions = new Map();

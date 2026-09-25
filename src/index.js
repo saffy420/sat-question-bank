@@ -1,4 +1,50 @@
 import { breakdown, normalizeQuestion, direction, cbSort } from '../public/shared/stats.js';
+import { CODE } from '../public/shared/lesson.js';
+export { LessonRoom } from './lesson-room.js';
+
+export const validLessonUpgrade = (req, url) => req.method === 'GET' &&
+  req.headers.get('Upgrade')?.toLowerCase() === 'websocket' &&
+  req.headers.get('Origin') === url.origin && req.headers.get('Sec-Fetch-Site') !== 'cross-site';
+
+async function lessonAccess(req, env, url, p, u) {
+  const ws = /^\/api\/lessons\/([1-9]\d{0,8})\/ws$/.exec(p);
+  const join = p === '/api/lessons/join' && req.method === 'POST';
+  const info = /^\/api\/lessons\/([1-9]\d{0,8})$/.exec(p);
+  if (!ws && !join && !info) return json({ error: 'not found' }, 404);
+  let code, clientId = ws || info ? url.searchParams.get('client') : null;
+  if (ws && !validLessonUpgrade(req, url)) return json({ error: 'invalid websocket upgrade or origin' }, 403);
+  if (clientId && !/^[0-9a-f]{8}-[0-9a-f-]{27,40}$/i.test(clientId)) return json({ error: 'invalid client' }, 400);
+  if (join) clientId = crypto.randomUUID();
+  if (info && req.method !== 'GET') return json({ error: 'not found' }, 404);
+  if (join) {
+    if (Number(req.headers.get('Content-Length') || 0) > 128) return json({ error: 'invalid code' }, 400);
+    const text = await req.text();
+    if (text.length > 128) return json({ error: 'invalid code' }, 400);
+    try { code = JSON.parse(text).code?.toUpperCase(); } catch { /* invalid */ }
+    if (typeof code !== 'string' || !CODE.test(code)) return json({ error: 'invalid code' }, 400);
+  }
+  const role = await env.DB.prepare('SELECT role FROM users WHERE id=?').bind(u.id).first();
+  if (!role || !['admin','student'].includes(role.role)) return json({ error: 'authorization unavailable' }, 503);
+  let session;
+  if (join) session = await env.DB.prepare('SELECT id, status FROM lesson_sessions WHERE join_code=? AND status!=\'ended\'').bind(code).first();
+  else session = await env.DB.prepare('SELECT s.id, s.status, l.created_by FROM lesson_sessions s JOIN lessons l ON l.id=s.lesson_id WHERE s.id=?').bind(Number((ws || info)[1])).first();
+  if (!session) return json({ error: join ? 'wrong or ended code' : 'session not found' }, 404);
+  if (session.status === 'ended') return json({ error: 'session ended' }, 410);
+  const owner = session.created_by || (await env.DB.prepare('SELECT l.created_by FROM lessons l JOIN lesson_sessions s ON s.lesson_id=l.id WHERE s.id=?').bind(session.id).first())?.created_by;
+  const admin = role.role === 'admin' && owner === u.id;
+  if (!join && !admin && role.role !== 'student') return json({ error: 'forbidden' }, 403);
+  if (ws && !admin && !clientId) return json({ error: 'invalid client' }, 400);
+  if (join && role.role !== 'student') return json({ error: 'student only' }, 403);
+  if (role.role === 'student' && !join) {
+    const participant = await env.DB.prepare('SELECT 1 FROM session_participants WHERE session_id=? AND user_id=? AND left_at IS NULL').bind(session.id,u.id).first();
+    if (!participant) return json({ error: 'not joined' }, 403);
+  }
+  const body = { sessionId: session.id, userId: u.id, role: admin ? 'admin' : 'student',
+    name: String(u.user_metadata?.full_name || u.email || u.id).slice(0, 200), ws: !!ws, join, clientId };
+  return env.LESSON_ROOM.getByName(String(session.id)).fetch(ws
+    ? new Request('https://lesson.internal/', { headers: { Upgrade: 'websocket', 'X-Lesson-Internal': 'room', 'X-Lesson-Context': JSON.stringify(body) } })
+    : new Request('https://lesson.internal/', { method: 'POST', headers: { 'X-Lesson-Internal': 'room', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+}
 
 // SAT Question Bank — Cloudflare Worker
 // Serves static assets + /api/questions + /api/progress + /api/attempts.
@@ -363,13 +409,14 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     if (['GET', 'HEAD'].includes(req.method)) {
       if (Object.hasOwn(aliases, p) && !adminPath(p)) return redirect(aliases[p]);
       if (Object.hasOwn(pages, p)) return asset(env, new Request(new URL(pages[p], url), req));
-      if (['/site.css', '/site.js', '/auth.js', '/shared/stats.js', '/shared/renderer.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
+      if (['/site.css', '/site.js', '/auth.js', '/shared/stats.js', '/shared/renderer.js', '/shared/lesson.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
     }
     if (p === '/api/auth/logout' && req.method === 'POST') {
       const res = json({ ok: true });
       res.headers.set('Set-Cookie', sessionCookie());
       return res;
     }
+    const lessonRoute = p === '/api/lessons/join' || /^\/api\/lessons\/[1-9]\d{0,8}(?:\/ws)?$/.test(p);
     const apiMethods = {
       '/api/auth/session': ['POST'], '/api/questions': ['GET'], '/api/account': ['GET'],
       '/api/progress': ['GET', 'POST'], '/api/attempts': ['GET', 'POST'],
@@ -378,14 +425,14 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     const isAPI = p === '/api' || p.startsWith('/api/');
     const knownAPI = apiMethods[p]?.includes(req.method) ||
       (/^\/api\/sessions\/[^/]+$/.test(p) && req.method === 'DELETE');
-    if (isAPI && !knownAPI && !adminAPI(p)) return json({ error: 'not found' }, 404);
+    if (isAPI && !knownAPI && !adminAPI(p) && !lessonRoute) return json({ error: 'not found' }, 404);
     const restrictedAsset = ['GET', 'HEAD'].includes(req.method) &&
       (p === '/app' || adminPath(p) || p === '/admin.js' || p === '/exams.json' || /^\/qimg\/[^/]+\.(?:png|jpg|jpeg|webp|svg)$/i.test(p));
-    if (!knownAPI && !restrictedAsset && !adminAPI(p)) {
+    if (!knownAPI && !restrictedAsset && !adminAPI(p) && !lessonRoute) {
       const res = await asset(env, new Request(new URL('/404.html', url), { method: req.method === 'HEAD' ? 'HEAD' : 'GET' }));
       return new Response(res.body, { status: 404, headers: res.headers });
     }
-    let u;
+    let u, membership;
     try {
       if (p === '/api/auth/session' && !req.headers.has('Authorization')) return json({ error: 'bearer required' }, 401);
       u = await resolveIdentity(req, env);
@@ -393,7 +440,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         if (p === '/app' || adminPath(p) || p === '/admin.js') return redirect('/login');
         return json({ error: 'unauthorized' }, 401);
       }
-      let membership = await env.DB.prepare('SELECT status FROM membership WHERE user_id = ?').bind(u.id).first();
+      membership = await env.DB.prepare('SELECT status FROM membership WHERE user_id = ?').bind(u.id).first();
       if (!membership && p === '/api/auth/session') {
         const status = u.email.toLowerCase().endsWith('@ccs.us') ? 'approved' : 'pending';
         await env.DB.prepare('INSERT INTO membership (user_id, email, status) VALUES (?, ?, ?) ON CONFLICT(user_id) DO NOTHING')
@@ -413,6 +460,11 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       }
     } catch {
       return json({ error: 'authentication unavailable' }, 503);
+    }
+    if (lessonRoute) {
+      if (membership.status !== 'approved') return json({ error: 'membership not approved' }, 403);
+      try { return await lessonAccess(req, env, url, p, u); }
+      catch { return json({ error: 'lesson unavailable' }, 503); }
     }
     if (adminPath(p) || adminAPI(p) || p === '/admin.js') {
       let role;

@@ -774,6 +774,7 @@ mark.hl-b { background: #bfe3ff; }
     <button class="nav-i" data-tab="exams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg><span>Practice Exams</span></button>
     <button class="nav-i" data-tab="history"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>History</span></button>
 
+    <button class="nav-i" id="join-lesson" type="button"><span>Join lesson</span></button>
     <div class="nav-sp"></div>
     <div class="nav-user">
       <span class="nav-av" id="nav-av">G</span>
@@ -1016,12 +1017,14 @@ mark.hl-b { background: #bfe3ff; }
   </div>
 </div>
 
+<div id="lesson-live" class="hide" style="position:fixed;inset:0;z-index:100;background:var(--bg);overflow:auto;padding:24px;box-sizing:border-box"><div id="lesson-content" class="panel" style="max-width:1000px;margin:auto;padding:20px"></div></div>
 <div id="modal-root"></div>
 <div id="overlay-root"></div>
 
 <script type="module">
 import * as Stats from '/shared/stats.js';
 import * as SharedRenderer from '/shared/renderer.js';
+import { CODE } from '/shared/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -3682,6 +3685,90 @@ async function exportQuestion(btn) {
   }
 }
 
+// ---------------- live lesson (independent of practice state) ----------------
+let lessonSocket, lessonState, lessonId, lessonClientId, lessonPending, lessonOffset = 0, lessonBestRTT = Infinity, lessonRetry, lessonClock;
+const lessonRoot = $('lesson-content');
+function lessonDraw() {
+  const s = lessonState; if (!s) return;
+  const active = s.phase === 'ANSWERING' && Date.now() + lessonOffset < s.endsAt && !s.locked;
+  const q = s.question;
+  lessonRoot.innerHTML = `<div class="frow"><h2>${esc(s.title)}</h2><button id="lesson-leave">Leave view</button><span id="lesson-connection">${lessonSocket?.readyState === WebSocket.OPEN ? 'Connected' : 'Reconnecting…'}</span></div>
+    <p>${s.phase === 'READY' && s.status === 'lobby' ? 'Waiting for the instructor to start…' : esc(s.phase)} · ${s.count} joined · Q ${s.index + 1} / ${s.total} · <span id="lesson-clock"></span></p>
+    ${q ? `<div class="cb">${SharedRenderer.renderStem(q)}</div>${q.spr ? `<label>Grid-in <input id="lesson-grid" maxlength="32" value="${esc(s.ownSelection || '')}" ${active ? '' : 'disabled'}></label><button id="lesson-pick" ${active ? '' : 'disabled'}>Select</button>`
+      : `<div class="choices">${q.choices.map(c => `<button data-lesson-choice="${esc(c.letter)}" ${active ? '' : 'disabled'} aria-pressed="${s.ownSelection === c.letter}">${SharedRenderer.choiceHTML(q, c, null, true)}</button>`).join('')}</div>`}
+      <button id="lesson-lock" ${active ? '' : 'disabled'}>Lock answer</button>${s.phase === 'REVEALED' ? `<p>Correct answer: ${esc(q.answer)}</p><div class="cb">${q.explanation_html || ''}</div>` : ''}` : ''}
+    <p id="lesson-error" role="alert"></p>`;
+  $('lesson-leave').onclick = () => { clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000); lessonId = null; lessonState = null; $('lesson-live').classList.add('hide'); };
+  lessonRoot.querySelectorAll('[data-lesson-choice]').forEach(b => b.onclick = () => lessonSelect(s.questionId, b.dataset.lessonChoice));
+  if ($('lesson-pick')) $('lesson-pick').onclick = () => lessonSelect(s.questionId, $('lesson-grid').value.trim());
+  if ($('lesson-lock')) $('lesson-lock').onclick = () => lessonSend({ type: 'lock', questionId: s.questionId });
+  mathify(lessonRoot); lessonTick();
+}
+function lessonTick() {
+  if (!lessonState || !$('lesson-clock')) return;
+  const remaining = lessonState.endsAt ? Math.max(0, lessonState.endsAt - Date.now() - lessonOffset) : 0;
+  $('lesson-clock').textContent = lessonState.endsAt ? fmtMs(remaining) : '';
+  if (lessonState.phase === 'ANSWERING' && remaining === 0) lessonRoot.querySelectorAll('[data-lesson-choice],#lesson-pick,#lesson-grid,#lesson-lock').forEach(el => el.disabled = true);
+}
+function lessonSend(m) { if (lessonSocket?.readyState === WebSocket.OPEN) lessonSocket.send(JSON.stringify(m)); }
+function lessonSelect(questionId, answer) {
+  lessonPending = { type: 'select', questionId, answer };
+  lessonSend(lessonPending);
+  lessonRoot.querySelectorAll('[data-lesson-choice]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lessonChoice === answer)));
+}
+function lessonConnect() {
+  if (!lessonId || loggingOut) return;
+  const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/lessons/${lessonId}/ws?client=${encodeURIComponent(lessonClientId)}`);
+  lessonSocket = socket;
+  // Lowest round-trip ping bounds offset error to about RTT/2; snapshots use last measured offset.
+  socket.onopen = () => lessonSend({ type: 'ping', sentAt: Date.now() });
+  socket.onmessage = e => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'pong') {
+      const rtt = Date.now() - data.sentAt;
+      if (rtt >= 0 && rtt < lessonBestRTT) { lessonBestRTT = rtt; lessonOffset = data.serverNow - (data.sentAt + rtt / 2); }
+    } else if (data.type === 'snapshot') {
+      if (lessonPending && (data.questionId !== lessonPending.questionId || data.ownSelection === lessonPending.answer || data.phase !== 'ANSWERING' || data.locked)) lessonPending = null;
+      lessonState = data; lessonDraw();
+      if (lessonPending && Date.now() + lessonOffset < data.endsAt) lessonSend(lessonPending);
+    } else if (data.type === 'error') { if (data.error === 'question closed' || data.error === 'answer locked') lessonPending = null; const el = $('lesson-error'); if (el) el.textContent = data.error; }
+  };
+  socket.onclose = e => {
+    if (socket !== lessonSocket || !lessonId || e.code === 4001 || e.code === 4002) {
+      if (e.code === 4001 || e.code === 4002) { clearInterval(lessonClock); lessonId = null; lessonRoot.textContent = e.code === 4001 ? 'Opened in another tab.' : 'Removed from lesson.'; }
+      return;
+    }
+    if ($('lesson-connection')) $('lesson-connection').textContent = 'Reconnecting…';
+    lessonRetry = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/lessons/${lessonId}?client=${encodeURIComponent(lessonClientId)}`, { headers: await sbHeaders() });
+        if (r.status === 409 || r.status === 403 || r.status === 410) { lessonId = null; clearInterval(lessonClock); lessonRoot.textContent = 'Lesson access ended or moved to another tab.'; return; }
+        if (r.ok) { lessonState = await r.json(); lessonDraw(); }
+      } catch { /* retry on temporary loss */ }
+      if (lessonId) lessonConnect();
+    }, 1500);
+  };
+}
+async function lessonJoin(code) {
+  const r = await fetch('/api/lessons/join', { method: 'POST', headers: { 'Content-Type': 'application/json', ...await sbHeaders() }, body: JSON.stringify({ code }) });
+  const data = await r.json(); if (!r.ok) throw Error(data.error || 'Could not join');
+  clearTimeout(lessonRetry); lessonSocket?.close(1000); lessonPending = null;
+  // Join response carries current projected snapshot, never bank objects.
+  lessonState = data; lessonId = data.sessionId; lessonClientId = data.clientId; lessonBestRTT = Infinity;
+  $('modal-root').replaceChildren(); $('lesson-live').classList.remove('hide'); lessonDraw();
+  clearInterval(lessonClock); lessonClock = setInterval(() => { lessonTick(); if (lessonSocket?.readyState === WebSocket.OPEN) lessonSend({ type: 'ping', sentAt: Date.now() }); }, 1000);
+  lessonConnect();
+}
+$('join-lesson').onclick = () => {
+  const root = $('modal-root');
+  root.innerHTML = `<div class="modal-bg"><div class="modal"><h2>Join lesson</h2><div id="lesson-code" class="frow">${Array.from({length:6},(_,i) => `<input aria-label="Code character ${i + 1}" maxlength="1" style="width:2.5em;text-align:center;text-transform:uppercase" autocomplete="off">`).join('')}</div><p id="join-error" role="alert"></p><button id="join-go">Join</button><button id="join-cancel">Cancel</button></div></div>`;
+  const boxes = [...root.querySelectorAll('#lesson-code input')];
+  const paste = value => { boxes.forEach(b => b.value = ''); const code = value.toUpperCase().replace(/[^A-Z2-9]/g,'').slice(0,6); [...code].forEach((c,i) => boxes[i].value = c); boxes[Math.min(code.length,5)].focus(); };
+  boxes.forEach((box,i) => { box.oninput = () => { if (box.value.length > 1) paste(box.value); else { box.value = box.value.toUpperCase(); if (box.value && i < 5) boxes[i+1].focus(); } }; box.onpaste = e => { e.preventDefault(); paste(e.clipboardData.getData('text')); }; });
+  $('join-go').onclick = () => { const code = boxes.map(b => b.value).join('').toUpperCase(); if (!CODE.test(code)) { $('join-error').textContent = 'Enter a valid six-character code'; return; } lessonJoin(code).catch(e => $('join-error').textContent = e.message); };
+  $('join-cancel').onclick = () => root.replaceChildren(); boxes[0].focus();
+};
+
 // ---------------- auth (Supabase) ----------------
 // Progress belongs to the account, so requests carry the Supabase access token and
 // the Worker resolves the owner from it. uid only decides what the header shows.
@@ -3706,6 +3793,7 @@ async function sbHeaders() {
 }
 
 function clearAccount() {
+  if (typeof lessonId !== 'undefined') { lessonId = null; lessonPending = null; clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000); }
   loggingOut = true;
   clearTimeout(authRetry); authRetry = null;
   uid = null; authToken = null;
@@ -3832,6 +3920,13 @@ function authModal() {
 (async () => {
   if (!await initAuth()) return;
   await load();
+  const code = new URL(location.href).searchParams.get('join');
+  if (code) {
+    history.replaceState(null, '', '/app');
+    const normalized = code.toUpperCase();
+    if (CODE.test(normalized)) lessonJoin(normalized).catch(e => { $('join-lesson').click(); $('join-error').textContent = e.message; });
+    else $('join-lesson').click();
+  }
 })();
 
 })();
