@@ -42,6 +42,7 @@ test('origin/upgrade gate and role action allowlist', async () => {
   assert.equal(validLessonUpgrade(req({ Upgrade:'websocket', Origin:origin }),url),true);
   for (const headers of [{ Upgrade:'websocket', Origin:'https://evil.test' },{ Origin:origin },{ Upgrade:'websocket', Origin:origin,'Sec-Fetch-Site':'cross-site' }]) assert.equal(validLessonUpgrade(req(headers),url),false);
   assert.equal(validAction({type:'select',questionId:'q',answer:'A'},'student'),true);
+  assert.equal(validAction({type:'select',questionId:'q',answer:''},'student'),true);
   for (const m of [{type:'start'}, {type:'select',questionId:'q',answer:'A',role:'admin'}, {type:'time',questionId:'q',deltaMs:100}, {type:'addTime',sec:500}]) assert.equal(validAction(m,'student'),false);
   assert.equal(validAction({type:'addTime',sec:15},'admin'),true);
   assert.equal(validAction({type:'kick',userId:'x'},'student'),false);
@@ -59,6 +60,12 @@ test('server grace and durable finalize persist once, late select rejected after
   const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx,f.env);
   const { ws, sent } = f.socket('alice');
   await room.save(f.s);
+  await room.webSocketMessage(ws,JSON.stringify({type:'select',questionId:'q',answer:'A'}));
+  assert.equal((await room.state()).responses.alice.q.answer,'A');
+  // Crossing out the selected choice clears the selection.
+  await room.webSocketMessage(ws,JSON.stringify({type:'select',questionId:'q',answer:''}));
+  assert.equal((await room.state()).responses.alice.q.answer,null);
+  assert.equal(sent.at(-1).ownSelection,null);
   await room.webSocketMessage(ws,JSON.stringify({type:'select',questionId:'q',answer:'A'}));
   assert.equal((await room.state()).responses.alice.q.answer,'A');
   assert.equal(f.writes.length,0);

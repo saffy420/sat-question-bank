@@ -134,6 +134,9 @@ export function Live({ id }: { id: string }) {
   const offset = useRef(0);
   const [sort, setSort] = useState("name");
   const [group, setGroup] = useState<number | null>(null);
+  // The presenter's own cross-outs: local only, never sent or shown to students.
+  const [strikeMode, setStrikeMode] = useState(false);
+  const [struck, setStruck] = useState<Record<string, string[]>>({});
   const send: Send = (type, fields = {}) => {
     if (socket.current?.readyState === WebSocket.OPEN)
       socket.current.send(JSON.stringify({ type, ...fields }));
@@ -374,6 +377,20 @@ export function Live({ id }: { id: string }) {
                 s={s}
                 laser={laser}
                 send={send}
+                strikeMode={strikeMode}
+                struck={struck[s.questionId]}
+                onStrikeMode={() => setStrikeMode(!strikeMode)}
+                onStrike={(letter) =>
+                  setStruck((all) => {
+                    const list = all[s.questionId] || [];
+                    return {
+                      ...all,
+                      [s.questionId]: list.includes(letter)
+                        ? list.filter((x) => x !== letter)
+                        : [...list, letter],
+                    };
+                  })
+                }
               />
             )}
           </section>
@@ -579,10 +596,18 @@ function InstructorStage({
   s,
   laser,
   send,
+  strikeMode,
+  struck,
+  onStrikeMode,
+  onStrike,
 }: {
   s: Room;
   laser: Laser | null;
   send: Send;
+  strikeMode: boolean;
+  struck?: string[];
+  onStrikeMode: () => void;
+  onStrike: (letter: string) => void;
 }) {
   const [tool, setTool] = useState("highlight");
   const [color, setColor] = useState(colors[0]);
@@ -757,6 +782,10 @@ function InstructorStage({
             laser={laser}
             mathify={mathify}
             onReady={setCard}
+            strikeMode={strikeMode}
+            struck={struck}
+            onStrikeMode={onStrikeMode}
+            onStrike={onStrike}
           />
         </div>
         <details className="instructor-drawer">

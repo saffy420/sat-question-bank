@@ -215,7 +215,8 @@ export class LessonRoom {
         if (current.locked) err = 'answer locked';
         else if (m.type === 'select') {
           const q = s.questions[m.questionId];
-          if (q.spr ? !/^[-\d./]{1,32}$/.test(m.answer) : !q.choices.some(c => c.letter === m.answer)) err = 'invalid answer';
+          if (m.answer === '') { if (current.answer) { current.answer = null; changed = true; } }
+          else if (q.spr ? !/^[-\d./]{1,32}$/.test(m.answer) : !q.choices.some(c => c.letter === m.answer)) err = 'invalid answer';
           else if (m.answer !== current.answer) {
             if (current.answer) current.changes++;
             current.answer = m.answer;

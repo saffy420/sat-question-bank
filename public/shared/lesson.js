@@ -17,7 +17,8 @@ export function validAction(m, role) {
   if (m.type === 'addTime') return m.sec === 15;
   if (m.type === 'lockJoin' || m.type === 'classResults') return typeof m.bool === 'boolean';
   if (m.type === 'kick') return typeof m.userId === 'string' && m.userId.length > 0 && m.userId.length <= 128;
-  if (m.type === 'select') return typeof m.questionId === 'string' && m.questionId.length <= 64 && typeof m.answer === 'string' && m.answer.length > 0 && m.answer.length <= 32;
+  // An empty answer clears the selection (a struck-out choice deselects itself).
+  if (m.type === 'select') return typeof m.questionId === 'string' && m.questionId.length <= 64 && typeof m.answer === 'string' && m.answer.length <= 32;
   if (m.type === 'lock') return typeof m.questionId === 'string' && m.questionId.length <= 64;
   return true;
 }

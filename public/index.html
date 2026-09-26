@@ -3733,7 +3733,8 @@ function lessonDraw() {
 function lessonTick() { lessonDraw(); }
 function lessonSend(m) { if (lessonSocket?.readyState === WebSocket.OPEN) lessonSocket.send(JSON.stringify(m)); }
 function lessonSelect(questionId, answer) {
-  if (!answer || lessonState?.phase !== 'ANSWERING' || lessonState.locked || lessonLockPending || Date.now() + lessonOffset >= lessonState.endsAt) return;
+  const picked = lessonPending?.questionId === questionId ? lessonPending.answer : lessonState?.ownSelection || '';
+  if ((!answer && !picked) || lessonState?.phase !== 'ANSWERING' || lessonState.locked || lessonLockPending || Date.now() + lessonOffset >= lessonState.endsAt) return;
   lessonPending = { type: 'select', questionId, answer };
   lessonSend(lessonPending);
   lessonDraw();
@@ -3750,7 +3751,7 @@ function lessonConnect() {
       const rtt = Date.now() - data.sentAt;
       if (rtt >= 0 && rtt < lessonBestRTT) { lessonBestRTT = rtt; lessonOffset = data.serverNow - (data.sentAt + rtt / 2); }
     } else if (data.type === 'snapshot') {
-      if (lessonPending && (data.questionId !== lessonPending.questionId || data.ownSelection === lessonPending.answer || data.phase !== 'ANSWERING' || data.locked)) lessonPending = null;
+      if (lessonPending && (data.questionId !== lessonPending.questionId || (data.ownSelection || '') === lessonPending.answer || data.phase !== 'ANSWERING' || data.locked)) lessonPending = null;
       if (data.locked || data.phase !== 'ANSWERING' || data.questionId !== lessonState?.questionId) lessonLockPending = false;
       lessonError = '';
       lessonState = data; lessonDraw();

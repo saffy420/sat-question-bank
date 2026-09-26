@@ -11,6 +11,7 @@ export { Stage, LOGICAL_WIDTH } from './Stage';
 export type { StageProps } from './Stage';
 
 const NONE: Mark[] = [];
+const NO_LETTERS: string[] = [];
 
 function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerModel; bridge: Bridge; laser: Laser | null; terminal: string; followMark: Mark | null }) {
   const { snapshot: s, picked, remaining } = model;
@@ -25,6 +26,20 @@ function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerM
   const revealed = s.phase === 'REVEALED' || s.phase === 'ENDED';
   const active = s.phase === 'ANSWERING' && remaining > 0 && !s.locked && !model.lockPending && !terminal;
   const ownMarks = privateMarks[s.questionId] || NONE;
+  // Cross-outs are private and memory-only, kept per question for the session.
+  const [strikeMode, setStrikeMode] = useState(false);
+  const [struck, setStruck] = useState<Record<string, string[]>>({});
+  const ownStruck = struck[s.questionId] || NO_LETTERS;
+  const setOwnStruck = (letters: string[]) => setStruck(all => ({ ...all, [s.questionId]: letters }));
+  const strike = (letter: string) => {
+    const on = !ownStruck.includes(letter);
+    setOwnStruck(on ? [...ownStruck, letter] : ownStruck.filter(x => x !== letter));
+    if (on && active && picked === letter) bridge.select(s.questionId, '');
+  };
+  const select = (answer: string) => {
+    if (ownStruck.includes(answer)) setOwnStruck(ownStruck.filter(x => x !== answer));
+    bridge.select(s.questionId, answer);
+  };
   useLayoutEffect(() => { setConfirm(null); }, [s.questionId]);
   useLayoutEffect(() => { if (!active) setConfirm(null); }, [active]);
   useLayoutEffect(() => {
@@ -57,7 +72,7 @@ function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerM
     <div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.phase}</div>
     <main className="lesson-main">
       {s.status === 'lobby' ? <section className="lesson-lobby"><Users size={36} aria-hidden="true"/><h2>Waiting for the instructor to start…</h2><p>{s.count} joined</p></section> : s.question && <>
-        <Stage key={s.questionId} question={s.question} number={s.index + 1} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={ownMarks} laser={laser} mathify={bridge.mathify} onSelect={answer => bridge.select(s.questionId, answer)} onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [s.questionId]: [...(all[s.questionId] || []), mark] })) : undefined}/>
+        <Stage key={s.questionId} question={s.question} number={s.index + 1} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={ownMarks} laser={laser} mathify={bridge.mathify} onSelect={select} strikeMode={strikeMode} struck={ownStruck} onStrikeMode={() => setStrikeMode(!strikeMode)} onStrike={strike} onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [s.questionId]: [...(all[s.questionId] || []), mark] })) : undefined}/>
         {!revealed && (s.locked || model.lockPending) && <p className="lesson-locked" role="status"><LockKeyhole size={18} aria-hidden="true"/>Answer locked in. Waiting for time to end…</p>}
         {revealed && <section className="lesson-reveal"><p>Correct answer: {s.question.answer}{s.question.spr && <> · Your answer: {picked || 'blank'} · {isRight(s.question, picked) ? 'Correct' : 'Incorrect'}</>}</p><div className="lesson-verdict"><span>{isRight(s.question, picked) ? <Check aria-label="Correct"/> : <X aria-label="Incorrect"/>}</span>{picked ? `Your answer: ${picked}` : 'No answer selected'}</div><details key={s.questionId}><summary>Official explanation</summary><div ref={explanation}/></details>
           {s.classResults && s.distribution && <section className="lesson-results"><h3>Class results</h3>{s.distribution.map((g, index) => <div className="lesson-result" key={g.label}><span>{g.label}</span><span className="lesson-result-track"><i style={{ width: `${100 * g.count / Math.max(1, ...s.distribution!.map(row => row.count))}%`, background: ['#1182a4', '#126bb3', '#706caf', '#398437'][index % 4] }}/></span><strong>{g.count}</strong>{g.correct && <Check size={18} aria-label="Correct"/>}</div>)}</section>}
