@@ -1,8 +1,8 @@
 ```text
 Task: lessons-08-review-polls
 Branch: claude/lessons-08-review-polls   Base: claude/lessons-07-self-paced (PR 3 not merged)
-Last completed step: 4 (implementation + unit tests, 89/89 with git.exe shim)   Commit: 36adf132
-Next step: Step 5 — write tests/e2e/lessons-08-review-polls/review.spec.js covering spec.md checkpoints 1–10, run it + full suite (npm run e2e:seed; PW_CHROMIUM_PATH=/opt/pw-browsers/chromium), write e2e.md.
+Last completed step: 5 (e2e: task 1/1, full suite 24/24; app bug A1 stale clock in student review)   Commit: 9a45c15a
+Next step: Step 6 — review round: git diff claude/lessons-07-self-paced...HEAD against spec.md and §12.6; write review.md (A1 is a known blocker); then repair round.
 Open blockers: none
 Decisions made this task: see spec.md "Decisions" 1–10
 PR: pending
