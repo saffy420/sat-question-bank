@@ -89,7 +89,8 @@ export class LessonRoom {
     const item = s.items[s.index], id = item.question_id, q = s.questions[id];
     const takers = Object.keys(s.responses).filter(userId => s.assigned[userId]?.includes(id));
     const groups = s.classResults || a.role === 'admin' ? responseGroups(q, Object.fromEntries(takers.map(userId => [userId, s.responses[userId][id] || {}]))) : null;
-    const common = { questionId: id, index: s.index, total: s.items.length, question: lessonQuestion(q, true), reviewMode: true,
+    // Review is untimed: the finished set's clock must not keep counting on screen.
+    const common = { questionId: id, index: s.index, total: s.items.length, question: lessonQuestion(q, true), reviewMode: true, endsAt: null,
       annotations: s.annotations?.[id] || [], desmos: s.desmos?.questionId === id ? s.desmos.state : null, classResults: !!s.classResults,
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null };
     if (a.role === 'admin') return { ...common, notes: item.notes || '',
@@ -122,11 +123,11 @@ export class LessonRoom {
       one: votes.filter(v => v.option === 1).length, two: votes.filter(v => v.option === 2).length, picks,
       voted: votes.length, connected: this.connected(s).length };
   }
-  connected(s) { return [...new Set(this.sockets('student').map(ws => ws.deserializeAttachment()?.userId))].filter(userId => s.responses[userId]); }
+  connected(s, gone = null) { return [...new Set(this.sockets('student').filter(ws => ws !== gone).map(ws => ws.deserializeAttachment()?.userId))].filter(userId => s.responses[userId]); }
   // Early close: every connected student has a counted vote (G6: zero-assignment students vote too).
-  allVoted(s) { const users = this.connected(s); return users.length > 0 && users.every(userId => s.poll.votes[userId]); }
-  async pollAdvance(s) {
-    if (s.phase === 'POLL' && (Date.now() >= s.poll.endsAt + GRACE_MS || this.allVoted(s))) {
+  allVoted(s, gone = null) { const users = this.connected(s, gone); return users.length > 0 && users.every(userId => s.poll.votes[userId]); }
+  async pollAdvance(s, gone = null) {
+    if (s.phase === 'POLL' && (Date.now() >= s.poll.endsAt + GRACE_MS || this.allVoted(s, gone))) {
       const results = setResults(s), votes = Object.values(s.poll.votes);
       const questionId = pollWinner({ votes: s.poll.votes, mostMissed: s.poll.mostMissed, order: s.items.map(x => x.question_id),
         wrong: Object.fromEntries(results.questions.map(x => [x.questionId, x.wrong])) });
@@ -537,6 +538,13 @@ export class LessonRoom {
     if (this.allVoted(s)) return this.pollAdvance(s);
     this.broadcast(s, true, a.userId);
   }
-  webSocketClose(ws, code, reason) { ws.close(code, reason); }
+  // The last connected student who hasn't voted leaving also completes the poll (§8.7).
+  async webSocketClose(ws, code, reason) {
+    if (ws.deserializeAttachment()?.role === 'student') {
+      const s = await this.state();
+      if (s?.phase === 'POLL') await this.pollAdvance(s, ws).catch(() => {});
+    }
+    ws.close(code, reason);
+  }
   webSocketError(ws) { ws.close(1011, 'Socket error'); }
 }

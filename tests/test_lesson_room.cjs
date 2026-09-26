@@ -529,6 +529,7 @@ test('review poll: option 2 needs a pick, early close when every connected stude
   s = await room.state();
   assert.equal(s.phase, 'REVEALED'); assert.equal(s.items[s.index].question_id, 'q2'); assert.deepEqual(s.reviewed, ['q2']);
   const review = alice.sent.at(-1);
+  assert.equal(review.endsAt, null, 'review is untimed: no set clock on screen');
   assert.equal(review.question.answer, 'A'); assert.equal(review.ownSelection, 'B'); assert.equal(review.notInSet, false);
   assert.equal(JSON.stringify(review).includes('PRIVATE_NOTE'), false);
   assert.equal(room.snapshot(s, { role: 'student', userId: 'dave' }).notInSet, true);
@@ -575,4 +576,17 @@ test('poll and goto are self-paced review only; instructor-paced students cannot
   const t2 = g.socket('teacher', 'admin');
   await self.webSocketMessage(t2.ws, JSON.stringify({ type: 'goto', questionId: 'q1' }));
   assert.equal(t2.sent.at(-1).error, 'invalid phase', 'no review during the set');
+});
+test('review poll closes early when the last connected student who has not voted disconnects', async () => {
+  const { LessonRoom } = await roomModule(); const f = reviewFixture(), room = new LessonRoom(f.ctx, f.env);
+  await room.save(f.s);
+  const alice = f.socket('alice'), bob = f.socket('bob'), teacher = f.socket('teacher', 'admin');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'startPoll' }));
+  await room.webSocketMessage(alice.ws, JSON.stringify({ type: 'vote', option: 1 }));
+  assert.equal((await room.state()).phase, 'POLL', 'bob is connected and has not voted');
+  await room.webSocketClose(bob.ws, 1000, 'bye');
+  const s = await room.state();
+  assert.equal(s.phase, 'POLL_RESULT'); assert.equal(s.pollResult.questionId, 'q2');
+  await room.webSocketClose(teacher.ws, 1000, 'bye');
+  assert.equal((await room.state()).phase, 'POLL_RESULT', 'instructor disconnects change nothing');
 });
