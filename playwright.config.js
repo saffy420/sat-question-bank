@@ -5,6 +5,7 @@ export default defineConfig({
   testDir: 'tests/e2e',
   outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || '.opencode/pipeline/lessons-00b-e2e-harness/e2e/results',
   reporter: [['list']],
+  workers: 2,
   use: {
     baseURL: localhost(8787),
     ignoreHTTPSErrors: true,

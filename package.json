@@ -8,6 +8,7 @@
     "build:lesson": "vite build && vite build --config vite.admin.config.ts",
     "typecheck": "tsc -p tsconfig.lesson.json",
     "dev:lesson": "vite build --watch",
+    "dev:admin": "vite build --config vite.admin.config.ts --watch",
     "predev": "npm run build:lesson",
     "pretest:e2e": "npm run build:lesson",
     "dev": "wrangler dev",
