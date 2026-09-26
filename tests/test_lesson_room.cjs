@@ -28,7 +28,11 @@ test('live student inline module parses and uses shared renderer with confirmati
   new Script(js);
   assert.match(js, /SharedRenderer\.choiceHTML\(/);
   assert.match(js, /SharedRenderer\.splitContext\(/);
-  assert.match(js, /Have you double checked your answer and made sure it/);
+  const island = readFileSync(require('node:path').join(__dirname,'../lesson-ui/index.tsx'),'utf8');
+  const stage = readFileSync(require('node:path').join(__dirname,'../lesson-ui/Stage.tsx'),'utf8');
+  assert.match(island, /Have you double checked your answer and made sure it/);
+  assert.match(stage, /Renderer\.choiceHTML\(/);
+  assert.match(js, /mountLesson\(lessonRoot/);
 });
 test('origin/upgrade gate and role action allowlist', async () => {
   const { validAction } = await protocol();

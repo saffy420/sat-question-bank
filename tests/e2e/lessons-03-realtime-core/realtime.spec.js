@@ -45,7 +45,8 @@ async function socketFor(page) {
 async function connected(page) {
   const indicator = page.locator('#lesson-connection');
   await expect(indicator).toBeVisible();
-  await expect(indicator).toHaveText(/^● Connected$/);
+  await expect(indicator).toHaveText(/^Connected$/);
+  await expect(indicator.locator('svg')).toBeVisible();
 }
 
 test('task03 nav join, live lobby, after-start admission, physical outage recovery, tab replacement, join lock', async ({ browser }) => {

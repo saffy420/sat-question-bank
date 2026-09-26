@@ -103,6 +103,12 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     await expect.poll(() => student.locator('#lesson-live').evaluate(el => el.scrollTop)).toBeGreaterThan(beforeFollow);
     await screenshot(student, '06-student-follow-long-passage');
     await student.locator('#lesson-follow').uncheck();
+    // The follow scroll above is smooth, so it can still be animating when the
+    // poll at line 103 resolves. Wait for it to settle before capturing the
+    // frozen baseline; the exact toBe assertion below is unchanged.
+    await expect.poll(() => student.locator('#lesson-live').evaluate(el => new Promise(resolve => {
+      const first = el.scrollTop; setTimeout(() => resolve(el.scrollTop === first ? 'settled' : 'moving'), 150);
+    }))).toBe('settled');
     const frozenScroll = await student.locator('#lesson-live').evaluate(el => el.scrollTop);
     await selectText(teacher, 23, 'Careful readers compare evidence');
     await expect.poll(() => texts(student)).toHaveLength(4);
@@ -125,6 +131,20 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     });
     await expect.poll(strokeVisible).toBe(true);
     await screenshot(student, '07-student-live-pen');
+    const wordPosition = page => page.locator(page === teacher ? '#live-card' : '#lesson-card').evaluate(card => {
+      const p = card.querySelector('.lesson-stem p');
+      const range = document.createRange(); range.setStart(p.firstChild, 0); range.setEnd(p.firstChild, 5);
+      const word = range.getBoundingClientRect(), rect = card.getBoundingClientRect();
+      return { x:(word.left-rect.left)/rect.width, y:(word.top-rect.top)/rect.height, width:card.clientWidth, height:card.clientHeight };
+    });
+    const teacherWord = await wordPosition(teacher);
+    const stroke = (await layer()).find(m => m.type === 'stroke');
+    for (const page of [student, second]) {
+      await expect.poll(async () => {
+        const word = await wordPosition(page);
+        return Math.max(Math.abs((stroke.points[0][0]-word.x)*word.width-(stroke.points[0][0]-teacherWord.x)*teacherWord.width), Math.abs((stroke.points[0][1]-word.y)*word.height-(stroke.points[0][1]-teacherWord.y)*teacherWord.height));
+      }).toBeLessThan(2);
+    }
 
     await teacher.locator('[data-tool="laser"]').click();
     const dot = student.locator('#lesson-card canvas.lesson-ink');
@@ -157,8 +177,12 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     await screenshot(student, '10-student-write-denied');
 
     await teacher.locator('[data-tool="erase"]').click();
-    const strikeBox = await teacherMarks(teacher).filter({ hasText: struck }).boundingBox();
-    await teacher.mouse.click(strikeBox.x + strikeBox.width / 2, strikeBox.y + strikeBox.height / 2);
+    // The strike wraps across lines, so the union bounding box center can land
+    // on a neighbouring mark. Click the middle of its first line fragment instead.
+    const strikePoint = await teacherMarks(teacher).filter({ hasText: struck }).first().evaluate(el => {
+      const r = el.getClientRects()[0]; return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await teacher.mouse.click(strikePoint.x, strikePoint.y);
     await expect.poll(() => texts(student)).toEqual([highlighted, highlighted, 'Each detail helps explain']);
     await expect.poll(() => texts(second)).toEqual([highlighted, highlighted, 'Each detail helps explain']);
     expect((await layer()).some(m => m.type === 'stroke')).toBe(true);
