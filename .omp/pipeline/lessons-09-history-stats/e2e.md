@@ -41,3 +41,50 @@
 - **Failing assertion:** `history.spec.js:183`.
 
 Checkpoints 1, 4, 5 and 6 passed in this round, before the spec stopped at A1. Checkpoints 2 (Browse), 3 and 7 did not run.
+
+## Repair round 1 (fix e5c7e2d2, 04c8814d; tests fa2097dd, 64b35051, b827c5d0)
+
+- **Task spec:** 1/1 after the B1/B2 fix. Checkpoints 2, 3 and 7 now run and pass.
+- **Screenshot review** found two more app bugs:
+  - **A2 (B3):** the history overlay opened blank. The empty live-lesson root kept its full-height box above the history view.
+  - **A3 (B4):** the "Lesson questions" value overflowed its dropdown box at 1366×768.
+- **New assertions** (fail without the fix, pass with it; both verified by reverting the fix):
+  - history header and question `toBeInViewport()`;
+  - the dropdown value's right edge stays inside its box.
+- A question change starting at the top is also asserted. It already held without a fix: the stage remounts, so no fix was kept.
+- **Full suite rerun:** 24 passed, 1 failed (00b C2).
+  - **T10**, test bug: the harness walks the practice set in fixture-ID order, and the new fixture IDs were listed after the AI row rather than in bank order (core rows, then AI).
+  - After fixing the ID order (b827c5d0): **25/25**, twice in a row (2.7 min each). Desmos latency in those runs was 257–377 ms.
+
+## Repair round 2 (fix b5f96636; test 6fedf87a)
+
+- **A4 (B6):** on a mistake card, a question reused in many sessions pushed its usage badge past the card edge.
+  - **Fix:** the badge wraps.
+  - **New assertion:** the badge stays inside the card. Verified to fail without the fix.
+- **Reruns:** unit **97/97**; task spec 1/1; full suite **25/25** (2.8 min).
+
+## Checkpoints (final)
+
+| # | Checkpoint | Result | Assertion |
+|---|---|---|---|
+| 1 | My Lessons shows each question with the student's answer, explanation, notes as "Breakdown", saved annotations and Desmos | PASS | The row opens the history overlay, with header and question on screen. It shows "Your answer: A", "Correct answer: C", C `.right` and A `.wrong`, the explanation marker, and a Breakdown heading with the notes marker and **Add** rendered as `<strong>`. The saved highlight "What is" is painted, and the read-only Desmos lists 4242 with no fork button. Q2: "Your answer: B" and "No breakdown for this question." |
+| 2 | Questions show padded session IDs | PASS | `/api/questions` `usedInLesson` ends with the two new padded IDs. The Browse badge equals `Lesson <all IDs>`; the fixture shows `Lesson 900003`; the unused question has no badge. My Lessons rows and mistake tags use padded IDs. |
+| 3 | Each of the three filter options hides exactly the right questions | PASS | For each option: the label is shown and the "N matching questions" count equals the set computed from `/api/questions` plus `/api/lesson-history` attended. The topic rows equal exactly the computed skills. The fixtures show Transitions / Rhetorical Synthesis / Boundaries = 0/1/1 (hide attended), 0/0/1 (hide all) and 1/1/1 (show all). |
+| 4 | A self-paced mistake appears in the mistake log tagged with its session | PASS | Written at set completion: `[RW, B, 0]`, `[SPR, 3, 1]` with `lesson_session_id`. After Leave view, with no page reload, the mistake card for RW shows `Lesson <id>` and Incorrect. The progress marker is Red. |
+| 5 | An instructor-paced wrong answer does not | PASS | Student 6's `/api/progress` and `/api/attempts` deep-equal the values from before the instructor-paced lesson, in which both answers were wrong. No attempt carries that session. |
+| 6 (added) | History refused before the end; live channels clean | PASS | `/api/lesson-history/<id>` returns 404 while live and in review, and 200 once ended. `captureLeaks` (phase-aware) on student 6 across both lessons gives `violations() == []` with frames present. A failed load shows inline on My Lessons with no save banner. |
+| 7 (added) | Admin Lessons tab and Mistakes tag | PASS | Admin → Student 6 → Mistakes: the RW row shows `Lesson <id>`. Lessons: the self row reads `Self-paced · 1 / 2 (50%) · Yes`; the paced row reads `Instructor-paced · 0 / 2 (0%) · No`. |
+| 8 (added) | Full existing suite green | PASS | 25/25, including tasks 00b–08 and the UI suites. |
+
+Artifacts (gitignored): `.omp/pipeline/lessons-09-history-stats/e2e/01-mistakes-lesson-tag … 07-admin-lessons.png`.
+
+## Environment notes
+
+- The workerd `SSLV3_ALERT_CERTIFICATE_UNKNOWN` lines are the known self-signed local TLS noise.
+- The isolated E2E state is cumulative across runs. Since task 09, ended live sessions record usage and self-paced sets write stats. So:
+  - the builder's usage check runs on the fixed-usage fixtures;
+  - the self-paced specs use student 6, not student 1, whose seeded stats the dashboard specs pin.
+- **Incident during this task.** A leftover `git.exe` shim from an earlier session was a symlink to `/usr/bin/git`. Rewriting the shim went through the link and replaced the git binary with a recursive script.
+  - The binary was restored from the identical `/usr/lib/git-core/git`, and `dpkg -V git` is clean. `git fsck` is clean.
+  - Two empty junk files that the runaway processes created in the repo root were deleted.
+  - The shim is now a plain script that calls `/usr/bin/git` directly.

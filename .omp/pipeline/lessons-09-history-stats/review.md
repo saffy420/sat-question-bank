@@ -41,3 +41,33 @@
   - Three filter options: unit; e2e blocked by B1.
 
 **Verdict before repairs: 2 blockers (B1, B2)**, leading to repair round 1.
+
+## Repair round 1
+
+**Fix commits:** `e5c7e2d2`, `04c8814d`. **Test commits:** `fa2097dd`, `64b35051`, `b827c5d0`.
+
+- **B1:**
+  - `/api/lesson-history` also returns `usage`: the padded session IDs of every question used in a session the student attended, from one query.
+  - `loadProgress` merges it into `QS[].usedInLesson`. That covers sign-in, leaving a finished lesson and the reload after a lesson.
+  - Unit tests: the usage map for a participant, and `{}` for a non-participant. E2E checkpoints 2 and 3 pass without a page reload.
+- **B2:** history load errors show in `#lessons-error` on My Lessons. E2E: a routed 503 shows "Could not load this lesson." and no `#sync-bar`.
+- **B3** (found in round-1 screenshots): while the history view is open, the empty live-lesson root is hidden. E2E: header and question `toBeInViewport()`; fails without the fix.
+- **B4** (found in round-1 screenshots): `.dd-t > span:first-child { min-width: 0 }`, so a long dropdown value ellipsizes as `.dd-val` already intends. It affects only values that did not fit. E2E asserts the value stays inside its box; fails without the fix.
+- **Re-review of the repair diff:**
+  - The only new data is the usage map, which is public by §2.
+  - The `.dd-t` rule changes nothing for values that fit.
+  - No live-channel payload changed.
+  - A scroll reset tried for question changes did nothing (the stage remounts), so it was removed. The e2e assertion for it stays.
+- **Reruns:** unit 97/97; typecheck clean; task spec 1/1; full suite 24/25. **T10** is a test bug (fixture ID order in 00b), fixed in `b827c5d0`. After that: **25/25** twice.
+
+## Repair round 2
+
+**Fix commit:** `b5f96636`. **Test commit:** `6fedf87a`.
+
+- **B6** (found in round-1 screenshots): a usage badge listing many sessions ran past the mistake card. `.tag.t-used` now wraps. E2E asserts the badge stays inside the card; fails without the fix.
+- **Re-review:** a one-rule CSS change, scoped to `.t-used`.
+- **Reruns:** unit 97/97; task spec 1/1; full suite **25/25**.
+
+**Verdict after round 2: PASS.**
+- Open non-blocking items: N1 (history shows the current bank row), N2 (unused `notesHTML` re-export in `lesson-ui/index.tsx`), N3 (two score functions over different inputs) and N4 (the D1 batch size at class scale is a manual check).
+- No blocker survived two rounds.
