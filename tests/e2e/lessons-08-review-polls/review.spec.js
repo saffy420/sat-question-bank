@@ -178,6 +178,8 @@ test('task08 overview, review polls and review mode', async ({ browser }) => {
 
     // 7. Review mode: correct answer, own recorded answer, explanation; annotations sync (5).
     for (const page of pages) await expect(page.locator('.lesson-phase')).toHaveText('REVIEW');
+    // Review is untimed: no set clock or timer control on screen.
+    for (const page of pages) { await expect(page.locator('#lesson-clock')).toHaveText(''); await expect(page.getByRole('button', { name: /timer/ })).toHaveCount(0); }
     await expect(one.locator('.lesson-reveal')).toContainText('Correct answer: A');
     await expect(one.locator('.lesson-verdict')).toContainText('Your answer: B');
     await expect(late.locator('.lesson-verdict')).toContainText('Your answer: A');
