@@ -36,6 +36,19 @@ export function DesmosFollower({ apiKey, state }: { apiKey?: string | null; stat
     calc.setState(state, { allowUndo: false });
     applied.current = text;
   }, [calc, state, forked]);
+  // Following is read-only but still scrollable: block every input except the wheel.
+  useEffect(() => {
+    const el = host.current;
+    if (!el || forked) return;
+    // Touch only stops propagation so touchscreen scrolling still works.
+    const block = (e: Event) => { if (e.type !== 'touchstart') e.preventDefault(); e.stopPropagation(); };
+    const unfocus = (e: FocusEvent) => { (e.target as HTMLElement).blur?.(); };
+    const types = ['pointerdown', 'mousedown', 'click', 'dblclick', 'touchstart', 'keydown', 'keypress', 'beforeinput', 'input', 'paste', 'drop', 'contextmenu'];
+    for (const type of types) el.addEventListener(type, block, { capture: true, passive: false });
+    el.addEventListener('focusin', unfocus, { capture: true });
+    if (el.contains(document.activeElement)) (document.activeElement as HTMLElement).blur?.();
+    return () => { for (const type of types) el.removeEventListener(type, block, { capture: true }); el.removeEventListener('focusin', unfocus, { capture: true }); };
+  }, [calc, forked]);
   const fork = () => { calc?.updateSettings(EDIT_OPTIONS); setForked(true); };
   const back = () => {
     if (!calc) return;
@@ -51,7 +64,7 @@ export function DesmosFollower({ apiKey, state }: { apiKey?: string | null; stat
         : <button id="lesson-desmos-fork" onClick={fork} disabled={!calc}>Try it yourself</button>}
     </div>
     {error ? <p role="alert">{error}</p> : null}
-    <div className="lesson-desmos-calc" ref={host} inert={!forked} data-ready={calc ? 'true' : undefined}/>
+    <div className="lesson-desmos-calc" ref={host} data-ready={calc ? 'true' : undefined}/>
   </aside>;
 }
 

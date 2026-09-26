@@ -541,12 +541,12 @@ body {
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  min-height: 460px;
+  min-height: 640px;
   border-left: 1px solid var(--line);
 }
 :where(#admin-root) .live-desmos-calc {
   flex: 1;
-  min-height: 420px;
+  min-height: 600px;
 }
 :where(#admin-root) .live-desmos-note {
   margin: 0;
