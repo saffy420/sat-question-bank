@@ -1,10 +1,10 @@
 ```text
 Task: lessons-06-desmos
 Branch: claude/lessons-06-desmos   Base: main
-Last completed step: 4 (implement + unit tests 79/79)   Commit: 235d21a5
-Next step: Step 5 test round — write tests/e2e/lessons-06-desmos/desmos.spec.js covering spec.md checkpoints 1–8, run it + full suite with PW_CHROMIUM_PATH=/opt/pw-browsers/chromium, write e2e.md.
+Last completed step: 5 (test round: task 2/2, full 21/21, unit 79/79)   Commit: 12b38562
+Next step: Step 6 review — git diff main...HEAD against spec.md and BRIEF §12.6; write review.md.
 Open blockers: none
-Decisions made this task: BRIEF.md replaced verbatim; G1–G6 in docs/lessons/AMENDMENTS.md. Pipeline artifacts in .omp/pipeline/. PW_CHROMIUM_PATH + CDN cache for sandbox e2e; git.exe shim for unit tests. Desmos only in REVEALED (same gate as annotations). Desmos API needs 'unsafe-eval' + worker-src blob: (measured) → LESSON_CSP only on /app and /admin; _headers stays strict (browsers would enforce both). DESMOS_API_KEY env; demo key only on 127.0.0.1/localhost; else panel says unavailable. State under DO key 'desmos'; D1 only at next/endSession.
+Decisions made this task: BRIEF.md replaced verbatim; G1–G6 in docs/lessons/AMENDMENTS.md. Pipeline artifacts in .omp/pipeline/. PW_CHROMIUM_PATH + CDN cache for sandbox e2e; git.exe shim for unit tests. Desmos only in REVEALED (same gate as annotations). Desmos API needs 'unsafe-eval' + worker-src blob: (measured) → LESSON_CSP only on /app and /admin; _headers stays strict (browsers would enforce both). DESMOS_API_KEY env; demo key only on 127.0.0.1/localhost; else panel says unavailable. State under DO key 'desmos'; D1 only at next/endSession. Follower uses a capture-phase input guard (not inert) so the list scrolls. CDP throttle does not delay WS → Slow 3G via shapedOrigin TCP relay.
 PR: pending
 Instructions: docs/lessons/BRIEF.md — re-read §0, §12, §13 + §7.2
 ```
