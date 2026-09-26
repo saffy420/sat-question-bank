@@ -277,7 +277,8 @@ export function Live({ id }: { id: string }) {
         : 0) || a.name.localeCompare(b.name),
   );
   const received = rows.filter((x) => x.r?.answer).length;
-  const remaining = s.endsAt
+  // A finished self-paced set has no clock left to show.
+  const remaining = s.endsAt && !(self && s.status !== "live")
     ? Math.ceil(Math.max(0, s.endsAt - now - offset.current) / 1000)
     : null;
   const roster = (
