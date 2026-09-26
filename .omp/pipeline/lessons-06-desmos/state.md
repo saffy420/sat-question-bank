@@ -1,10 +1,10 @@
 ```text
 Task: lessons-06-desmos
 Branch: claude/lessons-06-desmos   Base: main
-Last completed step: 0 (preflight — PASS)   Commit: fbde0b58 (+ this state commit)
-Next step: §12.3 step 1 (Start): read PLAN.md, STATUS.md, .opencode/pipeline/lessons-05-annotations/handoff.md; then step 2 research (Desmos API) and step 3 spec.md.
+Last completed step: 4 (implement + unit tests 79/79)   Commit: 235d21a5
+Next step: Step 5 test round — write tests/e2e/lessons-06-desmos/desmos.spec.js covering spec.md checkpoints 1–8, run it + full suite with PW_CHROMIUM_PATH=/opt/pw-browsers/chromium, write e2e.md.
 Open blockers: none
-Decisions made this task: BRIEF.md replaced verbatim; prior G1–G6 amendments moved to docs/lessons/AMENDMENTS.md (still binding). New pipeline artifacts go to .omp/pipeline/ per new brief; tasks 00–05 artifacts remain in .opencode/pipeline/. Playwright config accepts PW_CHROMIUM_PATH (run e2e with PW_CHROMIUM_PATH=/opt/pw-browsers/chromium) because the sandbox browser (chromium-1194) does not match Playwright 1.63's revision and `playwright install` is not allowed here. E2E serves pinned jsdelivr assets from a curl-filled cache (tests/e2e/cdn-cache.js) because sandbox Chromium drops proxied CDN connections. Unit tests need a scratchpad `git.exe` → `git` shim on PATH (tests/test_grade.cjs spawns git.exe).
+Decisions made this task: BRIEF.md replaced verbatim; G1–G6 in docs/lessons/AMENDMENTS.md. Pipeline artifacts in .omp/pipeline/. PW_CHROMIUM_PATH + CDN cache for sandbox e2e; git.exe shim for unit tests. Desmos only in REVEALED (same gate as annotations). Desmos API needs 'unsafe-eval' + worker-src blob: (measured) → LESSON_CSP only on /app and /admin; _headers stays strict (browsers would enforce both). DESMOS_API_KEY env; demo key only on 127.0.0.1/localhost; else panel says unavailable. State under DO key 'desmos'; D1 only at next/endSession.
 PR: pending
 Instructions: docs/lessons/BRIEF.md — re-read §0, §12, §13 + §7.2
 ```
