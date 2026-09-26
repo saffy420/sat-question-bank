@@ -152,6 +152,9 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     await expect(student.locator('#lesson-live')).toBeVisible();
     await expect(student.locator('.history-header h1')).toHaveText(`Lesson ${pad(paced.sessionId)} · ${(await (await six.request.get(`/api/lesson-history/${paced.sessionId}`)).json()).title}`);
     await expect(student.locator('#lesson-card[data-ready]')).toBeVisible();
+    // On screen, not just in the DOM: header and question sit at the top of the overlay.
+    await expect(student.locator('.history-header h1')).toBeInViewport();
+    await expect(student.locator('#lesson-card .lesson-stem')).toBeInViewport();
     await expect(student.locator('#history-verdict')).toHaveText('Your answer: A');
     await expect(student.locator('#history-correct')).toHaveText('Correct answer: C');
     await expect(student.locator('#lesson-card [data-lesson-choice="C"] .choice')).toHaveClass(/right/);
@@ -164,7 +167,10 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     await expect(student.locator('#lesson-desmos .dcg-expressionlist')).toContainText('4242');
     await expect(student.locator('#lesson-desmos-fork')).toHaveCount(0);
     await shot(student, '03-history-math-annotation-desmos');
+    await student.locator('#history-breakdown').scrollIntoViewIfNeeded();
+    await expect(student.locator('.history-nav')).not.toBeInViewport();
     await student.locator('#history-next').click();
+    await expect(student.locator('.history-nav')).toBeInViewport();
     await expect(student.locator('.lesson-position')).toHaveText('Question 2 · 2 of 2');
     await expect(student.locator('#history-verdict')).toHaveText('Your answer: B');
     await expect(student.locator('#history-correct')).toHaveText('Correct answer: A');
@@ -208,6 +214,8 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
       ['show-all', 'Show all', { Transitions: 1, 'Rhetorical Synthesis': 1, Boundaries: 1 }]]) {
       await usage(student, mode);
       await expect(student.locator('#dd-lesson .dd-val')).toHaveText(label);
+      // The long option label stays inside its box (ellipsized) at 1366×768.
+      expect(await student.locator('#dd-lesson .dd-t').evaluate(t => t.querySelector('.dd-val').getBoundingClientRect().right <= t.getBoundingClientRect().right)).toBe(true);
       await expect(student.locator('#start-count')).toHaveText(`${expected[mode].length} matching questions`);
       for (const [skill, n] of Object.entries(topics)) await expect(student.locator(`#topic-list .tl-row[data-s="${skill}"]`)).toHaveCount(n);
       const skills = [...new Set(expected[mode].map(q => q.skill))].sort();
