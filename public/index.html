@@ -175,6 +175,7 @@ img { max-width: 100%; height: auto; }
 .dd-t:hover:not(:disabled) { border-color: var(--border2); background: var(--panel); }
 .dd-t .dd-lab { display: block; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); }
 .dd-t .dd-val { display: block; font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dd-t > span:first-child { min-width: 0; }   /* lets a long value ellipsize instead of pushing the box wider */
 .dd-t .chev { margin-left: auto; flex: 0 0 14px; color: var(--dim); transition: transform .14s; }
 .dd.open .dd-t { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
 .dd.open .dd-t .chev { transform: rotate(180deg); }
@@ -3631,9 +3632,10 @@ async function openLessonHistory(id) {
     const r = await fetch('/api/lesson-history/' + encodeURIComponent(id), { headers: await sbHeaders() });
     if (!r.ok) throw new Error(r.status === 404 ? 'This lesson is not available yet.' : 'Could not load this lesson.');
     const history = await r.json();
-    $('lesson-live').classList.remove('hide');
+    // The live lesson root keeps a full-height box even when empty; hide it under the history.
+    $('lesson-content').classList.add('hide'); $('lesson-live').classList.remove('hide');
     closeHistory = mountHistory($('lesson-history'), history, mathify, () => {
-      closeHistory?.(); closeHistory = null; $('lesson-live').classList.add('hide');
+      closeHistory?.(); closeHistory = null; $('lesson-live').classList.add('hide'); $('lesson-content').classList.remove('hide');
     });
   } catch (e) { $('lessons-error').textContent = e.message; }
 }
