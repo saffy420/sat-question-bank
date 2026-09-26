@@ -133,6 +133,8 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     // 4. The self-paced mistake is in the mistake log, tagged with its session.
     await expect(card.locator('.t-lesson')).toHaveText(`Lesson ${pad(self.sessionId)}`);
     await expect(card.locator('.t-wrong')).toHaveText('Incorrect');
+    // However many sessions reused the question, its badge wraps inside the card.
+    expect(await card.evaluate(c => c.querySelector('.t-used').getBoundingClientRect().right <= c.getBoundingClientRect().right)).toBe(true);
     await shot(student, '01-mistakes-lesson-tag');
     const after = await record(six);
     expect(after.progress.find(x => x.question_id === RW).marker).toBe('Red');
