@@ -147,13 +147,9 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     }
 
     await teacher.locator('[data-tool="laser"]').click();
-    const dot = student.locator('#lesson-card canvas.lesson-ink');
+    const dot = student.locator('#lesson-card .lesson-laser');
     await teacher.mouse.move(box.x + 260, box.y + 120);
-    await expect.poll(() => dot.evaluate(el => {
-      const data = el.getContext('2d').getImageData(0, 0, el.width, el.height).data;
-      for (let i = 0; i < data.length; i += 4) if (data[i] === 227 && data[i+1] === 32 && data[i+2] === 32 && data[i+3] > 0) return true;
-      return false;
-    }), { intervals: [20, 50, 100] }).toBe(true);
+    await expect(dot).toBeVisible();
     await screenshot(student, '08-student-live-laser');
 
     const persisted = await layer();

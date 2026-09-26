@@ -19,7 +19,7 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import { Stage } from "../lesson-ui/Stage";
-import type { Snapshot, Laser, Mark } from "../lesson-ui/types";
+import type { Snapshot, Mark } from "../lesson-ui/types";
 import * as Ink from "/shared/annotations.js";
 import { isRight } from "/shared/stats.js";
 import {
@@ -123,13 +123,10 @@ export function LiveRooms() {
 
 export function Live({ id }: { id: string }) {
   const [s, setState] = useState<Room>();
-  const room = useRef<Room | undefined>(undefined);
-  room.current = s;
   const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
   const [connected, setConnected] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [laser, setLaser] = useState<Laser | null>(null);
   const socket = useRef<WebSocket | null>(null);
   const offset = useRef(0);
   const [sort, setSort] = useState("name");
@@ -144,8 +141,7 @@ export function Live({ id }: { id: string }) {
   useEffect(() => {
     let alive = true,
       best = Infinity,
-      retry: ReturnType<typeof setTimeout>,
-      laserTimer: ReturnType<typeof setTimeout>;
+      retry: ReturnType<typeof setTimeout>;
     offset.current = 0;
     setState(undefined);
     setError("");
@@ -187,11 +183,7 @@ export function Live({ id }: { id: string }) {
                         : [...(old.annotations || []), m.op],
                 },
           );
-        else if (m.type === "laser" && room.current?.questionId === m.questionId) {
-          setLaser(m);
-          clearTimeout(laserTimer);
-          laserTimer = setTimeout(() => setLaser(null), 300);
-        } else if (m.type === "error") {
+        else if (m.type === "error") {
           setError(m.error);
           api<Room>(`/api/lessons/${id}`)
             .then((room) => {
@@ -227,7 +219,6 @@ export function Live({ id }: { id: string }) {
     return () => {
       alive = false;
       clearTimeout(retry);
-      clearTimeout(laserTimer);
       clearInterval(clock);
       socket.current?.close(1000);
       socket.current = null;
@@ -235,7 +226,6 @@ export function Live({ id }: { id: string }) {
   }, [id, version]);
   useEffect(() => {
     setGroup(null);
-    setLaser(null);
   }, [s?.questionId]);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
@@ -375,7 +365,6 @@ export function Live({ id }: { id: string }) {
               <InstructorStage
                 key={s.questionId}
                 s={s}
-                laser={laser}
                 send={send}
                 strikeMode={strikeMode}
                 struck={struck[s.questionId]}
@@ -594,7 +583,6 @@ export function Live({ id }: { id: string }) {
 
 function InstructorStage({
   s,
-  laser,
   send,
   strikeMode,
   struck,
@@ -602,7 +590,6 @@ function InstructorStage({
   onStrike,
 }: {
   s: Room;
-  laser: Laser | null;
   send: Send;
   strikeMode: boolean;
   struck?: string[];
@@ -626,8 +613,7 @@ function InstructorStage({
     if (!card || s.phase !== "REVEALED") return;
     let points: number[][] = [],
       drawing = false,
-      interval: ReturnType<typeof setInterval> | undefined,
-      lastLaser = 0;
+      interval: ReturnType<typeof setInterval> | undefined;
     card.style.cursor = !tool
       ? ""
       : ["pen", "erase", "laser"].includes(tool)
@@ -639,6 +625,38 @@ function InstructorStage({
         Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
         Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)),
       ];
+    };
+    // Laser: coalesce pointermoves into at most one send per animation frame and
+    // ~30 Hz, and skip unchanged positions.
+    const dot = Ink.laser(card);
+    let aim: { x: number; y: number } | null = null,
+      sent: { x: number; y: number } | null = null,
+      sentAt = 0,
+      frame = 0;
+    const laserSend = (fields: Record<string, unknown>, now = performance.now()) => {
+      latest.current.send("laser", {
+        questionId: latest.current.s.questionId,
+        ...fields,
+      });
+      sentAt = now;
+    };
+    // Frame timestamps: every second 60 Hz frame (~30 Hz); 28 ms absorbs frame jitter.
+    const pump = (now: number) => {
+      frame = 0;
+      if (!aim || (sent && aim.x === sent.x && aim.y === sent.y)) return;
+      if (now - sentAt < 28) {
+        frame = requestAnimationFrame(pump);
+        return;
+      }
+      sent = aim;
+      laserSend(aim, now);
+    };
+    const laserOff = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      aim = null;
+      dot.hide();
+      sent = null;
     };
     const mark = (op: Partial<Mark>) =>
       latest.current.send("annotate", {
@@ -670,14 +688,11 @@ function InstructorStage({
         points.push(point(e));
         if (points.length >= 32) flush();
       }
-      if (tool === "laser" && Date.now() - lastLaser >= 50) {
-        lastLaser = Date.now();
+      if (tool === "laser") {
         const [x, y] = point(e);
-        latest.current.send("laser", {
-          questionId: latest.current.s.questionId,
-          x,
-          y,
-        });
+        aim = { x: Math.round(x * 1e4) / 1e4, y: Math.round(y * 1e4) / 1e4 };
+        dot.show(aim);
+        if (!frame) frame = requestAnimationFrame(pump);
       }
     };
     const up = (e: PointerEvent) => {
@@ -719,8 +734,11 @@ function InstructorStage({
     card.addEventListener("pointermove", move);
     card.addEventListener("pointerup", up);
     card.addEventListener("pointercancel", up);
+    card.addEventListener("pointerleave", laserOff);
     return () => {
       clearInterval(interval);
+      laserOff();
+      card.removeEventListener("pointerleave", laserOff);
       card.removeEventListener("pointerdown", down);
       card.removeEventListener("pointermove", move);
       card.removeEventListener("pointerup", up);
@@ -779,7 +797,6 @@ function InstructorStage({
             id="live-card"
             revealed
             marks={s.annotations}
-            laser={laser}
             mathify={mathify}
             onReady={setCard}
             strikeMode={strikeMode}

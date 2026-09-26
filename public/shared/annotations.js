@@ -57,7 +57,7 @@ export function paint(card, layer) {
     }
   }
 }
-export function overlay(card, layer, laser = null) {
+export function overlay(card, layer) {
   let canvas = card.querySelector(':scope > canvas.lesson-ink');
   if (!canvas) { canvas = document.createElement('canvas'); canvas.className = 'lesson-ink'; canvas.style.cssText = 'position:absolute;inset:0;z-index:2;pointer-events:none'; card.prepend(canvas); }
   const width = card.clientWidth, height = card.clientHeight;
@@ -72,8 +72,38 @@ export function overlay(card, layer, laser = null) {
     ctx.beginPath(); mark.points.forEach(([x,y],i) => i ? ctx.lineTo(x*width,y*height) : ctx.moveTo(x*width,y*height));
     ctx.stroke(); if (mark.points.length === 1) { ctx.beginPath(); ctx.arc(mark.points[0][0]*width,mark.points[0][1]*height,2,0,Math.PI*2); ctx.fill(); }
   }
-  if (laser) { ctx.fillStyle = '#e32020'; ctx.beginPath(); ctx.arc(laser.x*width,laser.y*height,7,0,Math.PI*2); ctx.fill(); }
 }
+// Laser: one absolutely positioned dot per card, moved only with transform. Each packet
+// retargets a short linear transform transition, so the compositor interpolates every frame
+// between packets without main-thread work; the canvas and React tree are never repainted.
+const lasers = new WeakMap();
+const GLIDE = 'transform 50ms linear';
+export function laser(card) {
+  const cached = lasers.get(card);
+  if (cached?.dot.isConnected) return cached;
+  const dot = document.createElement('div');
+  dot.className = 'lesson-laser'; dot.hidden = true; dot.setAttribute('aria-hidden', 'true');
+  card.append(dot);
+  let point = null;
+  const move = glide => {
+    dot.style.transition = glide ? GLIDE : 'none';
+    dot.style.transform = `translate3d(${point.x * card.clientWidth}px,${point.y * card.clientHeight}px,0)`;
+  };
+  const view = {
+    dot,
+    show(next) {
+      const appearing = dot.hidden;
+      point = next; move(!appearing);
+      dot.hidden = false;
+    },
+    hide() { point = null; dot.hidden = true; },
+    // Layout changed under the dot (resize, reflow): jump, don't glide across the page.
+    refresh() { if (point) move(false); }
+  };
+  lasers.set(card, view);
+  return view;
+}
+export function refreshLaser(card) { lasers.get(card)?.refresh(); }
 export function follow(card, op) {
   let target;
   if (op.type === 'highlight' || op.type === 'strike') {

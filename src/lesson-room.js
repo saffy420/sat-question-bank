@@ -183,8 +183,13 @@ export class LessonRoom {
     if (m.type === 'annotate' || m.type === 'laser') {
       if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
       if (m.type === 'laser') {
-        if (Date.now() - (this.lastLaser || 0) < 50) return;
+        // Presenter sends ~30 Hz; the floor sheds anything faster.
+        if (Date.now() - (this.lastLaser || 0) < 25) return;
         this.lastLaser = Date.now();
+        // Relay to everyone except the sender (it draws its own dot) and without serverNow.
+        const frame = JSON.stringify({ type:'laser', questionId:m.questionId, x:m.x, y:m.y });
+        for (const peer of this.sockets()) if (peer !== ws) try { peer.send(frame); } catch { /* disconnected */ }
+        return;
       } else {
         const layer = s.annotations?.[m.questionId] || [];
         const op = m.op;
@@ -204,7 +209,7 @@ export class LessonRoom {
         (s.annotations ||= {})[m.questionId] = next;
         await this.save(s);
       }
-      for (const peer of this.sockets()) try { this.send(peer, { type:m.type, questionId:m.questionId, ...(m.type === 'laser' ? { x:m.x,y:m.y } : { op:m.op }) }); } catch { /* disconnected */ }
+      for (const peer of this.sockets()) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:m.op }); } catch { /* disconnected */ }
       return;
     }
     if (a.role === 'student') {

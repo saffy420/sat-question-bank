@@ -82,6 +82,8 @@
 .lesson-stage .gridin { width:200px; height:52px; border:2px solid #555; border-radius:4px; background:#fff; color:#171717; font:24px 'Lesson Serif',serif; padding:6px 12px; }
 .lesson-stage .spr-preview { grid-column:1/-1; font-size:17px; min-height:30px; }
 .lesson-stage .lesson-ink { max-width:none; }
+.lesson-stage .lesson-laser { position:absolute; left:0; top:0; z-index:3; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:#e32020; box-shadow:0 0 0 3px rgba(227,32,32,.25), 0 0 14px 5px rgba(227,32,32,.35); pointer-events:none; will-change:transform; }
+.lesson-stage .lesson-laser[hidden] { display:none; }
 .lesson-footer { position:fixed; left:0; bottom:0; right:0; z-index:5; display:grid; grid-template-columns:1fr 1fr 1fr; align-items:center; padding:18px 28px; height:80px; background:#fff; }
 .lesson-footer::before { top:0; bottom:auto; }
 .lesson-position { justify-self:center; color:#fff; background:#171717; padding:7px 18px; border-radius:8px; font-weight:500; }

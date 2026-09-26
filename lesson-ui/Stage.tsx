@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import * as Renderer from '/shared/renderer.js';
 import * as Ink from '/shared/annotations.js';
-import type { Mark, Laser, Question } from './types';
+import type { Mark, Question } from './types';
 
 export const LOGICAL_WIDTH = 1240;
 import { escapeHTML } from './escape';
@@ -15,7 +15,6 @@ export type StageProps = {
   revealed?: boolean;
   marks?: Mark[];
   privateMarks?: Mark[];
-  laser?: Laser | null;
   mathify: (element: HTMLElement) => void;
   onSelect?: (answer: string) => void;
   onReady?: (card: HTMLDivElement) => void;
@@ -38,7 +37,8 @@ export function Stage(props: StageProps) {
     const p = latest.current;
     Ink.blocks(card.current);
     Ink.paint(card.current, [...(p.marks || []), ...(p.privateMarks || [])]);
-    (Ink.overlay as (card: HTMLElement, marks: Mark[], laser: Laser | null) => void)(card.current, p.marks || [], p.laser || null);
+    Ink.overlay(card.current, p.marks || []);
+    Ink.refreshLaser(card.current);
   };
   useLayoutEffect(() => {
     const el = card.current!, wrapper = host.current!;
@@ -136,7 +136,7 @@ export function Stage(props: StageProps) {
       button.setAttribute('aria-label', struck ? `Undo cross out of choice ${letter}` : `Cross out choice ${letter}`);
     });
   }, [props.strikeMode, props.struck]);
-  useLayoutEffect(paint, [props.marks, props.privateMarks, props.laser]);
+  useLayoutEffect(paint, [props.marks, props.privateMarks]);
   return <div className="stage-host" ref={host}><div id={props.id || 'lesson-card'} ref={card} /></div>;
 }
 

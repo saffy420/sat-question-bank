@@ -217,6 +217,8 @@ test('annotation protocol gates role, shape, sizes and phase; laser never persis
   assert.deepEqual(student.sent.at(-1).op,mark); assert.equal(f.writes.length,0);
   await room.webSocketMessage(teacher.ws,JSON.stringify({type:'laser',questionId:'q',x:.5,y:.5}));
   assert.equal(student.sent.at(-1).type,'laser'); assert.deepEqual((await room.state()).annotations.q,[mark]);
+  // Relayed to peers only (the presenter draws its own dot), without serverNow.
+  assert.deepEqual(student.sent.at(-1),{type:'laser',questionId:'q',x:.5,y:.5}); assert.equal(teacher.sent.some(m => m.type === 'laser'),false);
   assert.equal(JSON.stringify(room.snapshot({...f.s,phase:'ANSWERING',annotations:{q:[mark]}},{role:'student',userId:'alice'})).includes('mark1'),false);
   assert.equal(JSON.stringify(room.snapshot({...await room.state()},{role:'student',userId:'alice'})).includes('PRIVATE_NOTE'),false);
   await room.webSocketMessage(teacher.ws,'é'.repeat(1100));
