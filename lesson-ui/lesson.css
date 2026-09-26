@@ -65,7 +65,9 @@
 .lesson-stage .stage-strike[aria-pressed=true] .stage-strike-undo { display:inline; }
 .lesson-stage .choice-row { display:block; margin:0; border:0; padding:0; gap:0; background:none; }
 .lesson-stage .choice { display:flex; align-items:center; gap:15px; min-height:58px; border:1px solid #555; border-radius:10px; padding:11px 14px; background:#fff; color:#171717; font:inherit; box-shadow:none; margin:0; }
-.lesson-stage .choice .badge { display:inline-flex; flex:none; align-items:center; justify-content:center; width:27px; height:27px; margin:0; border:1px solid #444; border-radius:50%; background:#fff; color:#171717; font:17px/1 'Lesson Sans',sans-serif; font-weight:400; }
+/* Choice text is selectable (inside a button) so it can be highlighted; the letter badge is not. */
+.lesson-stage .choice>span:last-child { -webkit-user-select:text; user-select:text; }
+.lesson-stage .choice .badge { -webkit-user-select:none; user-select:none; display:inline-flex; flex:none; align-items:center; justify-content:center; width:27px; height:27px; margin:0; border:1px solid #444; border-radius:50%; background:#fff; color:#171717; font:17px/1 'Lesson Sans',sans-serif; font-weight:400; }
 .lesson-stage .badge { position:relative; }
 .lesson-stage .stage-verdict { display:inline-flex; flex:none; align-items:center; }
 .lesson-stage .choice.right .stage-verdict { color:#26783d; }

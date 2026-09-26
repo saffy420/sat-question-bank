@@ -52,7 +52,7 @@ export function Stage(props: StageProps) {
     el.className = `lesson-stage ${math ? 'stage-math' : ''} ${single ? 'stage-single' : 'stage-reading'}`;
     el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off"><button id="lesson-pick" type="button">Select</button><p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
     ready.current = false;
-    let alive = true;
+    let alive = true, highlighted = false;
     const resize = () => {
       const scale = Math.min(1, wrapper.clientWidth / LOGICAL_WIDTH);
       el.style.transform = `scale(${scale})`;
@@ -75,6 +75,8 @@ export function Stage(props: StageProps) {
       if (target.closest('.stage-strike-toggle')) { latest.current.onStrikeMode?.(); return; }
       const strike = target.closest<HTMLElement>('[data-strike]');
       if (strike) { latest.current.onStrike?.(strike.dataset.strike!); return; }
+      // The click that ends a highlight drag inside a choice must not select that choice.
+      if (highlighted) { highlighted = false; return; }
       if (!latest.current.active || !window.getSelection()?.isCollapsed) return;
       const button = target.closest<HTMLButtonElement>('[data-lesson-choice]');
       if (button) latest.current.onSelect?.(button.dataset.lessonChoice!);
@@ -92,10 +94,12 @@ export function Stage(props: StageProps) {
       if (!anchor) return;
       latest.current.onPrivate({ type: 'highlight', id: crypto.randomUUID(), ...anchor, color: '#75dbaa' });
       window.getSelection()?.removeAllRanges();
+      highlighted = true;
     };
-    el.addEventListener('click', click); el.addEventListener('input', input); el.addEventListener('pointerup', pointerup);
+    const pointerdown = () => { highlighted = false; };
+    el.addEventListener('click', click); el.addEventListener('input', input); el.addEventListener('pointerup', pointerup); el.addEventListener('pointerdown', pointerdown);
     resize();
-    return () => { alive = false; ready.current = false; observer.disconnect(); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); };
+    return () => { alive = false; ready.current = false; observer.disconnect(); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
   }, [props.question.id]);
   useLayoutEffect(() => {
     const el = card.current!;
