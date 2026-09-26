@@ -248,3 +248,27 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 **Manual checks:** Desmos sync on a real Chromebook; set the `DESMOS_API_KEY` secret before deploy (demo key is local-only); approve the CSP scope.
 
 **Known pre-existing issue:** `LessonRoom.webSocketClose` throws on close code 1006 (logged only).
+
+---
+
+## 2026-09-26 — Task 07: Self-paced lessons (Claude Code pipeline; review PASS)
+
+**Shipped (BRIEF §8.1–8.5):**
+- **Shared clock:** Σ question times. Students move freely with Back/Next, a navigator and ⚑ flags, then use a review page and **Submit all** (with the brief's confirmation modal).
+- **Completion:** auto-submit at the shared end (after the 750 ms grace). The set also ends early when every joined student has submitted, or on **End session**. Completion writes every assigned response to D1 once and sets `status=review` (G6); a second **End session** ends the session.
+- **Late joiners:** they get a subset fitted once to the time left, hardest first, stored in `session_participants`. It is never recomputed.
+- **Time on question:** the sum of visits, bounded by server time and replay-safe (G5).
+- **Instructor view:** a graded student × question grid (■ □ ◆ · ░) and per-question cards (answered x/assigned, accuracy, avg time, distribution with names · time).
+- **Secrecy:** students see no correctness, explanation or notes in this task.
+
+**E2E:** task 2/2; full suite 23/23 (twice). Unit 85/85, including the exact §8.2 and §8.5 cases.
+
+**Measured:** 25 students × 20 questions → student full snapshot 21.7 KB (once per join/connect/start), student ack 582 B, instructor refresh 23.1 KB (≤ 4/s; 56.5 KB before review fix B6).
+
+**Deviations:**
+1. End session finishes the set first, then ends the session (G6).
+2. A time delta above server-elapsed time is cut to the elapsed time rather than dropped whole.
+3. Flags are kept on the student's page only.
+4. Instructor-paced time accounting is unchanged (single server-measured segment).
+
+**Manual checks:** self-paced run on real Chromebooks; a late joiner's set and ░ in the grid; accumulated time after revisiting a question.
