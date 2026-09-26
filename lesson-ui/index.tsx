@@ -10,18 +10,22 @@ import './lesson.css';
 export { Stage, LOGICAL_WIDTH } from './Stage';
 export type { StageProps } from './Stage';
 
+const NONE: Mark[] = [];
+
 function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerModel; bridge: Bridge; laser: Laser | null; terminal: string; followMark: Mark | null }) {
   const { snapshot: s, picked, remaining } = model;
   const [hiddenClock, hideClock] = useState(false);
   const [privateOn, setPrivateOn] = useState(false);
-  const [privateMarks, setPrivateMarks] = useState<Mark[]>([]);
+  // Private, memory-only marks keyed by question so they survive moving between questions.
+  const [privateMarks, setPrivateMarks] = useState<Record<string, Mark[]>>({});
   const [follow, setFollow] = useState(true);
   const [confirm, setConfirm] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const explanation = useRef<HTMLDivElement>(null);
   const revealed = s.phase === 'REVEALED' || s.phase === 'ENDED';
   const active = s.phase === 'ANSWERING' && remaining > 0 && !s.locked && !model.lockPending && !terminal;
-  useLayoutEffect(() => { setPrivateMarks([]); setConfirm(null); }, [s.questionId]);
+  const ownMarks = privateMarks[s.questionId] || NONE;
+  useLayoutEffect(() => { setConfirm(null); }, [s.questionId]);
   useLayoutEffect(() => { if (!active) setConfirm(null); }, [active]);
   useLayoutEffect(() => {
     if (confirm) dialog.current?.showModal();
@@ -45,7 +49,7 @@ function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerM
       <nav className="lesson-tools" aria-label="Lesson tools">
         <button id="lesson-private" aria-pressed={privateOn} onClick={() => setPrivateOn(!privateOn)}><Highlighter aria-hidden="true"/><span>Annotate</span></button>
         <label className="lesson-follow-tool"><Focus aria-hidden="true"/><span>Follow me</span><input id="lesson-follow" type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /></label>
-        <details className="lesson-more"><summary><EllipsisVertical aria-hidden="true"/><span>More</span></summary><div><button id="lesson-private-clear" onClick={() => setPrivateMarks([])}><Eraser aria-hidden="true"/>Clear private highlights</button><button id="lesson-leave" onClick={bridge.leave}><LogOut aria-hidden="true"/>Leave view</button></div></details>
+        <details className="lesson-more"><summary><EllipsisVertical aria-hidden="true"/><span>More</span></summary><div><button id="lesson-private-clear" onClick={() => setPrivateMarks(all => ({ ...all, [s.questionId]: [] }))}><Eraser aria-hidden="true"/>Clear annotations</button><button id="lesson-leave" onClick={bridge.leave}><LogOut aria-hidden="true"/>Leave view</button></div></details>
         <span id="lesson-connection" role="status" aria-label={model.connected ? 'Connected' : 'Reconnecting…'}><Circle fill="currentColor" size={9} aria-hidden="true"/><span className="lesson-sr">{model.connected ? 'Connected' : 'Reconnecting…'}</span></span>
       </nav>
     </header>
@@ -53,7 +57,7 @@ function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerM
     <div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.phase}</div>
     <main className="lesson-main">
       {s.status === 'lobby' ? <section className="lesson-lobby"><Users size={36} aria-hidden="true"/><h2>Waiting for the instructor to start…</h2><p>{s.count} joined</p></section> : s.question && <>
-        <Stage key={s.questionId} question={s.question} number={s.index + 1} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={privateMarks} laser={laser} mathify={bridge.mathify} onSelect={answer => bridge.select(s.questionId, answer)} onPrivate={privateOn ? mark => setPrivateMarks(layer => [...layer, mark]) : undefined}/>
+        <Stage key={s.questionId} question={s.question} number={s.index + 1} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={ownMarks} laser={laser} mathify={bridge.mathify} onSelect={answer => bridge.select(s.questionId, answer)} onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [s.questionId]: [...(all[s.questionId] || []), mark] })) : undefined}/>
         {!revealed && (s.locked || model.lockPending) && <p className="lesson-locked" role="status"><LockKeyhole size={18} aria-hidden="true"/>Answer locked in. Waiting for time to end…</p>}
         {revealed && <section className="lesson-reveal"><p>Correct answer: {s.question.answer}{s.question.spr && <> · Your answer: {picked || 'blank'} · {isRight(s.question, picked) ? 'Correct' : 'Incorrect'}</>}</p><div className="lesson-verdict"><span>{isRight(s.question, picked) ? <Check aria-label="Correct"/> : <X aria-label="Incorrect"/>}</span>{picked ? `Your answer: ${picked}` : 'No answer selected'}</div><details key={s.questionId}><summary>Official explanation</summary><div ref={explanation}/></details>
           {s.classResults && s.distribution && <section className="lesson-results"><h3>Class results</h3>{s.distribution.map((g, index) => <div className="lesson-result" key={g.label}><span>{g.label}</span><span className="lesson-result-track"><i style={{ width: `${100 * g.count / Math.max(1, ...s.distribution!.map(row => row.count))}%`, background: ['#1182a4', '#126bb3', '#706caf', '#398437'][index % 4] }}/></span><strong>{g.count}</strong>{g.correct && <Check size={18} aria-label="Correct"/>}</div>)}</section>}
