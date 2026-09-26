@@ -241,9 +241,13 @@ async function bank(env) {
   ]);
   return [...(core.results || []), ...(ai.results || [])];
 }
-// §2 usedInLesson: padded session IDs per question, oldest first.
-async function lessonUsage(env) {
-  const used = await env.DB.prepare('SELECT question_id, session_id FROM question_lesson_usage ORDER BY used_at, session_id').all();
+// §2 usedInLesson: padded session IDs per question, oldest first. With a user, only the
+// questions of sessions they attended (My Lessons refreshes those after a lesson ends).
+async function lessonUsage(env, userId = null) {
+  const used = await (userId ? env.DB.prepare(`SELECT question_id, session_id FROM question_lesson_usage WHERE question_id IN
+      (SELECT u.question_id FROM question_lesson_usage u JOIN session_participants p ON p.session_id = u.session_id WHERE p.user_id = ?)
+      ORDER BY used_at, session_id`).bind(userId)
+    : env.DB.prepare('SELECT question_id, session_id FROM question_lesson_usage ORDER BY used_at, session_id')).all();
   const usageById = new Map();
   for (const r of used.results || []) { if (!usageById.has(r.question_id)) usageById.set(r.question_id, []); usageById.get(r.question_id).push(padSessionId(r.session_id)); }
   return usageById;
@@ -489,8 +493,8 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     if (historyRoute) {
       try {
         if (p === '/api/lesson-history') {
-          const sessions = await attendedSessions(env.DB, u.id);
-          return json({ attended: sessions.map(s => s.paddedId), sessions: sessions.filter(s => s.status === 'ended') });
+          const [sessions, usage] = await Promise.all([attendedSessions(env.DB, u.id), lessonUsage(env, u.id)]);
+          return json({ attended: sessions.map(s => s.paddedId), sessions: sessions.filter(s => s.status === 'ended'), usage: Object.fromEntries(usage) });
         }
         const detail = await lessonHistory(env.DB, env.AI_DB, u.id, Number(p.slice('/api/lesson-history/'.length)));
         return detail ? json({ ...detail, desmosKey: desmosApiKey(env, url) }) : json({ error: 'not found' }, 404);

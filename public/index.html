@@ -327,6 +327,8 @@ select:hover { border-color: var(--border2); }
 .tag.t-hard { color: var(--red); background: var(--red-bg); border-color: transparent; }
 .tag.t-wrong { color: var(--red); background: var(--red-bg); border-color: transparent; }
 .tag.t-used, .tag.t-lesson { color: var(--blue); border-color: transparent; background: var(--blue-bg); }
+#lessons-error { color: var(--red); margin: 0 0 10px; }
+#lessons-error:empty { display: none; }
 td .tag.t-used { margin-left: 6px; font-family: inherit; }
 .tag.t-fixed { color: var(--green); background: var(--green-bg); border-color: transparent; }
 .tag.t-skill { margin-left: auto; }
@@ -1218,8 +1220,12 @@ async function loadProgress() {
   catch (e) { lost = true; }
   try { (await get('/api/sessions')).forEach(r => { try { SESS[r.id] = { ...r, state: JSON.parse(r.state) }; } catch (e) {} }); }
   catch (e) { lost = true; }
-  try { const h = await get('/api/lesson-history'); LESSONS = { attended: new Set(h.attended), sessions: h.sessions }; }
-  catch (e) { lost = true; }
+  try {
+    const h = await get('/api/lesson-history');
+    LESSONS = { attended: new Set(h.attended), sessions: h.sessions };
+    // The bank's usedInLesson is as old as the page; a lesson that ended since then is in here.
+    QS.forEach(q => { if (h.usage[q.id]) q.usedInLesson = h.usage[q.id]; });
+  } catch (e) { lost = true; }
   backfillProgress();
   backfillLog();
   if (lost) warnSync('Could not load all of your saved progress. Reload the page — nothing has been lost.');
@@ -3610,16 +3616,17 @@ function reviewState() {
 // ---------------- my lessons (§9.1) ----------------
 function drawLessons() {
   const rows = LESSONS.sessions;
-  $('lessons-body').innerHTML = !authToken ? '<div class="empty">Sign in to see the lessons you attended.</div>'
+  $('lessons-body').innerHTML = '<p id="lessons-error" role="alert"></p>' + (!authToken ? '<div class="empty">Sign in to see the lessons you attended.</div>'
     : !rows.length ? '<div class="empty">No finished lessons yet. A lesson appears here once the instructor ends it.</div>'
     : `<table class="browse-table" id="lessons-table"><thead><tr><th>Session</th><th>Title</th><th>Date</th><th>Mode</th><th>Score</th></tr></thead><tbody>${rows.map(x => `
       <tr data-session="${x.sessionId}"><td class="mono">${esc(x.paddedId)}</td><td>${esc(x.title)}</td><td>${esc(String(x.date || '').slice(0, 10))}</td>
-      <td>${x.mode === 'self' ? 'Self-paced' : 'Instructor-paced'}</td><td class="mono">${x.score.scorable ? `${x.score.right} / ${x.score.scorable}` : '&mdash;'}</td></tr>`).join('')}</tbody></table>`;
+      <td>${x.mode === 'self' ? 'Self-paced' : 'Instructor-paced'}</td><td class="mono">${x.score.scorable ? `${x.score.right} / ${x.score.scorable}` : '&mdash;'}</td></tr>`).join('')}</tbody></table>`);
   $('lessons-body').querySelectorAll('tr[data-session]').forEach(tr => tr.onclick = () => openLessonHistory(tr.dataset.session));
 }
 let closeHistory = null;
 async function openLessonHistory(id) {
   if (lessonId) return;
+  $('lessons-error').textContent = '';
   try {
     const r = await fetch('/api/lesson-history/' + encodeURIComponent(id), { headers: await sbHeaders() });
     if (!r.ok) throw new Error(r.status === 404 ? 'This lesson is not available yet.' : 'Could not load this lesson.');
@@ -3628,7 +3635,7 @@ async function openLessonHistory(id) {
     closeHistory = mountHistory($('lesson-history'), history, mathify, () => {
       closeHistory?.(); closeHistory = null; $('lesson-live').classList.add('hide');
     });
-  } catch (e) { warnSync(e.message); }
+  } catch (e) { $('lessons-error').textContent = e.message; }
 }
 
 function drawHistory() {

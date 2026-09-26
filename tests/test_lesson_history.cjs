@@ -208,6 +208,9 @@ test('history API: ended only, participants only; list, bank usage, source tags 
   assert.equal((await get('/api/lesson-history/99', 'alice')).status, 404);
   assert.equal((await get('/api/lesson-history/abc', 'alice')).status, 404);
   const mine = await json(await get('/api/lesson-history', 'alice'));
+  // Usage for the questions of attended sessions, so the page can refresh badges after a lesson ends.
+  assert.deepEqual(mine.usage, { q1: ['00007', '00008'], q2: ['00007'], q3: ['00007'], q4: ['00007'] });
+  assert.deepEqual((await json(await get('/api/lesson-history', 'carol'))).usage, {});
   assert.deepEqual(mine.sessions.map(x => [x.paddedId, x.mode, x.score]), [['00008', 'instructor', { right: 0, scorable: 1 }], ['00007', 'self', { right: 1, scorable: 3 }]]);
   const detail = await json(await get('/api/lesson-history/7', 'alice'));
   assert.deepEqual(detail.questions.map(x => [x.number, x.question.id, x.answer, x.correct, x.inSet]), [[1, 'q1', 'B', 1, true], [2, 'q2', null, 0, true], [3, 'q3', 'A', null, true], [4, 'q4', null, 0, true]]);
