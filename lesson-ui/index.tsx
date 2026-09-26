@@ -5,6 +5,7 @@ import { Check, X, Highlighter, Focus, EllipsisVertical, Circle, LogOut, Eraser,
 import { isRight } from '/shared/stats.js';
 import { Stage, followStage } from './Stage';
 import { DesmosFollower } from './Desmos';
+import { SelfPlayer } from './Self';
 import { loadDesmos } from '/shared/desmos.js';
 import type { Bridge, PlayerModel, Mark, Laser } from './types';
 import type { StageProps } from './Stage';
@@ -78,7 +79,7 @@ export function mountLesson(root: HTMLElement, bridge: Bridge) {
   let followMark: Mark | null = null;
   let terminal = '';
   let expiry: ReturnType<typeof setTimeout>;
-  const render = () => { if (model) flushSync(() => react.render(<Player model={model} bridge={bridge} laser={laser} terminal={terminal} followMark={followMark}/>)); };
+  const render = () => { if (model) flushSync(() => react.render(terminal ? <div className="lesson-terminal" role="status"><h2>{terminal}</h2></div> : model.snapshot.mode === 'self' && model.self ? <SelfPlayer model={model} bridge={bridge}/> : <Player model={model} bridge={bridge} laser={laser} terminal={terminal} followMark={followMark}/>)); };
   return {
     update(next: PlayerModel) { model = next; render(); },
     annotate(mark: Mark) { followMark = mark; render(); },

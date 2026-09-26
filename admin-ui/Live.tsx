@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Stage } from "../lesson-ui/Stage";
 import { DesmosLeader } from "../lesson-ui/Desmos";
+import { SelfGrid, type SelfRoom } from "./SelfLive";
 import type { Snapshot, Laser, Mark } from "../lesson-ui/types";
 import * as Ink from "/shared/annotations.js";
 import { isRight } from "/shared/stats.js";
@@ -170,7 +171,12 @@ export function Live({ id }: { id: string }) {
             offset.current = m.serverNow - m.sentAt - rtt / 2;
           }
         } else if (m.type === "snapshot") {
-          setState(m);
+          // Self-paced roster refreshes leave question bodies out; keep the ones we have.
+          setState((old) =>
+            m.mode === "self" && !m.questions && old?.sessionId === m.sessionId
+              ? { ...m, questions: old!.questions }
+              : m,
+          );
           setError("");
         } else if (m.type === "annotate")
           setState((old) =>
@@ -255,6 +261,7 @@ export function Live({ id }: { id: string }) {
     send(action, { bool });
   };
   const revealed = s.phase === "REVEALED" || s.phase === "ENDED";
+  const self = s.mode === "self" ? (s as unknown as SelfRoom) : null;
   const rows = Object.entries(s.roster || {}).map(([id, name]) => ({
     id,
     name,
@@ -297,7 +304,13 @@ export function Live({ id }: { id: string }) {
     <div className="live-view">
       <header className="live-top">
         <div>
-          <Badge tone="green">{s.status === "lobby" ? "LOBBY" : s.phase}</Badge>
+          <Badge tone="green">
+            {s.status === "lobby"
+              ? "LOBBY"
+              : self
+                ? { live: "SELF-PACED SET", review: "SET FINISHED", ended: "SESSION ENDED" }[s.status] || s.status
+                : s.phase}
+          </Badge>
           <h2>{s.title}</h2>
         </div>
         <div className="live-facts">
@@ -306,9 +319,15 @@ export function Live({ id }: { id: string }) {
             <Users />
             {s.count} joined
           </span>
-          <span>
-            Q {s.index + 1} / {s.total}
-          </span>
+          {self ? (
+            <span id="live-submitted">
+              Submitted {Object.keys(self.submitted).length}
+            </span>
+          ) : (
+            <span>
+              Q {s.index + 1} / {s.total}
+            </span>
+          )}
           <strong
             id="live-timer"
             className={remaining != null && remaining <= 10 ? "urgent" : ""}
@@ -351,6 +370,26 @@ export function Live({ id }: { id: string }) {
             {roster}
           </section>
         </div>
+      ) : self ? (
+        <>
+          <SelfGrid s={self} />
+          <details className="roster-details panel">
+            <summary>Manage students</summary>
+            <label className="toggle">
+              <input
+                id="live-lock"
+                type="checkbox"
+                checked={s.lockedJoin}
+                disabled={s.status === "ended"}
+                onChange={(e) =>
+                  toggle("lockedJoin", "lockJoin", e.target.checked)
+                }
+              />
+              Lock joining
+            </label>
+            {roster}
+          </details>
+        </>
       ) : (
         <div className="live-grid">
           <nav className="question-rail" aria-label="Lesson questions">
@@ -520,7 +559,7 @@ export function Live({ id }: { id: string }) {
               Start question
             </button>
           )}
-          {s.phase === "ANSWERING" && (
+          {s.phase === "ANSWERING" && !self && (
             <>
               <button
                 data-live="addTime"
@@ -546,14 +585,16 @@ export function Live({ id }: { id: string }) {
             </button>
           )}
         </div>
-        <span className="response-count">
-          {received} of {rows.length} Responses
-        </span>
+        {!self && (
+          <span className="response-count">
+            {received} of {rows.length} Responses
+          </span>
+        )}
         <span id="live-link">
           {connected ? <Wifi /> : <WifiOff />}
           {connected ? "Connected" : "Reconnecting…"}
         </span>
-        <label className="toggle">
+        <label className="toggle" hidden={!!self}>
           <input
             id="live-class"
             type="checkbox"

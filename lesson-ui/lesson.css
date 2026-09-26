@@ -95,3 +95,26 @@
 .lesson-desmos-calc { flex:1; min-height:0; }
 .lesson-desmos[data-mode=follow] .lesson-desmos-calc { cursor:default; }
 @media(max-width:750px) { .lesson-main.with-desmos { margin-right:0; } .lesson-desmos { top:auto; left:0; width:auto; height:45vh; border-left:0; border-top:2px solid #cfcfcf; } .lesson-header { grid-template-columns:1fr 80px 1fr; padding:12px; } .lesson-header h1 { font-size:15px; } .lesson-tools { gap:8px; } .lesson-tools span { font-size:10px; } .lesson-main { padding-left:8px; padding-right:8px; } .lesson-footer { padding:16px 12px; font-size:12px; } }
+/* Self-paced (§8.3) */
+.self-count { font-weight:400; color:#444; }
+.self-remaining { font-size:12px; color:#555; line-height:1; }
+.self-footer>button:first-child { justify-self:start; display:flex; align-items:center; gap:6px; }
+#lesson-live .self-footer #self-next { display:flex; align-items:center; gap:6px; }
+.self-position-wrap { position:relative; justify-self:center; }
+#lesson-live .self-position-wrap .lesson-position { display:flex; align-items:center; gap:8px; border:0; color:#fff; background:#171717; }
+.self-position-wrap .lesson-position svg { width:18px; height:18px; }
+.self-navigator { position:absolute; bottom:56px; left:50%; transform:translateX(-50%); width:min(560px,92vw); padding:18px; background:#fff; border:1px solid #999; border-radius:10px; box-shadow:0 10px 30px #0003; }
+.self-legend { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:14px; color:#444; margin:0 0 12px; }
+.self-legend svg { width:15px; height:15px; color:#bd2424; }
+.self-key { display:inline-block; width:14px; height:14px; border:1px dashed #555; border-radius:3px; }
+.self-key.answered { background:#304fc5; border:1px solid #304fc5; }
+.self-grid { list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(44px,1fr)); gap:10px; padding:0; margin:0 0 14px; }
+#lesson-live .self-grid button { position:relative; width:44px; height:44px; padding:0; border:1px dashed #555; border-radius:6px; background:#fff; font-weight:500; color:#304fc5; }
+#lesson-live .self-grid button[data-state=answered] { background:#304fc5; color:#fff; border:1px solid #304fc5; }
+#lesson-live .self-grid button[aria-current=step] { outline:3px solid #171717; outline-offset:2px; }
+.self-grid button svg { position:absolute; top:-8px; right:-8px; width:17px; height:17px; color:#bd2424; fill:#bd2424; }
+#lesson-live #self-flag[aria-pressed=true] svg { color:#bd2424; fill:#bd2424; }
+.self-review { max-width:760px; margin:24px auto; }
+.self-review h2 { font-size:26px; font-weight:500; margin:0 0 8px; }
+#lesson-live .self-review #self-submit { display:block; margin:24px 0 0 auto; }
+#lesson-live #self-confirm { border:0; color:#fff; background:#304fc5; border-radius:25px; font-size:17px; padding:10px 32px; }

@@ -4,14 +4,14 @@ import { isRight } from './stats.js';
 export const GRACE_MS = 750;
 export const CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
 export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults', 'annotate', 'laser', 'desmos'];
-export const STUDENT_ACTIONS = ['select', 'lock'];
+export const STUDENT_ACTIONS = ['select', 'lock', 'navigate', 'time', 'submitAll'];
 export const MAX_FRAME = 2048;
 // Desmos getState() is instructor-only and far larger than any other frame.
 export const MAX_DESMOS_BYTES = 48 * 1024;
 export const MAX_DESMOS_FRAME = MAX_DESMOS_BYTES + 256;
 export function validAction(m, role) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return false;
-  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y'], desmos: ['type', 'questionId', 'state'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
+  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y'], desmos: ['type', 'questionId', 'state'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'], navigate: ['type', 'questionId'], time: ['type', 'questionId', 'deltaMs', 'seq'], submitAll: ['type'] };
   if (!Object.hasOwn(fields, m.type) || Object.keys(m).some(k => !fields[m.type].includes(k))) return false;
   if (m.type !== 'ping' && !(role === 'admin' ? ADMIN_ACTIONS : STUDENT_ACTIONS).includes(m.type)) return false;
   if (m.type === 'ping') return Number.isSafeInteger(m.sentAt) && m.sentAt >= 0;
@@ -23,6 +23,9 @@ export function validAction(m, role) {
   if (m.type === 'kick') return typeof m.userId === 'string' && m.userId.length > 0 && m.userId.length <= 128;
   if (m.type === 'select') return typeof m.questionId === 'string' && m.questionId.length <= 64 && typeof m.answer === 'string' && m.answer.length > 0 && m.answer.length <= 32;
   if (m.type === 'lock') return typeof m.questionId === 'string' && m.questionId.length <= 64;
+  if (m.type === 'navigate') return validId(m.questionId);
+  // seq is the replay key for a time segment (G5): the room ignores any seq it has already accepted.
+  if (m.type === 'time') return validId(m.questionId) && Number.isSafeInteger(m.deltaMs) && m.deltaMs >= 0 && m.deltaMs <= 3 * 3600 * 1000 && Number.isSafeInteger(m.seq) && m.seq > 0;
   return true;
 }
 const validId = x => typeof x === 'string' && x.length > 0 && x.length <= 64;
@@ -74,6 +77,17 @@ export function responseGroups(q, responses) {
     return keep;
   }
   return sorted;
+}
+// Self-paced late join (§8.2): longest first (ties: Hard > Medium > Easy, then lesson
+// position), take whatever still fits the remaining clock, return in lesson order.
+const RANK = { Hard: 3, Medium: 2, Easy: 1 };
+export function lateJoinSet(items, remainingMs, difficultyOf = () => '') {
+  const order = items.map((item, position) => ({ item, position }))
+    .sort((a, b) => b.item.time_limit_sec - a.item.time_limit_sec || (RANK[difficultyOf(b.item)] || 0) - (RANK[difficultyOf(a.item)] || 0) || a.position - b.position);
+  let budget = remainingMs;
+  const chosen = new Set();
+  for (const { item, position } of order) if (item.time_limit_sec * 1000 <= budget) { budget -= item.time_limit_sec * 1000; chosen.add(position); }
+  return items.filter((_, position) => chosen.has(position)).map(item => item.question_id);
 }
 export function lessonQuestion(q, reveal = false) {
   return { id: q.id, section: q.section, stem_html: (q.stem_html || '').replace(/<p>\s*(?:<strong>\s*)?Rationale\b[\s\S]*$/i, '').replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, ''),

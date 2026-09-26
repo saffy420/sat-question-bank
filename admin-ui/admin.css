@@ -1438,3 +1438,83 @@ body {
     max-height: 140px;
   }
 }
+/* Self-paced grid (§8.4) */
+:where(#admin-root) .self-live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
+  gap: 16px;
+  align-items: start;
+}
+:where(#admin-root) .self-live:has(> :only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+:where(#admin-root) .self-grid-scroll {
+  overflow: auto;
+}
+:where(#admin-root) #self-grid {
+  border-collapse: collapse;
+  font-size: 14px;
+}
+:where(#admin-root) #self-grid th,
+:where(#admin-root) #self-grid td {
+  padding: 4px 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+:where(#admin-root) #self-grid tbody th {
+  text-align: left;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+:where(#admin-root) #self-grid thead button {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+:where(#admin-root) #self-grid thead button[aria-pressed="true"] {
+  background: #e1e8fc;
+  color: var(--accent);
+}
+:where(#admin-root) .cell {
+  font-size: 18px;
+  line-height: 1;
+  color: #8a929f;
+}
+:where(#admin-root) .cell[data-state="right"] {
+  color: #2f7d3a;
+}
+:where(#admin-root) .cell[data-state="wrong"] {
+  color: #b42336;
+}
+:where(#admin-root) .cell[data-current="true"] {
+  color: var(--accent);
+}
+:where(#admin-root) .cell[data-state="unassigned"] {
+  color: #b7bcc6;
+}
+:where(#admin-root) .self-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+:where(#admin-root) .self-hint {
+  font-size: 12px;
+  color: #666;
+  margin: 10px 0 0;
+}
+:where(#admin-root) .self-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 14px;
+}
+:where(#admin-root) .self-card .instructor-drawer {
+  margin-top: 12px;
+}
+:where(#admin-root) .roster-details.panel {
+  margin-top: 16px;
+}

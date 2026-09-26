@@ -307,3 +307,140 @@ test('admin frames above MAX_FRAME must be desmos; room context rejects malforme
   const bad = await room.fetch(new Request('https://lesson.internal/', { method:'POST', headers:{ 'X-Lesson-Internal':'room' }, body: JSON.stringify({ ws:false, sessionId:7, userId:'teacher', role:'admin', desmosKey:'<script>' }) }));
   assert.equal(bad.status, 400);
 });
+test('self-paced late join: exact §8.2 cases, lesson order, difficulty tie-break', async () => {
+  const { lateJoinSet } = await protocol();
+  const lesson = (...groups) => groups.flatMap(([n, sec]) => Array.from({ length: n }, () => sec)).map((sec, i) => ({ question_id: `q${i}`, time_limit_sec: sec }));
+  const secs = (items, ids) => ids.map(id => items.find(x => x.question_id === id).time_limit_sec);
+  const a = lesson([4, 30], [10, 60]);
+  assert.deepEqual(secs(a, lateJoinSet(a, 480000)), Array(8).fill(60));
+  const b = lesson([4, 45], [6, 30], [5, 60]);
+  const eight = lateJoinSet(b, 480000);
+  assert.deepEqual(secs(b, eight).sort(), [...Array(4).fill(45), ...Array(5).fill(60)].sort());
+  const eightThirty = lateJoinSet(b, 510000);
+  assert.equal(eightThirty.length, 10);
+  assert.deepEqual(eightThirty.filter(id => !eight.includes(id)).map(id => b.find(x => x.question_id === id).time_limit_sec), [30]);
+  assert.deepEqual(eightThirty, b.map(x => x.question_id).filter(id => eightThirty.includes(id)), 'original lesson order');
+  const tie = [{ question_id: 'easy', time_limit_sec: 60 }, { question_id: 'hard', time_limit_sec: 60 }, { question_id: 'medium', time_limit_sec: 60 }];
+  assert.deepEqual(lateJoinSet(tie, 60000, x => ({ easy: 'Easy', hard: 'Hard', medium: 'Medium' })[x.question_id]), ['hard']);
+  assert.deepEqual(lateJoinSet(tie, 59999), []);
+  assert.deepEqual(lateJoinSet(tie, 60000), ['easy'], 'no difficulty: lesson position breaks the tie');
+});
+function selfFixture() {
+  const f = fixture();
+  const q = (id, answer, spr = false) => ({ id, section: 'Math', stem_html: `<p>${id}</p>`, choices: spr ? [] : [{ letter: 'A', content: 'a' }, { letter: 'B', content: 'b', trap: 'TRAP_SECRET' }], answer, explanation_html: 'SECRET_EXPLANATION', spr });
+  Object.assign(f.s, { mode: 'self', status: 'live', phase: 'ANSWERING', startedAt: Date.now(), endsAt: Date.now() + 120000,
+    items: [{ question_id: 'q1', time_limit_sec: 60, notes: 'PRIVATE_NOTE' }, { question_id: 'q2', time_limit_sec: 30, notes: '' }, { question_id: 'q3', time_limit_sec: 30, notes: '' }],
+    questions: { q1: q('q1', 'B'), q2: q('q2', 'A'), q3: q('q3', '3', true) }, difficulty: { q1: 'Hard', q2: 'Easy', q3: 'Medium' },
+    assigned: { alice: ['q1', 'q2', 'q3'], bob: ['q1', 'q2', 'q3'] }, positions: {}, submitted: {}, joinRemaining: {}, joinedAt: {},
+    clock: { alice: { boundary: Date.now(), seq: 0 }, bob: { boundary: Date.now(), seq: 0 } } });
+  return f;
+}
+async function withClock(fn) {
+  const real = Date.now; let now = real();
+  Date.now = () => now;
+  try { return await fn(ms => { now += ms; }, () => now); } finally { Date.now = real; }
+}
+test('self-paced time accumulates across visits: Q1 10s → Q2 5s → Q1 7s = 17s/5s; replay ignored; inflation cut', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.startedAt = Date.now(); f.s.endsAt = Date.now() + 120000; f.s.clock.alice.boundary = Date.now();
+  await room.save(f.s);
+  const { ws } = f.socket('alice');
+  const time = (questionId, deltaMs, seq) => room.webSocketMessage(ws, JSON.stringify({ type: 'time', questionId, deltaMs, seq }));
+  tick(10000); await time('q1', 10000, 1);
+  tick(5000); await time('q2', 5000, 2);
+  tick(7000); await time('q1', 7000, 3);
+  let r = (await room.state()).responses.alice;
+  assert.equal(r.q1.ms, 17000); assert.equal(r.q2.ms, 5000);
+  await time('q1', 7000, 3);
+  assert.equal((await room.state()).responses.alice.q1.ms, 17000, 'replayed seq ignored');
+  tick(2000); await time('q2', 60000, 4);
+  r = (await room.state()).responses.alice;
+  assert.equal(r.q2.ms, 7000, 'delta above elapsed server time is cut to elapsed');
+  assert.equal(room.snapshot(await room.state(), { role: 'student', userId: 'alice' }).timeSeq, 4);
+  assert.equal(f.writes.length, 0, 'no per-event D1 writes');
+}));
+test('self-paced student payload: own set only, no answers/grades/notes/peers; acks omit question bodies', async () => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.assigned.bob = ['q1'];
+  await room.save(f.s);
+  const full = room.snapshot(f.s, { role: 'student', userId: 'bob' });
+  assert.deepEqual(full.assignedQuestionIds, ['q1']); assert.equal(full.total, 1);
+  assert.deepEqual(full.questions.map(q => q.id), ['q1']);
+  const text = JSON.stringify(full);
+  for (const secret of ['PRIVATE_NOTE', 'SECRET_EXPLANATION', 'TRAP_SECRET', 'Alice', '"answer"', '"correct"', 'q2']) assert.equal(text.includes(secret), false, secret);
+  const { ws, sent } = f.socket('bob');
+  await room.webSocketMessage(ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'A' }));
+  assert.deepEqual(sent.at(-1).selections, { q1: 'A' });
+  assert.equal(Object.hasOwn(sent.at(-1), 'questions'), false);
+  await room.webSocketMessage(ws, JSON.stringify({ type: 'select', questionId: 'q2', answer: 'A' }));
+  assert.equal(sent.at(-1).error, 'not in your set');
+  const admin = room.snapshot(await room.state(), { role: 'admin', userId: 'teacher' });
+  assert.equal(admin.grid.bob.q1.correct, false); assert.equal(Object.hasOwn(admin.grid.bob, 'q2'), false);
+  assert.equal(admin.cards.q1.assigned, 2); assert.equal(admin.cards.q2.assigned, 1); assert.equal(admin.questions.q1.notes, 'PRIVATE_NOTE');
+});
+test('self-paced late join is fitted once to the server clock and never recomputed', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.endsAt = Date.now() + 65000; await room.save(f.s);
+  const call = (join, clientId) => room.fetch(new Request('https://lesson.internal/', { method: 'POST', headers: { 'X-Lesson-Internal': 'room' },
+    body: JSON.stringify({ sessionId: 7, userId: 'carol', role: 'student', join, ws: false, name: 'Carol', clientId }) }));
+  const first = await (await call(true, crypto.randomUUID())).json();
+  assert.deepEqual(first.assignedQuestionIds, ['q1']); assert.equal(first.joinRemainingMs, 65000); assert.equal(first.lateJoin, true);
+  assert.deepEqual(JSON.parse(f.writes.find(([sql]) => sql.includes('session_participants'))[1][2]), ['q1']);
+  tick(40000);
+  const rejoin = await (await call(true, crypto.randomUUID())).json();
+  assert.deepEqual(rejoin.assignedQuestionIds, ['q1'], 'explicit re-join keeps the stored set');
+  assert.equal(f.writes.filter(([sql]) => sql.includes('session_participants')).length, 1);
+  const s = await room.state();
+  const reconnect = room.snapshot(s, { role: 'student', userId: 'carol' });
+  assert.deepEqual(reconnect.assignedQuestionIds, ['q1']);
+  tick(30000);
+  const dave = await (await room.fetch(new Request('https://lesson.internal/', { method: 'POST', headers: { 'X-Lesson-Internal': 'room' },
+    body: JSON.stringify({ sessionId: 7, userId: 'dave', role: 'student', join: true, ws: false, name: 'Dave', clientId: crypto.randomUUID() }) }))).json();
+  assert.equal(dave.status, 'review'); assert.deepEqual(dave.assignedQuestionIds, [], 'review-only arrival gets no set');
+}));
+test('self-paced completion: auto at deadline once, early when all submitted, End session twice', async () => {
+  const { GRACE_MS } = await protocol();
+  const { LessonRoom } = await roomModule();
+  let f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.assigned.bob = ['q1', 'q3'];
+  await room.save(f.s);
+  const alice = f.socket('alice'), bob = f.socket('bob');
+  await room.webSocketMessage(alice.ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'B' }));
+  await room.webSocketMessage(alice.ws, JSON.stringify({ type: 'submitAll' }));
+  await room.webSocketMessage(alice.ws, JSON.stringify({ type: 'select', questionId: 'q2', answer: 'A' }));
+  assert.equal(alice.sent.at(-1).error, 'submitted');
+  await room.webSocketMessage(bob.ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'A' }));
+  const s = await room.state(); s.endsAt = Date.now() - GRACE_MS - 1; await room.save(s);
+  await room.alarm();
+  const done = await room.state();
+  assert.equal(done.phase, 'FINISHED'); assert.equal(done.status, 'review');
+  const rows = f.writes.filter(([sql]) => sql.includes('session_responses')).map(([, args]) => args);
+  assert.deepEqual(rows.map(r => [r[1], r[2], r[3], r[4], r[5]]), [
+    ['alice', 'q1', 'B', 1, 1], ['alice', 'q2', null, 0, 1], ['alice', 'q3', null, 0, 1],
+    ['bob', 'q1', 'A', 0, 0], ['bob', 'q3', null, 0, 0]]);
+  assert.equal(f.writes.filter(([sql]) => sql.includes("status='review'")).length, 1);
+  assert.equal(f.writes.filter(([sql]) => sql.includes('finished_at')).map(([, args]) => args[2]).join(), 'alice');
+  const count = f.writes.length;
+  await room.alarm(); assert.equal(f.writes.length, count, 'finalizes once');
+  await room.webSocketMessage(bob.ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'B' }));
+  assert.equal(bob.sent.at(-1).error, 'set closed');
+  const teacher = f.socket('teacher', 'admin');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'endSession' }));
+  assert.equal((await room.state()).status, 'ended');
+  assert.equal(f.writes.filter(([sql]) => sql.includes("status='ended'")).length, 1);
+
+  f = selfFixture(); room = new LessonRoom(f.ctx, f.env); await room.save(f.s);
+  const a2 = f.socket('alice'), b2 = f.socket('bob');
+  await room.webSocketMessage(a2.ws, JSON.stringify({ type: 'submitAll' }));
+  assert.equal((await room.state()).phase, 'ANSWERING');
+  await room.webSocketMessage(b2.ws, JSON.stringify({ type: 'submitAll' }));
+  assert.equal((await room.state()).status, 'review', 'set ends early once every joined student submitted');
+
+  f = selfFixture(); room = new LessonRoom(f.ctx, f.env); await room.save(f.s);
+  const t3 = f.socket('teacher', 'admin');
+  await room.webSocketMessage(t3.ws, JSON.stringify({ type: 'addTime', sec: 15 }));
+  assert.equal(t3.sent.at(-1).error, 'invalid phase');
+  await room.webSocketMessage(t3.ws, JSON.stringify({ type: 'endSession' }));
+  assert.equal((await room.state()).status, 'review', 'first End session finishes the set only');
+  assert.equal(f.writes.filter(([sql]) => sql.includes("status='ended'")).length, 0);
+});

@@ -19,7 +19,8 @@ export type Mark = {
 export type Laser = { x: number; y: number };
 export type Snapshot = {
   title: string;
-  phase: 'READY' | 'ANSWERING' | 'REVEALED' | 'ENDED';
+  mode?: 'self';
+  phase: 'READY' | 'ANSWERING' | 'REVEALED' | 'ENDED' | 'FINISHED';
   status: string;
   questionId: string;
   question?: Question;
@@ -35,7 +36,15 @@ export type Snapshot = {
   hasMath?: boolean;
   desmosKey?: string | null;
   desmos?: object | null;
+  // Self-paced (§8): the student's own set only.
+  assignedQuestionIds?: string[];
+  questions?: Question[];
+  selections?: Record<string, string>;
+  submitted?: boolean;
+  lateJoin?: boolean;
+  joinRemainingMs?: number | null;
 };
+export type SelfModel = { position: string | null; review: boolean; selections: Record<string, string>; submitting: boolean };
 export type PlayerModel = {
   snapshot: Snapshot;
   picked: string;
@@ -44,10 +53,14 @@ export type PlayerModel = {
   connected: boolean;
   name: string;
   error?: string;
+  self?: SelfModel;
 };
 export type Bridge = {
   select: (questionId: string, answer: string) => void;
   lock: (questionId: string) => void;
+  // Self-paced: null opens the review page.
+  navigate?: (questionId: string | null) => void;
+  submitAll?: () => void;
   leave: () => void;
   mathify: (element: HTMLElement) => void;
 };

@@ -3690,17 +3690,35 @@ async function exportQuestion(btn) {
 
 // ---------------- live lesson (independent of practice state) ----------------
 let lessonSocket, lessonState, lessonId, lessonClientId, lessonPending, lessonLockPending = false, lessonOffset = 0, lessonBestRTT = Infinity, lessonRetry, lessonClock, lessonError = '';
+// Self-paced (§8): local position/review page, unsynced selections, the open visit and the
+// time outbox. Time is the sum of visits (§8.5); a segment ends on navigation, submit, a
+// hidden tab, a closed socket or the deadline, and resumes on return. Each segment carries a
+// seq so a reconnect resends only what the room has not accepted (snapshot timeSeq).
+let lessonSelf = null, lessonSelfDeadline;
 const lessonRoot = $('lesson-content');
 const lessonUI = mountLesson(lessonRoot, {
   mathify,
   select: lessonSelect,
+  navigate(questionId) {
+    if (!lessonSelf || !selfRunning()) return;
+    selfLeave();
+    lessonSelf.review = questionId === null;
+    if (questionId !== null && lessonState.assignedQuestionIds.includes(questionId)) { lessonSelf.position = questionId; lessonSend({ type: 'navigate', questionId }); }
+    selfEnter(); lessonDraw();
+  },
+  submitAll() {
+    if (!lessonSelf || !selfRunning()) return;
+    selfLeave();
+    for (const [questionId, answer] of Object.entries(lessonSelf.pending)) lessonSend({ type: 'select', questionId, answer });
+    lessonSend({ type: 'submitAll' }); lessonSelf.submitting = true; lessonDraw();
+  },
   lock(questionId) {
     if (lessonState?.questionId !== questionId || lessonState.phase !== 'ANSWERING' || Date.now() + lessonOffset >= lessonState.endsAt) return;
     if (lessonPending) lessonSend(lessonPending);
     lessonSend({ type: 'lock', questionId }); lessonLockPending = true; lessonDraw();
   },
   leave() {
-    lessonId = null; lessonState = null; lessonPending = null; lessonLockPending = false;
+    lessonId = null; lessonState = null; lessonPending = null; lessonLockPending = false; lessonSelf = null; clearTimeout(lessonSelfDeadline);
     clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000);
     lessonUI.reset(); $('lesson-live').classList.add('hide');
   }
@@ -3712,12 +3730,59 @@ function lessonDraw() {
     lockPending: lessonLockPending,
     remaining: lessonState.endsAt ? Math.max(0, lessonState.endsAt - Date.now() - lessonOffset) : 0,
     connected: lessonSocket?.readyState === WebSocket.OPEN,
-    name: $('user-name').textContent || '', error: lessonError
+    name: $('user-name').textContent || '', error: lessonError,
+    ...(lessonSelf ? { self: { position: lessonSelf.position, review: lessonSelf.review, submitting: lessonSelf.submitting,
+      selections: { ...lessonState.selections, ...lessonSelf.pending } } } : {})
   });
 }
+function selfRunning() {
+  return lessonState?.mode === 'self' && lessonState.status === 'live' && lessonState.phase === 'ANSWERING' && !lessonState.submitted && !lessonSelf?.submitting && Date.now() + lessonOffset < lessonState.endsAt;
+}
+function selfEnter() {
+  if (lessonSelf && !lessonSelf.visit && !lessonSelf.review && lessonSelf.position && selfRunning() && document.visibilityState === 'visible' && lessonSocket?.readyState === WebSocket.OPEN)
+    lessonSelf.visit = { questionId: lessonSelf.position, at: Date.now() };
+}
+function selfLeave() {
+  const visit = lessonSelf?.visit;
+  if (!visit) return;
+  lessonSelf.visit = null;
+  const deltaMs = Math.round(Math.min(Date.now(), lessonState.endsAt - lessonOffset) - visit.at);
+  if (deltaMs <= 0) return;
+  const m = { type: 'time', questionId: visit.questionId, deltaMs, seq: ++lessonSelf.seq };
+  lessonSelf.outbox = [...lessonSelf.outbox, m].slice(-200);
+  lessonSend(m);
+}
+function selfSnapshot(data) {
+  if (!lessonSelf || lessonSelf.sessionId !== data.sessionId) lessonSelf = { sessionId: data.sessionId, position: data.questionId, review: false, pending: {}, visit: null, seq: data.timeSeq || 0, outbox: [], submitting: false, resend: false };
+  // Acks and roster refreshes leave the question bodies out; keep the ones already here.
+  if (!data.questions && lessonState?.sessionId === data.sessionId) data.questions = lessonState.questions;
+  lessonSelf.seq = Math.max(lessonSelf.seq, data.timeSeq || 0);
+  lessonSelf.outbox = lessonSelf.outbox.filter(m => m.seq > (data.timeSeq || 0));
+  for (const [id, answer] of Object.entries(lessonSelf.pending)) if (data.selections?.[id] === answer || !data.assignedQuestionIds.includes(id)) delete lessonSelf.pending[id];
+  if (!data.assignedQuestionIds.includes(lessonSelf.position)) lessonSelf.position = data.questionId;
+  if (data.submitted || data.status !== 'live') { lessonSelf.submitting = false; lessonSelf.visit = null; lessonSelf.pending = {}; }
+  lessonState = data;
+  clearTimeout(lessonSelfDeadline);
+  if (selfRunning()) {
+    if (lessonSelf.resend) {
+      lessonSelf.resend = false;
+      for (const m of lessonSelf.outbox) lessonSend(m);
+      for (const [questionId, answer] of Object.entries(lessonSelf.pending)) lessonSend({ type: 'select', questionId, answer });
+      if (lessonSelf.position) lessonSend({ type: 'navigate', questionId: lessonSelf.position });
+    }
+    selfEnter();
+    lessonSelfDeadline = setTimeout(() => { selfLeave(); lessonDraw(); }, data.endsAt - lessonOffset - Date.now());
+  }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') selfLeave(); else selfEnter(); });
 function lessonTick() { lessonDraw(); }
 function lessonSend(m) { if (lessonSocket?.readyState === WebSocket.OPEN) lessonSocket.send(JSON.stringify(m)); }
 function lessonSelect(questionId, answer) {
+  if (lessonSelf) {
+    if (!answer || !selfRunning() || !lessonState.assignedQuestionIds.includes(questionId)) return;
+    lessonSelf.pending[questionId] = answer;
+    lessonSend({ type: 'select', questionId, answer }); lessonDraw(); return;
+  }
   if (!answer || lessonState?.phase !== 'ANSWERING' || lessonState.locked || lessonLockPending || Date.now() + lessonOffset >= lessonState.endsAt) return;
   lessonPending = { type: 'select', questionId, answer };
   lessonSend(lessonPending);
@@ -3728,12 +3793,14 @@ function lessonConnect() {
   const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/api/lessons/${lessonId}/ws?client=${encodeURIComponent(lessonClientId)}`);
   lessonSocket = socket;
   // Lowest round-trip ping bounds offset error to about RTT/2; snapshots use last measured offset.
-  socket.onopen = () => lessonSend({ type: 'ping', sentAt: Date.now() });
+  socket.onopen = () => { if (lessonSelf) lessonSelf.resend = true; lessonSend({ type: 'ping', sentAt: Date.now() }); };
   socket.onmessage = e => {
     const data = JSON.parse(e.data);
     if (data.type === 'pong') {
       const rtt = Date.now() - data.sentAt;
       if (rtt >= 0 && rtt < lessonBestRTT) { lessonBestRTT = rtt; lessonOffset = data.serverNow - (data.sentAt + rtt / 2); }
+    } else if (data.type === 'snapshot' && data.mode === 'self') {
+      lessonError = ''; selfSnapshot(data); lessonDraw();
     } else if (data.type === 'snapshot') {
       if (lessonPending && (data.questionId !== lessonPending.questionId || data.ownSelection === lessonPending.answer || data.phase !== 'ANSWERING' || data.locked)) lessonPending = null;
       if (data.locked || data.phase !== 'ANSWERING' || data.questionId !== lessonState?.questionId) lessonLockPending = false;
@@ -3752,9 +3819,13 @@ function lessonConnect() {
       lessonDraw(); lessonUI.annotate(data.op);
     } else if (data.type === 'laser' && lessonState?.questionId === data.questionId) {
       lessonUI.laser(data);
+    } else if (data.type === 'error' && lessonSelf) {
+      if (data.error === 'set closed' || data.error === 'submitted') { lessonSelf.pending = {}; lessonSelf.submitting = false; }
+      lessonError = data.error; lessonDraw();
     } else if (data.type === 'error') { if (data.error === 'question closed' || data.error === 'answer locked') lessonPending = null; if (data.error === 'question closed' || data.error === 'invalid answer') { lessonLockPending = false; lessonDraw(); } lessonError = data.error; lessonDraw(); }
   };
   socket.onclose = e => {
+    if (socket === lessonSocket) selfLeave();
     if (socket !== lessonSocket || !lessonId || e.code === 4001 || e.code === 4002) {
       if (e.code === 4001 || e.code === 4002) { clearInterval(lessonClock); lessonId = null; lessonUI.terminal(e.code === 4001 ? 'Opened in another tab.' : 'Removed from lesson.'); }
       return;
@@ -3764,7 +3835,7 @@ function lessonConnect() {
       try {
         const r = await fetch(`/api/lessons/${lessonId}?client=${encodeURIComponent(lessonClientId)}`, { headers: await sbHeaders() });
         if (r.status === 409 || r.status === 403 || r.status === 410) { lessonId = null; clearInterval(lessonClock); lessonUI.terminal('Lesson access ended or moved to another tab.'); return; }
-        if (r.ok) { const next = await r.json(); lessonState = next; lessonDraw(); }
+        if (r.ok) { const next = await r.json(); if (next.mode === 'self') selfSnapshot(next); else lessonState = next; lessonDraw(); }
       } catch { /* retry on temporary loss */ }
       if (lessonId) lessonConnect();
     }, 1500);
@@ -3774,6 +3845,8 @@ async function lessonJoin(code) {
   const r = await fetch('/api/lessons/join', { method: 'POST', headers: { 'Content-Type': 'application/json', ...await sbHeaders() }, body: JSON.stringify({ code }) });
   const data = await r.json(); if (!r.ok) throw Error(data.error || 'Could not join');
   clearTimeout(lessonRetry); lessonSocket?.close(1000); lessonPending = null; lessonLockPending = false; lessonError = ''; lessonUI.reset();
+  lessonSelf = null; clearTimeout(lessonSelfDeadline); lessonState = null;
+  if (data.mode === 'self') selfSnapshot(data);
   // Join response carries current projected snapshot, never bank objects.
   lessonState = data; lessonId = data.sessionId; lessonClientId = data.clientId; lessonBestRTT = Infinity;
   $('modal-root').replaceChildren(); $('lesson-live').classList.remove('hide'); lessonDraw();
