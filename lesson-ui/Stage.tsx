@@ -19,6 +19,8 @@ export type StageProps = {
   onSelect?: (answer: string) => void;
   onReady?: (card: HTMLDivElement) => void;
   onPrivate?: (mark: Mark) => void;
+  // Highlighter tool active: cursor styling only.
+  annotating?: boolean;
   // Private process-of-elimination state; the Stage only renders it.
   strikeMode?: boolean;
   struck?: string[];
@@ -88,8 +90,8 @@ export function Stage(props: StageProps) {
       if (preview) preview.value = value;
       if (latest.current.active && /^[-\d./]{1,32}$/.test(value)) latest.current.onSelect?.(value);
     };
-    const pointerup = () => {
-      if (!latest.current.onPrivate) return;
+    const pointerup = (event: PointerEvent) => {
+      if (!latest.current.onPrivate || (event.target as Element).closest('.badge')) return;
       const anchor = Ink.anchor(el, window.getSelection());
       if (!anchor) return;
       latest.current.onPrivate({ type: 'highlight', id: crypto.randomUUID(), ...anchor, color: '#75dbaa' });
@@ -140,6 +142,7 @@ export function Stage(props: StageProps) {
       button.setAttribute('aria-label', struck ? `Undo cross out of choice ${letter}` : `Cross out choice ${letter}`);
     });
   }, [props.strikeMode, props.struck]);
+  useLayoutEffect(() => { card.current!.classList.toggle('tool-highlight', !!props.annotating); }, [props.annotating]);
   useLayoutEffect(paint, [props.marks, props.privateMarks]);
   return <div className="stage-host" ref={host}><div id={props.id || 'lesson-card'} ref={card} /></div>;
 }

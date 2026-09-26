@@ -614,11 +614,13 @@ function InstructorStage({
     let points: number[][] = [],
       drawing = false,
       interval: ReturnType<typeof setInterval> | undefined;
-    card.style.cursor = !tool
-      ? ""
-      : ["pen", "erase", "laser"].includes(tool)
-        ? "crosshair"
-        : "text";
+    card.style.cursor = ["pen", "erase", "laser"].includes(tool)
+      ? "crosshair"
+      : "";
+    card.classList.toggle(
+      "tool-highlight",
+      tool === "highlight" || tool === "strike",
+    );
     const point = (e: PointerEvent) => {
       const r = card.getBoundingClientRect();
       return [
@@ -714,7 +716,10 @@ function InstructorStage({
         }
         points = [];
       }
-      if (tool === "highlight" || tool === "strike") {
+      if (
+        (tool === "highlight" || tool === "strike") &&
+        !(e.target as Element).closest(".badge")
+      ) {
         const range = Ink.anchor(card, window.getSelection());
         if (range)
           mark({ type: tool, id: crypto.randomUUID(), ...range, color });
@@ -753,6 +758,7 @@ function InstructorStage({
       card.removeEventListener("pointerup", up);
       card.removeEventListener("pointercancel", up);
       card.style.cursor = "";
+      card.classList.remove("tool-highlight");
     };
   }, [card, tool, color, s.phase]);
   return (
