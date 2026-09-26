@@ -507,6 +507,21 @@ mark.hl-b { background: #bfe3ff; }
 .modal-bg { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; z-index: 60; }
 .modal { background: var(--panel); border-radius: 16px; padding: 22px; width: min(560px, 92vw); max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
 .modal h3 { margin: 0 0 14px; font-size: 16px; }
+.join-modal { width: min(460px, 92vw); padding: 28px 28px 24px; }
+.join-modal h2 { margin: 0 0 6px; font-size: 20px; }
+.join-modal .join-hint { margin: 0 0 22px; color: var(--dim); font-size: 14px; }
+.otp { display: flex; justify-content: center; gap: clamp(6px, 2vw, 12px); }
+.otp input { width: clamp(40px, 11vw, 54px); height: clamp(50px, 13vw, 64px); padding: 0; text-align: center; text-transform: uppercase;
+  font: 600 clamp(22px, 6vw, 30px)/1 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  color: var(--text); background: var(--bg2); border: 2px solid var(--border2); border-radius: 10px; caret-color: var(--blue); transition: border-color .12s, box-shadow .12s; }
+.otp input:focus, .otp input:focus-visible { outline: none; border-color: var(--blue); box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 28%, transparent); }
+.otp.bad input { border-color: var(--red); }
+.otp.shake { animation: otp-shake .36s ease; }
+@keyframes otp-shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
+@media (prefers-reduced-motion: reduce) { .otp.shake { animation: none; } }
+.join-modal #join-error { min-height: 20px; margin: 12px 0 0; text-align: center; color: var(--red); font-size: 14px; }
+.join-modal .join-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.join-modal .join-actions button { min-width: 96px; padding: 10px 18px; }
 .legal { font-size: 14px; line-height: 1.6; }
 .legal h4 { margin: 18px 0 6px; font-size: 14px; }
 .legal p, .legal li { margin: 8px 0; color: var(--text); }
@@ -3780,12 +3795,63 @@ async function lessonJoin(code) {
 }
 $('join-lesson').onclick = () => {
   const root = $('modal-root');
-  root.innerHTML = `<div class="modal-bg"><div class="modal"><h2>Join lesson</h2><div id="lesson-code" class="frow">${Array.from({length:6},(_,i) => `<input aria-label="Code character ${i + 1}" maxlength="1" style="width:2.5em;text-align:center;text-transform:uppercase" autocomplete="off">`).join('')}</div><p id="join-error" role="alert"></p><button id="join-go">Join</button><button id="join-cancel">Cancel</button></div></div>`;
-  const boxes = [...root.querySelectorAll('#lesson-code input')];
-  const paste = value => { boxes.forEach(b => b.value = ''); const code = value.toUpperCase().replace(/[^A-Z2-9]/g,'').slice(0,6); [...code].forEach((c,i) => boxes[i].value = c); boxes[Math.min(code.length,5)].focus(); };
-  boxes.forEach((box,i) => { box.oninput = () => { if (box.value.length > 1) paste(box.value); else { box.value = box.value.toUpperCase(); if (box.value && i < 5) boxes[i+1].focus(); } }; box.onpaste = e => { e.preventDefault(); paste(e.clipboardData.getData('text')); }; });
-  $('join-go').onclick = () => { const code = boxes.map(b => b.value).join('').toUpperCase(); if (!CODE.test(code)) { $('join-error').textContent = 'Enter a valid six-character code'; return; } lessonJoin(code).catch(e => $('join-error').textContent = e.message); };
-  $('join-cancel').onclick = () => root.replaceChildren(); boxes[0].focus();
+  root.innerHTML = `<div class="modal-bg"><div class="modal join-modal" role="dialog" aria-modal="true" aria-labelledby="join-title">
+    <h2 id="join-title">Join lesson</h2><p class="join-hint">Enter the 6-character code from your instructor.</p>
+    <div id="lesson-code" class="otp" role="group" aria-label="Lesson code">${Array.from({length:6},(_,i) => `<input aria-label="Code character ${i + 1}" inputmode="text" autocapitalize="characters" autocomplete="${i ? 'off' : 'one-time-code'}" spellcheck="false">`).join('')}</div>
+    <p id="join-error" role="alert"></p>
+    <div class="join-actions"><button id="join-cancel" type="button">Cancel</button><button id="join-go" class="btn-p" type="button" disabled>Join</button></div>
+  </div></div>`;
+  const group = $('lesson-code'), boxes = [...group.querySelectorAll('input')], go = $('join-go');
+  const clean = value => String(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const code = () => boxes.map(b => b.value).join('');
+  const sync = () => { go.disabled = code().length !== 6; };
+  const focus = i => { const box = boxes[Math.max(0, Math.min(5, i))]; box.focus(); box.select(); };
+  // Fills from box `from` onward; a full pasted code always starts at the first box.
+  const fill = (value, from) => {
+    const chars = [...clean(value)];
+    if (chars.length >= 6) from = 0;
+    chars.slice(0, 6 - from).forEach((c, n) => { boxes[from + n].value = c; });
+    group.classList.remove('bad'); $('join-error').textContent = '';
+    sync(); focus(from + Math.min(chars.length, 6 - from));
+  };
+  const fail = message => {
+    $('join-error').textContent = message;
+    boxes.forEach(b => { b.value = ''; });
+    group.classList.remove('shake'); void group.offsetWidth; group.classList.add('shake', 'bad');
+    sync(); focus(0);
+  };
+  const submit = () => {
+    const value = code();
+    if (value.length !== 6 || go.dataset.busy) return;
+    if (!CODE.test(value)) { fail('That code isn’t valid. Check it and try again.'); return; }
+    go.dataset.busy = '1'; go.disabled = true;
+    lessonJoin(value).catch(e => fail(e.message)).finally(() => { delete go.dataset.busy; sync(); });
+  };
+  group.addEventListener('animationend', () => group.classList.remove('shake'));
+  boxes.forEach((box, i) => {
+    box.addEventListener('focus', () => box.select());
+    box.addEventListener('input', () => {
+      const value = clean(box.value);
+      if (value.length > 1) { box.value = ''; fill(value, i); return; }
+      box.value = value;
+      group.classList.remove('bad'); $('join-error').textContent = '';
+      sync();
+      if (value && i < 5) focus(i + 1);
+    });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !box.value && i > 0) { e.preventDefault(); boxes[i - 1].value = ''; sync(); focus(i - 1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); focus(i - 1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); focus(i + 1); }
+      else if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      else if (e.key === 'Escape') root.replaceChildren();
+      // Replace, rather than append to, a filled box.
+      else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && box.value && box.selectionStart === box.selectionEnd) box.select();
+    });
+    box.addEventListener('paste', e => { e.preventDefault(); fill(e.clipboardData.getData('text'), i); });
+  });
+  go.onclick = submit;
+  $('join-cancel').onclick = () => root.replaceChildren();
+  focus(0);
 };
 
 // ---------------- auth (Supabase) ----------------
