@@ -4,7 +4,8 @@ import * as Ink from '/shared/annotations.js';
 import type { Mark, Laser, Question } from './types';
 
 export const LOGICAL_WIDTH = 1240;
-export const escapeHTML = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+import { escapeHTML } from './escape';
+export { escapeHTML } from './escape';
 export type StageProps = {
   question: Question;
   number: number;

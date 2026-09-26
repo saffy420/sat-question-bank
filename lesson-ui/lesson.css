@@ -1,7 +1,8 @@
+:where(#lesson-live, #admin-root) { --text:#171717; --dim:#555; --bg:#fff; --bg2:#f4f4f4; --border:#777; --accent:#304fc5; }
 @font-face { font-family:'Lesson Serif'; font-style:normal; font-weight:400; font-display:block; src:url('../node_modules/@fontsource/source-serif-4/files/source-serif-4-latin-400-normal.woff2') format('woff2'); }
 @font-face { font-family:'Lesson Sans'; font-style:normal; font-weight:400; font-display:block; src:url('../node_modules/@fontsource/roboto/files/roboto-latin-400-normal.woff2') format('woff2'); }
 
-#lesson-live { color-scheme:light; position:fixed; inset:0; z-index:100; overflow:auto; background:#fff; color:#171717; padding:0; font:16px/1.5 'Lesson Sans',sans-serif; --text:#171717; --dim:#555; --bg:#fff; --bg2:#f4f4f4; --border:#777; --accent:#304fc5; }
+#lesson-live { color-scheme:light; position:fixed; inset:0; z-index:100; overflow:auto; background:#fff; color:#171717; padding:0; font:16px/1.5 'Lesson Sans',sans-serif;  }
 #lesson-content { margin:0; padding:0; max-width:none; min-height:100%; border:0; border-radius:0; background:#fff; box-shadow:none; }
 #lesson-live *, .lesson-stage *, .stage-host { box-sizing:border-box; }
 #lesson-live button, #lesson-live input, #lesson-live summary { font-family:'Lesson Sans',sans-serif; color:inherit; }
