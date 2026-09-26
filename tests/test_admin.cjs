@@ -61,7 +61,9 @@ test('role sync demotes; every admin prefix and shell alias gates before fallbac
   assert.equal((await request('/api/admin/students','admin')).status,200);
   assert.equal((await request('/api/auth/session','student','POST')).status, 200);
   for (const path of ['/api/admin', '/api/admin/students', '/api/admin/unknown']) assert.equal((await request(path,'student')).status, 403);
-  for (const path of ['/admin','/admin/other','/admin.html','/admin.js']) assert.equal((await request(path,'student')).headers.get('Location'), '/app');
+  for (const path of ['/admin','/admin/other','/admin.html','/admin.js']) assert.equal((await request(path,'student')).status, 403);
+  assert.equal((await (await request('/api/auth/session','student','POST')).json()).role, 'student');
+  assert.equal((await (await request('/api/auth/session','admin','POST')).json()).role, 'admin');
   assert.equal((await request('/api/admin/unknown','admin')).status,404);
   assert.equal((await request('/api/admin/students','student','POST')).status,403);
   assert.equal((await request('/admin.html','admin')).headers.get('Location'), '/admin');

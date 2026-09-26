@@ -775,7 +775,7 @@ mark.hl-b { background: #bfe3ff; }
     <button class="nav-i" data-tab="history"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>History</span></button>
 
     <button class="nav-i" id="join-lesson" type="button"><span>Join lesson</span></button>
-    <a class="nav-i" id="admin-link" href="/admin" style="text-decoration:none"><span>Admin</span></a>
+    <a class="nav-i hide" id="admin-link" href="/admin" style="text-decoration:none"><span>Admin</span></a>
     <div class="nav-sp"></div>
     <div class="nav-user">
       <span class="nav-av" id="nav-av">G</span>
@@ -3860,6 +3860,9 @@ function bootstrapSession(session) {
       if (loggingOut) return false;
       if (res.status === 401 || res.status === 403) { leaveAccount(res.status === 403); return false; }
       if (!res.ok) throw new Error('Session verification unavailable');
+      // Role comes from the Worker's users row; the Worker still 403s every admin route.
+      const body = await res.json().catch(() => ({}));
+      $('admin-link').classList.toggle('hide', body.role !== 'admin');
       clearTimeout(authRetry); authRetry = null;
       return true;
     } catch {
