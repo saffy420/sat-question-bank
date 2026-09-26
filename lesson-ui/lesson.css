@@ -39,13 +39,25 @@
    whole layout shrinking. Container queries so the presenter's narrower panel stacks too. */
 .stage-host { position:relative; width:100%; container-type:inline-size; }
 .lesson-stage { position:relative; width:100%; background:#fff; color:#171717; font:20px/1.5 'Lesson Serif',serif; border:0; padding:0; text-align:left; color-scheme:light; }
-.lesson-stage.stage-reading { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
-.lesson-stage .stage-passage { padding:24px clamp(20px, 3vw, 56px) 35px 0; border-right:2px solid #cfcfcf; }
+.lesson-stage.stage-split { display:grid; grid-template-columns:minmax(0, var(--split, 50%)) auto minmax(0, 1fr); }
+.lesson-stage .stage-passage { padding:24px clamp(20px, 3vw, 56px) 35px 0; }
+/* Bluebook-style resizable divider: drag the line or grip, arrow keys, or expand either pane. */
+.lesson-stage .stage-divider { position:relative; width:2px; background:#cfcfcf; cursor:col-resize; touch-action:none; }
+.lesson-stage .stage-divider::before { content:''; position:absolute; inset:0 -9px; }
+.lesson-stage .stage-divider:focus-visible { outline:3px solid #156fd1; outline-offset:2px; }
+.lesson-stage .stage-divider-controls { position:sticky; z-index:4; top:24px; display:flex; flex-direction:column; align-items:center; gap:6px; width:30px; margin-left:-14px; }
+#lesson-live .lesson-stage .stage-divider-controls { top:calc(50vh - 50px); }
+.lesson-stage.stage-figure .stage-passage img { display:block; margin-inline:auto; }
+.lesson-stage .stage-grip { display:inline-flex; align-items:center; justify-content:center; width:30px; height:34px; border-radius:7px; background:#171717; color:#fff; box-shadow:0 1px 4px #0003; }
+.lesson-stage .stage-divider .stage-expand, #lesson-live .lesson-stage .stage-divider .stage-expand { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; margin:0; padding:0; border:1px solid #777; border-radius:6px; background:#fff; color:#171717; cursor:pointer; }
+.lesson-stage .stage-divider .stage-expand[aria-pressed=true], #lesson-live .lesson-stage .stage-divider .stage-expand[aria-pressed=true] { background:#304fc5; border-color:#304fc5; color:#fff; }
+.lesson-stage.stage-resizing, .lesson-stage.stage-resizing * { cursor:col-resize !important; -webkit-user-select:none; user-select:none; }
 .lesson-stage .stage-question { padding:24px 0 35px clamp(20px, 3vw, 56px); }
 .lesson-stage.stage-single .stage-question { width:min(100%, 40em); margin:0 auto; padding:24px 0 35px; }
 @container (max-width: 720px) {
-  .lesson-stage.stage-reading { grid-template-columns:minmax(0,1fr); }
-  .lesson-stage .stage-passage { padding:16px 0 24px; border-right:0; border-bottom:2px solid #cfcfcf; }
+  .lesson-stage.stage-split { grid-template-columns:minmax(0,1fr); }
+  .lesson-stage .stage-divider { display:none; }
+  .lesson-stage .stage-passage { padding:16px 0 24px; border-bottom:2px solid #cfcfcf; }
   .lesson-stage .stage-question { padding:24px 0 35px; }
 }
 .lesson-stage .stage-strip { position:relative; display:flex; align-items:center; height:36px; margin-bottom:30px; background:#f0f0f0; font:20px/36px 'Lesson Sans',sans-serif; }
@@ -57,7 +69,7 @@
 .lesson-stage p { margin:0 0 18px; }
 .lesson-stage .passage { margin:0; padding:0; border:0; background:none; font:inherit; max-height:none; overflow:visible; }
 /* Readable measure inside each pane (after .passage's margin reset so it can centre). */
-.lesson-stage .stage-passage>*, .lesson-stage.stage-reading .stage-question>* { max-width:44em; margin-inline:auto; }
+.lesson-stage .stage-passage>*, .lesson-stage.stage-split .stage-question>* { max-width:44em; margin-inline:auto; }
 .lesson-stage .lesson-stem { font:inherit; }
 .lesson-stage .choices { display:flex; flex-direction:column; gap:16px; margin-top:22px; }
 .lesson-stage .choices button, #lesson-live .lesson-stage .choices button { display:block; width:100%; text-align:left; padding:0; margin:0; background:none; border:0; font:inherit; color:#171717; border-radius:10px; opacity:1; }
