@@ -11,7 +11,9 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     viewport: { width: 1366, height: 768 },
     trace: 'retain-on-failure',
-    screenshot: 'only-on-failure'
+    screenshot: 'only-on-failure',
+    // Sandboxes with a preinstalled browser that does not match this Playwright revision.
+    launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {}
   },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
   webServer: [
