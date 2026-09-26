@@ -635,7 +635,8 @@ function InstructorStage({
     // ~30 Hz, skip unchanged positions, heartbeat while idle, hide explicitly.
     const dot = Ink.laser(card);
     type Aim = { x: number; y: number; a?: string };
-    let aim: Aim | null = null,
+    // Latest pointer position; resolved to a content anchor only when a frame is sent.
+    let aim: [number, number] | null = null,
       sent: Aim | null = null,
       sentAt = 0,
       frame = 0;
@@ -649,17 +650,17 @@ function InstructorStage({
     // Frame timestamps: every second 60 Hz frame (~30 Hz); 28 ms absorbs frame jitter.
     const pump = (now: number) => {
       frame = 0;
-      if (
-        !aim ||
-        (sent && aim.x === sent.x && aim.y === sent.y && aim.a === sent.a)
-      )
-        return;
+      if (!aim) return;
       if (now - sentAt < 28) {
         frame = requestAnimationFrame(pump);
         return;
       }
-      sent = aim;
-      laserSend(aim, now);
+      const at: Aim = Ink.locate(card, aim[0], aim[1]);
+      aim = null;
+      dot.show(at);
+      if (sent && at.x === sent.x && at.y === sent.y && at.a === sent.a) return;
+      sent = at;
+      laserSend(at, now);
     };
     const heartbeat =
       tool === "laser"
@@ -711,8 +712,7 @@ function InstructorStage({
         if (points.length >= 32) flush();
       }
       if (tool === "laser") {
-        aim = Ink.locate(card, e.clientX, e.clientY);
-        dot.show(aim);
+        aim = [e.clientX, e.clientY];
         if (!frame) frame = requestAnimationFrame(pump);
       }
     };
