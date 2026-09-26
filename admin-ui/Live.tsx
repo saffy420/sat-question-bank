@@ -613,7 +613,11 @@ function InstructorStage({
     if (!card || s.phase !== "REVEALED") return;
     let points: number[][] = [],
       drawing = false,
-      interval: ReturnType<typeof setInterval> | undefined;
+      interval: ReturnType<typeof setInterval> | undefined,
+      // One content anchor per pen gesture (see Ink.locate), so strokes land on the same
+      // words for students whose stage is laid out at a different width.
+      anchor: string | undefined,
+      toAnchor: ReturnType<typeof Ink.frame> = null;
     card.style.cursor = ["pen", "erase", "laser"].includes(tool)
       ? "crosshair"
       : "";
@@ -622,17 +626,17 @@ function InstructorStage({
       tool === "highlight" || tool === "strike",
     );
     const point = (e: PointerEvent) => {
-      const r = card.getBoundingClientRect();
-      return [
-        Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
-        Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)),
-      ];
+      const [lo, hi] = !anchor ? [0, 1] : anchor.includes("@") ? [-4000, 4000] : [-4, 5];
+      return toAnchor!
+        .fromClient(e.clientX, e.clientY)
+        .map((v) => Math.max(lo, Math.min(hi, v)));
     };
     // Laser: coalesce pointermoves into at most one send per animation frame and
     // ~30 Hz, skip unchanged positions, heartbeat while idle, hide explicitly.
     const dot = Ink.laser(card);
-    let aim: { x: number; y: number } | null = null,
-      sent: { x: number; y: number } | null = null,
+    type Aim = { x: number; y: number; a?: string };
+    let aim: Aim | null = null,
+      sent: Aim | null = null,
       sentAt = 0,
       frame = 0;
     const laserSend = (fields: Record<string, unknown>, now = performance.now()) => {
@@ -645,7 +649,11 @@ function InstructorStage({
     // Frame timestamps: every second 60 Hz frame (~30 Hz); 28 ms absorbs frame jitter.
     const pump = (now: number) => {
       frame = 0;
-      if (!aim || (sent && aim.x === sent.x && aim.y === sent.y)) return;
+      if (
+        !aim ||
+        (sent && aim.x === sent.x && aim.y === sent.y && aim.a === sent.a)
+      )
+        return;
       if (now - sentAt < 28) {
         frame = requestAnimationFrame(pump);
         return;
@@ -680,6 +688,7 @@ function InstructorStage({
         id: crypto.randomUUID(),
         points: points.slice(0, 32),
         color,
+        ...(anchor ? { a: anchor } : {}),
       });
       points = drawing ? points.slice(-1) : [];
     };
@@ -688,7 +697,10 @@ function InstructorStage({
       e.preventDefault();
       card.setPointerCapture(e.pointerId);
       drawing = true;
-      points = [point(e)];
+      const start = Ink.locate(card, e.clientX, e.clientY);
+      anchor = start.a;
+      toAnchor = Ink.frame(card, anchor);
+      points = [[start.x, start.y]];
       interval = setInterval(() => {
         if (points.length > 1) flush();
       }, 50);
@@ -699,8 +711,7 @@ function InstructorStage({
         if (points.length >= 32) flush();
       }
       if (tool === "laser") {
-        const [x, y] = point(e);
-        aim = { x: Math.round(x * 1e4) / 1e4, y: Math.round(y * 1e4) / 1e4 };
+        aim = Ink.locate(card, e.clientX, e.clientY);
         dot.show(aim);
         if (!frame) frame = requestAnimationFrame(pump);
       }
@@ -730,13 +741,14 @@ function InstructorStage({
         if (id) mark({ type: "erase", id });
         else {
           const r = card.getBoundingClientRect(),
-            [x, y] = point(e);
+            scale = r.width / card.offsetWidth || 1,
+            x = (e.clientX - r.left) / scale,
+            y = (e.clientY - r.top) / scale;
           const stroke = latest.current.s.annotations?.find(
             (m) =>
               m.type === "stroke" &&
-              m.points?.some(
-                ([px, py]) =>
-                  Math.hypot((px - x) * r.width, (py - y) * r.height) < 12,
+              Ink.strokePoints(card, m).some(
+                ([px, py]: number[]) => Math.hypot(px - x, py - y) < 12,
               ),
           );
           if (stroke) mark({ type: "erase", id: stroke.id });

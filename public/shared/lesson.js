@@ -8,12 +8,12 @@ export const STUDENT_ACTIONS = ['select', 'lock'];
 export const MAX_FRAME = 2048;
 export function validAction(m, role) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return false;
-  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y', 'hide'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
+  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y', 'a', 'hide'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
   if (!Object.hasOwn(fields, m.type) || Object.keys(m).some(k => !fields[m.type].includes(k))) return false;
   if (m.type !== 'ping' && !(role === 'admin' ? ADMIN_ACTIONS : STUDENT_ACTIONS).includes(m.type)) return false;
   if (m.type === 'ping') return Number.isSafeInteger(m.sentAt) && m.sentAt >= 0;
   // Explicit hide (tool off, pointer left the stage, presenter gone); otherwise a position.
-  if (m.type === 'laser') return validId(m.questionId) && (m.hide === true ? !('x' in m) && !('y' in m) : !('hide' in m) && unit(m.x) && unit(m.y));
+  if (m.type === 'laser') return validId(m.questionId) && (m.hide === true ? !('x' in m) && !('y' in m) && !('a' in m) : !('hide' in m) && anchored(m.a, [m.x, m.y]));
   if (m.type === 'annotate') return validId(m.questionId) && validMark(m.op);
   if (m.type === 'addTime') return m.sec === 15;
   if (m.type === 'lockJoin' || m.type === 'classResults') return typeof m.bool === 'boolean';
@@ -25,15 +25,26 @@ export function validAction(m, role) {
 }
 const validId = x => typeof x === 'string' && x.length > 0 && x.length <= 64;
 const unit = x => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 1;
+// Pointer anchors (see annotations.js): glyph anchors carry px offsets, element anchors fractions of
+// the element (a stroke may leave it), no anchor means fractions of the whole card.
+const NODE = /^(?:[ps]:\d{1,4}|c:[A-D])$/;
+const within = (lo, hi) => x => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi;
+function anchored(a, values) {
+  if (a === undefined) return values.every(unit);
+  if (typeof a !== 'string' || a.length > 16) return false;
+  const [node, offset, extra] = a.split('@');
+  if (offset !== undefined) return extra === undefined && NODE.test(node) && /^\d{1,5}$/.test(offset) && values.every(within(-4000, 4000));
+  return (NODE.test(a) || /^(?:i:\d{1,2}|P|Q)$/.test(a)) && values.every(within(-4, 5));
+}
 export function validMark(op) {
   if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','erase','clear'].includes(op.type)) return false;
-  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color'], erase:['type','id'], clear:['type'] };
+  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color','a'], erase:['type','id'], clear:['type'] };
   if (Object.keys(op).some(k => !fields[op.type].includes(k))) return false;
   if (op.type === 'clear') return true;
   if (!validId(op.id)) return false;
   if (op.type === 'erase') return true;
   if (!['#ffe066','#ff7676','#75dbaa'].includes(op.color)) return false;
-  if (op.type === 'stroke') return Array.isArray(op.points) && op.points.length >= 1 && op.points.length <= 32 && op.points.every(p => Array.isArray(p) && p.length === 2 && unit(p[0]) && unit(p[1]));
+  if (op.type === 'stroke') return Array.isArray(op.points) && op.points.length >= 1 && op.points.length <= 32 && op.points.every(p => Array.isArray(p) && p.length === 2 && anchored(op.a, p));
   return /^([ps]:\d+|c:[A-D])$/.test(op.nodeId) && Number.isSafeInteger(op.startOffset) && Number.isSafeInteger(op.endOffset) && op.startOffset >= 0 && op.endOffset > op.startOffset && op.endOffset <= 20000;
 }
 // Never project by copying a full normalized bank row or choices (trap tags).

@@ -12,11 +12,12 @@ export type Mark = {
   id: string;
   color?: string;
   points?: number[][];
+  a?: string;
   nodeId?: string;
   startOffset?: number;
   endOffset?: number;
 };
-export type Laser = { x: number; y: number; hide?: boolean };
+export type Laser = { x: number; y: number; a?: string; hide?: boolean };
 export type Snapshot = {
   title: string;
   phase: 'READY' | 'ANSWERING' | 'REVEALED' | 'ENDED';

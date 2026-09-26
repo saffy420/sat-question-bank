@@ -34,13 +34,20 @@
 .lesson-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .lesson-reconnect { position:sticky; top:102px; z-index:4; text-align:center; padding:4px; background:#fff0bd; font-size:14px; }
 .lesson-phase { padding:3px 28px; height:26px; color:#606060; font-size:11px; letter-spacing:.05em; }
-.lesson-main { padding:12px 24px 105px; }
-.stage-host { position:relative; width:100%; max-width:1240px; margin:0 auto; }
-.lesson-stage { position:relative; width:1240px; transform-origin:top left; background:#fff; color:#171717; font:20px/1.5 'Lesson Serif',serif; border:0; padding:0; text-align:left; color-scheme:light; }
-.lesson-stage.stage-reading { display:grid; grid-template-columns:620px 620px; }
-.lesson-stage .stage-passage { padding:24px 35px 35px 12px; border-right:2px solid #cfcfcf; }
-.lesson-stage .stage-question { padding:24px 30px 35px 35px; }
-.lesson-stage.stage-single .stage-question { width:680px; margin:0 auto; padding:24px 0 35px; }
+.lesson-main { padding:12px clamp(16px, 2.5vw, 48px) 105px; }
+/* Fluid stage: fills its container at any zoom; panes keep a readable measure instead of the
+   whole layout shrinking. Container queries so the presenter's narrower panel stacks too. */
+.stage-host { position:relative; width:100%; container-type:inline-size; }
+.lesson-stage { position:relative; width:100%; background:#fff; color:#171717; font:20px/1.5 'Lesson Serif',serif; border:0; padding:0; text-align:left; color-scheme:light; }
+.lesson-stage.stage-reading { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+.lesson-stage .stage-passage { padding:24px clamp(20px, 3vw, 56px) 35px 0; border-right:2px solid #cfcfcf; }
+.lesson-stage .stage-question { padding:24px 0 35px clamp(20px, 3vw, 56px); }
+.lesson-stage.stage-single .stage-question { width:min(100%, 40em); margin:0 auto; padding:24px 0 35px; }
+@container (max-width: 720px) {
+  .lesson-stage.stage-reading { grid-template-columns:minmax(0,1fr); }
+  .lesson-stage .stage-passage { padding:16px 0 24px; border-right:0; border-bottom:2px solid #cfcfcf; }
+  .lesson-stage .stage-question { padding:24px 0 35px; }
+}
 .lesson-stage .stage-strip { position:relative; display:flex; align-items:center; height:36px; margin-bottom:30px; background:#f0f0f0; font:20px/36px 'Lesson Sans',sans-serif; }
 .lesson-stage .stage-strip::after { content:''; position:absolute; left:0; right:0; bottom:-8px; height:2px; background:var(--lesson-dashes); }
 .lesson-stage .stage-strip>span { display:inline-block; min-width:34px; padding:0 7px; color:#fff; background:#161616; text-align:center; }
@@ -49,6 +56,8 @@
 .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true], #lesson-live .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true] { background:#304fc5; border-color:#304fc5; color:#fff; }
 .lesson-stage p { margin:0 0 18px; }
 .lesson-stage .passage { margin:0; padding:0; border:0; background:none; font:inherit; max-height:none; overflow:visible; }
+/* Readable measure inside each pane (after .passage's margin reset so it can centre). */
+.lesson-stage .stage-passage>*, .lesson-stage.stage-reading .stage-question>* { max-width:44em; margin-inline:auto; }
 .lesson-stage .lesson-stem { font:inherit; }
 .lesson-stage .choices { display:flex; flex-direction:column; gap:16px; margin-top:22px; }
 .lesson-stage .choices button, #lesson-live .lesson-stage .choices button { display:block; width:100%; text-align:left; padding:0; margin:0; background:none; border:0; font:inherit; color:#171717; border-radius:10px; opacity:1; }
@@ -102,7 +111,7 @@
 .lesson-lobby h2 { font-size:24px; font-weight:500; margin:24px 0 12px; }
 .lesson-lobby p { color:#555; }
 .lesson-locked { display:flex; justify-content:center; align-items:center; gap:9px; padding:20px; }
-.lesson-reveal { max-width:680px; margin:24px auto; }
+.lesson-reveal { width:min(100%, 44rem); margin:24px auto; }
 .lesson-verdict { display:flex; align-items:center; gap:8px; margin-bottom:18px; }
 .lesson-verdict svg { display:block; }
 .lesson-reveal details { padding:16px 0; border-top:1px solid #bbb; }

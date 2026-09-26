@@ -3,7 +3,6 @@ import * as Renderer from '/shared/renderer.js';
 import * as Ink from '/shared/annotations.js';
 import type { Mark, Question } from './types';
 
-export const LOGICAL_WIDTH = 1240;
 import { escapeHTML } from './escape';
 export { escapeHTML } from './escape';
 export type StageProps = {
@@ -55,12 +54,8 @@ export function Stage(props: StageProps) {
     el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off"><button id="lesson-pick" type="button">Select</button><p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
     ready.current = false;
     let alive = true, highlighted = false;
-    const resize = () => {
-      const scale = Math.min(1, wrapper.clientWidth / LOGICAL_WIDTH);
-      el.style.transform = `scale(${scale})`;
-      wrapper.style.height = `${el.offsetHeight * scale}px`;
-      paint();
-    };
+    // The stage reflows with its container; ink and laser are content-anchored, so just repaint.
+    const resize = () => paint();
     const observer = new ResizeObserver(resize);
     observer.observe(wrapper); observer.observe(el);
     props.mathify(el);
@@ -149,11 +144,11 @@ export function Stage(props: StageProps) {
 
 export function followStage(card: HTMLElement, mark: Mark) {
   if (mark.type !== 'stroke') { Ink.follow(card, mark); return; }
-  const y = mark.points?.at(-1)?.[1];
+  const y = Ink.strokePoints(card, mark).at(-1)?.[1];
   const scroller = card.closest('#lesson-live');
   if (y == null || !scroller) return;
   const rect = card.getBoundingClientRect();
   const view = scroller.getBoundingClientRect();
-  const top = rect.top + y * rect.height;
+  const top = rect.top + y * (rect.height / card.offsetHeight || 1);
   if (top < view.top + 100 || top > view.bottom - 80) scroller.scrollBy({ top: top - view.top - view.height / 2 });
 }

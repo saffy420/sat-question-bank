@@ -118,9 +118,15 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     const card = teacher.locator('#live-card');
     await teacher.locator('[data-tool="pen"]').click();
     const box = await card.boundingBox();
-    await teacher.mouse.move(box.x + 80, box.y + 75);
+    // Start the stroke on the first word of the stem: pen marks are anchored to content, so every
+    // client must draw it on that word even though their stage widths differ.
+    const start = await teacher.locator('#live-card .lesson-stem p').first().evaluate(p => {
+      const range = document.createRange(); range.setStart(p.firstChild, 0); range.setEnd(p.firstChild, 5);
+      const r = range.getBoundingClientRect(); return { x: r.left + 20, y: r.top + r.height / 2 };
+    });
+    await teacher.mouse.move(start.x, start.y);
     await teacher.mouse.down();
-    await teacher.mouse.move(box.x + 160, box.y + 110, { steps: 8 });
+    await teacher.mouse.move(start.x + 80, start.y + 35, { steps: 8 });
     await teacher.mouse.up();
     const layer = () => admin.request.get(`/api/lessons/${sessionId}`).then(r => r.json()).then(s => s.annotations);
     await expect.poll(async () => (await layer()).filter(m => m.type === 'stroke').length).toBeGreaterThan(0);
@@ -131,18 +137,22 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     });
     await expect.poll(strokeVisible).toBe(true);
     await screenshot(student, '07-student-live-pen');
-    const wordPosition = page => page.locator(page === teacher ? '#live-card' : '#lesson-card').evaluate(card => {
+    // Offset (unzoomed CSS px) of the stroke's first point from the first word, as each client draws it.
+    const wordOffset = (page, stroke) => page.locator(page === teacher ? '#live-card' : '#lesson-card').evaluate(async (card, stroke) => {
+      const Ink = await import('/shared/annotations.js');
+      const [x, y] = Ink.strokePoints(card, stroke)[0];
       const p = card.querySelector('.lesson-stem p');
       const range = document.createRange(); range.setStart(p.firstChild, 0); range.setEnd(p.firstChild, 5);
-      const word = range.getBoundingClientRect(), rect = card.getBoundingClientRect();
-      return { x:(word.left-rect.left)/rect.width, y:(word.top-rect.top)/rect.height, width:card.clientWidth, height:card.clientHeight };
-    });
-    const teacherWord = await wordPosition(teacher);
+      const word = range.getBoundingClientRect(), rect = card.getBoundingClientRect(), scale = rect.width / card.offsetWidth;
+      return { x: x - (word.left - rect.left) / scale, y: y - (word.top - rect.top) / scale };
+    }, stroke);
     const stroke = (await layer()).find(m => m.type === 'stroke');
+    expect(stroke.a).toMatch(/^s:0@\d+$/);
+    const teacherWord = await wordOffset(teacher, stroke);
     for (const page of [student, second]) {
       await expect.poll(async () => {
-        const word = await wordPosition(page);
-        return Math.max(Math.abs((stroke.points[0][0]-word.x)*word.width-(stroke.points[0][0]-teacherWord.x)*teacherWord.width), Math.abs((stroke.points[0][1]-word.y)*word.height-(stroke.points[0][1]-teacherWord.y)*teacherWord.height));
+        const word = await wordOffset(page, stroke);
+        return Math.max(Math.abs(word.x - teacherWord.x), Math.abs(word.y - teacherWord.y));
       }).toBeLessThan(2);
     }
 

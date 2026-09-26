@@ -187,7 +187,7 @@ export class LessonRoom {
         if (!m.hide && Date.now() - (this.lastLaser || 0) < 25) return;
         this.lastLaser = Date.now();
         // Relay to everyone except the sender (it draws its own dot) and without serverNow.
-        const frame = JSON.stringify(m.hide ? { type:'laser', questionId:m.questionId, hide:true } : { type:'laser', questionId:m.questionId, x:m.x, y:m.y });
+        const frame = JSON.stringify(m.hide ? { type:'laser', questionId:m.questionId, hide:true } : { type:'laser', questionId:m.questionId, x:m.x, y:m.y, ...(m.a ? { a:m.a } : {}) });
         for (const peer of this.sockets()) if (peer !== ws) try { peer.send(frame); } catch { /* disconnected */ }
         return;
       } else {

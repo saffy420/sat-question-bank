@@ -8,7 +8,7 @@ import { Stage, followStage } from './Stage';
 import type { Bridge, PlayerModel, Mark, Laser } from './types';
 import type { StageProps } from './Stage';
 import './lesson.css';
-export { Stage, LOGICAL_WIDTH } from './Stage';
+export { Stage } from './Stage';
 export type { StageProps } from './Stage';
 
 const NONE: Mark[] = [];
