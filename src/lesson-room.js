@@ -1,13 +1,16 @@
 import { normalizeQuestion, isRight } from '../public/shared/stats.js';
-import { GRACE_MS, MAX_FRAME, validAction, lessonQuestion, responseGroups } from '../public/shared/lesson.js';
+import { GRACE_MS, MAX_FRAME, MAX_DESMOS_FRAME, validAction, lessonQuestion, responseGroups } from '../public/shared/lesson.js';
+
+const review = (s, item) => s.desmos?.questionId === item.question_id ? { desmos: s.desmos.state } : {};
 
 export class LessonRoom {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
   }
-  async state() { return await this.ctx.storage.get('room'); }
-  async save(s) { await this.ctx.storage.put('room', s); }
+  // The latest Desmos state lives under its own key so frequent room saves stay small.
+  async state() { const s = await this.ctx.storage.get('room'); return s && { ...s, desmos: await this.ctx.storage.get('desmos') || null }; }
+  async save(s) { const { desmos, ...room } = s; await this.ctx.storage.put('room', room); }
   send(ws, data) { ws.send(JSON.stringify({ ...data, serverNow: Date.now() })); }
   sockets(role) { return this.ctx.getWebSockets().filter(ws => !role || ws.deserializeAttachment()?.role === role); }
   active(ws) { const a = ws.deserializeAttachment(); return !!a && this.sockets(a.role).filter(other => other.deserializeAttachment()?.userId === a.userId).at(-1) === ws; }
@@ -21,6 +24,8 @@ export class LessonRoom {
       question: item ? lessonQuestion(s.questions[item.question_id], revealed || a.role === 'admin') : null,
       ownSelection: r?.answer || null, locked: !!r?.locked, count: Object.keys(s.responses).length,
       classResults: !!s.classResults, annotations: revealed && item ? s.annotations?.[item.question_id] || [] : [],
+      hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null,
+      desmos: revealed && item && s.desmos?.questionId === item.question_id ? s.desmos.state : null,
       ...(revealed && item && (a.role === 'admin' || s.classResults) ? { distribution: responseGroups(s.questions[item.question_id], Object.fromEntries(Object.entries(s.responses).map(([id, answers]) => [id, answers[item.question_id]])))
         .map(g => a.role === 'admin' ? { ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) } : { label: g.label, count: g.count, correct: g.correct }) } : {}),
       ...(a.role === 'admin' ? { code: s.code, lockedJoin: s.lockedJoin, roster: s.roster,
@@ -73,9 +78,10 @@ export class LessonRoom {
         (session_id,user_id,question_id,final_answer,is_correct,locked_early,time_spent_ms,answer_changes,answer_history_json)
         VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,user_id,question_id) DO NOTHING`)
         .bind(s.id, r.userId, pending.questionId, r.answer, r.correct, r.locked ? 1 : 0, r.ms, r.changes, JSON.stringify(r.history))));
-      if (pending.annotations) await this.env.DB.prepare(`INSERT INTO session_question_review (session_id,question_id,annotations_json)
-        VALUES (?,?,?) ON CONFLICT(session_id,question_id) DO UPDATE SET annotations_json=excluded.annotations_json`)
-        .bind(s.id,pending.questionId,JSON.stringify(pending.annotations)).run();
+      if (pending.annotations || pending.desmos) await this.env.DB.prepare(`INSERT INTO session_question_review (session_id,question_id,annotations_json,desmos_state_json)
+        VALUES (?,?,?,?) ON CONFLICT(session_id,question_id) DO UPDATE SET annotations_json=COALESCE(excluded.annotations_json,annotations_json),
+        desmos_state_json=COALESCE(excluded.desmos_state_json,desmos_state_json)`)
+        .bind(s.id,pending.questionId,pending.annotations ? JSON.stringify(pending.annotations) : null,pending.desmos ? JSON.stringify(pending.desmos) : null).run();
       if (pending.end) await this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')) WHERE id=? AND status!='ended'").bind(s.id).run();
       await this.ctx.storage.delete('pending');
       const next = await this.ctx.storage.get('nextPending');
@@ -113,7 +119,7 @@ export class LessonRoom {
     if (!ws && req.method !== 'POST') return new Response('not found', { status: 404 });
     let a; try { a = ws ? JSON.parse(req.headers.get('X-Lesson-Context') || 'null') : await req.json(); }
     catch { return Response.json({ error: 'invalid request' }, { status: 400 }); }
-    if (!a || a.ws !== ws || (a.role === 'student' && a.join && !/^[0-9a-f-]{36}$/i.test(a.clientId || '')) || !Number.isInteger(a.sessionId) || typeof a.userId !== 'string' || a.userId.length > 128 || !['admin','student'].includes(a.role)) return Response.json({ error: 'invalid request' }, { status: 400 });
+    if (!a || a.ws !== ws || (a.desmosKey != null && !/^[0-9a-f]{32}$/.test(a.desmosKey)) || (a.role === 'student' && a.join && !/^[0-9a-f-]{36}$/i.test(a.clientId || '')) || !Number.isInteger(a.sessionId) || typeof a.userId !== 'string' || a.userId.length > 128 || !['admin','student'].includes(a.role)) return Response.json({ error: 'invalid request' }, { status: 400 });
     const s = await this.initialize(a.sessionId);
     if (!s || s.status === 'ended') return Response.json({ error: 'session ended or unsupported' }, { status: 410 });
     // D1 owner and membership/role checked at the Worker. No direct public DO endpoint.
@@ -154,15 +160,19 @@ export class LessonRoom {
     if (a.role === 'student') { s.clients ||= {}; s.clients[a.userId] = a.clientId; await this.save(s); }
     for (const old of this.sockets(a.role)) if (old.deserializeAttachment()?.userId === a.userId) old.close(4001, 'Replaced by another tab');
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ role: a.role, userId: a.userId, clientId: a.clientId });
+    server.serializeAttachment({ role: a.role, userId: a.userId, clientId: a.clientId, desmosKey: a.desmosKey || null });
     this.send(server, this.snapshot(s, a));
     this.broadcast(s);
     return new Response(null, { status: 101, webSocket: client });
   }
   async webSocketMessage(ws, raw) {
     const a = ws.deserializeAttachment();
-    if (!a || !this.active(ws) || typeof raw !== 'string' || new TextEncoder().encode(raw).length > MAX_FRAME) { ws.close(1008, 'Invalid frame'); return; }
-    let m; try { m = JSON.parse(raw); } catch { this.send(ws, { type: 'error', error: 'invalid JSON' }); return; }
+    const bytes = typeof raw === 'string' ? new TextEncoder().encode(raw).length : Infinity;
+    if (!a || !this.active(ws) || bytes > (a.role === 'admin' ? MAX_DESMOS_FRAME : MAX_FRAME)) { ws.close(1008, 'Invalid frame'); return; }
+    let m; try { m = JSON.parse(raw); } catch { m = undefined; }
+    // Only a Desmos state may use the larger admin frame.
+    if (bytes > MAX_FRAME && m?.type !== 'desmos') { ws.close(1008, 'Invalid frame'); return; }
+    if (m === undefined) { this.send(ws, { type: 'error', error: 'invalid JSON' }); return; }
     if (!validAction(m, a.role)) { this.send(ws, { type: 'error', error: 'invalid action' }); return; }
     const s = await this.state();
     if (!s) { ws.close(1011, 'Room unavailable'); return; }
@@ -180,6 +190,14 @@ export class LessonRoom {
     const item = s.items[s.index];
     if (s.status === 'ended') err = 'ended';
     if (err) { this.send(ws, { type: 'error', error: err }); return; }
+    if (m.type === 'desmos') {
+      // Same gate as annotations: a graph can give the answer away before reveal.
+      if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
+      if (s.desmos?.questionId === m.questionId && JSON.stringify(s.desmos.state) === JSON.stringify(m.state)) return;
+      await this.ctx.storage.put('desmos', { questionId: m.questionId, state: m.state });
+      for (const peer of this.sockets()) if (peer !== ws) try { this.send(peer, { type:'desmos', questionId:m.questionId, state:m.state }); } catch { /* disconnected */ }
+      return;
+    }
     if (m.type === 'annotate' || m.type === 'laser') {
       if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
       if (m.type === 'laser') {
@@ -246,10 +264,11 @@ export class LessonRoom {
       } else if (m.type === 'endNow' && s.phase === 'ANSWERING') {
         s.endsAt = Date.now(); changed = true;
       } else if (m.type === 'next' && s.phase === 'REVEALED' && s.index + 1 < s.items.length) {
-        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: false, ...(s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}) });
+        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: false, ...(s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}), ...review(s, item) });
+        await this.ctx.storage.delete('desmos'); s.desmos = null;
         s.index++; s.phase = 'READY'; s.endsAt = null; changed = true;
       } else if (m.type === 'endSession') {
-        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true, ...(s.phase === 'REVEALED' && s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}) });
+        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true, ...(s.phase === 'REVEALED' && s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}), ...(s.phase === 'REVEALED' ? review(s, item) : {}) });
         s.phase = 'ENDED'; s.status = 'ended'; changed = true;
       } else err = 'invalid phase';
     }

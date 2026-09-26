@@ -4,6 +4,8 @@ import { flushSync } from 'react-dom';
 import { Check, X, Highlighter, Focus, EllipsisVertical, Circle, LogOut, Eraser, Users, LockKeyhole } from 'lucide-react';
 import { isRight } from '/shared/stats.js';
 import { Stage, followStage } from './Stage';
+import { DesmosFollower } from './Desmos';
+import { loadDesmos } from '/shared/desmos.js';
 import type { Bridge, PlayerModel, Mark, Laser } from './types';
 import type { StageProps } from './Stage';
 import './lesson.css';
@@ -23,6 +25,8 @@ function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerM
   const active = s.phase === 'ANSWERING' && remaining > 0 && !s.locked && !model.lockPending && !terminal;
   useLayoutEffect(() => { setPrivateMarks([]); setConfirm(null); }, [s.questionId]);
   useLayoutEffect(() => { if (!active) setConfirm(null); }, [active]);
+  // Fetch the Desmos API during the lobby so slow Wi-Fi is not paying for it at reveal.
+  useLayoutEffect(() => { if (s.hasMath && s.desmosKey) loadDesmos(s.desmosKey).catch(() => {}); }, [s.hasMath, s.desmosKey]);
   useLayoutEffect(() => {
     if (confirm) dialog.current?.showModal();
     else dialog.current?.close();
@@ -51,7 +55,7 @@ function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerM
     </header>
     {!model.connected && <div className="lesson-reconnect" role="status">Reconnecting…</div>}
     <div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.phase}</div>
-    <main className="lesson-main">
+    <main className={`lesson-main${revealed && s.desmos ? ' with-desmos' : ''}`}>
       {s.status === 'lobby' ? <section className="lesson-lobby"><Users size={36} aria-hidden="true"/><h2>Waiting for the instructor to start…</h2><p>{s.count} joined</p></section> : s.question && <>
         <Stage key={s.questionId} question={s.question} number={s.index + 1} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={privateMarks} laser={laser} mathify={bridge.mathify} onSelect={answer => bridge.select(s.questionId, answer)} onPrivate={privateOn ? mark => setPrivateMarks(layer => [...layer, mark]) : undefined}/>
         {!revealed && (s.locked || model.lockPending) && <p className="lesson-locked" role="status"><LockKeyhole size={18} aria-hidden="true"/>Answer locked in. Waiting for time to end…</p>}
@@ -61,6 +65,7 @@ function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerM
       </>}
       <p id="lesson-error" role="alert">{model.error}</p>
     </main>
+    {revealed && s.desmos && <DesmosFollower key={s.questionId} apiKey={s.desmosKey} state={s.desmos}/>}
     <footer className="lesson-footer"><span>{model.name}</span><span className="lesson-position">Question {s.index + 1} of {s.total}</span><button id="lesson-lock" className="lesson-submit" disabled={!active} onClick={() => setConfirm(s.questionId)}>Submit</button></footer>
     <dialog className="lesson-confirm-dialog" ref={dialog} onCancel={() => setConfirm(null)}><p>Have you double checked your answer and made sure it's right?</p><div><button id="lesson-back" onClick={() => { setConfirm(null); document.getElementById('lesson-lock')?.focus(); }}>Go back</button><button id="lesson-confirm" onClick={() => { const id = confirm; setConfirm(null); if (id && active && id === s.questionId) bridge.lock(id); }}>Yes, submit</button></div></dialog>
   </>;

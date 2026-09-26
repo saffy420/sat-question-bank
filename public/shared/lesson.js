@@ -3,17 +3,21 @@ import { isRight } from './stats.js';
 // Shared lesson protocol.
 export const GRACE_MS = 750;
 export const CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
-export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults', 'annotate', 'laser'];
+export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults', 'annotate', 'laser', 'desmos'];
 export const STUDENT_ACTIONS = ['select', 'lock'];
 export const MAX_FRAME = 2048;
+// Desmos getState() is instructor-only and far larger than any other frame.
+export const MAX_DESMOS_BYTES = 48 * 1024;
+export const MAX_DESMOS_FRAME = MAX_DESMOS_BYTES + 256;
 export function validAction(m, role) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return false;
-  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
+  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y'], desmos: ['type', 'questionId', 'state'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
   if (!Object.hasOwn(fields, m.type) || Object.keys(m).some(k => !fields[m.type].includes(k))) return false;
   if (m.type !== 'ping' && !(role === 'admin' ? ADMIN_ACTIONS : STUDENT_ACTIONS).includes(m.type)) return false;
   if (m.type === 'ping') return Number.isSafeInteger(m.sentAt) && m.sentAt >= 0;
   if (m.type === 'laser') return validId(m.questionId) && unit(m.x) && unit(m.y);
   if (m.type === 'annotate') return validId(m.questionId) && validMark(m.op);
+  if (m.type === 'desmos') return validId(m.questionId) && validDesmos(m.state);
   if (m.type === 'addTime') return m.sec === 15;
   if (m.type === 'lockJoin' || m.type === 'classResults') return typeof m.bool === 'boolean';
   if (m.type === 'kick') return typeof m.userId === 'string' && m.userId.length > 0 && m.userId.length <= 128;
@@ -22,6 +26,10 @@ export function validAction(m, role) {
   return true;
 }
 const validId = x => typeof x === 'string' && x.length > 0 && x.length <= 64;
+export function validDesmos(state) {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return false;
+  try { return new TextEncoder().encode(JSON.stringify(state)).length <= MAX_DESMOS_BYTES; } catch { return false; }
+}
 const unit = x => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 1;
 export function validMark(op) {
   if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','erase','clear'].includes(op.type)) return false;

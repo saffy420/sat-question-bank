@@ -6,6 +6,11 @@ export const validLessonUpgrade = (req, url) => req.method === 'GET' &&
   req.headers.get('Upgrade')?.toLowerCase() === 'websocket' &&
   req.headers.get('Origin') === url.origin && req.headers.get('Sec-Fetch-Site') !== 'cross-site';
 
+// Desmos's public demo key is for development only; production sets the DESMOS_API_KEY
+// secret. With neither, lesson snapshots carry no key and the panel says so.
+const DESMOS_DEMO_KEY = 'dcb31709b452b1cf9dc26972add0fda6';
+export const desmosApiKey = (env, url) => env.DESMOS_API_KEY || (['127.0.0.1', 'localhost'].includes(url.hostname) ? DESMOS_DEMO_KEY : null);
+
 async function lessonAccess(req, env, url, p, u) {
   const ws = /^\/api\/lessons\/([1-9]\d{0,8})\/ws$/.exec(p);
   const join = p === '/api/lessons/join' && req.method === 'POST';
@@ -40,7 +45,7 @@ async function lessonAccess(req, env, url, p, u) {
     if (!participant) return json({ error: 'not joined' }, 403);
   }
   const body = { sessionId: session.id, userId: u.id, role: admin ? 'admin' : 'student',
-    name: String(u.user_metadata?.full_name || u.email || u.id).slice(0, 200), ws: !!ws, join, clientId };
+    name: String(u.user_metadata?.full_name || u.email || u.id).slice(0, 200), ws: !!ws, join, clientId, desmosKey: desmosApiKey(env, url) };
   return env.LESSON_ROOM.getByName(String(session.id)).fetch(ws
     ? new Request('https://lesson.internal/', { headers: { Upgrade: 'websocket', 'X-Lesson-Internal': 'room', 'X-Lesson-Context': JSON.stringify(body) } })
     : new Request('https://lesson.internal/', { method: 'POST', headers: { 'X-Lesson-Internal': 'room', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
@@ -69,9 +74,14 @@ const CSP = [
   "base-uri 'none'",
   "object-src 'none'"
 ].join('; ');
+// Live lessons run the Desmos API, which evals its own module source and starts a
+// blob: Web Worker (measured). Only /app and /admin get this; public/_headers and
+// every other response keep the strict policy above.
+const LESSON_CSP = CSP.replace("script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.desmos.com") + "; worker-src blob:";
 
-const harden = (h) => {
-  h.set('Content-Security-Policy', CSP);
+const harden = (h, csp = CSP) => {
+  h.set('Content-Security-Policy', csp);
   h.set('X-Content-Type-Options', 'nosniff');
   h.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   h.set('X-Frame-Options', 'DENY');
@@ -93,7 +103,7 @@ const json = (body, status = 200) =>
 // Found". This is done here and not with [assets] not_found_handling, which is
 // applied by the asset router *before* the Worker runs and therefore 404s every
 // API route and /auth/callback along with it (measured).
-const asset = async (env, req) => {
+const asset = async (env, req, csp = CSP) => {
   let r = await env.ASSETS.fetch(req);
   if (r.status === 404) {
     const page = await env.ASSETS.fetch(new URL('/404.html', req.url));
@@ -102,7 +112,7 @@ const asset = async (env, req) => {
   return new Response(r.body, {
     status: r.status,
     statusText: r.statusText,
-    headers: harden(new Headers(r.headers))
+    headers: harden(new Headers(r.headers), csp)
   });
 };
 
@@ -409,7 +419,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     if (['GET', 'HEAD'].includes(req.method)) {
       if (Object.hasOwn(aliases, p) && !adminPath(p)) return redirect(aliases[p]);
       if (Object.hasOwn(pages, p)) return asset(env, new Request(new URL(pages[p], url), req));
-      if (['/lesson-ui/lesson.js', '/lesson-ui/lesson.css', '/site.css', '/site.js', '/auth.js', '/shared/stats.js', '/shared/renderer.js', '/shared/lesson.js', '/shared/annotations.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
+      if (['/lesson-ui/lesson.js', '/lesson-ui/lesson.css', '/site.css', '/site.js', '/auth.js', '/shared/stats.js', '/shared/renderer.js', '/shared/lesson.js', '/shared/annotations.js', '/shared/desmos.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
     }
     if (p === '/api/auth/logout' && req.method === 'POST') {
       const res = json({ ok: true });
@@ -476,7 +486,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       if (adminPath(p)) {
         if (!['GET', 'HEAD'].includes(req.method)) return json({ error: 'not found' }, 404);
         if (p === '/admin.html') return redirect('/admin');
-        return asset(env, new Request(new URL('/admin.html', url), req));
+        return asset(env, new Request(new URL('/admin.html', url), req), LESSON_CSP);
       }
       if (p === '/api/admin/questions' || p === '/api/admin/lessons' || p.startsWith('/api/admin/lessons/')) {
         try { return await lessonRoutes(req, env, url, p, u); }
@@ -541,7 +551,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       }
       return json({ error: 'not found' }, 404);
     }
-    if (restrictedAsset) return asset(env, p === '/app' ? new Request(new URL('/index.html', url), req) : req);
+    if (restrictedAsset) return p === '/app' ? asset(env, new Request(new URL('/index.html', url), req), LESSON_CSP) : asset(env, req);
 
     let rows;
     if (req.method === 'POST' && ['/api/progress', '/api/attempts', '/api/notes', '/api/sessions'].includes(p)) {

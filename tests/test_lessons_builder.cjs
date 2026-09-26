@@ -108,7 +108,7 @@ test('approved lesson GET reaches room; pending membership stays blocked', async
     return { fetch: async req => {
       assert.equal(req.method, 'POST');
       assert.deepEqual(await req.json(), { sessionId: session.sessionId, userId: id,
-        role: 'admin', name: 'admin@ccs.us', ws: false, join: false, clientId: null });
+        role: 'admin', name: 'admin@ccs.us', ws: false, join: false, clientId: null, desmosKey: null });
       return Response.json({ phase: 'READY' });
     } };
   } };

@@ -32,6 +32,9 @@ export type Snapshot = {
   annotations?: Mark[];
   classResults?: boolean;
   distribution?: { label: string; count: number; correct: boolean }[];
+  hasMath?: boolean;
+  desmosKey?: string | null;
+  desmos?: object | null;
 };
 export type PlayerModel = {
   snapshot: Snapshot;

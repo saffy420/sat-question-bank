@@ -533,6 +533,36 @@ body {
   min-width: 0;
   flex: 1;
 }
+:where(#admin-root) .live-desmos {
+  position: sticky;
+  top: 0;
+  width: 420px;
+  flex-shrink: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 460px;
+  border-left: 1px solid var(--line);
+}
+:where(#admin-root) .live-desmos-calc {
+  flex: 1;
+  min-height: 420px;
+}
+:where(#admin-root) .live-desmos-note {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted, #555);
+}
+:where(#admin-root) #live-desmos-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+:where(#admin-root) #live-desmos-toggle[aria-pressed="true"] {
+  background: #e1e8fc;
+  color: var(--accent);
+}
 :where(#admin-root) .instructor-drawer {
   width: 38px;
   flex-shrink: 0;

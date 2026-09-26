@@ -88,4 +88,10 @@
 .lesson-confirm-dialog>div { display:flex; justify-content:flex-end; gap:16px; margin-top:30px; }
 .lesson-terminal { padding:100px 30px; text-align:center; }
 #lesson-error:empty { display:none; }
-@media(max-width:750px) { .lesson-header { grid-template-columns:1fr 80px 1fr; padding:12px; } .lesson-header h1 { font-size:15px; } .lesson-tools { gap:8px; } .lesson-tools span { font-size:10px; } .lesson-main { padding-left:8px; padding-right:8px; } .lesson-footer { padding:16px 12px; font-size:12px; } }
+.lesson-main.with-desmos { margin-right:430px; }
+.lesson-desmos { position:fixed; top:102px; right:0; bottom:80px; z-index:4; width:430px; display:flex; flex-direction:column; background:#fff; border-left:2px solid #cfcfcf; }
+.lesson-desmos-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 12px; font-size:15px; border-bottom:1px solid #cfcfcf; }
+#lesson-live .lesson-desmos-bar button { padding:4px 12px; font-size:14px; }
+.lesson-desmos-calc { flex:1; min-height:0; }
+.lesson-desmos[data-mode=follow] .lesson-desmos-calc { cursor:default; }
+@media(max-width:750px) { .lesson-main.with-desmos { margin-right:0; } .lesson-desmos { top:auto; left:0; width:auto; height:45vh; border-left:0; border-top:2px solid #cfcfcf; } .lesson-header { grid-template-columns:1fr 80px 1fr; padding:12px; } .lesson-header h1 { font-size:15px; } .lesson-tools { gap:8px; } .lesson-tools span { font-size:10px; } .lesson-main { padding-left:8px; padding-right:8px; } .lesson-footer { padding:16px 12px; font-size:12px; } }

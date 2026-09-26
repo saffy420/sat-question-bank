@@ -3741,6 +3741,8 @@ function lessonConnect() {
       lessonState = data; lessonDraw();
       if (lessonPending && Date.now() + lessonOffset < data.endsAt) lessonSend(lessonPending);
       if (lessonLockPending && data.phase === 'ANSWERING' && Date.now() + lessonOffset < data.endsAt) lessonSend({ type: 'lock', questionId: data.questionId });
+    } else if (data.type === 'desmos' && lessonState?.questionId === data.questionId) {
+      lessonState = { ...lessonState, desmos: data.state }; lessonDraw();
     } else if (data.type === 'annotate' && lessonState?.questionId === data.questionId) {
       const layer = lessonState.annotations ||= [];
       if (data.op.type === 'clear') layer.length = 0;

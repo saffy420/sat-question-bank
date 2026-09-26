@@ -17,8 +17,10 @@ import {
   WifiOff,
   Clock,
   LockKeyhole,
+  Calculator,
 } from "lucide-react";
 import { Stage } from "../lesson-ui/Stage";
+import { DesmosLeader } from "../lesson-ui/Desmos";
 import type { Snapshot, Laser, Mark } from "../lesson-ui/types";
 import * as Ink from "/shared/annotations.js";
 import { isRight } from "/shared/stats.js";
@@ -588,6 +590,7 @@ function InstructorStage({
   const [color, setColor] = useState(colors[0]);
   const [clear, setClear] = useState(false);
   const [card, setCard] = useState<HTMLDivElement | null>(null);
+  const [desmos, setDesmos] = useState(!!s.desmos);
   const latest = useRef({ s, send });
   latest.current = { s, send };
   useEffect(() => {
@@ -712,6 +715,16 @@ function InstructorStage({
           <Check />
           Correct: {s.question?.answer || "Unavailable"}
         </Badge>
+        {s.question?.section === "Math" && (
+          <button
+            id="live-desmos-toggle"
+            aria-pressed={desmos}
+            onClick={() => setDesmos(!desmos)}
+          >
+            <Calculator />
+            Desmos
+          </button>
+        )}
       </div>
       {s.phase === "REVEALED" && (
         <div id="live-tools" role="toolbar" aria-label="Annotation tools">
@@ -770,6 +783,16 @@ function InstructorStage({
           <h3>My notes</h3>
           <HTML html={notesHTML(s.notes || "")} />
         </details>
+        {desmos && (
+          <DesmosLeader
+            apiKey={s.desmosKey}
+            initial={s.desmos}
+            live={s.phase === "REVEALED"}
+            send={(state) =>
+              send("desmos", { questionId: s.questionId, state })
+            }
+          />
+        )}
       </div>
       {clear && (
         <Dialog
