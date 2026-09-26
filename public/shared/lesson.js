@@ -8,11 +8,12 @@ export const STUDENT_ACTIONS = ['select', 'lock'];
 export const MAX_FRAME = 2048;
 export function validAction(m, role) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return false;
-  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
+  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y', 'hide'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
   if (!Object.hasOwn(fields, m.type) || Object.keys(m).some(k => !fields[m.type].includes(k))) return false;
   if (m.type !== 'ping' && !(role === 'admin' ? ADMIN_ACTIONS : STUDENT_ACTIONS).includes(m.type)) return false;
   if (m.type === 'ping') return Number.isSafeInteger(m.sentAt) && m.sentAt >= 0;
-  if (m.type === 'laser') return validId(m.questionId) && unit(m.x) && unit(m.y);
+  // Explicit hide (tool off, pointer left the stage, presenter gone); otherwise a position.
+  if (m.type === 'laser') return validId(m.questionId) && (m.hide === true ? !('x' in m) && !('y' in m) : !('hide' in m) && unit(m.x) && unit(m.y));
   if (m.type === 'annotate') return validId(m.questionId) && validMark(m.op);
   if (m.type === 'addTime') return m.sec === 15;
   if (m.type === 'lockJoin' || m.type === 'classResults') return typeof m.bool === 'boolean';

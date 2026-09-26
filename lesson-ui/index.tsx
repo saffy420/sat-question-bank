@@ -44,6 +44,10 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
   useLayoutEffect(() => { setConfirm(null); }, [s.questionId]);
   useLayoutEffect(() => { if (!active) setConfirm(null); }, [active]);
   useLayoutEffect(() => {
+    const card = document.getElementById('lesson-card');
+    if (card && s.phase !== 'REVEALED') Ink.laser(card).hide();
+  }, [s.phase, s.questionId]);
+  useLayoutEffect(() => {
     if (confirm) dialog.current?.showModal();
     else dialog.current?.close();
   }, [confirm]);
@@ -97,11 +101,13 @@ export function mountLesson(root: HTMLElement, bridge: Bridge) {
   return {
     update(next: PlayerModel) { model = next; render(); },
     annotate(mark: Mark) { followMark = mark; render(); },
-    // No React render per packet: the dot is moved directly.
+    // No React render per packet. The presenter heartbeats every 2.5 s while idle, so the dot
+    // stays put until an explicit hide; the long expiry only covers a silently dropped presenter.
     laser(point: Laser) {
       clearTimeout(expiry);
+      if (point.hide) { dot()?.hide(); return; }
       dot()?.show(point);
-      expiry = setTimeout(() => dot()?.hide(), 300);
+      expiry = setTimeout(() => dot()?.hide(), 8000);
     },
     terminal(text: string) { terminal = text; render(); },
     reset() { terminal = ''; followMark = null; clearTimeout(expiry); flushSync(() => react.render(null)); },

@@ -627,7 +627,7 @@ function InstructorStage({
       ];
     };
     // Laser: coalesce pointermoves into at most one send per animation frame and
-    // ~30 Hz, and skip unchanged positions.
+    // ~30 Hz, skip unchanged positions, heartbeat while idle, hide explicitly.
     const dot = Ink.laser(card);
     let aim: { x: number; y: number } | null = null,
       sent: { x: number; y: number } | null = null,
@@ -651,11 +651,19 @@ function InstructorStage({
       sent = aim;
       laserSend(aim, now);
     };
+    const heartbeat =
+      tool === "laser"
+        ? setInterval(() => {
+            if (sent && performance.now() - sentAt > 2400) laserSend(sent);
+          }, 2500)
+        : undefined;
     const laserOff = () => {
       cancelAnimationFrame(frame);
       frame = 0;
       aim = null;
       dot.hide();
+      // After Next/End the room is no longer REVEALED; students drop the old card's dot anyway.
+      if (sent && latest.current.s.phase === "REVEALED") laserSend({ hide: true });
       sent = null;
     };
     const mark = (op: Partial<Mark>) =>
@@ -737,6 +745,7 @@ function InstructorStage({
     card.addEventListener("pointerleave", laserOff);
     return () => {
       clearInterval(interval);
+      clearInterval(heartbeat);
       laserOff();
       card.removeEventListener("pointerleave", laserOff);
       card.removeEventListener("pointerdown", down);

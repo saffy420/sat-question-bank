@@ -150,7 +150,16 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     const dot = student.locator('#lesson-card .lesson-laser');
     await teacher.mouse.move(box.x + 260, box.y + 120);
     await expect(dot).toBeVisible();
+    // Idle presenter: the dot stays put (heartbeat), and hides only when the pointer leaves the stage.
+    await student.waitForTimeout(3500);
+    await expect(dot).toBeVisible();
     await screenshot(student, '08-student-live-laser');
+    await teacher.mouse.move(2, 2);
+    await expect(dot).toBeHidden();
+    await teacher.mouse.move(box.x + 260, box.y + 120);
+    await expect(dot).toBeVisible();
+    await teacher.locator('[data-tool="laser"]').click();
+    await expect(dot).toBeHidden();
 
     const persisted = await layer();
     expect(persisted.map(m => m.type)).toEqual(expect.arrayContaining(['highlight', 'strike', 'stroke']));

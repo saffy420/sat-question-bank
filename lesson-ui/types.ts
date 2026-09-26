@@ -16,7 +16,7 @@ export type Mark = {
   startOffset?: number;
   endOffset?: number;
 };
-export type Laser = { x: number; y: number };
+export type Laser = { x: number; y: number; hide?: boolean };
 export type Snapshot = {
   title: string;
   phase: 'READY' | 'ANSWERING' | 'REVEALED' | 'ENDED';

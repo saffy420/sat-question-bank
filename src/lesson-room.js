@@ -183,11 +183,11 @@ export class LessonRoom {
     if (m.type === 'annotate' || m.type === 'laser') {
       if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
       if (m.type === 'laser') {
-        // Presenter sends ~30 Hz; the floor sheds anything faster.
-        if (Date.now() - (this.lastLaser || 0) < 25) return;
+        // Presenter sends ~30 Hz; the floor sheds anything faster. A hide is never dropped.
+        if (!m.hide && Date.now() - (this.lastLaser || 0) < 25) return;
         this.lastLaser = Date.now();
         // Relay to everyone except the sender (it draws its own dot) and without serverNow.
-        const frame = JSON.stringify({ type:'laser', questionId:m.questionId, x:m.x, y:m.y });
+        const frame = JSON.stringify(m.hide ? { type:'laser', questionId:m.questionId, hide:true } : { type:'laser', questionId:m.questionId, x:m.x, y:m.y });
         for (const peer of this.sockets()) if (peer !== ws) try { peer.send(frame); } catch { /* disconnected */ }
         return;
       } else {
@@ -269,6 +269,12 @@ export class LessonRoom {
       if (m.type === 'endNow') await this.advance(s);
     } else this.send(ws, this.snapshot(s, a));
   }
-  webSocketClose(ws, code, reason) { ws.close(code, reason); }
+  async webSocketClose(ws, code, reason) {
+    ws.close(code, reason);
+    if (ws.deserializeAttachment()?.role !== 'admin') return;
+    // Presenter gone: take their laser off every student screen.
+    const s = await this.state(), item = s?.items[s.index];
+    if (item) for (const peer of this.sockets('student')) try { peer.send(JSON.stringify({ type:'laser', questionId:item.question_id, hide:true })); } catch { /* disconnected */ }
+  }
   webSocketError(ws) { ws.close(1011, 'Socket error'); }
 }
