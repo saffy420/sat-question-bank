@@ -7,11 +7,13 @@ import { Stage, followStage } from './Stage';
 import { DesmosFollower } from './Desmos';
 import { SelfPlayer } from './Self';
 import { PollScreen } from './Poll';
+import { HistoryView } from './History';
 import { loadDesmos } from '/shared/desmos.js';
-import type { Bridge, PlayerModel, Mark, Laser } from './types';
+import type { Bridge, PlayerModel, Mark, Laser, LessonHistory } from './types';
 import type { StageProps } from './Stage';
 import './lesson.css';
 export { Stage, LOGICAL_WIDTH } from './Stage';
+export { notesHTML } from './notes';
 export type { StageProps } from './Stage';
 
 function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerModel; bridge: Bridge; laser: Laser | null; terminal: string; followMark: Mark | null }) {
@@ -94,5 +96,12 @@ export function mountLesson(root: HTMLElement, bridge: Bridge) {
 export function mountStage(root: HTMLElement, props: StageProps) {
   const react = createRoot(root);
   flushSync(() => react.render(<Stage {...props}/>));
+  return () => react.unmount();
+}
+
+// §9.1 My Lessons: a read-only view of one ended session.
+export function mountHistory(root: HTMLElement, history: LessonHistory, mathify: (el: HTMLElement) => void, close: () => void) {
+  const react = createRoot(root);
+  flushSync(() => react.render(<HistoryView history={history} mathify={mathify} close={close}/>));
   return () => react.unmount();
 }

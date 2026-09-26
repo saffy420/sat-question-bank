@@ -1,5 +1,6 @@
 import { breakdown, normalizeQuestion, direction, cbSort } from '../public/shared/stats.js';
-import { CODE } from '../public/shared/lesson.js';
+import { CODE, USAGE_MODES, lessonUsageVisible } from '../public/shared/lesson.js';
+import { padSessionId, progressStatement, attemptStatement, attendedSessions, lessonHistory } from './record.js';
 export { LessonRoom } from './lesson-room.js';
 
 export const validLessonUpgrade = (req, url) => req.method === 'GET' &&
@@ -240,10 +241,17 @@ async function bank(env) {
   ]);
   return [...(core.results || []), ...(ai.results || [])];
 }
+// §2 usedInLesson: padded session IDs per question, oldest first.
+async function lessonUsage(env) {
+  const used = await env.DB.prepare('SELECT question_id, session_id FROM question_lesson_usage ORDER BY used_at, session_id').all();
+  const usageById = new Map();
+  for (const r of used.results || []) { if (!usageById.has(r.question_id)) usageById.set(r.question_id, []); usageById.get(r.question_id).push(padSessionId(r.session_id)); }
+  return usageById;
+}
 async function adminData(env, id, questionBank = null) {
   const [progress, attempts, questions] = await Promise.all([
     env.DB.prepare('SELECT question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id = ?').bind(id).all(),
-    env.DB.prepare('SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json FROM attempts WHERE user_id = ? ORDER BY ts').bind(id).all(),
+    env.DB.prepare('SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json, lesson_session_id FROM attempts WHERE user_id = ? ORDER BY ts').bind(id).all(),
     questionBank || bank(env)
   ]);
   const qs = questions.map(normalizeQuestion);
@@ -256,7 +264,7 @@ async function adminData(env, id, questionBank = null) {
   return { qs, prog, log, stats, directions };
 }
 const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
-export const padSessionId = id => String(id).padStart(5, '0');
+export { padSessionId };
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 // Rejection sampling avoids modulo bias when mapping secure random bytes to 31 symbols.
 const joinCode = () => {
@@ -290,14 +298,14 @@ async function lessonRoutes(req, env, url, p, u) {
     const difficulties = params.getAll('difficulty'), usage = params.get('lessonUsage') || 'show-all', search = (params.get('search') || '').trim().toLowerCase();
     if (!page || !['','Math','Reading & Writing'].includes(section) ||
         [domains,skills,difficulties].some(v => v.length > 30) || [...domains,...skills].some(s => !s || s.length > 150) ||
-        difficulties.some(d => !['Easy','Medium','Hard'].includes(d)) || !['show-all','hide-all'].includes(usage) || search.length > 100 || !['','show-all','hide-all'].includes(params.get('lessonUsage') || '') ||
+        difficulties.some(d => !['Easy','Medium','Hard'].includes(d)) || !USAGE_MODES.includes(usage) || search.length > 100 ||
         [...params.keys()].some(k => !['page','section','domain','skill','difficulty','lessonUsage','search'].includes(k))) return json({ error: 'invalid filter' }, 400);
     const bankRows = (await bank(env)).map(normalizeQuestion);
-    const used = await env.DB.prepare('SELECT question_id, session_id FROM question_lesson_usage ORDER BY used_at, session_id').all();
-    const usageById = new Map();
-    for (const r of used.results || []) { if (!usageById.has(r.question_id)) usageById.set(r.question_id, []); usageById.get(r.question_id).push(padSessionId(r.session_id)); }
+    const usageById = await lessonUsage(env);
+    // The instructor "attended" every session of a lesson they created: they ran it.
+    const ran = usage === 'hide-attended' ? new Set(((await env.DB.prepare('SELECT s.id FROM lesson_sessions s JOIN lessons l ON l.id=s.lesson_id WHERE l.created_by=?').bind(u.id).all()).results || []).map(r => padSessionId(r.id))) : new Set();
     const rows = bankRows.filter(q => (!section || q.section === section) && (!domains.length || domains.includes(q.domain)) && (!skills.length || skills.includes(q.skill)) &&
-      (!difficulties.length || difficulties.includes(q.difficulty)) && (usage !== 'hide-all' || !usageById.has(q.id)) &&
+      (!difficulties.length || difficulties.includes(q.difficulty)) && lessonUsageVisible(usageById.get(q.id), usage, ran) &&
       (!search || [q.id,q.skill,q.stem_html?.replace(/<[^>]*>/g, ' ')].some(v => String(v || '').toLowerCase().includes(search))));
     const domainOrder = cbSort([...new Set(rows.map(q => q.domain || ''))]), skillOrder = cbSort([...new Set(rows.map(q => q.skill || ''))]);
     rows.sort((a,b) => domainOrder.indexOf(a.domain || '') - domainOrder.indexOf(b.domain || '') ||
@@ -427,6 +435,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       return res;
     }
     const lessonRoute = p === '/api/lessons/join' || /^\/api\/lessons\/[1-9]\d{0,8}(?:\/ws)?$/.test(p);
+    const historyRoute = req.method === 'GET' && /^\/api\/lesson-history(?:\/[1-9]\d{0,8})?$/.test(p);
     const apiMethods = {
       '/api/auth/session': ['POST'], '/api/questions': ['GET'], '/api/account': ['GET'],
       '/api/progress': ['GET', 'POST'], '/api/attempts': ['GET', 'POST'],
@@ -435,10 +444,10 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     const isAPI = p === '/api' || p.startsWith('/api/');
     const knownAPI = apiMethods[p]?.includes(req.method) ||
       (/^\/api\/sessions\/[^/]+$/.test(p) && req.method === 'DELETE');
-    if (isAPI && !knownAPI && !adminAPI(p) && !lessonRoute) return json({ error: 'not found' }, 404);
+    if (isAPI && !knownAPI && !adminAPI(p) && !lessonRoute && !historyRoute) return json({ error: 'not found' }, 404);
     const restrictedAsset = ['GET', 'HEAD'].includes(req.method) &&
       (p === '/app' || adminPath(p) || p === '/admin.js' || p === '/exams.json' || /^\/qimg\/[^/]+\.(?:png|jpg|jpeg|webp|svg)$/i.test(p));
-    if (!knownAPI && !restrictedAsset && !adminAPI(p) && !lessonRoute) {
+    if (!knownAPI && !restrictedAsset && !adminAPI(p) && !lessonRoute && !historyRoute) {
       const res = await asset(env, new Request(new URL('/404.html', url), { method: req.method === 'HEAD' ? 'HEAD' : 'GET' }));
       return new Response(res.body, { status: 404, headers: res.headers });
     }
@@ -475,6 +484,17 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       if (membership.status !== 'approved') return json({ error: 'membership not approved' }, 403);
       try { return await lessonAccess(req, env, url, p, u); }
       catch { return json({ error: 'lesson unavailable' }, 503); }
+    }
+    // §9.1 My Lessons: a student's own sessions; one opens only after it has ended (G6).
+    if (historyRoute) {
+      try {
+        if (p === '/api/lesson-history') {
+          const sessions = await attendedSessions(env.DB, u.id);
+          return json({ attended: sessions.map(s => s.paddedId), sessions: sessions.filter(s => s.status === 'ended') });
+        }
+        const detail = await lessonHistory(env.DB, env.AI_DB, u.id, Number(p.slice('/api/lesson-history/'.length)));
+        return detail ? json({ ...detail, desmosKey: desmosApiKey(env, url) }) : json({ error: 'not found' }, 404);
+      } catch { return json({ error: 'history unavailable' }, 503); }
     }
     if (adminPath(p) || adminAPI(p) || p === '/admin.js') {
       let role;
@@ -538,7 +558,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         const page = pageOf(url); if (!page) return json({ error: 'invalid page' }, 400);
         if (match[2]) {
           const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM attempts WHERE user_id = ?').bind(id).first();
-          const rows = await env.DB.prepare(`SELECT question_id, ts, correct, picked, changes, time_taken_ms, answer_history_json
+          const rows = await env.DB.prepare(`SELECT question_id, ts, correct, picked, changes, time_taken_ms, answer_history_json, lesson_session_id
             FROM attempts WHERE user_id = ? ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?`).bind(id, PAGE_SIZE, (page - 1) * PAGE_SIZE).all();
           return json({ results: rows.results || [], total: total.n, page, pages: Math.max(1, Math.ceil(total.n / PAGE_SIZE)) });
         }
@@ -546,8 +566,10 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         const latest = new Map();
         for (const x of log) if (!latest.has(x.question_id) || x.ts >= latest.get(x.question_id).ts) latest.set(x.question_id, x);
         const mistakes = qs.filter(q => ['Red', 'Orange'].includes(prog[q.id]?.marker)).map(q => ({ question_id: q.id, marker: prog[q.id].marker,
-          picked: latest.get(q.id)?.picked || null, question: q }));
-        return json({ student, stats, directions, mistakes, totalHistory: log.length });
+          picked: latest.get(q.id)?.picked || null, lessonSessionId: latest.get(q.id)?.lesson_session_id ? padSessionId(latest.get(q.id).lesson_session_id) : null, question: q }));
+        // §3.2 Lessons: only self-paced sessions feed the stats above (§10).
+        const lessons = (await attendedSessions(env.DB, id)).map(({ endedAt, ...x }) => ({ ...x, counted: x.mode === 'self' }));
+        return json({ student, stats, directions, mistakes, lessons, totalHistory: log.length });
       }
       return json({ error: 'not found' }, 404);
     }
@@ -580,7 +602,8 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       // Not SELECT *: stem_text is a legacy OCR column nothing renders, and it
       // is 15% of a payload the client downloads whole.
       // Shared bank read; AI_DB failures stay 503 rather than core-only success.
-      return json(await bank(env));
+      const [rows, usageById] = await Promise.all([bank(env), lessonUsage(env)]);
+      return json(rows.map(q => ({ ...q, usedInLesson: usageById.get(q.id) || [] })));
     }
 
     if (p === '/api/account' && req.method === 'GET') {
@@ -603,19 +626,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       // Only a question that exists. Without this the primary key bounds nothing:
       // question_id is whatever the client typed, so an account can write rows for
       // 500 invented ids per request, for ever.
-      const stmt = env.DB.prepare(
-        `INSERT INTO progress
-           SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM questions WHERE id = ?)
-                                     OR EXISTS(SELECT 1 FROM ai_ids   WHERE id = ?)
-         ON CONFLICT(user_id, question_id) DO UPDATE SET
-           attempts=excluded.attempts, corrects=excluded.corrects, marker=excluded.marker,
-           last_reviewed=excluded.last_reviewed, time_taken_ms=excluded.time_taken_ms,
-           stars=MAX(progress.stars, excluded.stars)`
-      );
-      const results = await env.DB.batch(rows.map(r => stmt.bind(
-        u.id, str(r.question_id, 64), r.attempts | 0, r.corrects | 0,
-        str(r.marker, 16) || 'Red', str(r.last_reviewed, 32) || null,
-        r.time_taken_ms | 0, r.stars | 0, str(r.question_id, 64), str(r.question_id, 64))));
+      const results = await env.DB.batch(rows.map(r => progressStatement(env.DB, u.id, r)));
       return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0),
         acknowledged: rows.filter((r, i) => results[i].meta.changes > 0) });
     }
@@ -626,7 +637,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     if (p === '/api/attempts' && req.method === 'GET') {
       if (!u) return json({ error: 'unauthorized' }, 401);
       const r = await env.DB.prepare(
-        'SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json FROM attempts WHERE user_id = ? ORDER BY ts'
+        'SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json, lesson_session_id FROM attempts WHERE user_id = ? ORDER BY ts'
       ).bind(u.id).all();
       return json(r.results || []);
     }
@@ -642,16 +653,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       const added = new Set(rows.filter((r, i) => !existing[i].results.length)
         .map(r => JSON.stringify([r.question_id, r.ts]))).size;
       if ((held?.n || 0) + added > MAX_ATTEMPTS) return json({ error: 'log full' }, 429);
-      const stmt = env.DB.prepare(
-        `INSERT OR IGNORE INTO attempts
-           (user_id, question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json)
-          SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM questions WHERE id = ?)
-                                 OR EXISTS(SELECT 1 FROM ai_ids   WHERE id = ?)`
-      );
-      const results = await env.DB.batch(rows.map(r => stmt.bind(
-        u.id, str(r.question_id, 64), str(r.ts, 32), r.correct ? 1 : 0, r.time_taken_ms | 0,
-        str(r.picked, 32) || null, r.changes | 0, r.answer_history_json ?? null,
-         str(r.question_id, 64), str(r.question_id, 64))));
+      const results = await env.DB.batch(rows.map(r => attemptStatement(env.DB, u.id, r)));
       const persisted = await env.DB.batch(rows.map(r => env.DB.prepare(
         'SELECT 1 FROM attempts WHERE user_id = ? AND question_id = ? AND ts = ?'
       ).bind(u.id, r.question_id, r.ts)));

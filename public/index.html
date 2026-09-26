@@ -326,6 +326,8 @@ select:hover { border-color: var(--border2); }
 .tag.t-medium { color: var(--orange); background: var(--orange-bg); border-color: transparent; }
 .tag.t-hard { color: var(--red); background: var(--red-bg); border-color: transparent; }
 .tag.t-wrong { color: var(--red); background: var(--red-bg); border-color: transparent; }
+.tag.t-used, .tag.t-lesson { color: var(--blue); border-color: transparent; background: var(--blue-bg); }
+td .tag.t-used { margin-left: 6px; font-family: inherit; }
 .tag.t-fixed { color: var(--green); background: var(--green-bg); border-color: transparent; }
 .tag.t-skill { margin-left: auto; }
 .mk-stem { font-size: 14px; line-height: 1.55; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -773,6 +775,7 @@ mark.hl-b { background: #bfe3ff; }
     <button class="nav-i" data-tab="browse"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Browse</span></button>
     <button class="nav-i" data-tab="exams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg><span>Practice Exams</span></button>
     <button class="nav-i" data-tab="history"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>History</span></button>
+    <button class="nav-i" data-tab="lessons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h11a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/></svg><span>My Lessons</span></button>
 
     <button class="nav-i" id="join-lesson" type="button"><span>Join lesson</span></button>
     <a class="nav-i" id="admin-link" href="/admin" style="text-decoration:none"><span>Admin</span></a>
@@ -814,6 +817,7 @@ mark.hl-b { background: #bfe3ff; }
             <div class="dd" id="dd-bank"></div>
             <div class="dd" id="dd-diff"></div>
             <div class="dd" id="dd-count"></div>
+            <div class="dd" id="dd-lesson"></div>
             <label class="set-row" style="border:0;padding:0;gap:10px">
               <div class="set-l"><b>Random order</b></div>
               <button class="sw" id="f-rand" aria-pressed="false"></button>
@@ -895,6 +899,13 @@ mark.hl-b { background: #bfe3ff; }
         <div class="panel">
           <div class="panel-h"><h3>History</h3><span class="sub" style="color:var(--dim);font-size:13px">Sessions are deleted 30 days after their last change</span></div>
           <div id="hist-body"></div>
+        </div>
+      </div>
+
+      <div id="tab-lessons" class="hide">
+        <div class="panel">
+          <div class="panel-h"><h3>My Lessons</h3><span class="sub" style="color:var(--dim);font-size:13px">Opens once the instructor ends the session</span></div>
+          <div id="lessons-body"></div>
         </div>
       </div>
 
@@ -1019,15 +1030,15 @@ mark.hl-b { background: #bfe3ff; }
 </div>
 
 <link rel="stylesheet" href="/lesson-ui/lesson.css">
-<div id="lesson-live" class="hide"><div id="lesson-content"></div></div>
+<div id="lesson-live" class="hide"><div id="lesson-content"></div><div id="lesson-history"></div></div>
 <div id="modal-root"></div>
 <div id="overlay-root"></div>
 
 <script type="module">
 import * as Stats from '/shared/stats.js';
 import * as SharedRenderer from '/shared/renderer.js';
-import { CODE } from '/shared/lesson.js';
-import { mountLesson } from '/lesson-ui/lesson.js';
+import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
+import { mountLesson, mountHistory } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1042,6 +1053,8 @@ const LS = {
 };
 
 let QS = [], PROG = {}, LOG = [], NOTES = {};
+// §9 lessons this account attended: padded session IDs (for the bank filter) and the ended ones.
+let LESSONS = { attended: new Set(), sessions: [] };
 let SESS = {}, QBY = new Map(), EXAMS = [];
 let F;
 let S = null;
@@ -1113,6 +1126,7 @@ if (typeof F.diff === 'string') F.diff = F.diff === 'all' ? null : [F.diff];
 if (typeof F.count !== 'number') F.count = SET.count;
 if (typeof F.rand !== 'boolean') F.rand = SET.rand;
 if (F.bank === undefined) F.bank = null;
+if (!USAGE_MODES.includes(F.lesson)) F.lesson = 'show-all';
 LS.set('filters', F);
 
 // ---------------- data ----------------
@@ -1182,7 +1196,7 @@ function tidyExpl(html) {
 // nothing local is merged in, so a stale local copy can never overwrite what the
 // server holds, and a failed fetch can never be mistaken for an empty account.
 async function loadProgress() {
-  PROG = {}; LOG = []; NOTES = {}; SESS = {};
+  PROG = {}; LOG = []; NOTES = {}; SESS = {}; LESSONS = { attended: new Set(), sessions: [] };
   if (!authToken) { refresh(); return; }
   // Fetched independently: one endpoint failing must not discard what the other
   // returned. Sharing a try block meant a transient 500 on the log blanked the
@@ -1203,6 +1217,8 @@ async function loadProgress() {
   try { LOG = await get('/api/attempts'); }
   catch (e) { lost = true; }
   try { (await get('/api/sessions')).forEach(r => { try { SESS[r.id] = { ...r, state: JSON.parse(r.state) }; } catch (e) {} }); }
+  catch (e) { lost = true; }
+  try { const h = await get('/api/lesson-history'); LESSONS = { attended: new Set(h.attended), sessions: h.sessions }; }
   catch (e) { lost = true; }
   backfillProgress();
   backfillLog();
@@ -1564,7 +1580,7 @@ window.__dd = dd;   // reachable for the DOM assertions; harmless in production
 window.__qa = () => ({ QS, PROG, LOG, S, renderStem, isRight, focusSet, weakness, levelOf, pacing, trapCounts, guessing });
 
 const NAV = document.querySelectorAll('.nav-i');
-const TABS = ['practice','dash','browse','mistakes','exams','history','settings'];
+const TABS = ['practice','dash','browse','mistakes','exams','history','lessons','settings'];
 
 // One entry point, so the boot-time tab and a rail click cannot drift apart.
 function setTab(t) {
@@ -1577,6 +1593,7 @@ function setTab(t) {
   if (t === 'settings') drawSettings();
   if (t === 'exams') drawExams();
   if (t === 'history') drawHistory();
+  if (t === 'lessons') drawLessons();
 }
 NAV.forEach(b => b.onclick = () => setTab(b.dataset.tab));
 
@@ -1681,6 +1698,7 @@ function base() {
     if (secs && !secs.has(q.section)) return false;
     if (diffs && !diffs.has((q.difficulty || '').toLowerCase())) return false;
     if (F.bank && !F.bank.includes(q.ai ? 'ai' : 'official')) return false;
+    if (!lessonUsageVisible(q.usedInLesson, F.lesson, LESSONS.attended)) return false;
     return true;
   });
 }
@@ -1821,6 +1839,11 @@ function drawFilters() {
   dd($('dd-count'), { label: 'Questions', allLabel: 'All',
     opts: [['10','10'],['20','20'],['30','30'],['50','50'],['0','All']].map(([v,l]) => ({ v, label: l })),
     get: () => [String(F.count)], set: (x) => { F.count = parseInt(x && x.length ? x[x.length-1] : '0', 10); saveF(); } });
+
+  // §9.2: one three-way choice, so "hide attended" and "hide all" can never both be on.
+  dd($('dd-lesson'), { label: 'Lesson questions', allLabel: 'Show all',
+    opts: [['show-all','Show all'],['hide-attended','Hide questions from lessons I attended'],['hide-all','Hide all lesson questions']].map(([v,l]) => ({ v, label: l })),
+    get: () => [F.lesson], set: (x) => { F.lesson = x && x.length ? x[x.length-1] : 'show-all'; saveF(); } });
 
   $('f-rand').classList.toggle('on', !!F.rand);
   $('f-rand').setAttribute('aria-pressed', String(!!F.rand));
@@ -2154,6 +2177,13 @@ const plain = (h) => {
   return (DECODER.value || '').replace(/\s+/g, ' ').trim();
 };
 
+// §9.2 badge: the lesson sessions a question has been shown in.
+const usedBadge = q => q.usedInLesson?.length ? ` <span class="tag t-used" title="Used in lessons">Lesson ${q.usedInLesson.map(esc).join(', ')}</span>` : '';
+// §10: a mistake whose latest attempt came from a self-paced lesson names that session.
+// LOG is served in ts order and grows at the end, so the last row per question is its latest.
+const latestLesson = () => new Map(LOG.map(x => [x.question_id, x.lesson_session_id]));
+const lessonTag = id => id ? `<span class="tag t-lesson">Lesson ${String(id).padStart(5, '0')}</span>` : '';
+
 // Everything you have ever got wrong, before the page's own dropdowns narrow it.
 // Section and difficulty come off the question; status comes off the marker.
 function wrongSet() { return QS.filter(wrongSet.one); }
@@ -2213,6 +2243,7 @@ function drawMistakes() {
   $('mk-count').textContent = `${list.length.toLocaleString()} question${list.length === 1 ? '' : 's'}`;
   $('mk-drill').disabled = list.length === 0;
   $('mk-export').disabled = !Object.keys(NOTES).length;
+  const lessonOf = latestLesson();
   $('mk-list').innerHTML = list.slice(0, 200).map(q => {
     const fixed = PROG[q.id].marker === 'Orange';
     const d = q.difficulty || '';
@@ -2222,6 +2253,7 @@ function drawMistakes() {
         ${d ? `<span class="tag t-${esc(d.toLowerCase())}">${esc(d)}</span>` : ''}
         <span class="tag ${fixed ? 't-fixed' : 't-wrong'}">${fixed ? 'Corrected' : 'Incorrect'}</span>
         <span class="tag t-skill">${esc(q.skill || 'Other')}</span>
+        ${lessonTag(lessonOf.get(q.id))}${usedBadge(q)}
       </div>
       <div class="mk-stem">${esc(plain(q.stem_html).slice(0, 220)) || '(no text)'}</div>
       ${NOTES[q.id] ? `<div class="mk-note">${esc(NOTES[q.id])}</div>` : ''}
@@ -2324,7 +2356,7 @@ function drawBrowse() {
   const slice = list.slice(browsePage*per, browsePage*per+per);
   $('browse-body').innerHTML = slice.map(x => `
     <tr data-id="${esc(x.id)}">
-      <td class="mono" style="color:var(--dim)">${esc(x.id)}</td>
+      <td class="mono" style="color:var(--dim)">${esc(x.id)}${usedBadge(x)}</td>
       <td>${esc(x.section)}</td>
       <td>${esc(x.domain)}</td>
       <td>${esc(x.skill)}</td>
@@ -2739,20 +2771,12 @@ function rememberAnswer(q, answer) {
 // Shared by the practice grader and the exam scorer: the record moves once per
 // question, the log takes every answer.
 function recordProgress(q, ok, now, ms) {
-  const p = PROG[q.id] || { question_id: q.id, attempts:0, corrects:0 };
-  p.attempts++;
-  p.corrects += (ok === true ? 1 : 0);
-  const wasWrong = p.marker === 'Red';
-  p.marker = ok === true ? (wasWrong ? 'Orange' : 'Green') : 'Red';
-  p.last_reviewed = now;
-  p.time_taken_ms = ms;
+  const p = Stats.nextProgress(PROG[q.id], q.id, ok, now, ms);
   PROG[q.id] = p;
   saveProgress([p]);
 }
 function recordAttempt(q, ok, now, ms, picked, changes) {
-  const ev = { question_id: q.id, ts: now, correct: ok === true ? 1 : 0, time_taken_ms: ms,
-               picked: String(picked == null ? '' : picked).slice(0, 32), changes: changes | 0 };
-  if (S.history?.[q.id]?.length) ev.answer_history_json = JSON.stringify(S.history[q.id]);
+  const ev = Stats.attemptRow(q.id, ok, now, ms, picked, changes, S.history?.[q.id]);
   LOG.push(ev);
   saveLog([ev]);
 }
@@ -3583,6 +3607,30 @@ function reviewState() {
   return S.session;
 }
 
+// ---------------- my lessons (§9.1) ----------------
+function drawLessons() {
+  const rows = LESSONS.sessions;
+  $('lessons-body').innerHTML = !authToken ? '<div class="empty">Sign in to see the lessons you attended.</div>'
+    : !rows.length ? '<div class="empty">No finished lessons yet. A lesson appears here once the instructor ends it.</div>'
+    : `<table class="browse-table" id="lessons-table"><thead><tr><th>Session</th><th>Title</th><th>Date</th><th>Mode</th><th>Score</th></tr></thead><tbody>${rows.map(x => `
+      <tr data-session="${x.sessionId}"><td class="mono">${esc(x.paddedId)}</td><td>${esc(x.title)}</td><td>${esc(String(x.date || '').slice(0, 10))}</td>
+      <td>${x.mode === 'self' ? 'Self-paced' : 'Instructor-paced'}</td><td class="mono">${x.score.scorable ? `${x.score.right} / ${x.score.scorable}` : '&mdash;'}</td></tr>`).join('')}</tbody></table>`;
+  $('lessons-body').querySelectorAll('tr[data-session]').forEach(tr => tr.onclick = () => openLessonHistory(tr.dataset.session));
+}
+let closeHistory = null;
+async function openLessonHistory(id) {
+  if (lessonId) return;
+  try {
+    const r = await fetch('/api/lesson-history/' + encodeURIComponent(id), { headers: await sbHeaders() });
+    if (!r.ok) throw new Error(r.status === 404 ? 'This lesson is not available yet.' : 'Could not load this lesson.');
+    const history = await r.json();
+    $('lesson-live').classList.remove('hide');
+    closeHistory = mountHistory($('lesson-history'), history, mathify, () => {
+      closeHistory?.(); closeHistory = null; $('lesson-live').classList.add('hide');
+    });
+  } catch (e) { warnSync(e.message); }
+}
+
 function drawHistory() {
   const el = $('hist-body');
   if (!authToken) { el.innerHTML = '<div class="empty">Sign in to view exam history.</div>'; return; }
@@ -3722,9 +3770,13 @@ const lessonUI = mountLesson(lessonRoot, {
     lessonSend({ type: 'lock', questionId }); lessonLockPending = true; lessonDraw();
   },
   leave() {
+    const finished = lessonState && (lessonState.status === 'review' || lessonState.status === 'ended' || lessonState.phase === 'ENDED');
     lessonId = null; lessonState = null; lessonPending = null; lessonLockPending = false; lessonSelf = null; clearTimeout(lessonSelfDeadline);
     clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000);
     lessonUI.reset(); $('lesson-live').classList.add('hide');
+    // §10: a finished self-paced set wrote to this account's record on the server; reload it
+    // (and My Lessons) unless local answers are still waiting to save.
+    if (finished && !Object.values(PENDING).some(q => q.length) && !Object.keys(inflight).length) loadProgress();
   }
 });
 function lessonDraw() {

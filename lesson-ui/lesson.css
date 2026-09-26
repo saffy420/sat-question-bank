@@ -129,3 +129,13 @@
 #lesson-live .lesson-poll #poll-vote:disabled { opacity:.5; }
 #poll-status { min-height:1.4em; color:var(--dim); text-align:right; }
 #lesson-not-in-set { font-weight:500; }
+/* §9.1 My Lessons history */
+.history-score { justify-self:center; font-size:16px; color:#444; }
+.history-nav { display:flex; flex-wrap:wrap; gap:8px; padding:8px 28px; }
+#lesson-live .history-nav button { min-width:40px; padding:4px 10px; }
+#lesson-live .history-nav button[aria-current=true] { background:#171717; color:#fff; border-color:#171717; }
+.history-breakdown { padding:16px 0; border-top:1px solid #bbb; }
+.history-breakdown h2 { font-size:17px; font-weight:500; margin:0 0 12px; }
+.history-breakdown>div { font:19px/1.5 'Lesson Serif',serif; }
+#lesson-live .lesson-footer #history-prev, #lesson-live .lesson-footer #history-next { display:flex; align-items:center; gap:6px; }
+#lesson-live .lesson-footer #history-prev { justify-self:start; }

@@ -78,3 +78,24 @@ export type Bridge = {
   leave: () => void;
   mathify: (element: HTMLElement) => void;
 };
+// §9.1 one ended session from /api/lesson-history/:id.
+export type LessonHistory = {
+  sessionId: number;
+  paddedId: string;
+  title: string;
+  mode: 'instructor' | 'self';
+  date: string;
+  desmosKey?: string | null;
+  score: { right: number; scorable: number };
+  questions: {
+    number: number;
+    question: Question;
+    notes: string;
+    inSet: boolean;
+    recorded: boolean;
+    answer: string | null;
+    correct: 0 | 1 | null;
+    annotations: Mark[];
+    desmos: object | null;
+  }[];
+};

@@ -216,6 +216,7 @@ export function QuestionBrowser({
             onChange={(e) => update({ lessonUsage: e.target.value })}
           >
             <option value="show-all">Show all</option>
+            <option value="hide-attended">Hide questions from lessons I ran</option>
             <option value="hide-all">Hide all lesson questions</option>
           </select>
         </label>

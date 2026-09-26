@@ -141,3 +141,23 @@ export function lessonQuestion(q, reveal = false) {
     choices: (q.choices || []).map(c => ({ letter: c.letter, content: c.content || '', img: c.img || '' })), spr: q.spr,
     ...(reveal ? { answer: q.answer, explanation_html: q.explanation_html || '' } : {}) };
 }
+// §2 usedInLesson: the questions a session actually put in front of students. Instructor-paced
+// shows items 0..index once it leaves the lobby; self-paced shows every assigned set.
+export function shownQuestionIds(s) {
+  if (s.status === 'lobby' || !s.startedAt) return [];
+  if (s.mode !== 'self') return s.items.slice(0, s.index + 1).map(x => x.question_id);
+  const shown = new Set(Object.values(s.assigned || {}).flat());
+  return s.items.map(x => x.question_id).filter(id => shown.has(id));
+}
+// §9.2 "Lesson questions": one three-option control, shared by the student bank and the builder.
+export const USAGE_MODES = ['show-all', 'hide-attended', 'hide-all'];
+export function lessonUsageVisible(used, mode, attended) {
+  if (mode === 'hide-all') return !used?.length;
+  if (mode === 'hide-attended') return !used?.some(id => attended.has(id));
+  return true;
+}
+// A student's session score: right over scorable (is_correct null = unscorable, left out).
+export function lessonScore(rows) {
+  const scored = rows.filter(r => r.is_correct != null);
+  return { right: scored.filter(r => r.is_correct === 1).length, scorable: scored.length };
+}

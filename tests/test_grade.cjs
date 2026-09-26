@@ -13,6 +13,8 @@ const page = fs.readFileSync(__dirname + '/../public/index.html', 'utf8');
 const block = page.slice(page.indexOf('function rememberAnswer('), page.indexOf('// --- end grade ---'));
 if (!block) throw new Error('grade block not found in public/index.html');
 const grade = new Function(block + '\nreturn grade;')();
+// recordProgress/recordAttempt go through the shared record helpers the lesson write-back uses.
+global.Stats = require('../public/shared/stats.js');
 
 const Q = { id: 'q1', answer: 'B', choices: [{letter:'A'},{letter:'B'}] };
 let drawn, saved, logged;

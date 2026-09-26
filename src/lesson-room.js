@@ -1,5 +1,6 @@
 import { normalizeQuestion, isRight } from '../public/shared/stats.js';
-import { GRACE_MS, POLL_MS, RESULT_MS, MAX_FRAME, MAX_DESMOS_FRAME, validAction, lessonQuestion, responseGroups, lateJoinSet, setResults, mostMissed, pollWinner } from '../public/shared/lesson.js';
+import { GRACE_MS, POLL_MS, RESULT_MS, MAX_FRAME, MAX_DESMOS_FRAME, validAction, lessonQuestion, responseGroups, lateJoinSet, setResults, mostMissed, pollWinner, shownQuestionIds } from '../public/shared/lesson.js';
+import { lessonWriteBack } from './record.js';
 
 const sqlTime = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 const review = (s, item) => s.desmos?.questionId === item.question_id ? { desmos: s.desmos.state } : {};
@@ -199,13 +200,17 @@ export class LessonRoom {
         VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,user_id,question_id) DO NOTHING`)
         .bind(s.id, r.userId, r.questionId || pending.questionId, r.answer, r.correct, r.locked ? 1 : 0, r.ms, r.changes, JSON.stringify(r.history))),
         ...(pending.finished || []).map(f => this.env.DB.prepare("UPDATE session_participants SET finished_at=? WHERE session_id=? AND user_id=? AND finished_at IS NULL").bind(sqlTime(f.at), s.id, f.userId)),
-        ...(pending.review ? [this.env.DB.prepare("UPDATE lesson_sessions SET status='review' WHERE id=? AND status='live'").bind(s.id)] : [])];
+        ...(pending.review ? [this.env.DB.prepare("UPDATE lesson_sessions SET status='review' WHERE id=? AND status='live'").bind(s.id)] : []),
+        // §10: self-paced answers reach the practice record in the same batch as the responses.
+        ...(pending.writeBack ? await lessonWriteBack(this.env.DB, s.id, pending.writeBack.at, pending.rows, s.questions) : [])];
       if (statements.length) await this.env.DB.batch(statements);
       if (pending.annotations || pending.desmos) await this.env.DB.prepare(`INSERT INTO session_question_review (session_id,question_id,annotations_json,desmos_state_json)
         VALUES (?,?,?,?) ON CONFLICT(session_id,question_id) DO UPDATE SET annotations_json=COALESCE(excluded.annotations_json,annotations_json),
         desmos_state_json=COALESCE(excluded.desmos_state_json,desmos_state_json)`)
         .bind(s.id,pending.questionId,pending.annotations ? JSON.stringify(pending.annotations) : null,pending.desmos ? JSON.stringify(pending.desmos) : null).run();
-      if (pending.end) await this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')) WHERE id=? AND status!='ended'").bind(s.id).run();
+      // §2 usedInLesson: every question the session showed, recorded with the end.
+      if (pending.end) await this.env.DB.batch([...(pending.usage || []).map(questionId => this.env.DB.prepare('INSERT OR IGNORE INTO question_lesson_usage (question_id,session_id) VALUES (?,?)').bind(questionId, s.id)),
+        this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')) WHERE id=? AND status!='ended'").bind(s.id)]);
       await this.ctx.storage.delete('pending');
       const next = await this.ctx.storage.get('nextPending');
       if (next) { await this.ctx.storage.put('pending', next); await this.ctx.storage.delete('nextPending'); await this.flush(s); }
@@ -248,9 +253,10 @@ export class LessonRoom {
       }
     }
     if (await this.ctx.storage.get('pending')) throw Error('pending D1 flush');
-    await this.ctx.storage.put('pending', { rows, end: false, review: true,
+    const at = Date.now();
+    await this.ctx.storage.put('pending', { rows, end: false, review: true, writeBack: { at },
       finished: Object.entries(s.submitted).filter(([userId]) => s.responses[userId]).map(([userId, at]) => ({ userId, at })) });
-    s.phase = 'FINISHED'; s.status = 'review'; s.finishedAt = Date.now();
+    s.phase = 'FINISHED'; s.status = 'review'; s.finishedAt = at;
     await this.save(s);
     await this.flush(s);
     this.broadcast(s);
@@ -466,7 +472,7 @@ export class LessonRoom {
         else { s.index++; s.phase = 'READY'; s.endsAt = null; }
         changed = true;
       } else if (m.type === 'endSession') {
-        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true, ...(s.phase === 'REVEALED' && s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}), ...(s.phase === 'REVEALED' ? review(s, item) : {}) });
+        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true, usage: shownQuestionIds(s), ...(s.phase === 'REVEALED' && s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}), ...(s.phase === 'REVEALED' ? review(s, item) : {}) });
         s.phase = 'ENDED'; s.status = 'ended'; changed = true;
       } else err = 'invalid phase';
     }

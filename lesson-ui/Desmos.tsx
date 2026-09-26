@@ -26,7 +26,8 @@ function useCalculator(apiKey: string | null | undefined, options: object) {
 }
 
 // Student panel: mirrors the instructor until "Try it yourself" forks an editable copy.
-export function DesmosFollower({ apiKey, state }: { apiKey?: string | null; state: DesmosState }) {
+// readOnly (lesson history, §9.1): the instructor's final graph with no editable fork.
+export function DesmosFollower({ apiKey, state, readOnly = false }: { apiKey?: string | null; state: DesmosState; readOnly?: boolean }) {
   const { host, calc, error } = useCalculator(apiKey, FOLLOW_OPTIONS);
   const [forked, setForked] = useState(false);
   const applied = useRef('');
@@ -59,7 +60,7 @@ export function DesmosFollower({ apiKey, state }: { apiKey?: string | null; stat
   return <aside className="lesson-desmos" id="lesson-desmos" data-mode={forked ? 'fork' : 'follow'} aria-label="Graphing calculator">
     <div className="lesson-desmos-bar">
       <strong>{forked ? 'Your copy' : 'Instructor’s graph'}</strong>
-      {forked
+      {readOnly ? null : forked
         ? <button id="lesson-desmos-back" onClick={back} disabled={!calc}>Back to instructor view</button>
         : <button id="lesson-desmos-fork" onClick={fork} disabled={!calc}>Try it yourself</button>}
     </div>

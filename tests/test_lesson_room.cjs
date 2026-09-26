@@ -13,7 +13,7 @@ function fixture() {
   const storage = { get: async k => data.get(k), put: async (k,v) => data.set(k, structuredClone(v)), delete: async k => data.delete(k),
     setAlarm: async n => { data.set('alarm', n); }, deleteAlarm: async () => data.delete('alarm') };
   const ctx = { storage, getWebSockets: () => sockets, acceptWebSocket: ws => sockets.push(ws) };
-  const env = { DB: { batch: async statements => { for (const stmt of statements) await stmt.run(); }, prepare: sql => ({ bind: (...args) => ({ run: async () => { writes.push([sql,args]); } }) }) } };
+  const env = { DB: { batch: async statements => { for (const stmt of statements) await stmt.run(); }, prepare: sql => ({ bind: (...args) => ({ run: async () => { writes.push([sql,args]); }, all: async () => ({ results: [] }) }) }) } };
   const s = { id: 7, code: 'ABCDEF', title: 'Frozen', owner: 'teacher', status: 'live', phase: 'ANSWERING', index: 0,
     endsAt: Date.now()+5000, startedAt: Date.now(), lockedJoin: false, kicked: [], roster: { alice:'Alice', bob:'Bob' },
     items: [{ question_id:'q',time_limit_sec:60,notes:'PRIVATE_NOTE' }],
