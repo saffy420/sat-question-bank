@@ -173,6 +173,14 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     await shot(student, '04-history-rw');
     await student.locator('#history-close').click();
     await expect(student.locator('#lesson-live')).toBeHidden();
+    // A failed load is reported on My Lessons, not in the answers-not-saved banner.
+    const failing = `**/api/lesson-history/${self.sessionId}`;
+    await student.route(failing, route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"history unavailable"}' }));
+    await student.locator(`#lessons-table tr[data-session="${self.sessionId}"]`).click();
+    await expect(student.locator('#lessons-error')).toHaveText('Could not load this lesson.');
+    await expect(student.locator('#lesson-live')).toBeHidden();
+    await expect(student.locator('#sync-bar')).toHaveCount(0);
+    await student.unroute(failing);
 
     // 2. Badges list the padded session IDs, oldest first.
     const bank = await (await six.request.get('/api/questions')).json();
