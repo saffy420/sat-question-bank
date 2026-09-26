@@ -43,6 +43,12 @@ No spec failed. Reviewing the screenshots found these **app bugs** (repair round
 | A4 | 10 (grid) | ◆ on each student's current question from the start (and on a late joiner's first question) | The room sets a position only on a `navigate` message, so a student who hasn't moved yet (everyone at start, a new late joiner) shows no ◆ until the client's reconnect `navigate` arrives |
 | A5 | 11 (student) | No timer controls once the set is over | The "Hide" timer button stays visible with no clock |
 
+## Repair round 1 rerun (after `f3c29388`)
+
+- The spec now reads the compact grid cell `[answer, correct, ms]` and additionally asserts ◆ (`data-current`) for both students right after Start and for the late joiner's first question (test commits `636a1155`, `5e1de1c8`).
+- Task specs 2/2; full suite **23/23** (2.4 min). Unit 85/85.
+- Screenshots 10–12 re-checked: no class-results toggle, card section readable, grid aligned, ◆ shown for every student in progress, and no timer control after the set ends. In this run the late joiner got `[e2e-core-math, e2e-ai-rw]` (Q2, Q4); Q1/Q3 show ░.
+
 ## Environment notes
 
 - The workerd `SSLV3_ALERT_CERTIFICATE_UNKNOWN` lines are the known self-signed local TLS noise.

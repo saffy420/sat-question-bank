@@ -33,3 +33,16 @@ Diff reviewed: `git diff claude/lessons-06-desmos...HEAD` (through 817dc642 + e2
 - Task items: §8.2 three exact cases and §8.5 17 s/5 s pass exactly (unit). Subset never recomputed: unit (re-join and later clock) + e2e checkpoint 8. PASS.
 
 Verdict before repairs: **6 blockers (B1–B6)** → repair round 1.
+
+## Repair round 1 (`f3c29388` fix; tests `636a1155`, `5e1de1c8`)
+
+- B1: the room sets `positions[user]` to the first assigned question at start and at a live late join. Unit: "self-paced start puts every lobby student on their first question" + late-join position assertion. E2E: ◆ on Q1 for both students right after Start, and on the late joiner's first question.
+- B2: the class-results toggle is not rendered for self-paced rooms.
+- B3: the card's question/explanation/notes use their own `.self-card-details` collapsible section (screenshot 10: normal row, opens in place).
+- B4: grid name cells stay table cells (badges inline).
+- B5: the student timer Hide/Show button renders only while the set clock runs (screenshot 11).
+- B6: compact instructor projection: `grid[user][q] = [answer, correct, ms]`, card groups list indexes into `students`, and the unused `assigned` map is dropped. 25 students × 20 questions: lite refresh **56,520 → 23,133 bytes** (full 78,694 → 45,307). Unit asserts cards carry no repeated names.
+- Reran: unit **85/85**, typecheck clean, task specs 2/2, full suite **23/23** (2.4 min; Desmos latency 272–285 ms in the same run).
+- Re-review of the repair diff: changes are limited to the six findings. The e2e spec only changed to read the new cell shape and to assert ◆. No regression in instructor-paced (task 04/05/06 specs green) and no new student payload fields.
+
+Verdict after round 1: **PASS**.
