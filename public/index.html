@@ -1018,7 +1018,8 @@ mark.hl-b { background: #bfe3ff; }
   </div>
 </div>
 
-<div id="lesson-live" class="hide" style="position:fixed;inset:0;z-index:100;background:var(--bg);overflow:auto;padding:24px;box-sizing:border-box"><div id="lesson-content" class="panel" style="max-width:1000px;margin:auto;padding:20px"></div></div>
+<link rel="stylesheet" href="/lesson-ui/lesson.css">
+<div id="lesson-live" class="hide"><div id="lesson-content"></div></div>
 <div id="modal-root"></div>
 <div id="overlay-root"></div>
 
@@ -1026,7 +1027,7 @@ mark.hl-b { background: #bfe3ff; }
 import * as Stats from '/shared/stats.js';
 import * as SharedRenderer from '/shared/renderer.js';
 import { CODE } from '/shared/lesson.js';
-import * as Ink from '/shared/annotations.js';
+import { mountLesson } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -3688,68 +3689,39 @@ async function exportQuestion(btn) {
 }
 
 // ---------------- live lesson (independent of practice state) ----------------
-let lessonSocket, lessonState, lessonId, lessonClientId, lessonPending, lessonLockPending = false, lessonOffset = 0, lessonBestRTT = Infinity, lessonRetry, lessonClock, lessonLaser, lessonPrivate = [], lessonPrivateOn = false, lessonFollow = true, lessonResize;
+let lessonSocket, lessonState, lessonId, lessonClientId, lessonPending, lessonLockPending = false, lessonOffset = 0, lessonBestRTT = Infinity, lessonRetry, lessonClock, lessonError = '';
 const lessonRoot = $('lesson-content');
-function lessonDraw() {
-  const s = lessonState; if (!s) return;
-  lessonResize?.disconnect();
-  const active = s.phase === 'ANSWERING' && Date.now() + lessonOffset < s.endsAt && !s.locked && !lessonLockPending;
-  const q = s.question, revealed = s.phase === 'REVEALED' || s.phase === 'ENDED';
-  const picked = lessonPending?.questionId === s.questionId ? lessonPending.answer : s.ownSelection;
-  const stem = q ? SharedRenderer.splitContext(SharedRenderer.renderStem(q), document) : null;
-  const editingGrid = document.activeElement?.id === 'lesson-grid' && s.phase === 'ANSWERING' ? { value: $('lesson-grid').value, start: $('lesson-grid').selectionStart } : null;
-  lessonRoot.innerHTML = `<div class="frow"><h2>${esc(s.title)}</h2><span>Q ${s.index + 1} / ${s.total}</span><span id="lesson-clock"></span><span id="lesson-connection">${lessonSocket?.readyState === WebSocket.OPEN ? '● Connected' : 'Reconnecting…'}</span><button id="lesson-leave">Leave view</button></div>${revealed ? '<div class="frow"><label><input type="checkbox" id="lesson-follow" checked> Follow me</label><button id="lesson-private">Private highlight</button><button id="lesson-private-clear">Clear private</button></div>' : ''}
-    <p>${s.phase === 'READY' && s.status === 'lobby' ? 'Waiting for the instructor to start…' : esc(s.phase)} · ${s.count} joined</p>
-    ${q ? `<div id="lesson-card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px;position:relative"><div class="cb">${stem.context ? `<div class="passage">${stem.context}</div>` : ''}</div><div class="cb"><div class="lesson-stem">${stem.body}</div>
-      ${q.spr ? `<label>Grid-in <input id="lesson-grid" maxlength="32" value="${esc(picked || '')}" ${active ? '' : 'disabled'}></label><button id="lesson-pick" ${active ? '' : 'disabled'}>Select</button>`
-      : `<div class="choices">${q.choices.map(c => `<button data-lesson-choice="${esc(c.letter)}" ${active ? '' : 'disabled'} aria-pressed="${picked === c.letter}" style="display:block;width:100%;text-align:left;border:0;background:transparent;padding:0">${SharedRenderer.choiceHTML(q, c, null, true).replace('class="choice"', `class="choice${revealed ? c.letter === q.answer ? ' right' : picked === c.letter ? ' wrong' : '' : picked === c.letter ? ' sel' : ''}"`)}</button>`).join('')}</div>`}
-      ${active ? '<button id="lesson-lock">Submit</button>' : !revealed && (s.locked || lessonLockPending) ? '<p>Answer locked in. Waiting for time to end…</p>' : ''}
-      ${revealed ? `<p>Correct answer: ${esc(q.answer)}${q.spr ? ` · Your answer: ${esc(picked || 'blank')} · ${esc(Stats.isRight(q, picked) ? 'Correct' : 'Incorrect')}` : ''}</p><details><summary>Official explanation</summary>${q.explanation_html || ''}</details>` : ''}</div></div>
-      ${revealed && s.classResults && s.distribution ? `<h3>Class results</h3>${s.distribution.map(g => `<p>${esc(g.label)} ${'█'.repeat(Math.min(30,g.count))} ${g.count}${g.correct ? ' ✓' : ''}</p>`).join('')}` : ''}` : ''}
-    <p id="lesson-error" role="alert"></p>`;
-  $('lesson-leave').onclick = () => { clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000); lessonId = null; lessonState = null; lessonResize?.disconnect(); lessonPrivate = []; lessonLockPending = false; $('lesson-live').classList.add('hide'); };
-  lessonRoot.querySelectorAll('[data-lesson-choice]').forEach(b => b.onclick = () => lessonSelect(s.questionId, b.dataset.lessonChoice));
-  if ($('lesson-pick')) $('lesson-pick').onclick = () => lessonSelect(s.questionId, $('lesson-grid').value.trim());
-  if ($('lesson-grid')) $('lesson-grid').oninput = e => { if (e.target.value.trim() && /^[-\d./]{1,32}$/.test(e.target.value.trim())) lessonSelect(s.questionId, e.target.value.trim()); };
-  if ($('lesson-lock')) $('lesson-lock').onclick = () => {
-    const root = $('modal-root');
-    root.innerHTML = '<div class="modal-bg" style="z-index:101"><div class="modal" role="dialog" aria-modal="true"><p>Have you double checked your answer and made sure it\'s right?</p><button id="lesson-confirm">Yes, submit</button><button id="lesson-back">Go back</button></div></div>';
-    $('lesson-back').onclick = () => root.replaceChildren();
-    $('lesson-confirm').onclick = () => { root.replaceChildren(); if (lessonState?.questionId !== s.questionId || lessonState.phase !== 'ANSWERING' || Date.now() + lessonOffset >= lessonState.endsAt) return; if (lessonPending) lessonSend(lessonPending); lessonSend({ type: 'lock', questionId: s.questionId }); lessonLockPending = true; lessonDraw(); };
-  };
-  mathify(lessonRoot); lessonTick();
-  const card = $('lesson-card');
-  if (card) { Ink.blocks(card); Ink.paint(card,[...(s.annotations || []),...lessonPrivate]); Ink.overlay(card,s.annotations || []);
-    lessonResize = new ResizeObserver(() => Ink.overlay(card,lessonState?.annotations || [])); lessonResize.observe(card);
-    if (revealed) {
-      $('lesson-follow').checked = lessonFollow;
-      $('lesson-follow').onchange = e => lessonFollow = e.target.checked;
-      $('lesson-private').setAttribute('aria-pressed',String(lessonPrivateOn));
-      $('lesson-private').onclick = () => { lessonPrivateOn = !lessonPrivateOn; $('lesson-private').setAttribute('aria-pressed',String(lessonPrivateOn)); };
-      $('lesson-private-clear').onclick = () => { lessonPrivate = []; Ink.paint(card,s.annotations || []); };
-      card.onpointerup = () => {
-        if (!lessonPrivateOn) return;
-        const range = Ink.anchor(card,window.getSelection()); if (!range) return;
-        lessonPrivate.push({type:'highlight',id:crypto.randomUUID(),...range,color:'#75dbaa'});
-        Ink.paint(card,[...(s.annotations || []),...lessonPrivate]); window.getSelection()?.removeAllRanges();
-      };
-    }
+const lessonUI = mountLesson(lessonRoot, {
+  mathify,
+  select: lessonSelect,
+  lock(questionId) {
+    if (lessonState?.questionId !== questionId || lessonState.phase !== 'ANSWERING' || Date.now() + lessonOffset >= lessonState.endsAt) return;
+    if (lessonPending) lessonSend(lessonPending);
+    lessonSend({ type: 'lock', questionId }); lessonLockPending = true; lessonDraw();
+  },
+  leave() {
+    lessonId = null; lessonState = null; lessonPending = null; lessonLockPending = false;
+    clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000);
+    lessonUI.reset(); $('lesson-live').classList.add('hide');
   }
-  if (editingGrid && $('lesson-grid') && active) { $('lesson-grid').value = editingGrid.value; $('lesson-grid').focus(); $('lesson-grid').setSelectionRange(editingGrid.start, editingGrid.start); }
+});
+function lessonDraw() {
+  if (!lessonState) return;
+  lessonUI.update({ snapshot: lessonState,
+    picked: lessonPending?.questionId === lessonState.questionId ? lessonPending.answer : lessonState.ownSelection || '',
+    lockPending: lessonLockPending,
+    remaining: lessonState.endsAt ? Math.max(0, lessonState.endsAt - Date.now() - lessonOffset) : 0,
+    connected: lessonSocket?.readyState === WebSocket.OPEN,
+    name: $('user-name').textContent || '', error: lessonError
+  });
 }
-function lessonTick() {
-  if (!lessonState || !$('lesson-clock')) return;
-  const remaining = lessonState.endsAt ? Math.max(0, lessonState.endsAt - Date.now() - lessonOffset) : 0;
-  $('lesson-clock').textContent = lessonState.endsAt ? fmtMs(remaining) : '';
-  $('lesson-clock').style.color = lessonState.phase === 'ANSWERING' && remaining <= 5000 ? '#bd2424' : lessonState.phase === 'ANSWERING' && remaining <= 10000 ? '#b56a00' : '';
-  if (lessonState.phase === 'ANSWERING' && remaining === 0) lessonRoot.querySelectorAll('[data-lesson-choice],#lesson-pick,#lesson-grid,#lesson-lock').forEach(el => el.disabled = true);
-}
+function lessonTick() { lessonDraw(); }
 function lessonSend(m) { if (lessonSocket?.readyState === WebSocket.OPEN) lessonSocket.send(JSON.stringify(m)); }
 function lessonSelect(questionId, answer) {
   if (!answer || lessonState?.phase !== 'ANSWERING' || lessonState.locked || lessonLockPending || Date.now() + lessonOffset >= lessonState.endsAt) return;
   lessonPending = { type: 'select', questionId, answer };
   lessonSend(lessonPending);
-  lessonRoot.querySelectorAll('[data-lesson-choice]').forEach(b => { b.setAttribute('aria-pressed', String(b.dataset.lessonChoice === answer)); b.querySelector('.choice')?.classList.toggle('sel', b.dataset.lessonChoice === answer); });
+  lessonDraw();
 }
 function lessonConnect() {
   if (!lessonId || loggingOut) return;
@@ -3765,7 +3737,7 @@ function lessonConnect() {
     } else if (data.type === 'snapshot') {
       if (lessonPending && (data.questionId !== lessonPending.questionId || data.ownSelection === lessonPending.answer || data.phase !== 'ANSWERING' || data.locked)) lessonPending = null;
       if (data.locked || data.phase !== 'ANSWERING' || data.questionId !== lessonState?.questionId) lessonLockPending = false;
-      if (data.questionId !== lessonState?.questionId) lessonPrivate = [];
+      lessonError = '';
       lessonState = data; lessonDraw();
       if (lessonPending && Date.now() + lessonOffset < data.endsAt) lessonSend(lessonPending);
       if (lessonLockPending && data.phase === 'ANSWERING' && Date.now() + lessonOffset < data.endsAt) lessonSend({ type: 'lock', questionId: data.questionId });
@@ -3774,22 +3746,23 @@ function lessonConnect() {
       if (data.op.type === 'clear') layer.length = 0;
       else if (data.op.type === 'erase') lessonState.annotations = layer.filter(x => x.id !== data.op.id);
       else layer.push(data.op);
-      const card = $('lesson-card'); if (card) { Ink.paint(card,[...lessonState.annotations,...lessonPrivate]); Ink.overlay(card,lessonState.annotations); if (lessonFollow) Ink.follow(card,data.op); }
+      lessonState.annotations = [...lessonState.annotations];
+      lessonDraw(); lessonUI.annotate(data.op);
     } else if (data.type === 'laser' && lessonState?.questionId === data.questionId) {
-      const card = $('lesson-card'); if (card) { Ink.overlay(card,lessonState.annotations || [],data); clearTimeout(lessonLaser); lessonLaser = setTimeout(() => Ink.overlay(card,lessonState.annotations || []),300); }
-    } else if (data.type === 'error') { if (data.error === 'question closed' || data.error === 'answer locked') lessonPending = null; if (data.error === 'question closed' || data.error === 'invalid answer') { lessonLockPending = false; lessonDraw(); } const el = $('lesson-error'); if (el) el.textContent = data.error; }
+      lessonUI.laser(data);
+    } else if (data.type === 'error') { if (data.error === 'question closed' || data.error === 'answer locked') lessonPending = null; if (data.error === 'question closed' || data.error === 'invalid answer') { lessonLockPending = false; lessonDraw(); } lessonError = data.error; lessonDraw(); }
   };
   socket.onclose = e => {
     if (socket !== lessonSocket || !lessonId || e.code === 4001 || e.code === 4002) {
-      if (e.code === 4001 || e.code === 4002) { clearInterval(lessonClock); lessonId = null; lessonRoot.textContent = e.code === 4001 ? 'Opened in another tab.' : 'Removed from lesson.'; }
+      if (e.code === 4001 || e.code === 4002) { clearInterval(lessonClock); lessonId = null; lessonUI.terminal(e.code === 4001 ? 'Opened in another tab.' : 'Removed from lesson.'); }
       return;
     }
-    if ($('lesson-connection')) $('lesson-connection').textContent = 'Reconnecting…';
+    lessonDraw();
     lessonRetry = setTimeout(async () => {
       try {
         const r = await fetch(`/api/lessons/${lessonId}?client=${encodeURIComponent(lessonClientId)}`, { headers: await sbHeaders() });
-        if (r.status === 409 || r.status === 403 || r.status === 410) { lessonId = null; clearInterval(lessonClock); lessonRoot.textContent = 'Lesson access ended or moved to another tab.'; return; }
-        if (r.ok) { const next = await r.json(); if (next.questionId !== lessonState?.questionId) lessonPrivate = []; lessonState = next; lessonDraw(); }
+        if (r.status === 409 || r.status === 403 || r.status === 410) { lessonId = null; clearInterval(lessonClock); lessonUI.terminal('Lesson access ended or moved to another tab.'); return; }
+        if (r.ok) { const next = await r.json(); lessonState = next; lessonDraw(); }
       } catch { /* retry on temporary loss */ }
       if (lessonId) lessonConnect();
     }, 1500);
@@ -3798,7 +3771,7 @@ function lessonConnect() {
 async function lessonJoin(code) {
   const r = await fetch('/api/lessons/join', { method: 'POST', headers: { 'Content-Type': 'application/json', ...await sbHeaders() }, body: JSON.stringify({ code }) });
   const data = await r.json(); if (!r.ok) throw Error(data.error || 'Could not join');
-  clearTimeout(lessonRetry); lessonSocket?.close(1000); lessonPending = null; lessonPrivate = [];
+  clearTimeout(lessonRetry); lessonSocket?.close(1000); lessonPending = null; lessonLockPending = false; lessonError = ''; lessonUI.reset();
   // Join response carries current projected snapshot, never bank objects.
   lessonState = data; lessonId = data.sessionId; lessonClientId = data.clientId; lessonBestRTT = Infinity;
   $('modal-root').replaceChildren(); $('lesson-live').classList.remove('hide'); lessonDraw();

@@ -1,6 +1,9 @@
 import { cbSort, DOM_ORDER, isRight } from './shared/stats.js';
 import { previewHTML, renderStem, splitContext, choiceHTML } from './shared/renderer.js';
 import * as Ink from './shared/annotations.js';
+import { mountStage } from '/lesson-ui/lesson.js';
+const stageStyles = document.createElement('link');
+stageStyles.rel = 'stylesheet'; stageStyles.href = '/lesson-ui/lesson.css'; document.head.append(stageStyles);
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -103,10 +106,11 @@ function preview(m) {
   $('close-preview').onclick = () => host.replaceChildren(); mathify(host); $('close-preview').focus();
 }
 // --- instructor live room ---
-let liveSocket, liveId, liveState, liveOffset = 0, liveBest = Infinity, liveRetry, liveClock, liveSort = 'name', liveTool = 'highlight', liveLaser, liveInkTimer, liveResize;
+let liveSocket, liveId, liveState, liveOffset = 0, liveBest = Infinity, liveRetry, liveClock, liveSort = 'name', liveTool = 'highlight', liveLaser, liveInkTimer, liveResize, liveStageDispose;
 function liveSend(type, fields = {}) { if (liveSocket?.readyState === WebSocket.OPEN) liveSocket.send(JSON.stringify({ type, ...fields })); }
 function drawLive() {
   const s = liveState; if (!s) return;
+  liveStageDispose?.(); liveStageDispose = null;
   liveResize?.disconnect(); clearInterval(liveInkTimer); liveInkTimer = null;
   const q = s.question, revealed = s.phase === 'REVEALED' || s.phase === 'ENDED';
   const stem = q && splitContext(renderStem(q), document);
@@ -117,7 +121,7 @@ function drawLive() {
     <p>${esc(s.phase)} · ${s.count} joined · Q ${s.index+1}/${s.total} · <span id="live-timer"></span></p>
     <div class="frow"><button data-live="start" ${s.status !== 'lobby' ? 'disabled' : ''}>Start lesson</button><button data-live="startQuestion" ${s.phase !== 'READY' || s.status !== 'live' ? 'disabled' : ''}>Start question</button><button data-live="addTime" ${s.phase !== 'ANSWERING' ? 'disabled' : ''}>+15s</button><button data-live="endNow" ${s.phase !== 'ANSWERING' ? 'disabled' : ''}>End now</button><button data-live="next" ${s.phase !== 'REVEALED' || s.index+1 === s.total ? 'disabled' : ''}>Next</button><button data-live="endSession" ${s.phase === 'ENDED' ? 'disabled' : ''}>End session</button><label><input id="live-lock" type="checkbox" ${s.lockedJoin ? 'checked' : ''} ${s.phase === 'ENDED' ? 'disabled' : ''}> Lock joining</label></div>
     <h3>Students</h3><div id="live-roster">${Object.entries(s.roster || {}).map(([id,name]) => `<p>${esc(name)} <button data-kick="${esc(id)}" ${s.phase === 'ENDED' ? 'disabled' : ''}>Remove</button></p>`).join('') || 'No students yet.'}</div>
-    ${q ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:18px"><section><h3>Question ${esc(q.id)}</h3>${s.phase === 'REVEALED' ? `<div class="frow" id="live-tools">${['pen','highlight','strike','erase','clear','laser'].map(t => `<button data-tool="${t}" aria-pressed="${liveTool === t}">${t === 'strike' ? 'Strikethrough' : t === 'clear' ? 'Clear all' : t}</button>`).join('')}</div>` : ''}<div class="cb" id="live-card" style="position:relative">${stem.context ? `<div class="passage">${stem.context}</div>` : ''}<div class="lesson-stem">${stem.body}</div><div class="choices">${q.choices.map(c => choiceHTML(q,c,null,true)).join('')}</div></div><p>✓ Correct: ${esc(q.answer || 'Unavailable')}</p><details><summary>Official explanation</summary>${q.explanation_html || ''}</details><details><summary>My notes</summary>${notesHTML(s.notes || '')}</details></section>
+    ${q ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:18px"><section><h3>Question ${esc(q.id)}</h3>${s.phase === 'REVEALED' ? `<div class="frow" id="live-tools">${['pen','highlight','strike','erase','clear','laser'].map(t => `<button data-tool="${t}" aria-pressed="${liveTool === t}">${t === 'strike' ? 'Strikethrough' : t === 'clear' ? 'Clear all' : t}</button>`).join('')}</div>` : ''}<div id="live-stage"></div><p>✓ Correct: ${esc(q.answer || 'Unavailable')}</p><details><summary>Official explanation</summary>${q.explanation_html || ''}</details><details><summary>My notes</summary>${notesHTML(s.notes || '')}</details></section>
       <section><h3>Responses · ${responses.filter(x => x.r?.answer).length}/${responses.length} in</h3><label>Sort <select id="live-sort"><option value="name" ${liveSort === 'name' ? 'selected' : ''}>Name</option><option value="status" ${liveSort === 'status' ? 'selected' : ''}>Status</option></select></label>
       ${responses.map(({name,r}) => `<p>${r?.locked ? '●' : r?.answer ? '◐' : '○'} ${esc(name)} · ${esc(r?.answer || '—')} ${r?.answer ? isRight(q,r.answer) ? '✓' : '✗' : ''}</p>`).join('')}
       ${revealed && s.distribution ? `<h3>Distribution</h3>${s.distribution.map((g,i) => `<button data-group="${i}" style="display:block;width:100%;text-align:left">${esc(g.label)} ${'█'.repeat(Math.min(30,g.count))} ${g.count}${g.correct ? ' ✓' : ''}</button>`).join('')}<div id="live-group" role="status"></div>` : ''}
@@ -130,9 +134,8 @@ function drawLive() {
   if ($('live-class')) $('live-class').onchange = e => liveSend('classResults', { bool: e.target.checked });
   body.querySelectorAll('[data-group]').forEach(b => b.onclick = () => { $('live-group').innerHTML = `<strong>${esc(s.distribution[+b.dataset.group].label)}</strong>${s.distribution[+b.dataset.group].users.map(u => `<p>${esc(u.name)} · ${u.ms == null ? 'Unavailable' : time(u.ms)}</p>`).join('') || '<p>No students</p>'}`; });
   mathify(body); liveTick();
+  if ($('live-stage')) liveStageDispose = mountStage($('live-stage'), { question:q, number:s.index+1, id:'live-card', marks:s.annotations || [], mathify });
   const card = $('live-card'); if (card) {
-    Ink.blocks(card); Ink.paint(card,s.annotations || []); Ink.overlay(card,s.annotations || []);
-    liveResize = new ResizeObserver(() => Ink.overlay(card,liveState?.annotations || [])); liveResize.observe(card);
     if (s.phase === 'REVEALED') {
        $('live-tools').querySelectorAll('[data-tool]').forEach(b => b.onclick = () => {
          if (b.dataset.tool === 'clear') { if (confirm('Clear all shared annotations?')) liveSend('annotate',{questionId:s.questionId,op:{type:'clear'}}); return; }
