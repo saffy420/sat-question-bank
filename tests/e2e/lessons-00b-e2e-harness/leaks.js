@@ -9,6 +9,8 @@ export function inspectPayload(body, { marker = /E2E_EXPL_MARKER_|E2E_NOTES_MARK
   try { parsed = JSON.parse(text); } catch { /* non-JSON frames still checked for private markers */ }
   const revealed = phaseAware && ['REVEALED', 'ENDED'].includes(parsed?.phase);
   if (phaseAware && !revealed && parsed?.question && typeof parsed.question === 'object' && Object.hasOwn(parsed.question, 'answer')) violations.push('$.question.answer');
+  // Self-paced snapshots carry the student's whole set as questions[]; none may carry an answer before reveal.
+  if (phaseAware && !revealed && Array.isArray(parsed?.questions) && parsed.questions.some(q => q && typeof q === 'object' && Object.hasOwn(q, 'answer'))) violations.push('$.questions[].answer');
   if (phaseAware ? /E2E_NOTES_MARKER_/.test(text) || (!revealed && /E2E_EXPL_MARKER_/.test(text)) : marker.test(text)) violations.push('private marker');
   if (phaseAware) for (const peer of peers) if (text.includes(peer)) violations.push(`named peer ${peer}`);
   if (!parsed || typeof parsed !== 'object') return violations;
