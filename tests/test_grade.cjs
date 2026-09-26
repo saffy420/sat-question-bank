@@ -210,7 +210,7 @@ import('../public/shared/stats.js').then(async stats => {
   assert.match(sprPreview, /disabled value="2"/);
   assert.match(renderer.previewHTML(figure, dom, 'A'), /class="cb expl"/);
   assert.match(page, /SharedRenderer\.previewHTML\(q, document\)/);
-  assert.match(fs.readFileSync(__dirname + '/../public/admin.js', 'utf8'), /previewHTML\(q, document, m\.picked\)/);
+  assert.match(fs.readFileSync(__dirname + '/../admin-ui/ui.tsx', 'utf8'), /previewHTML\(q, document, picked\)/);
   console.log('grade: SPR refresh, retry snapshots, SPR switch count, MC keyboard Check, renderer baseline parity pass');
 }).catch(e => { console.error(e.name, e.message, e.stack); process.exitCode = 1; });
 

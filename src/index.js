@@ -303,7 +303,8 @@ async function lessonRoutes(req, env, url, p, u) {
       COALESCE(SUM(q.time_limit_sec),0) AS totalSec,
       (SELECT COUNT(*) FROM lesson_sessions s WHERE s.lesson_id=l.id) AS timesRun,
       (SELECT MAX(created_at) FROM lesson_sessions s WHERE s.lesson_id=l.id) AS lastRun
-      FROM lessons l LEFT JOIN lesson_questions q ON q.lesson_id=l.id GROUP BY l.id ORDER BY l.updated_at DESC, l.id DESC`).all();
+      FROM lessons l LEFT JOIN lesson_questions q ON q.lesson_id=l.id
+      WHERE l.archived=0 OR ?=1 GROUP BY l.id ORDER BY l.updated_at DESC, l.id DESC`).bind(url.searchParams.get('includeArchived') === '1' ? 1 : 0).all();
     return json(rows.results || []);
   }
   const m = /^\/api\/admin\/lessons\/([^/]+)(?:\/(duplicate|sessions))?$/.exec(p);
@@ -321,9 +322,8 @@ async function lessonRoutes(req, env, url, p, u) {
   }
   if (m && !m[2] && method === 'DELETE') {
     if (!await env.DB.prepare('SELECT id FROM lessons WHERE id=?').bind(id).first()) return json({ error: 'not found' }, 404);
-    if (await env.DB.prepare('SELECT id FROM lesson_sessions WHERE lesson_id=? LIMIT 1').bind(id).first()) return json({ error: 'lesson has sessions' }, 409);
-    await env.DB.prepare('DELETE FROM lesson_questions WHERE lesson_id=?').bind(id).run();
-    await env.DB.prepare('DELETE FROM lessons WHERE id=?').bind(id).run();
+    // Keep the template reference and every frozen session/response/review intact.
+    await env.DB.prepare('UPDATE lessons SET archived=1 WHERE id=?').bind(id).run();
     return json({ ok: true });
   }
   if (m && m[2] === 'sessions' && method === 'POST') {

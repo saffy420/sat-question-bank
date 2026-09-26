@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 -- 0008_lessons.sql: fresh core DB snapshot (do not replay migration on this snapshot).
 CREATE TABLE lessons (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)),
   title TEXT NOT NULL,
   mode TEXT NOT NULL CHECK(mode IN ('instructor','self')),
   created_by TEXT NOT NULL,

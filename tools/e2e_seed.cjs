@@ -45,6 +45,14 @@ async function free(port) {
         { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
       if (upgrade.status !== 0) throw new Error('0008 isolated E2E upgrade failed');
     }
+    const lessonColumns = spawnSync(process.execPath, [...base, '--command', 'PRAGMA table_info(lessons)', '--json'],
+      { cwd: root, encoding: 'utf8', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+    if (lessonColumns.status !== 0) throw new Error('Cannot inspect lesson archive column: ' + lessonColumns.stderr);
+    if (!JSON.parse(lessonColumns.stdout)[0]?.results?.some(c => c.name === 'archived')) {
+      const upgrade = spawnSync(process.execPath, [...base, '--file', 'migrations/0009_lesson_archive.sql'],
+        { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+      if (upgrade.status !== 0) throw new Error('0009 isolated E2E upgrade failed');
+    }
   }
   for (const [binding, file] of [['DB', 'schema.sql'], ['AI_DB', 'schema_ai.sql'], ['DB', 'tools/e2e_core.sql'], ['AI_DB', 'tools/e2e_ai.sql']]) {
     if (hasUsers && file === 'schema.sql') continue; // Snapshot has non-idempotent lesson DDL; upgrades ran above.

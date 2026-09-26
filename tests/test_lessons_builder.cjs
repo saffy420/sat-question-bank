@@ -87,7 +87,7 @@ test('save, replace, duplicate, session snapshot stays frozen, collisions retry,
   assert.equal((await request(`/api/admin/lessons/${id}`,'admin','PUT',{ title: 'Edited', mode: 'self', items: [{ ...body.items[0], notes: 'updated', time_limit_sec: 120 }] })).status,200);
   assert.equal(db.prepare('SELECT snapshot_json FROM lesson_sessions WHERE id=?').get(session.sessionId).snapshot_json,frozen);
   assert.equal((await data(await request(`/api/admin/lessons/${id}`))).items[0].notes,'updated');
-  assert.equal((await request(`/api/admin/lessons/${id}`,'admin','DELETE')).status,409);
+
   db.prepare('INSERT INTO question_lesson_usage(question_id,session_id) VALUES(?,?)').run('q1',session.sessionId);
   db.prepare('INSERT INTO question_lesson_usage(question_id,session_id) VALUES(?,?)').run('q1',1);
   const list = await data(await request('/api/admin/questions?domain=Algebra&domain=Advanced%20Math&difficulty=Easy&difficulty=Medium'));
@@ -142,9 +142,7 @@ test('admin WebSocket upgrades without student client ID; student sockets requir
 });
 
 test('builder time and notes checks use actual client helpers', async () => {
-  const js = readFileSync(__dirname + '/../public/admin.js','utf8');
-  const block = js.slice(js.indexOf('const defaultTime ='), js.indexOf('// --- end lesson builder helpers ---'));
-  const helpers = new Function('esc', block + 'return { defaultTime,totalTime,formatTime,parseTime,notesHTML };')(s => String(s ?? '').replace(/[&<>"\x27]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])));
+  const helpers = await import('../admin-ui/helpers.ts');
   assert.equal(helpers.defaultTime({ section:'Math' }),90);
   assert.equal(helpers.defaultTime({ section:'Reading & Writing' }),60);
   assert.equal(helpers.totalTime([{ time_limit_sec:90 },{ time_limit_sec:60 }]),150);
@@ -152,4 +150,45 @@ test('builder time and notes checks use actual client helpers', async () => {
   for (const bad of ['0:04','180:01','1:60','bad']) assert.equal(helpers.parseTime(bad),null);
   assert.match(helpers.notesHTML('<img src=x onerror=alert(1)> **bold**'),/&lt;img.*&gt; <strong>bold<\/strong>/);
   assert.doesNotMatch(helpers.notesHTML('<script>alert(1)</script>'),/<script>/);
+});
+
+test('lesson delete is admin-gated and archives without changing any past-session data', async t => {
+  const { db, request } = await fixture(t);
+  db.exec('PRAGMA foreign_keys=ON');
+  const lesson = await data(await request('/api/admin/lessons','admin','POST',body));
+  const path = `/api/admin/lessons/${lesson.id}`;
+  const session = await data(await request(path + '/sessions','admin','POST'));
+  db.prepare("INSERT INTO session_participants(session_id,user_id,assigned_question_ids_json) VALUES(?,'student','[\"q1\"]')").run(session.sessionId);
+  db.prepare("INSERT INTO session_responses(session_id,user_id,question_id,final_answer,is_correct,time_spent_ms) VALUES(?,'student','q1','A',1,14000)").run(session.sessionId);
+  db.prepare("INSERT INTO session_question_review(session_id,question_id,annotations_json) VALUES(?,'q1','[{\"type\":\"clear\"}]')").run(session.sessionId);
+  db.prepare("INSERT INTO session_polls(session_id,poll_index,options_json,votes_json) VALUES(?,0,'[]','{}')").run(session.sessionId);
+  db.prepare("INSERT INTO question_lesson_usage(question_id,session_id) VALUES('q1',?)").run(session.sessionId);
+  const tables = ['lesson_questions','lesson_sessions','session_participants','session_responses','session_question_review','session_polls','question_lesson_usage'];
+  const snapshot = () => Object.fromEntries(tables.map(table => [table, db.prepare(`SELECT * FROM ${table}`).all()]));
+  const before = snapshot();
+  assert.equal((await request(path,null,'DELETE')).status,401);
+  assert.equal((await request(path,'student','DELETE')).status,403);
+  assert.equal(db.prepare('SELECT archived FROM lessons WHERE id=?').get(lesson.id).archived,0);
+  assert.deepEqual(snapshot(),before);
+  assert.equal((await request('/api/admin/lessons/999999','admin','DELETE')).status,404);
+  assert.equal((await request('/api/admin/lessons/0','admin','DELETE')).status,400);
+  assert.equal((await request(path,'admin','DELETE')).status,200);
+  assert.equal((await request(path,'admin','DELETE')).status,200);
+  assert.equal(db.prepare('SELECT archived FROM lessons WHERE id=?').get(lesson.id).archived,1);
+  assert.deepEqual(snapshot(),before);
+  assert.deepEqual(await data(await request('/api/admin/lessons')),[]);
+  assert.equal((await data(await request('/api/admin/lessons?includeArchived=1')))[0].id,lesson.id);
+  assert.equal((await data(await request(path+'/sessions')))[0].id,session.sessionId);
+  assert.equal((await data(await request(path))).title,body.title);
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(),[]);
+});
+
+test('archive migration preserves existing templates and defaults new lessons to visible', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(migration);
+  db.exec("INSERT INTO lessons(title,mode,created_by) VALUES('Before','self','admin')");
+  db.exec(readFileSync(__dirname + '/../migrations/0009_lesson_archive.sql','utf8'));
+  assert.equal(db.prepare('SELECT archived FROM lessons').get().archived,0);
+  assert.throws(() => db.exec('UPDATE lessons SET archived=2'),/CHECK/);
+  db.close();
 });
