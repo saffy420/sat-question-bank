@@ -51,3 +51,9 @@ No spec failed. Reviewing the screenshots found one **app bug** (for repair roun
 
 - The workerd `SSLV3_ALERT_CERTIFICATE_UNKNOWN` lines are the known self-signed local TLS noise.
 - There are no fixed sleeps. The 3 s result wait is a condition on the REVIEW phase label, and the early-close check compares server timestamps.
+
+## Repair round 1 rerun (after `75c7a6ca`)
+
+- The spec now also asserts that REVIEW shows no set clock or timer control on any student (test commit `582f65c9`).
+- Results: task spec 1/1; full suite **24/24** (2.5 min); unit 90/90.
+- Screenshot 09 re-checked: no clock or Hide button in review.

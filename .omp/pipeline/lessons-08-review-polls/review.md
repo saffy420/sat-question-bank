@@ -39,3 +39,27 @@ Diff reviewed: `git diff claude/lessons-07-self-paced...HEAD` (through 9a45c15a 
   - Reviews change no data: unit + e2e (overview deep-equal, grid answers, disabled choices).
 
 Verdict before repairs: **2 blockers (B1, B2)**, leading to repair round 1.
+
+## Repair round 1 (`75c7a6ca` fix; test `582f65c9`)
+
+- **B1:** review snapshots carry `endsAt: null`, and the student `Player` hides the timer control in review mode.
+  - Unit: a review snapshot has `endsAt === null`.
+  - E2E: in REVIEW, every student's `#lesson-clock` is empty and there is no timer button. Screenshot 09 re-checked.
+- **B2:** `webSocketClose` re-checks a running poll without the closing socket, so when the last connected student who hasn't voted leaves, the poll closes. It runs before `ws.close` (N4 untouched).
+  - Unit: "review poll closes early when the last connected student who has not voted disconnects". An instructor disconnect changes nothing.
+- **Reruns:**
+  - unit **90/90** (`git.exe` shim);
+  - typecheck clean;
+  - task spec 1/1;
+  - full suite **24/24** (2.5 min).
+- **Re-review of the repair diff:** it is limited to B1/B2. The instructor-paced Player is unchanged apart from `!s.reviewMode`: `endsAt` is still sent in instructor-paced snapshots, so its clock and Hide button still show. No new student payload fields.
+
+**Payloads (25 students × 20 questions, synthetic 600-char stems):**
+- student poll snapshot 2.6 KB;
+- student review snapshot 3.2 KB;
+- instructor overview refresh 39.0 KB (the task 07 live refresh on the same data is 32.9 KB);
+- instructor review refresh 44.7 KB.
+
+Instructor refreshes stay ≤ 4/s and run only on votes and phase changes.
+
+Verdict after round 1: **PASS**.

@@ -1,8 +1,8 @@
 ```text
 Task: lessons-08-review-polls
 Branch: claude/lessons-08-review-polls   Base: claude/lessons-07-self-paced (PR 3 not merged)
-Last completed step: 5 (e2e: task 1/1, full suite 24/24; app bug A1 stale clock in student review)   Commit: 9a45c15a
-Next step: Step 6 — review round: git diff claude/lessons-07-self-paced...HEAD against spec.md and §12.6; write review.md (A1 is a known blocker); then repair round.
+Last completed step: 8 (repair round 1 PASS; handoff + STATUS written)   Commit: see git log
+Next step: Step 9 — push claude/lessons-08-review-polls and open PR 'lessons-08: review polls' (base claude/lessons-07-self-paced); record PR URL here.
 Open blockers: none
 Decisions made this task: see spec.md "Decisions" 1–10
 PR: pending

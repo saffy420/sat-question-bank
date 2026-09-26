@@ -272,3 +272,31 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 4. Instructor-paced time accounting is unchanged (single server-measured segment).
 
 **Manual checks:** self-paced run on real Chromebooks; a late joiner's set and ░ in the grid; accumulated time after revisiting a question.
+
+---
+
+## 2026-09-26 — Task 08: Review polls (Claude Code pipeline; review PASS)
+
+**Shipped (BRIEF §8.6–8.7):**
+- **Post-set overview:**
+  - class summary (average, median, completed);
+  - sortable student table with per-question answers;
+  - most-missed ranked with assigned-only denominators (`Qn — w of a wrong (p%) · skill · difficulty`) that opens the question card.
+- **Launcher:** Start review poll, Review a specific question, End session.
+- **Review polls:** 30 s. Most-missed vs. a question the student picks (✓ / ✗ / "not in your set"); option 2 needs a pick. The poll closes early when every connected student has voted, including when the last non-voter disconnects. Option 2 must win outright; picks tie by more wrong, then lesson order.
+- **After the vote:** the result shows for 3 s, then everyone moves to review mode, which is the instructor-paced REVEALED screen with the student's own answer or "Not in your set", annotations and Desmos, and no clock or notes.
+- **Next** returns to the launcher, and reviewed questions leave later polls.
+- **Reviews change no data:** votes stay in the Durable Object.
+
+**E2E:** task 1/1; full suite 24/24 (twice). Unit 90/90.
+
+**Measured:** 25 students × 20 questions: student poll 2.6 KB, student review 3.2 KB, instructor overview refresh 39.0 KB.
+
+**Deviations:**
+1. `poll`/`pollResult` ride in snapshots.
+2. "Completed" = answered every assigned question.
+3. "End the review" = End session.
+4. Polls and review use lesson numbering.
+5. Instructor-paced students' self-only actions are now rejected instead of locking.
+
+**Manual checks:** poll + review flow in class conditions on real Chromebooks.
