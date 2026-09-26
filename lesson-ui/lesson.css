@@ -15,7 +15,7 @@
 .lesson-timer { display:flex; flex-direction:column; align-items:center; gap:1px; min-height:67px; }
 #lesson-clock { font-size:28px; line-height:1.25; font-weight:500; font-variant-numeric:tabular-nums; min-height:35px; }
 #lesson-live .lesson-timer button { padding:0 15px; border-radius:16px; font-size:13px; line-height:22px; }
-.lesson-tools { display:flex; align-items:center; justify-content:flex-end; gap:23px; }
+.lesson-tools { display:flex; align-items:center; justify-content:flex-end; gap:23px; -webkit-user-select:none; user-select:none; }
 #lesson-live .lesson-tools>button, .lesson-follow-tool, .lesson-more>summary { display:flex; flex-direction:column; align-items:center; gap:5px; background:none; border:0; padding:4px; font-size:13px; cursor:pointer; }
 .lesson-tools svg { width:21px; height:21px; stroke-width:1.8; }
 #lesson-live .lesson-tools button[aria-pressed=true] { background:#e8edff; color:#2345be; }
@@ -24,7 +24,8 @@
 .lesson-more { position:relative; }
 .lesson-more summary { list-style:none; }
 .lesson-more summary::-webkit-details-marker { display:none; }
-.lesson-more>div { position:absolute; top:65px; right:0; width:260px; border:1px solid #bbb; border-radius:8px; background:#fff; padding:8px; box-shadow:0 8px 22px #0002; }
+/* Above the header's ::after dashed divider, which paints later in the same stacking context. */
+.lesson-more>div { position:absolute; z-index:10; top:65px; right:0; width:260px; border:1px solid #bbb; border-radius:8px; background:#fff; padding:8px; box-shadow:0 8px 22px #0002; }
 #lesson-live .lesson-more button { display:flex; gap:12px; width:100%; text-align:left; border:0; padding:12px; }
 #lesson-connection { color:#26793b; display:flex; }
 #lesson-connection svg { width:9px; height:9px; }
