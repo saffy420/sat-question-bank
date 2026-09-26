@@ -6,7 +6,8 @@ import { captureLeaks, inspectPayload } from './leaks.js';
 import { setOffline, throttle, SLOW_3G } from './network.js';
 
 const artifacts = '.opencode/pipeline/lessons-00b-e2e-harness/e2e';
-const ids = ['e2e-core-rw', 'e2e-core-math', 'e2e-core-spr', 'e2e-ai-rw'];
+// The last three are the task09 lesson-usage filter fixtures.
+const ids = ['e2e-core-rw', 'e2e-core-math', 'e2e-core-spr', 'e2e-ai-rw', 'e2e-used-mine', 'e2e-used-other', 'e2e-unused'];
 
 async function bank(page, name) {
   const loaded = page.waitForResponse(r => r.url() === localURL('/api/questions') && r.status() === 200);
@@ -20,7 +21,7 @@ async function bank(page, name) {
   await expect(page.locator('#user-name')).toHaveText(name);
   expect(await page.evaluate(() => window.__qa().QS.map(q => q.id).sort())).toEqual([...ids].sort());
   await expect.poll(() => page.evaluate(() =>
-    document.querySelector('#home-stats .v')?.textContent === '4' &&
+    document.querySelector('#home-stats .v')?.textContent === '7' &&
     document.querySelector('[data-tab="dash"]')?.classList.contains('on') &&
     document.querySelector('#tab-practice')?.classList.contains('hide') &&
     !document.querySelector('#tab-dash')?.classList.contains('hide')
@@ -34,8 +35,8 @@ test('C1 admin login cookie opens gated app; core and AI bank render', async ({ 
     const page = await context.newPage();
     await bank(page, 'E2E Admin');
     await page.locator('[data-tab="browse"]').click();
-    await expect(page.locator('#browse-count')).toHaveText('4 questions');
-    await expect(page.locator('#tab-browse #browse-body tr[data-id]')).toHaveCount(4);
+    await expect(page.locator('#browse-count')).toHaveText('7 questions');
+    await expect(page.locator('#tab-browse #browse-body tr[data-id]')).toHaveCount(7);
     await expect(page.locator('#tab-browse #browse-body')).toContainText('e2e-ai-rw');
     await page.screenshot({ path: `${artifacts}/C1-admin.png` });
   } finally { await context.close(); }

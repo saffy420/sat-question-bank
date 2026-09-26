@@ -4,8 +4,10 @@ import { captureLeaks } from '../lessons-00b-e2e-harness/leaks.js';
 
 const artifacts = '.omp/pipeline/lessons-08-review-polls/e2e';
 const roomSocket = /\/api\/lessons\/\d+\/ws/;
-const names = ['E2E Student 1', 'E2E Student 2', 'E2E Student 3', 'E2E Student 4'];
-const users = ['e2e-student-1', 'e2e-student-2', 'e2e-student-3', 'e2e-student-4'];
+// Student 6, not 1: a finished self-paced set writes practice stats (task 09), and the dashboard
+// specs pin student 1's seeded stats.
+const names = ['E2E Student 6', 'E2E Student 2', 'E2E Student 3', 'E2E Student 4'];
+const users = ['e2e-student-6', 'e2e-student-2', 'e2e-student-3', 'e2e-student-4'];
 const RW = 'e2e-core-rw', MATH = 'e2e-core-math', SPR = 'e2e-core-spr', AI = 'e2e-ai-rw';
 const KEY = { [RW]: 'A', [MATH]: 'C', [SPR]: '3', [AI]: 'A' };
 // 35 s shared clock. A student joining right after start is fitted a subset (never SPR: it only

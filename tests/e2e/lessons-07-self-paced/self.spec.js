@@ -5,7 +5,9 @@ import { lateJoinSet } from '../../../public/shared/lesson.js';
 
 const artifacts = '.omp/pipeline/lessons-07-self-paced/e2e';
 const roomSocket = /\/api\/lessons\/\d+\/ws/;
-const names = ['E2E Student 1', 'E2E Student 2', 'E2E Student 3', 'E2E Student 4'];
+// Student 6, not 1: a finished self-paced set writes practice stats (task 09), and the dashboard
+// specs pin student 1's seeded stats.
+const names = ['E2E Student 6', 'E2E Student 2', 'E2E Student 3', 'E2E Student 4'];
 const RW = 'e2e-core-rw', MATH = 'e2e-core-math', SPR = 'e2e-core-spr', AI = 'e2e-ai-rw';
 // Mixed limits (35 s shared clock) so a late joiner's set has to be fitted to the time left.
 const ITEMS = [
@@ -62,9 +64,9 @@ test('task07 self-paced run: navigation, flags, review, submit all, auto-submit,
     await teacher.goto(`/admin/live/${sessionId}`);
     await expect(teacher.locator('#live-link')).toHaveText('Connected');
     const pages = [], captures = [];
-    for (const n of [1, 2, 3]) {
+    for (const [index, n] of [6, 2, 3].entries()) {
       const context = await newUserContext(browser, `e2e-student-${n}`); students.push(context);
-      captures.push(captureLeaks(context, { phaseAware: true, peers: names.filter((_, i) => i !== n - 1) }));
+      captures.push(captureLeaks(context, { phaseAware: true, peers: names.filter((_, i) => i !== index) }));
       pages.push(await context.newPage());
     }
     const [one, two, late] = pages;
@@ -73,7 +75,7 @@ test('task07 self-paced run: navigation, flags, review, submit all, auto-submit,
     await screenshot(one, '01-lobby');
     await teacher.locator('[data-live="start"]').click();
     await expect(teacher.locator('.live-top')).toContainText('SELF-PACED SET');
-    for (const userId of ['e2e-student-1', 'e2e-student-2']) await expect(teacher.locator(`[data-cell="${userId}:${RW}"]`)).toHaveAttribute('data-current', 'true');
+    for (const userId of ['e2e-student-6', 'e2e-student-2']) await expect(teacher.locator(`[data-cell="${userId}:${RW}"]`)).toHaveAttribute('data-current', 'true');
 
     // 1. Next / Back / navigator / flag, and time on Q1 across two visits (checkpoint 6).
     await expect(one.locator('.lesson-header h1')).toContainText('Q 1 / 4');
@@ -148,7 +150,7 @@ test('task07 self-paced run: navigation, flags, review, submit all, auto-submit,
     await screenshot(one, '06-submitted');
     await expect(teacher.locator('#live-submitted')).toHaveText('Submitted 1');
     const row = (userId, id) => teacher.locator(`[data-cell="${userId}:${id}"]`);
-    for (const [id, state] of [[RW, 'right'], [MATH, 'right'], [SPR, 'right'], [AI, 'wrong']]) await expect(row('e2e-student-1', id)).toHaveAttribute('data-state', state);
+    for (const [id, state] of [[RW, 'right'], [MATH, 'right'], [SPR, 'right'], [AI, 'wrong']]) await expect(row('e2e-student-6', id)).toHaveAttribute('data-state', state);
     await expect(row('e2e-student-2', RW)).toHaveAttribute('data-state', 'wrong');
     await expect(row('e2e-student-2', MATH)).toHaveAttribute('data-current', 'true');
     await expect(row('e2e-student-2', AI)).toHaveAttribute('data-state', 'unreached');
