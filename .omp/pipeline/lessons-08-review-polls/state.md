@@ -1,8 +1,8 @@
 ```text
 Task: lessons-08-review-polls
 Branch: claude/lessons-08-review-polls   Base: claude/lessons-07-self-paced (PR 3 not merged)
-Last completed step: 3 (spec written; research skipped per §12.7)   Commit: see git log
-Next step: Step 4 — implement per spec.md Files (shared setResults/mostMissed/pollWinner + validation, room review phases, student Poll.tsx + review Player, admin Review.tsx), unit tests, commit feat(lessons-08).
+Last completed step: 4 (implementation + unit tests, 89/89 with git.exe shim)   Commit: 36adf132
+Next step: Step 5 — write tests/e2e/lessons-08-review-polls/review.spec.js covering spec.md checkpoints 1–10, run it + full suite (npm run e2e:seed; PW_CHROMIUM_PATH=/opt/pw-browsers/chromium), write e2e.md.
 Open blockers: none
 Decisions made this task: see spec.md "Decisions" 1–10
 PR: pending
