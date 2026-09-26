@@ -3,21 +3,36 @@ import { isRight } from './stats.js';
 // Shared lesson protocol.
 export const GRACE_MS = 750;
 export const CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
-export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults'];
+export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults', 'annotate', 'laser'];
 export const STUDENT_ACTIONS = ['select', 'lock'];
 export const MAX_FRAME = 2048;
 export function validAction(m, role) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return false;
-  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
+  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'] };
   if (!Object.hasOwn(fields, m.type) || Object.keys(m).some(k => !fields[m.type].includes(k))) return false;
   if (m.type !== 'ping' && !(role === 'admin' ? ADMIN_ACTIONS : STUDENT_ACTIONS).includes(m.type)) return false;
   if (m.type === 'ping') return Number.isSafeInteger(m.sentAt) && m.sentAt >= 0;
+  if (m.type === 'laser') return validId(m.questionId) && unit(m.x) && unit(m.y);
+  if (m.type === 'annotate') return validId(m.questionId) && validMark(m.op);
   if (m.type === 'addTime') return m.sec === 15;
   if (m.type === 'lockJoin' || m.type === 'classResults') return typeof m.bool === 'boolean';
   if (m.type === 'kick') return typeof m.userId === 'string' && m.userId.length > 0 && m.userId.length <= 128;
   if (m.type === 'select') return typeof m.questionId === 'string' && m.questionId.length <= 64 && typeof m.answer === 'string' && m.answer.length > 0 && m.answer.length <= 32;
   if (m.type === 'lock') return typeof m.questionId === 'string' && m.questionId.length <= 64;
   return true;
+}
+const validId = x => typeof x === 'string' && x.length > 0 && x.length <= 64;
+const unit = x => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 1;
+export function validMark(op) {
+  if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','erase','clear'].includes(op.type)) return false;
+  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color'], erase:['type','id'], clear:['type'] };
+  if (Object.keys(op).some(k => !fields[op.type].includes(k))) return false;
+  if (op.type === 'clear') return true;
+  if (!validId(op.id)) return false;
+  if (op.type === 'erase') return true;
+  if (!['#ffe066','#ff7676','#75dbaa'].includes(op.color)) return false;
+  if (op.type === 'stroke') return Array.isArray(op.points) && op.points.length >= 1 && op.points.length <= 32 && op.points.every(p => Array.isArray(p) && p.length === 2 && unit(p[0]) && unit(p[1]));
+  return /^([ps]:\d+|c:[A-D])$/.test(op.nodeId) && Number.isSafeInteger(op.startOffset) && Number.isSafeInteger(op.endOffset) && op.startOffset >= 0 && op.endOffset > op.startOffset && op.endOffset <= 20000;
 }
 // Never project by copying a full normalized bank row or choices (trap tags).
 // Exact parsed numeric values share a bucket; grading still uses isRight unchanged.

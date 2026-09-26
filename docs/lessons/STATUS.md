@@ -199,3 +199,36 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 **Next:** User real Chromebook test. STOP for any further task/production action until Chromebook validation completes.(End of file)
 
 **Correcting event — 2026-09-25 (task04 release authorization):** User explicitly authorized local commit and production deploy of task04, plus `chakrabortyleon@gmail.com` admin access, so earlier no-commit/no-deploy STOP no longer blocks this release. Real Chromebook testing remains pending. Production D1 migration state and Cloudflare authentication must be verified before deployment; no claim of deployed or signed-in access until checked.
+
+---
+
+## 2026-09-25 — Task 05: Annotations (Reviewer PASS, uncommitted)
+
+**Shipped:** Shared instructor annotations with user-requested strikethrough (BRIEF §7.1). Artifacts in `.opencode/pipeline/lessons-05-annotations/`:
+- `spec.md`, `research.md`, `developer.md`, `e2e.md`, `state.md`, `handoff.md`
+- `public/shared/annotations.js` (new — shared text/ink helpers), `public/shared/lesson.js` (annotate/laser protocol)
+- `src/lesson-room.js` (LessonRoom DO annotation ops, boundary flush, snapshot projection)
+- `public/admin.js` (REVEALED toolbar: pen/highlight/strikethrough/erase/clear/laser)
+- `public/index.html` (student shared layer, Follow me, private highlighter)
+- `src/index.js` (static allowlist repair for `/shared/annotations.js`)
+- `tests/test_lesson_room.cjs` (15 unit tests), `tests/e2e/lessons-05-annotations/annotations.spec.js`
+- `tools/e2e_core.sql` (long local passage seed), 12 E2E screenshots
+
+**Evidence:**
+- `rtk node --test tests/test_lesson_room.cjs` — PASS 15/15 (Developer + Reviewer independently).
+- `rtk npm test` — PASS 72/72 (Developer + Reviewer independently).
+- `rtk npx playwright test tests/e2e/lessons-05-annotations/annotations.spec.js --workers=1` — PASS 1/1 focused E2E.
+- `rtk npm run test:e2e` — PASS 14/14 full suite.
+- Independent deep Reviewer: PASS, no blockers. All 7 BRIEF §12.5 task05 checkpoints verified.
+
+**E2E:** 1/1 focused, 14/14 full suite. All checkpoints pass: cross-viewport highlight equality (1920×1080 instructor → 1366×768 / 110% zoom students), strikethrough live reception, pen/laser liveness, Follow me scroll, reconnect annotation persistence, student write denial, targeted erase and clear-all. App repair: `/shared/annotations.js` static allowlist 404 (task04 spec regression) fixed in `src/index.js`. Test repairs in spec only (sort order, reconnect join).
+
+**Review:** PASS. Non-blocking caveats: server anchor bounds permissive HTML-length vs decoded text (client validates; no observed break); choice anchor `c:[A-D]` SAT-shaped (4-choice only); laser throttle shared across admin tabs. Local-only E2E; no deployed/physical-device test; no commit/push/deploy/remote writes.
+
+**Deviations from spec/BRIEF:** None. Strikethrough was user-requested addition explicitly allowed by task gate.
+
+**Limits:** Local-only browser validation; no production/real-device claim. Practice-bank G1-A exception continues. No production D1 migration applied. Screenshots gitignored, local only.
+
+**Commit authorization — 2026-09-25:** User authorized local commit of task05. No push/deploy or remote data mutation authorized. STOP remains for user validation before task06.
+
+**Next:** User validation on real Chromebook. Task06 (Desmos) not started until user clears task05 STOP.

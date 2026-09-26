@@ -20,7 +20,7 @@ export class LessonRoom {
       assignedQuestionIds: a.role === 'student' ? s.items.map(x => x.question_id) : undefined,
       question: item ? lessonQuestion(s.questions[item.question_id], revealed || a.role === 'admin') : null,
       ownSelection: r?.answer || null, locked: !!r?.locked, count: Object.keys(s.responses).length,
-      classResults: !!s.classResults,
+      classResults: !!s.classResults, annotations: revealed && item ? s.annotations?.[item.question_id] || [] : [],
       ...(revealed && item && (a.role === 'admin' || s.classResults) ? { distribution: responseGroups(s.questions[item.question_id], Object.fromEntries(Object.entries(s.responses).map(([id, answers]) => [id, answers[item.question_id]])))
         .map(g => a.role === 'admin' ? { ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) } : { label: g.label, count: g.count, correct: g.correct }) } : {}),
       ...(a.role === 'admin' ? { code: s.code, lockedJoin: s.lockedJoin, roster: s.roster,
@@ -73,6 +73,9 @@ export class LessonRoom {
         (session_id,user_id,question_id,final_answer,is_correct,locked_early,time_spent_ms,answer_changes,answer_history_json)
         VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,user_id,question_id) DO NOTHING`)
         .bind(s.id, r.userId, pending.questionId, r.answer, r.correct, r.locked ? 1 : 0, r.ms, r.changes, JSON.stringify(r.history))));
+      if (pending.annotations) await this.env.DB.prepare(`INSERT INTO session_question_review (session_id,question_id,annotations_json)
+        VALUES (?,?,?) ON CONFLICT(session_id,question_id) DO UPDATE SET annotations_json=excluded.annotations_json`)
+        .bind(s.id,pending.questionId,JSON.stringify(pending.annotations)).run();
       if (pending.end) await this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')) WHERE id=? AND status!='ended'").bind(s.id).run();
       await this.ctx.storage.delete('pending');
       const next = await this.ctx.storage.get('nextPending');
@@ -158,7 +161,7 @@ export class LessonRoom {
   }
   async webSocketMessage(ws, raw) {
     const a = ws.deserializeAttachment();
-    if (!a || !this.active(ws) || typeof raw !== 'string' || raw.length > MAX_FRAME) { ws.close(1008, 'Invalid frame'); return; }
+    if (!a || !this.active(ws) || typeof raw !== 'string' || new TextEncoder().encode(raw).length > MAX_FRAME) { ws.close(1008, 'Invalid frame'); return; }
     let m; try { m = JSON.parse(raw); } catch { this.send(ws, { type: 'error', error: 'invalid JSON' }); return; }
     if (!validAction(m, a.role)) { this.send(ws, { type: 'error', error: 'invalid action' }); return; }
     const s = await this.state();
@@ -177,6 +180,33 @@ export class LessonRoom {
     const item = s.items[s.index];
     if (s.status === 'ended') err = 'ended';
     if (err) { this.send(ws, { type: 'error', error: err }); return; }
+    if (m.type === 'annotate' || m.type === 'laser') {
+      if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
+      if (m.type === 'laser') {
+        if (Date.now() - (this.lastLaser || 0) < 50) return;
+        this.lastLaser = Date.now();
+      } else {
+        const layer = s.annotations?.[m.questionId] || [];
+        const op = m.op;
+        if (op.type === 'highlight' || op.type === 'strike') {
+          const q = s.questions[item.question_id];
+          const choice = op.nodeId.startsWith('c:') && q.choices.find(c => c.letter === op.nodeId.slice(2));
+          const index = Number(op.nodeId.slice(2));
+          const blocks = (q.stem_html.match(/<(?:p|li|h[1-4]|blockquote)\b/gi) || []).length;
+          const source = choice ? choice.content : /^(?:p|s):/.test(op.nodeId) && Number.isInteger(index) && index < Math.max(1,blocks) ? q.stem_html : null;
+          if (!source || op.endOffset > source.length) { this.send(ws,{ type:'error',error:'invalid anchor' }); return; }
+        }
+        if (op.type === 'erase') {
+          if (!layer.some(mark => mark.id === op.id)) { this.send(ws,{ type:'error',error:'unknown mark' }); return; }
+        } else if (op.type !== 'clear' && (layer.length >= 512 || layer.some(mark => mark.id === op.id))) { this.send(ws,{ type:'error',error:'layer full or duplicate mark' }); return; }
+        const next = op.type === 'clear' ? [] : op.type === 'erase' ? layer.filter(mark => mark.id !== op.id) : [...layer, op];
+        if (JSON.stringify(next).length > 64000) { this.send(ws,{ type:'error',error:'layer full' }); return; }
+        (s.annotations ||= {})[m.questionId] = next;
+        await this.save(s);
+      }
+      for (const peer of this.sockets()) try { this.send(peer, { type:m.type, questionId:m.questionId, ...(m.type === 'laser' ? { x:m.x,y:m.y } : { op:m.op }) }); } catch { /* disconnected */ }
+      return;
+    }
     if (a.role === 'student') {
       if (!s.responses[a.userId]) err = 'removed';
       else if (s.phase !== 'ANSWERING' || Date.now() > s.endsAt + GRACE_MS || item.question_id !== m.questionId) err = 'question closed';
@@ -216,15 +246,17 @@ export class LessonRoom {
       } else if (m.type === 'endNow' && s.phase === 'ANSWERING') {
         s.endsAt = Date.now(); changed = true;
       } else if (m.type === 'next' && s.phase === 'REVEALED' && s.index + 1 < s.items.length) {
+        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: false, ...(s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}) });
         s.index++; s.phase = 'READY'; s.endsAt = null; changed = true;
       } else if (m.type === 'endSession') {
-        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true });
+        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true, ...(s.phase === 'REVEALED' && s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}) });
         s.phase = 'ENDED'; s.status = 'ended'; changed = true;
       } else err = 'invalid phase';
     }
     if (err) { this.send(ws, { type: 'error', error: err }); return; }
     if (changed) {
       await this.save(s);
+      if (m.type === 'next') await this.flush(s).catch(() => {});
       if (s.phase === 'ANSWERING') await this.ctx.storage.setAlarm(s.endsAt + GRACE_MS);
       else if (s.phase === 'ENDED') { await this.ctx.storage.deleteAlarm(); await this.flush(s).catch(() => {}); }
       this.broadcast(s, a.role === 'student', a.userId);

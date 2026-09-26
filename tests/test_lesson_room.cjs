@@ -172,6 +172,69 @@ test('deadline freezes selection, finalizes blank and early lock once with time'
   assert.equal(rows[0][1][6],2000);
   await room.alarm(); assert.equal(f.writes.length,2);
 });
+test('authored-text anchors retain exact offsets across reflow and exclude KaTeX DOM', async () => {
+  const { anchor } = await import('../public/shared/annotations.js');
+  const originalDocument=globalThis.document, originalFilter=globalThis.NodeFilter;
+  globalThis.NodeFilter={SHOW_TEXT:4,FILTER_REJECT:2,FILTER_ACCEPT:1};
+  const authored = text => ({length:text.length,textContent:text,parentElement:{closest:()=>null}});
+  const word1=authored('Same '), word2=authored('words here');
+  const katex=authored('generated math'); katex.parentElement.closest=()=>true;
+  const container={querySelectorAll:()=>[],dataset:{},contains:n=>[word1,word2,katex].includes(n)};
+  const card={querySelectorAll:q=>q === '.lesson-stem' ? [container] : []};
+  globalThis.document={createTreeWalker:()=>{const nodes=[word1,katex,word2], filter={acceptNode:n=>n.parentElement.closest() ? 2 : 1}; let i=0; return {currentNode:null,nextNode(){ while (i<nodes.length) { const n=nodes[i++]; if (filter.acceptNode(n)===1) {this.currentNode=n;return true;} } return false; }};}};
+  try {
+    const selection={isCollapsed:false,rangeCount:1,getRangeAt:()=>({startContainer:word1,startOffset:0,endContainer:word2,endOffset:5})};
+    const first=anchor(card,selection); assert.deepEqual(first,{nodeId:'s:0',startOffset:0,endOffset:10});
+    container.clientWidth=320; assert.deepEqual(anchor(card,selection),first);
+    container.clientWidth=1366; assert.deepEqual(anchor(card,selection),first);
+    assert.equal(anchor(card,{...selection,getRangeAt:()=>({startContainer:katex,startOffset:0,endContainer:katex,endOffset:4})}),null);
+  } finally {globalThis.document=originalDocument;globalThis.NodeFilter=originalFilter;}
+});
+test('annotation protocol gates role, shape, sizes and phase; laser never persists', async () => {
+  const { LessonRoom } = await roomModule(), { validAction } = await protocol();
+  const f = fixture(), room = new LessonRoom(f.ctx,f.env), teacher=f.socket('teacher','admin'), student=f.socket('alice');
+  const mark = {type:'strike',id:'mark1',nodeId:'s:0',startOffset:0,endOffset:4,color:'#ffe066'};
+  const msg = {type:'annotate',questionId:'q',op:mark};
+  assert.equal(validAction(msg,'admin'),true); assert.equal(validAction(msg,'student'),false);
+  for (const op of [{...mark,html:'<img>'},{...mark,endOffset:20001},{type:'stroke',id:'x',color:'#ffe066',points:Array(33).fill([0,0])},{type:'stroke',id:'x',color:'#ffe066',points:[[Infinity,0]]},{...mark,color:'url(javascript:1)'}]) assert.equal(validAction({...msg,op},'admin'),false);
+  await room.save(f.s); await room.webSocketMessage(student.ws,JSON.stringify(msg)); assert.equal(student.sent.at(-1).error,'invalid action');
+  await room.webSocketMessage(teacher.ws,JSON.stringify(msg)); assert.equal(teacher.sent.at(-1).error,'invalid phase');
+  f.s.phase='REVEALED'; await room.save(f.s);
+  await room.webSocketMessage(teacher.ws,JSON.stringify({...msg,questionId:'wrong'})); assert.equal(teacher.sent.at(-1).error,'invalid phase');
+  await room.webSocketMessage(teacher.ws,JSON.stringify(msg));
+  assert.deepEqual(new LessonRoom(f.ctx,f.env).snapshot(await room.state(),{role:'student',userId:'alice'}).annotations,[mark]);
+  assert.deepEqual(student.sent.at(-1).op,mark); assert.equal(f.writes.length,0);
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'laser',questionId:'q',x:.5,y:.5}));
+  assert.equal(student.sent.at(-1).type,'laser'); assert.deepEqual((await room.state()).annotations.q,[mark]);
+  assert.equal(JSON.stringify(room.snapshot({...f.s,phase:'ANSWERING',annotations:{q:[mark]}},{role:'student',userId:'alice'})).includes('mark1'),false);
+  assert.equal(JSON.stringify(room.snapshot({...await room.state()},{role:'student',userId:'alice'})).includes('PRIVATE_NOTE'),false);
+  await room.webSocketMessage(teacher.ws,'é'.repeat(1100));
+  assert.equal(teacher.ws.code,1008);
+});
+test('strike, erase and clear persist to DO; review outbox flushes at boundary once and retries', async () => {
+  const { LessonRoom } = await roomModule(); const f=fixture(), room=new LessonRoom(f.ctx,f.env), teacher=f.socket('teacher','admin');
+  f.s.phase='REVEALED'; f.s.items.push({question_id:'q2',time_limit_sec:60}); await room.save(f.s);
+  const send = op => room.webSocketMessage(teacher.ws,JSON.stringify({type:'annotate',questionId:'q',op}));
+  await send({type:'strike',id:'first',nodeId:'s:0',startOffset:0,endOffset:4,color:'#ffe066'});
+  await send({type:'highlight',id:'second',nodeId:'s:0',startOffset:1,endOffset:3,color:'#ffe066'});
+  await send({type:'erase',id:'first'}); assert.deepEqual((await room.state()).annotations.q.map(x=>x.id),['second']);
+  await send({type:'clear'}); assert.deepEqual((await room.state()).annotations.q,[]);
+  await send({type:'strike',id:'last',nodeId:'s:0',startOffset:0,endOffset:4,color:'#ffe066'});
+  assert.equal(f.writes.length,0);
+  let fail=true; const prepare=f.env.DB.prepare;
+  f.env.DB.prepare = sql => { const stmt=prepare(sql); return {bind:(...args)=>({run:async()=>{ if (fail && sql.includes('session_question_review')) { fail=false; throw Error('D1 down'); } return stmt.bind(...args).run(); }})}; };
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'next'}));
+  assert.equal((await room.state()).phase,'READY'); assert.ok(await f.storage.get('pending'));
+  await new LessonRoom(f.ctx,f.env).alarm();
+  assert.equal(await f.storage.get('pending'),undefined);
+  const review=f.writes.filter(([sql])=>sql.includes('session_question_review'));
+  assert.equal(review.length,1); assert.deepEqual(JSON.parse(review[0][1][2]).map(x=>x.id),['last']);
+  await room.alarm(); assert.equal(f.writes.filter(([sql])=>sql.includes('session_question_review')).length,1);
+  let state=await room.state(); state.phase='REVEALED'; state.annotations.q2=[{type:'strike',id:'final',nodeId:'s:0',startOffset:0,endOffset:4,color:'#ffe066'}]; await room.save(state);
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'endSession'}));
+  assert.equal(f.writes.filter(([sql])=>sql.includes('session_question_review')).length,2);
+  assert.equal(f.writes.filter(([sql])=>sql.includes("UPDATE lesson_sessions SET status='ended'")).length,1);
+});
 test('one live student socket replacement closes old transport; lock and selection persist across wake', async () => {
   const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx,f.env);
   const first = f.socket('alice'), second = f.socket('alice');

@@ -30,6 +30,14 @@ async function fixture(t) {
   t.after(() => db.close());
   return { db, env, request, id };
 }
+test('shared annotations module is publicly served without opening other paths', async t => {
+  const { request } = await fixture(t);
+  const module = await request('/shared/annotations.js');
+  assert.equal(module.status, 200);
+  assert.equal(await module.text(), '/shared/annotations.js');
+  assert.equal((await request('/shared/annotations.js', null, 'HEAD')).status, 200);
+  assert.equal((await request('/shared/missing.js')).status, 404);
+});
 test('0007 fresh snapshot and existing upgrade both constrain roles and preserve old attempts', () => {
   for (const upgrade of [false,true]) {
     const db = new DatabaseSync(':memory:');
