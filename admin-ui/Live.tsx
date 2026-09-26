@@ -595,18 +595,20 @@ export function Live({ id }: { id: string }) {
           {connected ? <Wifi /> : <WifiOff />}
           {connected ? "Connected" : "Reconnecting…"}
         </span>
-        <label className="toggle" hidden={!!self}>
-          <input
-            id="live-class"
-            type="checkbox"
-            checked={!!s.classResults}
-            disabled={s.phase === "ENDED"}
-            onChange={(e) =>
-              toggle("classResults", "classResults", e.target.checked)
-            }
-          />
-          Show class results
-        </label>
+        {!self && (
+          <label className="toggle">
+            <input
+              id="live-class"
+              type="checkbox"
+              checked={!!s.classResults}
+              disabled={s.phase === "ENDED"}
+              onChange={(e) =>
+                toggle("classResults", "classResults", e.target.checked)
+              }
+            />
+            Show class results
+          </label>
+        )}
         <button
           data-live="endSession"
           disabled={s.phase === "ENDED"}

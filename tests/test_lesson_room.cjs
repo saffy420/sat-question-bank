@@ -375,7 +375,9 @@ test('self-paced student payload: own set only, no answers/grades/notes/peers; a
   await room.webSocketMessage(ws, JSON.stringify({ type: 'select', questionId: 'q2', answer: 'A' }));
   assert.equal(sent.at(-1).error, 'not in your set');
   const admin = room.snapshot(await room.state(), { role: 'admin', userId: 'teacher' });
-  assert.equal(admin.grid.bob.q1.correct, false); assert.equal(Object.hasOwn(admin.grid.bob, 'q2'), false);
+  assert.deepEqual(admin.grid.bob.q1, ['A', false, 0]); assert.equal(Object.hasOwn(admin.grid.bob, 'q2'), false);
+  assert.deepEqual(admin.cards.q1.groups.find(g => g.label === 'A').users, [admin.students.indexOf('bob')]);
+  assert.equal(JSON.stringify(admin.cards).includes('Bob'), false, 'card groups carry indexes, not repeated names');
   assert.equal(admin.cards.q1.assigned, 2); assert.equal(admin.cards.q2.assigned, 1); assert.equal(admin.questions.q1.notes, 'PRIVATE_NOTE');
 });
 test('self-paced late join is fitted once to the server clock and never recomputed', async () => withClock(async tick => {
@@ -386,6 +388,7 @@ test('self-paced late join is fitted once to the server clock and never recomput
   const first = await (await call(true, crypto.randomUUID())).json();
   assert.deepEqual(first.assignedQuestionIds, ['q1']); assert.equal(first.joinRemainingMs, 65000); assert.equal(first.lateJoin, true);
   assert.deepEqual(JSON.parse(f.writes.find(([sql]) => sql.includes('session_participants'))[1][2]), ['q1']);
+  assert.equal((await room.state()).positions.carol, 'q1', 'a late joiner is on their first question for the ◆ marker');
   tick(40000);
   const rejoin = await (await call(true, crypto.randomUUID())).json();
   assert.deepEqual(rejoin.assignedQuestionIds, ['q1'], 'explicit re-join keeps the stored set');
@@ -443,4 +446,15 @@ test('self-paced completion: auto at deadline once, early when all submitted, En
   await room.webSocketMessage(t3.ws, JSON.stringify({ type: 'endSession' }));
   assert.equal((await room.state()).status, 'review', 'first End session finishes the set only');
   assert.equal(f.writes.filter(([sql]) => sql.includes("status='ended'")).length, 0);
+});
+test('self-paced start puts every lobby student on their first question', async () => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { status: 'lobby', phase: 'READY', endsAt: null, startedAt: null });
+  await room.save(f.s);
+  const teacher = f.socket('teacher', 'admin');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'start' }));
+  const s = await room.state();
+  assert.equal(s.status, 'live'); assert.equal(s.endsAt - s.startedAt, 120000);
+  assert.deepEqual(s.positions, { alice: 'q1', bob: 'q1' });
+  assert.equal(f.writes.filter(([sql]) => sql.includes("status='live'")).length, 1);
 });

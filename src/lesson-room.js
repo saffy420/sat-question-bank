@@ -49,28 +49,30 @@ export class LessonRoom {
         lateJoin: Object.hasOwn(s.joinRemaining, a.userId), joinRemainingMs: s.joinRemaining[a.userId] ?? null,
         ...(full && s.status === 'live' ? { questions: ids.map(id => lessonQuestion(s.questions[id])) } : {}) };
     }
-    const users = Object.keys(s.roster);
+    // Compact on purpose: this refresh runs up to 4/s. grid[userId][questionId] = [answer, correct, ms]
+    // for assigned questions only; card groups list students by their index in `students`.
+    const students = Object.keys(s.roster);
     const grid = {}, cards = {};
-    for (const userId of users) {
+    for (const userId of students) {
       grid[userId] = {};
       for (const id of s.assigned[userId] || []) {
         const r = s.responses[userId]?.[id];
-        grid[userId][id] = { answer: r?.answer || null, correct: r?.answer ? isRight(s.questions[id], r.answer) : null, ms: r?.ms || 0 };
+        grid[userId][id] = [r?.answer || null, r?.answer ? isRight(s.questions[id], r.answer) : null, r?.ms || 0];
       }
     }
     for (const item of s.items) {
       const id = item.question_id, q = s.questions[id];
-      const assigned = users.filter(userId => s.assigned[userId]?.includes(id));
-      const answered = assigned.filter(userId => grid[userId][id].answer);
-      const visitors = assigned.filter(userId => grid[userId][id].ms > 0 || s.positions[userId] === id);
-      cards[id] = { assigned: assigned.length, answered: answered.length, right: answered.filter(userId => grid[userId][id].correct).length,
-        avgMs: visitors.length ? Math.round(visitors.reduce((n, userId) => n + grid[userId][id].ms, 0) / visitors.length) : null,
+      const assigned = students.filter(userId => s.assigned[userId]?.includes(id));
+      const answered = assigned.filter(userId => grid[userId][id][0]);
+      const visitors = assigned.filter(userId => grid[userId][id][2] > 0 || s.positions[userId] === id);
+      cards[id] = { assigned: assigned.length, answered: answered.length, right: answered.filter(userId => grid[userId][id][1]).length,
+        avgMs: visitors.length ? Math.round(visitors.reduce((n, userId) => n + grid[userId][id][2], 0) / visitors.length) : null,
         groups: responseGroups(q, Object.fromEntries(assigned.map(userId => [userId, s.responses[userId]?.[id] || {}])))
-          .map(g => ({ ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms ?? 0 })) })) };
+          .map(g => ({ label: g.label, count: g.count, correct: g.correct, users: g.users.map(u => students.indexOf(u.userId)) })) };
     }
-    return { ...base, total: s.items.length, questionId: null, index: 0, code: s.code, lockedJoin: s.lockedJoin, roster: s.roster,
+    return { ...base, total: s.items.length, questionId: null, index: 0, code: s.code, lockedJoin: s.lockedJoin, roster: s.roster, students,
       items: s.items.map(x => ({ questionId: x.question_id, timeLimitSec: x.time_limit_sec })),
-      assigned: s.assigned, positions: s.positions, submitted: Object.fromEntries(Object.keys(s.submitted).map(userId => [userId, true])),
+      positions: s.positions, submitted: Object.fromEntries(Object.keys(s.submitted).map(userId => [userId, true])),
       lateJoin: s.joinRemaining, grid, cards,
       ...(full ? { questions: Object.fromEntries(s.items.map(x => [x.question_id, { ...lessonQuestion(s.questions[x.question_id], true), notes: x.notes || '' }])) } : {}) };
   }
@@ -222,7 +224,10 @@ export class LessonRoom {
         s.responses[a.userId] = {};
         s.roster[a.userId] = a.name || a.userId;
         s.joinedAt[a.userId] = Date.now();
-        if (s.mode === 'self') { s.assigned[a.userId] = ids; s.clock[a.userId] = { boundary: Date.now(), seq: 0 }; }
+        if (s.mode === 'self') {
+          s.assigned[a.userId] = ids; s.clock[a.userId] = { boundary: Date.now(), seq: 0 };
+          if (s.status === 'live' && ids.length) s.positions[a.userId] = ids[0];
+        }
         await this.save(s); this.broadcast(s, false, null, false);
         if (s.mode !== 'self' && s.phase === 'REVEALED') {
           await this.ctx.storage.put('pending', { questionId: s.items[s.index].question_id, end: false,
@@ -340,7 +345,10 @@ export class LessonRoom {
         s.startedAt = Date.now(); s.endsAt = s.startedAt + s.items.reduce((n, x) => n + x.time_limit_sec, 0) * 1000;
         await this.env.DB.prepare("UPDATE lesson_sessions SET status='live',started_at=COALESCE(started_at,datetime('now')),ends_at=? WHERE id=? AND status='lobby'").bind(sqlTime(s.endsAt), s.id).run();
         s.status = 'live'; s.phase = 'ANSWERING';
-        for (const userId of Object.keys(s.responses)) s.clock[userId] = { boundary: s.startedAt, seq: s.clock[userId]?.seq || 0 };
+        for (const userId of Object.keys(s.responses)) {
+          s.clock[userId] = { boundary: s.startedAt, seq: s.clock[userId]?.seq || 0 };
+          s.positions[userId] ||= s.assigned[userId]?.[0];
+        }
         changed = true;
       } else if (m.type === 'kick') {
         if (!s.responses[m.userId]) err = 'not joined';

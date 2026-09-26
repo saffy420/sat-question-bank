@@ -5,19 +5,20 @@ import type { Question } from "../lesson-ui/types";
 import { formatTime, mathify, notesHTML } from "./helpers";
 import { Badge, Empty, HTML } from "./ui";
 
-type Cell = { answer: string | null; correct: boolean | null; ms: number };
+// [answer, correct, ms], graded by the room.
+type Cell = [string | null, boolean | null, number];
 type Group = {
   label: string;
   count: number;
   correct: boolean;
-  users: { name: string; ms: number }[];
+  users: number[];
 };
 export type SelfRoom = {
   status: string;
   phase: string;
   roster: Record<string, string>;
+  students: string[];
   items: { questionId: string; timeLimitSec: number }[];
-  assigned: Record<string, string[]>;
   positions: Record<string, string>;
   submitted: Record<string, boolean>;
   lateJoin: Record<string, number>;
@@ -88,9 +89,9 @@ export function SelfGrid({ s }: { s: SelfRoom }) {
                     const current = running && !s.submitted[id] && s.positions[id] === questionId;
                     const state = !cell
                       ? "unassigned"
-                      : !cell.answer
+                      : !cell[0]
                         ? "unreached"
-                        : cell.correct
+                        : cell[1]
                           ? "right"
                           : "wrong";
                     return (
@@ -100,7 +101,7 @@ export function SelfGrid({ s }: { s: SelfRoom }) {
                         data-cell={`${id}:${questionId}`}
                         data-state={state}
                         data-current={current}
-                        title={cell ? `${cell.answer || "blank"} · ${clock(cell.ms)}` : "Not assigned"}
+                        title={cell ? `${cell[0] || "blank"} · ${clock(cell[2])}` : "Not assigned"}
                       >
                         {current
                           ? "◆"
@@ -170,12 +171,16 @@ function QuestionCard({ s, id, close }: { s: SelfRoom; id: string; close: () => 
             {group === i && (
               <div id="self-group" className="names-popover" role="status">
                 <strong>{g.label}</strong>
-                {g.users.map((u, n) => (
-                  <p key={n} data-ms={u.ms}>
-                    {u.name}
-                    <span>{clock(u.ms)}</span>
-                  </p>
-                ))}
+                {g.users.map((n) => {
+                  const userId = s.students[n];
+                  const ms = s.grid[userId]?.[id]?.[2] ?? 0;
+                  return (
+                    <p key={userId} data-ms={ms}>
+                      {s.roster[userId]}
+                      <span>{clock(ms)}</span>
+                    </p>
+                  );
+                })}
                 {!g.users.length && <p>No students</p>}
               </div>
             )}
@@ -183,7 +188,7 @@ function QuestionCard({ s, id, close }: { s: SelfRoom; id: string; close: () => 
         ))}
       </div>
       {q && (
-        <details className="instructor-drawer">
+        <details className="self-card-details">
           <summary>Question, explanation & notes</summary>
           <Stage key={id} question={q} number={index + 1} id="self-card-stage" revealed mathify={mathify} />
           <h3>Official explanation</h3>
