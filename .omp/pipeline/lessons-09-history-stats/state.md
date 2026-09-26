@@ -1,8 +1,8 @@
 ```text
 Task: lessons-09-history-stats
 Branch: claude/lessons-09-history-stats   Base: claude/lessons-08-review-polls (PR 4 not merged)
-Last completed step: 3 (research inline + spec)   Commit: see git log
-Next step: Step 4 implement per spec.md Files list (migration 0010, src/record.js, room write-back/usage, shared helpers, history API + My Lessons UI, filter, badges/tags, admin Lessons tab) + unit tests; commit feat(lessons-09)
+Last completed step: 4 (implement, unit 97/97)   Commit: see git log
+Next step: Step 5 test round: e2e seed (0010 upgrade), write tests/e2e/lessons-09-history-stats/history.spec.js covering spec checkpoints 1-8, run task spec + full suite, write e2e.md
 Open blockers: none
 Decisions made this task: see spec.md "Decisions" 1–12
 PR: pending
