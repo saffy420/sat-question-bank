@@ -232,3 +232,19 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 **Commit authorization — 2026-09-25:** User authorized local commit of task05. No push/deploy or remote data mutation authorized. STOP remains for user validation before task06.
 
 **Next:** User validation on real Chromebook. Task06 (Desmos) not started until user clears task05 STOP.
+
+---
+
+## 2026-09-26 — Task 06: Desmos sync (Claude Code pipeline; review PASS)
+
+**Shipped (BRIEF §7.2):** Instructor Desmos API panel in the live view (math questions). Changes are throttled to 150 ms, de-duplicated, and sent only after the reveal. The LessonRoom DO stores the latest state per question under its own key, relays it to other sockets, drops unchanged states, and writes `session_question_review.desmos_state_json` only at `next`/`endSession`. Students get a read-only, scrollable follower panel that opens on the first instructor state, plus **Try it yourself** / **Back to instructor view**. The API is preloaded in the lobby only for lessons with math. Artifacts: `.omp/pipeline/lessons-06-desmos/` (spec, research, e2e, review, handoff, state). Previous tasks' artifacts remain in `.opencode/pipeline/`.
+
+**E2E:** task 2/2; full suite 21/21. Unit 79/79.
+
+**Measured:** Desmos edit → student render under Slow 3G, 5 samples per run: 243–297 ms isolated (one outlier 384 ms); 265–437 ms during full-suite load. Target ≤ 500 ms met on every sample. Measured through a Slow 3G-shaped TCP relay (ping RTT ≈ 405 ms), because CDP emulation does not delay WebSocket frames in Chromium (37 ms RTT). Desmos API download: 1,050,346 bytes gzipped.
+
+**Deviations:** (1) relay instead of CDP for Slow 3G; (2) `/app` and `/admin` CSP adds `'unsafe-eval'`, `https://www.desmos.com` and `worker-src blob:` (the Desmos API evals its module source and starts a blob worker); `_headers` and all other responses stay strict; (3) the follower is read-only through an input guard rather than `inert`, so it can scroll; (4) BRIEF.md replaced verbatim by the tasks 06–10 brief; the approved G1–G6 amendments moved to `docs/lessons/AMENDMENTS.md` and still apply.
+
+**Manual checks:** Desmos sync on a real Chromebook; set the `DESMOS_API_KEY` secret before deploy (demo key is local-only); approve the CSP scope.
+
+**Known pre-existing issue:** `LessonRoom.webSocketClose` throws on close code 1006 (logged only).

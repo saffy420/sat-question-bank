@@ -1,8 +1,8 @@
 ```text
 Task: lessons-06-desmos
 Branch: claude/lessons-06-desmos   Base: main
-Last completed step: 5 (test round: task 2/2, full 21/21, unit 79/79)   Commit: 12b38562
-Next step: Step 6 review — git diff main...HEAD against spec.md and BRIEF §12.6; write review.md.
+Last completed step: 8 (docs: handoff.md + STATUS.md)   Commit: see git log
+Next step: Step 9 — push, open PR 'lessons-06: desmos' base main, record URL here, end turn with the CHECKPOINT line.
 Open blockers: none
 Decisions made this task: BRIEF.md replaced verbatim; G1–G6 in docs/lessons/AMENDMENTS.md. Pipeline artifacts in .omp/pipeline/. PW_CHROMIUM_PATH + CDN cache for sandbox e2e; git.exe shim for unit tests. Desmos only in REVEALED (same gate as annotations). Desmos API needs 'unsafe-eval' + worker-src blob: (measured) → LESSON_CSP only on /app and /admin; _headers stays strict (browsers would enforce both). DESMOS_API_KEY env; demo key only on 127.0.0.1/localhost; else panel says unavailable. State under DO key 'desmos'; D1 only at next/endSession. Follower uses a capture-phase input guard (not inert) so the list scrolls. CDP throttle does not delay WS → Slow 3G via shapedOrigin TCP relay.
 PR: pending
