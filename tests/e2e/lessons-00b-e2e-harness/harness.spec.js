@@ -6,8 +6,8 @@ import { captureLeaks, inspectPayload } from './leaks.js';
 import { setOffline, throttle, SLOW_3G } from './network.js';
 
 const artifacts = '.opencode/pipeline/lessons-00b-e2e-harness/e2e';
-// The last three are the task09 lesson-usage filter fixtures.
-const ids = ['e2e-core-rw', 'e2e-core-math', 'e2e-core-spr', 'e2e-ai-rw', 'e2e-used-mine', 'e2e-used-other', 'e2e-unused'];
+// In bank order (core rows, then AI). The e2e-used-*/unused rows are the task09 lesson-usage filter fixtures.
+const ids = ['e2e-core-rw', 'e2e-core-math', 'e2e-core-spr', 'e2e-used-mine', 'e2e-used-other', 'e2e-unused', 'e2e-ai-rw'];
 
 async function bank(page, name) {
   const loaded = page.waitForResponse(r => r.url() === localURL('/api/questions') && r.status() === 200);
