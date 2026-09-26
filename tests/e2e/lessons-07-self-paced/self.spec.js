@@ -73,6 +73,7 @@ test('task07 self-paced run: navigation, flags, review, submit all, auto-submit,
     await screenshot(one, '01-lobby');
     await teacher.locator('[data-live="start"]').click();
     await expect(teacher.locator('.live-top')).toContainText('SELF-PACED SET');
+    for (const userId of ['e2e-student-1', 'e2e-student-2']) await expect(teacher.locator(`[data-cell="${userId}:${RW}"]`)).toHaveAttribute('data-current', 'true');
 
     // 1. Next / Back / navigator / flag, and time on Q1 across two visits (checkpoint 6).
     await expect(one.locator('.lesson-header h1')).toContainText('Q 1 / 4');
@@ -171,6 +172,7 @@ test('task07 self-paced run: navigation, flags, review, submit all, auto-submit,
     await expect(late.locator('#self-nav')).toHaveText(`Question 1 of ${ids.length}`);
     await screenshot(late, '09-late-join');
     await expect(teacher.locator('[data-student="e2e-student-3"]')).toContainText('late join');
+    await expect(row('e2e-student-3', ids[0])).toHaveAttribute('data-current', 'true');
     for (const item of ITEMS) await expect(row('e2e-student-3', item.question_id)).toHaveAttribute('data-state', ids.includes(item.question_id) ? 'unreached' : 'unassigned');
     await expect(row('e2e-student-3', ITEMS.find(x => !ids.includes(x.question_id)).question_id)).toHaveText('░');
     await screenshot(teacher, '10-grid-late-join');
