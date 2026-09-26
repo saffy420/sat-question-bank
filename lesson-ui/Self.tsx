@@ -30,6 +30,7 @@ export function SelfPlayer({ model, bridge }: { model: PlayerModel; bridge: Brid
   let body;
   if (s.status === 'lobby') body = <section className="lesson-lobby"><Users size={36} aria-hidden="true"/><h2>Waiting for the instructor to start…</h2><p>{s.count} joined</p></section>;
   else if (s.status === 'ended') body = <Notice>Session ended.</Notice>;
+  else if (s.status === 'review' && s.reviewed) body = <Notice>Waiting for the instructor to choose what to review next.</Notice>;
   else if (!ids.length) body = <Notice>{s.status === 'live' ? 'Not enough time left to join this set — you can join the review when it starts.' : 'The set has finished — you can join the review when it starts.'}</Notice>;
   else if (s.status !== 'live' || s.phase !== 'ANSWERING') body = <Notice>{s.submitted ? 'Set finished. Your answers were submitted.' : 'Time is up. Your answers were submitted automatically.'} Waiting for the instructor to start the review.</Notice>;
   else if (s.submitted) body = <Notice icon>Submitted. Waiting for the session to end.</Notice>;

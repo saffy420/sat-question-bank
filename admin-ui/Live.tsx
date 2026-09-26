@@ -22,6 +22,7 @@ import {
 import { Stage } from "../lesson-ui/Stage";
 import { DesmosLeader } from "../lesson-ui/Desmos";
 import { SelfGrid, type SelfRoom } from "./SelfLive";
+import { Overview, PollPanel, ResultPanel } from "./Review";
 import type { Snapshot, Laser, Mark } from "../lesson-ui/types";
 import * as Ink from "/shared/annotations.js";
 import { isRight } from "/shared/stats.js";
@@ -262,11 +263,15 @@ export function Live({ id }: { id: string }) {
   };
   const revealed = s.phase === "REVEALED" || s.phase === "ENDED";
   const self = s.mode === "self" ? (s as unknown as SelfRoom) : null;
-  const rows = Object.entries(s.roster || {}).map(([id, name]) => ({
-    id,
-    name,
-    r: s.responses?.[id]?.[s.questionId],
-  }));
+  // Self-paced review mode (§8.7) reuses the instructor-paced REVEALED layout below.
+  const reviewMode = !!s.reviewMode;
+  const rows = Object.entries(s.roster || {})
+    .filter(([id]) => !reviewMode || s.responses?.[id])
+    .map(([id, name]) => ({
+      id,
+      name,
+      r: s.responses?.[id]?.[s.questionId],
+    }));
   rows.sort(
     (a, b) =>
       (sort === "status"
@@ -278,8 +283,9 @@ export function Live({ id }: { id: string }) {
   );
   const received = rows.filter((x) => x.r?.answer).length;
   // A finished self-paced set has no clock left to show.
-  const remaining = s.endsAt && !(self && s.status !== "live")
-    ? Math.ceil(Math.max(0, s.endsAt - now - offset.current) / 1000)
+  const end = self?.poll ? self.poll.endsAt : self && s.status !== "live" ? null : s.endsAt;
+  const remaining = end
+    ? Math.ceil(Math.max(0, end - now - offset.current) / 1000)
     : null;
   const roster = (
     <div id="live-roster" className="roster">
@@ -309,7 +315,11 @@ export function Live({ id }: { id: string }) {
             {s.status === "lobby"
               ? "LOBBY"
               : self
-                ? { live: "SELF-PACED SET", review: "SET FINISHED", ended: "SESSION ENDED" }[s.status] || s.status
+                ? reviewMode
+                  ? "REVIEW"
+                  : self.poll || self.pollResult
+                    ? "REVIEW POLL"
+                    : { live: "SELF-PACED SET", review: "SET FINISHED", ended: "SESSION ENDED" }[s.status] || s.status
                 : s.phase}
           </Badge>
           <h2>{s.title}</h2>
@@ -371,9 +381,17 @@ export function Live({ id }: { id: string }) {
             {roster}
           </section>
         </div>
-      ) : self ? (
+      ) : self && !reviewMode ? (
         <>
-          <SelfGrid s={self} />
+          {s.status === "live" ? (
+            <SelfGrid s={self} />
+          ) : self.poll ? (
+            <PollPanel s={self} />
+          ) : self.pollResult ? (
+            <ResultPanel s={self} />
+          ) : (
+            self.overview && <Overview s={self} send={send} />
+          )}
           <details className="roster-details panel">
             <summary>Manage students</summary>
             <label className="toggle">
@@ -401,7 +419,7 @@ export function Live({ id }: { id: string }) {
                 aria-current={i === s.index ? "step" : undefined}
               >
                 <span>{i + 1}</span>
-                {i < s.index ? (
+                {(self ? self.reviewed?.includes(self.items[i]?.questionId) : i < s.index) ? (
                   <Check aria-label="Done" />
                 ) : (
                   <span className="mini-slide" />
@@ -575,7 +593,7 @@ export function Live({ id }: { id: string }) {
               </button>
             </>
           )}
-          {s.phase === "REVEALED" && s.index + 1 < s.total && (
+          {s.phase === "REVEALED" && (reviewMode || s.index + 1 < s.total) && (
             <button
               className="primary"
               data-live="next"
@@ -595,7 +613,7 @@ export function Live({ id }: { id: string }) {
           {connected ? <Wifi /> : <WifiOff />}
           {connected ? "Connected" : "Reconnecting…"}
         </span>
-        {!self && (
+        {(!self || reviewMode) && (
           <label className="toggle">
             <input
               id="live-class"

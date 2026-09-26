@@ -458,3 +458,121 @@ test('self-paced start puts every lobby student on their first question', async 
   assert.deepEqual(s.positions, { alice: 'q1', bob: 'q1' });
   assert.equal(f.writes.filter(([sql]) => sql.includes("status='live'")).length, 1);
 });
+test('set results: assigned denominators, blank scorable wrong, unscorable never, zero-assignment excluded; ranking ties by lesson order', async () => {
+  const { setResults, mostMissed } = await protocol();
+  const q = (id, answer, spr = false) => ({ id, answer, spr, choices: spr ? [] : [{ letter: 'A' }, { letter: 'B' }] });
+  const items = ['q1', 'q2', 'q3', 'q4'].map(question_id => ({ question_id, time_limit_sec: 10 }));
+  const questions = { q1: q('q1', 'A'), q2: q('q2', 'B'), q3: q('q3', '1/2', true), q4: q('q4', 'Z') };
+  const assigned = { a: ['q1', 'q2', 'q3', 'q4'], b: ['q1', 'q2', 'q3', 'q4'], late: ['q2'], none: [] };
+  const responses = { a: { q1: { answer: 'A', ms: 1000 }, q2: { answer: 'A' }, q3: { answer: '.5' }, q4: { answer: 'A' } },
+    b: { q1: { answer: 'B', ms: 500 }, q3: {} }, late: { q2: { answer: 'A' } }, none: {} };
+  const r = setResults({ items, questions, assigned, responses });
+  assert.deepEqual(r.questions.map(x => [x.questionId, x.assigned, x.wrong, x.right]), [['q1', 2, 1, 1], ['q2', 3, 3, 0], ['q3', 2, 1, 1], ['q4', 2, 0, 0]]);
+  assert.deepEqual(r.students.a, { assigned: 4, scorable: 3, right: 2, answered: 4, ms: 1000 });
+  assert.equal(r.students.b.right, 0); assert.equal(r.students.b.answered, 1);
+  assert.equal(r.takers, 3, 'zero-assignment student is not a taker'); assert.equal(r.completed, 2);
+  assert.equal(r.mean, (2 / 3 + 0 + 0) / 3); assert.equal(r.median, 0);
+  assert.deepEqual(mostMissed(r).map(x => x.questionId), ['q2', 'q1', 'q3', 'q4'], 'ties keep lesson order');
+  assert.deepEqual(mostMissed(r, ['q2']).map(x => x.questionId), ['q1', 'q3', 'q4'], 'reviewed questions leave the ranking');
+});
+test('poll winner: option 2 must win outright; picks tie on more wrong, then lesson order', async () => {
+  const { pollWinner } = await protocol();
+  const order = ['q1', 'q2', 'q3'], wrong = { q1: 1, q2: 3, q3: 3 };
+  const w = votes => pollWinner({ votes, mostMissed: 'q1', wrong, order });
+  assert.equal(w({}), 'q1', 'no votes → most-missed');
+  assert.equal(w({ a: { option: 1 }, b: { option: 2, questionId: 'q3' } }), 'q1', 'split vote → most-missed');
+  assert.equal(w({ a: { option: 2, questionId: 'q3' } }), 'q3');
+  assert.equal(w({ a: { option: 2, questionId: 'q1' }, b: { option: 2, questionId: 'q2' } }), 'q2', 'pick tie → more students wrong');
+  assert.equal(w({ a: { option: 2, questionId: 'q3' }, b: { option: 2, questionId: 'q2' } }), 'q2', 'then lesson order');
+  assert.equal(w({ a: { option: 2, questionId: 'q3' }, b: { option: 2, questionId: 'q3' }, c: { option: 2, questionId: 'q2' }, d: { option: 1 } }), 'q3');
+});
+function reviewFixture() {
+  const f = selfFixture();
+  Object.assign(f.s, { status: 'review', phase: 'FINISHED', reviewed: [], poll: null, pollResult: null, roster: { alice: 'Alice', bob: 'Bob', carol: 'Carol' },
+    assigned: { alice: ['q1', 'q2', 'q3'], bob: ['q1', 'q2', 'q3'], carol: ['q2'] },
+    responses: { alice: { q1: { answer: 'B' }, q2: { answer: 'B' }, q3: { answer: '3' } }, bob: { q1: { answer: 'A' }, q2: { answer: 'B' } }, carol: { q2: { answer: 'A' } } } });
+  return f;
+}
+test('review poll: option 2 needs a pick, early close when every connected student voted, split → most-missed, 3 s result, review, exclusion', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule(); const f = reviewFixture(), room = new LessonRoom(f.ctx, f.env);
+  await room.save(f.s);
+  const alice = f.socket('alice'), bob = f.socket('bob'), teacher = f.socket('teacher', 'admin');
+  const say = (who, m) => room.webSocketMessage(who.ws, JSON.stringify(m));
+  const overview = room.snapshot(f.s, { role: 'admin', userId: 'teacher' }).overview;
+  assert.deepEqual(overview.ranking, ['q2', 'q1', 'q3']);
+  assert.deepEqual(overview.questions.map(x => [x.assigned, x.wrong]), [[2, 1], [3, 2], [2, 1]]);
+  await say(alice, { type: 'vote', option: 1 });
+  assert.equal(alice.sent.at(-1).error, 'poll closed');
+  await say(teacher, { type: 'startPoll' });
+  let s = await room.state();
+  assert.equal(s.phase, 'POLL'); assert.equal(s.poll.mostMissed, 'q2'); assert.equal(f.storage && (await f.storage.get('alarm')), s.poll.endsAt + 750);
+  const poll = alice.sent.at(-1).poll;
+  assert.deepEqual(poll.mostMissed, { questionId: 'q2', number: 2, missed: 2 });
+  assert.deepEqual(poll.choices.map(c => [c.number, c.mark]), [[1, 'right'], [2, 'wrong'], [3, 'right']]);
+  const text = JSON.stringify(alice.sent.at(-1));
+  for (const secret of ['Bob', 'Carol', 'SECRET_EXPLANATION', 'PRIVATE_NOTE', '"answer"']) assert.equal(text.includes(secret), false, secret);
+  await say(alice, { type: 'vote', option: 2 });
+  assert.match(alice.sent.at(-1).error, /Pick a question/);
+  await say(alice, { type: 'vote', option: 2, questionId: 'nope' });
+  assert.equal(alice.sent.at(-1).error, 'not in this poll');
+  assert.deepEqual((await room.state()).poll.votes, {}, 'option 2 without a valid pick is not counted');
+  await say(alice, { type: 'vote', option: 2, questionId: 'q3' });
+  assert.equal((await room.state()).phase, 'POLL', 'bob has not voted yet');
+  assert.deepEqual(room.snapshot(await room.state(), { role: 'admin', userId: 'teacher' }).poll.picks, { q3: 1 });
+  await say(bob, { type: 'vote', option: 1 });
+  s = await room.state();
+  assert.equal(s.phase, 'POLL_RESULT', 'closes early: every connected student voted (carol is not connected)');
+  assert.deepEqual([s.pollResult.questionId, s.pollResult.winner, s.pollResult.one, s.pollResult.two], ['q2', 1, 1, 1], 'split vote → most-missed');
+  assert.equal(JSON.stringify(bob.sent.at(-1)).includes('Alice'), false);
+  tick(2999); await room.alarm(); assert.equal((await room.state()).phase, 'POLL_RESULT');
+  tick(1); await room.alarm();
+  s = await room.state();
+  assert.equal(s.phase, 'REVEALED'); assert.equal(s.items[s.index].question_id, 'q2'); assert.deepEqual(s.reviewed, ['q2']);
+  const review = alice.sent.at(-1);
+  assert.equal(review.question.answer, 'A'); assert.equal(review.ownSelection, 'B'); assert.equal(review.notInSet, false);
+  assert.equal(JSON.stringify(review).includes('PRIVATE_NOTE'), false);
+  assert.equal(room.snapshot(s, { role: 'student', userId: 'dave' }).notInSet, true);
+  assert.equal(room.snapshot(s, { role: 'admin', userId: 'teacher' }).notes, '');
+  await say(teacher, { type: 'annotate', questionId: 'q2', op: { type: 'stroke', id: 'm1', points: [[0.1, 0.1]], color: '#ff7676' } });
+  assert.equal(alice.sent.at(-1).type, 'annotate', 'review mode reuses the REVEALED annotation gate');
+  await say(alice, { type: 'select', questionId: 'q2', answer: 'A' });
+  assert.equal(alice.sent.at(-1).error, 'set closed');
+  await say(teacher, { type: 'next' });
+  s = await room.state();
+  assert.equal(s.phase, 'FINISHED');
+  assert.equal(f.writes.filter(([sql]) => sql.includes('session_question_review')).length, 1, 'annotations flushed at Next');
+  await say(teacher, { type: 'startPoll' });
+  s = await room.state();
+  assert.deepEqual(s.poll.choices, ['q1', 'q3'], 'reviewed question leaves the dropdown'); assert.equal(s.poll.mostMissed, 'q1');
+  tick(30749); await room.alarm(); assert.equal((await room.state()).phase, 'POLL');
+  tick(1); await room.alarm();
+  s = await room.state(); assert.equal(s.pollResult.questionId, 'q1', 'deadline with no votes → most-missed');
+  tick(3000); await room.alarm();
+  await say(teacher, { type: 'next' });
+  await say(teacher, { type: 'goto', questionId: 'q3' });
+  s = await room.state();
+  assert.equal(s.phase, 'REVEALED'); assert.deepEqual(s.reviewed, ['q2', 'q1', 'q3']);
+  await say(teacher, { type: 'next' });
+  await say(teacher, { type: 'startPoll' });
+  assert.equal(teacher.sent.at(-1).error, 'Every question has been reviewed');
+  assert.equal(f.writes.filter(([sql]) => sql.includes('session_responses')).length, 0, 'reviews write no responses');
+  assert.deepEqual((await room.state()).responses, reviewFixture().s.responses, 'recorded answers unchanged');
+  await say(teacher, { type: 'endSession' });
+  assert.equal((await room.state()).status, 'ended');
+}));
+test('poll and goto are self-paced review only; instructor-paced students cannot lock through vote or navigate', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  await room.save(f.s);
+  const alice = f.socket('alice'), teacher = f.socket('teacher', 'admin');
+  for (const m of [{ type: 'vote', option: 1 }, { type: 'navigate', questionId: 'q' }, { type: 'submitAll' }]) {
+    await room.webSocketMessage(alice.ws, JSON.stringify(m));
+    assert.equal(alice.sent.at(-1).error, 'invalid action');
+  }
+  assert.equal((await room.state()).responses.alice.q, undefined, 'nothing locked');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'startPoll' }));
+  assert.equal(teacher.sent.at(-1).error, 'invalid phase');
+  const g = selfFixture(), self = new LessonRoom(g.ctx, g.env); await self.save(g.s);
+  const t2 = g.socket('teacher', 'admin');
+  await self.webSocketMessage(t2.ws, JSON.stringify({ type: 'goto', questionId: 'q1' }));
+  assert.equal(t2.sent.at(-1).error, 'invalid phase', 'no review during the set');
+});

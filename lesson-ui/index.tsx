@@ -6,6 +6,7 @@ import { isRight } from '/shared/stats.js';
 import { Stage, followStage } from './Stage';
 import { DesmosFollower } from './Desmos';
 import { SelfPlayer } from './Self';
+import { PollScreen } from './Poll';
 import { loadDesmos } from '/shared/desmos.js';
 import type { Bridge, PlayerModel, Mark, Laser } from './types';
 import type { StageProps } from './Stage';
@@ -55,19 +56,19 @@ function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerM
       </nav>
     </header>
     {!model.connected && <div className="lesson-reconnect" role="status">Reconnecting…</div>}
-    <div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.phase}</div>
+    <div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.reviewMode ? 'REVIEW' : s.phase}</div>
     <main className={`lesson-main${revealed && s.desmos ? ' with-desmos' : ''}`}>
       {s.status === 'lobby' ? <section className="lesson-lobby"><Users size={36} aria-hidden="true"/><h2>Waiting for the instructor to start…</h2><p>{s.count} joined</p></section> : s.question && <>
         <Stage key={s.questionId} question={s.question} number={s.index + 1} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={privateMarks} laser={laser} mathify={bridge.mathify} onSelect={answer => bridge.select(s.questionId, answer)} onPrivate={privateOn ? mark => setPrivateMarks(layer => [...layer, mark]) : undefined}/>
         {!revealed && (s.locked || model.lockPending) && <p className="lesson-locked" role="status"><LockKeyhole size={18} aria-hidden="true"/>Answer locked in. Waiting for time to end…</p>}
-        {revealed && <section className="lesson-reveal"><p>Correct answer: {s.question.answer}{s.question.spr && <> · Your answer: {picked || 'blank'} · {isRight(s.question, picked) ? 'Correct' : 'Incorrect'}</>}</p><div className="lesson-verdict"><span>{isRight(s.question, picked) ? <Check aria-label="Correct"/> : <X aria-label="Incorrect"/>}</span>{picked ? `Your answer: ${picked}` : 'No answer selected'}</div><details key={s.questionId}><summary>Official explanation</summary><div ref={explanation}/></details>
+        {revealed && <section className="lesson-reveal"><p>Correct answer: {s.question.answer}{s.question.spr && !s.notInSet && <> · Your answer: {picked || 'blank'} · {isRight(s.question, picked) ? 'Correct' : 'Incorrect'}</>}</p>{s.notInSet ? <div className="lesson-verdict" id="lesson-not-in-set">Not in your set</div> : <div className="lesson-verdict"><span>{isRight(s.question, picked) ? <Check aria-label="Correct"/> : <X aria-label="Incorrect"/>}</span>{picked ? `Your answer: ${picked}` : 'No answer selected'}</div>}<details key={s.questionId}><summary>Official explanation</summary><div ref={explanation}/></details>
           {s.classResults && s.distribution && <section className="lesson-results"><h3>Class results</h3>{s.distribution.map((g, index) => <div className="lesson-result" key={g.label}><span>{g.label}</span><span className="lesson-result-track"><i style={{ width: `${100 * g.count / Math.max(1, ...s.distribution!.map(row => row.count))}%`, background: ['#1182a4', '#126bb3', '#706caf', '#398437'][index % 4] }}/></span><strong>{g.count}</strong>{g.correct && <Check size={18} aria-label="Correct"/>}</div>)}</section>}
         </section>}
       </>}
       <p id="lesson-error" role="alert">{model.error}</p>
     </main>
     {revealed && s.desmos && <DesmosFollower key={s.questionId} apiKey={s.desmosKey} state={s.desmos}/>}
-    <footer className="lesson-footer"><span>{model.name}</span><span className="lesson-position">Question {s.index + 1} of {s.total}</span><button id="lesson-lock" className="lesson-submit" disabled={!active} onClick={() => setConfirm(s.questionId)}>Submit</button></footer>
+    <footer className="lesson-footer"><span>{model.name}</span><span className="lesson-position">Question {s.index + 1} of {s.total}</span>{!s.reviewMode && <button id="lesson-lock" className="lesson-submit" disabled={!active} onClick={() => setConfirm(s.questionId)}>Submit</button>}</footer>
     <dialog className="lesson-confirm-dialog" ref={dialog} onCancel={() => setConfirm(null)}><p>Have you double checked your answer and made sure it's right?</p><div><button id="lesson-back" onClick={() => { setConfirm(null); document.getElementById('lesson-lock')?.focus(); }}>Go back</button><button id="lesson-confirm" onClick={() => { const id = confirm; setConfirm(null); if (id && active && id === s.questionId) bridge.lock(id); }}>Yes, submit</button></div></dialog>
   </>;
 }
@@ -79,7 +80,7 @@ export function mountLesson(root: HTMLElement, bridge: Bridge) {
   let followMark: Mark | null = null;
   let terminal = '';
   let expiry: ReturnType<typeof setTimeout>;
-  const render = () => { if (model) flushSync(() => react.render(terminal ? <div className="lesson-terminal" role="status"><h2>{terminal}</h2></div> : model.snapshot.mode === 'self' && model.self ? <SelfPlayer model={model} bridge={bridge}/> : <Player model={model} bridge={bridge} laser={laser} terminal={terminal} followMark={followMark}/>)); };
+  const render = () => { if (model) flushSync(() => react.render(terminal ? <div className="lesson-terminal" role="status"><h2>{terminal}</h2></div> : model.snapshot.mode === 'self' && model.self && !model.snapshot.reviewMode ? model.snapshot.poll || model.snapshot.pollResult ? <PollScreen key={model.snapshot.poll?.endsAt ?? 'result'} model={model} bridge={bridge}/> : <SelfPlayer model={model} bridge={bridge}/> : <Player model={model} bridge={bridge} laser={laser} terminal={terminal} followMark={followMark}/>)); };
   return {
     update(next: PlayerModel) { model = next; render(); },
     annotate(mark: Mark) { followMark = mark; render(); },

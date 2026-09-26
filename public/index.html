@@ -3712,6 +3712,10 @@ const lessonUI = mountLesson(lessonRoot, {
     for (const [questionId, answer] of Object.entries(lessonSelf.pending)) lessonSend({ type: 'select', questionId, answer });
     lessonSend({ type: 'submitAll' }); lessonSelf.submitting = true; lessonDraw();
   },
+  vote(option, questionId) {
+    if (lessonState?.phase !== 'POLL') return;
+    lessonSend(option === 2 ? { type: 'vote', option, questionId } : { type: 'vote', option });
+  },
   lock(questionId) {
     if (lessonState?.questionId !== questionId || lessonState.phase !== 'ANSWERING' || Date.now() + lessonOffset >= lessonState.endsAt) return;
     if (lessonPending) lessonSend(lessonPending);
@@ -3728,7 +3732,7 @@ function lessonDraw() {
   lessonUI.update({ snapshot: lessonState,
     picked: lessonPending?.questionId === lessonState.questionId ? lessonPending.answer : lessonState.ownSelection || '',
     lockPending: lessonLockPending,
-    remaining: lessonState.endsAt ? Math.max(0, lessonState.endsAt - Date.now() - lessonOffset) : 0,
+    remaining: (lessonState.poll?.endsAt || lessonState.endsAt) ? Math.max(0, (lessonState.poll?.endsAt || lessonState.endsAt) - Date.now() - lessonOffset) : 0,
     connected: lessonSocket?.readyState === WebSocket.OPEN,
     name: $('user-name').textContent || '', error: lessonError,
     ...(lessonSelf ? { self: { position: lessonSelf.position, review: lessonSelf.review, submitting: lessonSelf.submitting,

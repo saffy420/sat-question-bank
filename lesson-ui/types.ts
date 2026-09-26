@@ -43,7 +43,20 @@ export type Snapshot = {
   submitted?: boolean;
   lateJoin?: boolean;
   joinRemainingMs?: number | null;
+  // Self-paced review (§8.7): polls, results and review mode use lesson numbering.
+  reviewed?: number;
+  reviewMode?: boolean;
+  notInSet?: boolean;
+  poll?: Poll;
+  pollResult?: PollResult;
 };
+export type Poll = {
+  endsAt: number;
+  mostMissed: { questionId: string; number: number; missed: number };
+  choices: { questionId: string; number: number; mark: 'right' | 'wrong' | 'unassigned' | 'unscored' }[];
+  vote: { option: 1 | 2; questionId?: string } | null;
+};
+export type PollResult = { questionId: string; number: number; winner: 1 | 2; one: number; two: number; endsAt: number };
 export type SelfModel = { position: string | null; review: boolean; selections: Record<string, string>; submitting: boolean };
 export type PlayerModel = {
   snapshot: Snapshot;
@@ -61,6 +74,7 @@ export type Bridge = {
   // Self-paced: null opens the review page.
   navigate?: (questionId: string | null) => void;
   submitAll?: () => void;
+  vote?: (option: 1 | 2, questionId?: string) => void;
   leave: () => void;
   mathify: (element: HTMLElement) => void;
 };

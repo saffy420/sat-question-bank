@@ -1525,3 +1525,122 @@ body {
 :where(#admin-root) .roster-details.panel {
   margin-top: 16px;
 }
+/* Self-paced overview, launcher and polls (§8.6–8.7) */
+:where(#admin-root) .review-overview {
+  display: grid;
+  gap: 16px;
+}
+:where(#admin-root) .review-launcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+:where(#admin-root) .review-launcher label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+:where(#admin-root) .review-launcher p {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+:where(#admin-root) .review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 40px;
+}
+:where(#admin-root) .review-summary p {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+}
+:where(#admin-root) .review-summary strong {
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--text, #171717);
+}
+:where(#admin-root) .review-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  :where(#admin-root) .review-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+:where(#admin-root) .review-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+:where(#admin-root) .review-table th,
+:where(#admin-root) .review-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+:where(#admin-root) .review-table button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+:where(#admin-root) .review-table thead button svg {
+  width: 13px;
+  height: 13px;
+  color: #888;
+}
+:where(#admin-root) .review-table tbody th button {
+  color: var(--accent);
+  text-decoration: underline;
+}
+:where(#admin-root) .review-student {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  font-size: 14px;
+}
+:where(#admin-root) .review-student p {
+  display: grid;
+  grid-template-columns: 48px 80px 24px 60px;
+  align-items: center;
+  margin: 4px 0;
+}
+:where(#admin-root) .review-student svg {
+  width: 16px;
+  height: 16px;
+}
+:where(#admin-root) .review-missed {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+}
+:where(#admin-root) .review-missed li {
+  margin: 6px 0;
+}
+:where(#admin-root) .review-missed button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+:where(#admin-root) .review-poll h2 {
+  margin: 0 0 8px;
+}
+:where(#admin-root) .review-poll p {
+  font-size: 16px;
+  margin: 6px 0;
+}

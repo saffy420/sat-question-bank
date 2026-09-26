@@ -1,5 +1,5 @@
 import { normalizeQuestion, isRight } from '../public/shared/stats.js';
-import { GRACE_MS, MAX_FRAME, MAX_DESMOS_FRAME, validAction, lessonQuestion, responseGroups, lateJoinSet } from '../public/shared/lesson.js';
+import { GRACE_MS, POLL_MS, RESULT_MS, MAX_FRAME, MAX_DESMOS_FRAME, validAction, lessonQuestion, responseGroups, lateJoinSet, setResults, mostMissed, pollWinner } from '../public/shared/lesson.js';
 
 const sqlTime = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 const review = (s, item) => s.desmos?.questionId === item.question_id ? { desmos: s.desmos.state } : {};
@@ -46,8 +46,11 @@ export class LessonRoom {
       return { ...base, total: ids.length, assignedQuestionIds: ids, questionId: position, index: Math.max(0, ids.indexOf(position)),
         selections: Object.fromEntries(ids.filter(id => own[id]?.answer).map(id => [id, own[id].answer])),
         submitted: !!s.submitted[a.userId], timeSeq: s.clock[a.userId]?.seq || 0,
-        lateJoin: Object.hasOwn(s.joinRemaining, a.userId), joinRemainingMs: s.joinRemaining[a.userId] ?? null,
-        ...(full && s.status === 'live' ? { questions: ids.map(id => lessonQuestion(s.questions[id])) } : {}) };
+        lateJoin: Object.hasOwn(s.joinRemaining, a.userId), joinRemainingMs: s.joinRemaining[a.userId] ?? null, reviewed: (s.reviewed || []).length,
+        ...(full && s.status === 'live' ? { questions: ids.map(id => lessonQuestion(s.questions[id])) } : {}),
+        ...(s.phase === 'POLL' ? { poll: this.studentPoll(s, a.userId) } : {}),
+        ...(s.phase === 'POLL_RESULT' ? { pollResult: s.pollResult } : {}),
+        ...(this.reviewing(s) ? this.reviewPayload(s, a) : {}) };
     }
     // Compact on purpose: this refresh runs up to 4/s. grid[userId][questionId] = [answer, correct, ms]
     // for assigned questions only; card groups list students by their index in `students`.
@@ -74,7 +77,72 @@ export class LessonRoom {
       items: s.items.map(x => ({ questionId: x.question_id, timeLimitSec: x.time_limit_sec })),
       positions: s.positions, submitted: Object.fromEntries(Object.keys(s.submitted).map(userId => [userId, true])),
       lateJoin: s.joinRemaining, grid, cards,
-      ...(full ? { questions: Object.fromEntries(s.items.map(x => [x.question_id, { ...lessonQuestion(s.questions[x.question_id], true), notes: x.notes || '' }])) } : {}) };
+      ...(full ? { questions: Object.fromEntries(s.items.map(x => [x.question_id, { ...lessonQuestion(s.questions[x.question_id], true), notes: x.notes || '' }])) } : {}),
+      ...(s.status === 'review' || s.status === 'ended' ? { overview: this.overview(s), reviewed: s.reviewed || [] } : {}),
+      ...(s.phase === 'POLL' ? { poll: this.adminPoll(s) } : {}),
+      ...(s.phase === 'POLL_RESULT' ? { pollResult: s.pollResult } : {}),
+      ...(this.reviewing(s) ? this.reviewPayload(s, a) : {}) };
+  }
+  // Review mode (§8.7) is instructor-paced REVEALED on one lesson question: s.index points at it.
+  reviewing(s) { return s.mode === 'self' && s.status === 'review' && s.phase === 'REVEALED'; }
+  reviewPayload(s, a) {
+    const item = s.items[s.index], id = item.question_id, q = s.questions[id];
+    const takers = Object.keys(s.responses).filter(userId => s.assigned[userId]?.includes(id));
+    const groups = s.classResults || a.role === 'admin' ? responseGroups(q, Object.fromEntries(takers.map(userId => [userId, s.responses[userId][id] || {}]))) : null;
+    const common = { questionId: id, index: s.index, total: s.items.length, question: lessonQuestion(q, true), reviewMode: true,
+      annotations: s.annotations?.[id] || [], desmos: s.desmos?.questionId === id ? s.desmos.state : null, classResults: !!s.classResults,
+      hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null };
+    if (a.role === 'admin') return { ...common, notes: item.notes || '',
+      responses: Object.fromEntries(takers.map(userId => [userId, { [id]: { answer: s.responses[userId][id]?.answer, locked: true } }])),
+      distribution: groups.map(g => ({ ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) })) };
+    const inSet = !!s.assigned[a.userId]?.includes(id);
+    return { ...common, ownSelection: inSet ? s.responses[a.userId]?.[id]?.answer || null : null, locked: true, notInSet: !inSet,
+      ...(groups ? { distribution: groups.map(g => ({ label: g.label, count: g.count, correct: g.correct })) } : {}) };
+  }
+  overview(s) {
+    const results = setResults(s);
+    return { ...results, ranking: mostMissed(results).map(x => x.questionId),
+      questions: results.questions.map(x => ({ ...x, skill: s.questions[x.questionId]?.skill || '', difficulty: s.difficulty?.[x.questionId] || '' })) };
+  }
+  // A student's poll: the shared options plus their own ✓ / ✗ / not-in-set marks. Nothing about peers.
+  studentPoll(s, userId) {
+    const number = id => s.items.findIndex(x => x.question_id === id) + 1;
+    const mark = id => {
+      if (!s.assigned[userId]?.includes(id)) return 'unassigned';
+      const verdict = isRight(s.questions[id], s.responses[userId]?.[id]?.answer || '?');
+      return verdict === null ? 'unscored' : verdict && s.responses[userId]?.[id]?.answer ? 'right' : 'wrong';
+    };
+    return { endsAt: s.poll.endsAt, mostMissed: { questionId: s.poll.mostMissed, number: number(s.poll.mostMissed), missed: s.poll.missed },
+      choices: s.poll.choices.map(id => ({ questionId: id, number: number(id), mark: mark(id) })), vote: s.poll.votes[userId] || null };
+  }
+  adminPoll(s) {
+    const votes = Object.values(s.poll.votes), picks = {};
+    for (const v of votes) if (v.option === 2) picks[v.questionId] = (picks[v.questionId] || 0) + 1;
+    return { endsAt: s.poll.endsAt, mostMissed: s.poll.mostMissed, missed: s.poll.missed, choices: s.poll.choices,
+      one: votes.filter(v => v.option === 1).length, two: votes.filter(v => v.option === 2).length, picks,
+      voted: votes.length, connected: this.connected(s).length };
+  }
+  connected(s) { return [...new Set(this.sockets('student').map(ws => ws.deserializeAttachment()?.userId))].filter(userId => s.responses[userId]); }
+  // Early close: every connected student has a counted vote (G6: zero-assignment students vote too).
+  allVoted(s) { const users = this.connected(s); return users.length > 0 && users.every(userId => s.poll.votes[userId]); }
+  async pollAdvance(s) {
+    if (s.phase === 'POLL' && (Date.now() >= s.poll.endsAt + GRACE_MS || this.allVoted(s))) {
+      const results = setResults(s), votes = Object.values(s.poll.votes);
+      const questionId = pollWinner({ votes: s.poll.votes, mostMissed: s.poll.mostMissed, order: s.items.map(x => x.question_id),
+        wrong: Object.fromEntries(results.questions.map(x => [x.questionId, x.wrong])) });
+      const one = votes.filter(v => v.option === 1).length, two = votes.length - one;
+      s.pollResult = { questionId, number: s.items.findIndex(x => x.question_id === questionId) + 1, winner: two > one ? 2 : 1, one, two, endsAt: Date.now() + RESULT_MS };
+      s.poll = null; s.phase = 'POLL_RESULT';
+      await this.save(s); await this.ctx.storage.setAlarm(s.pollResult.endsAt);
+      this.broadcast(s);
+    } else if (s.phase === 'POLL_RESULT' && Date.now() >= s.pollResult.endsAt) await this.enterReview(s, s.pollResult.questionId);
+  }
+  async enterReview(s, questionId) {
+    s.index = s.items.findIndex(x => x.question_id === questionId);
+    s.phase = 'REVEALED'; s.poll = null; s.pollResult = null;
+    if (!(s.reviewed ||= []).includes(questionId)) s.reviewed.push(questionId);
+    await this.save(s);
+    this.broadcast(s);
   }
   broadcast(s, selection = false, userId = null, full = !selection) {
     for (const ws of this.sockets(selection ? 'student' : undefined)) {
@@ -103,8 +171,8 @@ export class LessonRoom {
     const questions = {}, difficulty = {};
     for (const item of frozen.items) {
       if (questions[item.question_id]) throw Error('duplicate question');
-      const core = await this.env.DB.prepare('SELECT id,section,difficulty,stem_html,choices_json,correct_answer,explanation_html,source FROM questions WHERE id=?').bind(item.question_id).first();
-      const ai = core || await this.env.AI_DB.prepare('SELECT id,section,difficulty,stem_html,choices_json,correct_answer,explanation_html,source FROM questions WHERE id=?').bind(item.question_id).first();
+      const core = await this.env.DB.prepare('SELECT id,section,difficulty,skill,stem_html,choices_json,correct_answer,explanation_html,source FROM questions WHERE id=?').bind(item.question_id).first();
+      const ai = core || await this.env.AI_DB.prepare('SELECT id,section,difficulty,skill,stem_html,choices_json,correct_answer,explanation_html,source FROM questions WHERE id=?').bind(item.question_id).first();
       if (!ai) throw Error('missing frozen question');
       questions[item.question_id] = normalizeQuestion(ai);
       difficulty[item.question_id] = ai.difficulty || '';
@@ -112,7 +180,7 @@ export class LessonRoom {
     const participants = await this.env.DB.prepare('SELECT p.user_id, p.joined_at, p.assigned_question_ids_json, u.name, u.email FROM session_participants p JOIN users u ON u.id=p.user_id WHERE p.session_id=? AND p.left_at IS NULL').bind(sessionId).all();
     s = { id: row.id, code: row.join_code, title: frozen.title, owner: row.created_by, items: frozen.items, questions,
       status: row.status, phase: 'READY', index: 0, endsAt: null, lockedJoin: false, kicked: [], responses: {}, roster: {}, joinedAt: {} };
-    if (frozen.mode === 'self') Object.assign(s, { mode: 'self', difficulty, assigned: {}, positions: {}, submitted: {}, clock: {}, joinRemaining: {} });
+    if (frozen.mode === 'self') Object.assign(s, { mode: 'self', difficulty, assigned: {}, positions: {}, submitted: {}, clock: {}, joinRemaining: {}, reviewed: [], poll: null, pollResult: null });
     for (const p of participants.results || []) {
       s.responses[p.user_id] = {}; s.roster[p.user_id] = p.name || p.email || p.user_id; s.joinedAt[p.user_id] = Date.parse(p.joined_at + 'Z') || Date.now();
       if (s.mode === 'self') { try { s.assigned[p.user_id] = JSON.parse(p.assigned_question_ids_json); } catch { s.assigned[p.user_id] = []; } }
@@ -146,6 +214,7 @@ export class LessonRoom {
     }
   }
   async advance(s) {
+    if (s.phase === 'POLL' || s.phase === 'POLL_RESULT') return this.pollAdvance(s);
     if (s.phase !== 'ANSWERING' || Date.now() < s.endsAt + GRACE_MS) return;
     if (s.mode === 'self') return this.completeSet(s);
     const item = s.items[s.index];
@@ -188,7 +257,10 @@ export class LessonRoom {
   async alarm() {
     const s = await this.state(); if (!s) return;
     try { await this.advance(s); await this.flush(s); }
-    catch { await this.ctx.storage.setAlarm(Date.now() + 5000); }
+    catch { await this.ctx.storage.setAlarm(Date.now() + 5000); return; }
+    // A retry alarm can replace a poll deadline; re-arm whichever deadline is still ahead.
+    const due = s.phase === 'POLL' ? s.poll.endsAt + GRACE_MS : s.phase === 'POLL_RESULT' ? s.pollResult.endsAt : null;
+    if (due) await this.ctx.storage.setAlarm(due);
   }
   async fetch(req) {
     if (req.headers.get('X-Lesson-Internal') !== 'room') return new Response('not found', { status: 404 });
@@ -321,7 +393,8 @@ export class LessonRoom {
       return;
     }
     if (a.role === 'student') {
-      if (!s.responses[a.userId]) err = 'removed';
+      if (m.type !== 'select' && m.type !== 'lock') err = 'invalid action';
+      else if (!s.responses[a.userId]) err = 'removed';
       else if (s.phase !== 'ANSWERING' || Date.now() > s.endsAt + GRACE_MS || item.question_id !== m.questionId) err = 'question closed';
       else {
         const current = s.responses[a.userId][m.questionId] || { answer: null, locked: false, changes: 0, history: [], joinedAt: Date.now() };
@@ -340,7 +413,21 @@ export class LessonRoom {
       }
     } else {
       if (s.phase === 'ENDED') err = 'ended';
-      else if (s.mode === 'self' && !['start', 'endSession', 'kick', 'lockJoin'].includes(m.type)) err = 'invalid phase';
+      else if (s.mode === 'self' && !['start', 'endSession', 'kick', 'lockJoin', 'startPoll', 'goto', 'next', 'classResults'].includes(m.type)) err = 'invalid phase';
+      else if (m.type === 'startPoll' || m.type === 'goto') {
+        // §8.6 launcher: a poll over the questions not yet reviewed, or straight to one question.
+        const open = s.items.map(x => x.question_id).filter(id => !(s.reviewed || []).includes(id));
+        if (s.mode !== 'self' || s.status !== 'review' || s.phase !== 'FINISHED') err = 'invalid phase';
+        else if (m.type === 'goto') {
+          if (!s.questions[m.questionId]) err = 'unknown question';
+          else { await this.enterReview(s, m.questionId); return; }
+        } else if (!open.length) err = 'Every question has been reviewed';
+        else {
+          const top = mostMissed(setResults(s), s.reviewed)[0];
+          s.poll = { endsAt: Date.now() + POLL_MS, mostMissed: top.questionId, missed: top.wrong, choices: open, votes: {} };
+          s.phase = 'POLL'; changed = true;
+        }
+      }
       else if (m.type === 'start' && s.mode === 'self' && s.status === 'lobby') {
         s.startedAt = Date.now(); s.endsAt = s.startedAt + s.items.reduce((n, x) => n + x.time_limit_sec, 0) * 1000;
         await this.env.DB.prepare("UPDATE lesson_sessions SET status='live',started_at=COALESCE(started_at,datetime('now')),ends_at=? WHERE id=? AND status='lobby'").bind(sqlTime(s.endsAt), s.id).run();
@@ -355,6 +442,7 @@ export class LessonRoom {
         else {
           await this.env.DB.prepare('UPDATE session_participants SET left_at=datetime(\'now\') WHERE session_id=? AND user_id=?').bind(s.id,m.userId).run();
           delete s.responses[m.userId]; delete s.roster[m.userId]; delete s.joinedAt[m.userId]; if (s.clients) delete s.clients[m.userId]; s.kicked.push(m.userId); changed = true;
+          if (s.poll) delete s.poll.votes[m.userId];
           if (s.mode === 'self') { delete s.assigned[m.userId]; delete s.positions[m.userId]; delete s.submitted[m.userId]; delete s.joinRemaining[m.userId]; }
           for (const old of this.sockets('student')) if (old.deserializeAttachment()?.userId === m.userId) old.close(4002, 'Removed');
         }
@@ -369,10 +457,13 @@ export class LessonRoom {
         s.endsAt += 15000; changed = true;
       } else if (m.type === 'endNow' && s.phase === 'ANSWERING') {
         s.endsAt = Date.now(); changed = true;
-      } else if (m.type === 'next' && s.phase === 'REVEALED' && s.index + 1 < s.items.length) {
+      } else if (m.type === 'next' && s.phase === 'REVEALED' && (this.reviewing(s) || (s.mode !== 'self' && s.index + 1 < s.items.length))) {
         await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: false, ...(s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}), ...review(s, item) });
         await this.ctx.storage.delete('desmos'); s.desmos = null;
-        s.index++; s.phase = 'READY'; s.endsAt = null; changed = true;
+        // Self-paced review: Next brings the poll launcher back.
+        if (s.mode === 'self') s.phase = 'FINISHED';
+        else { s.index++; s.phase = 'READY'; s.endsAt = null; }
+        changed = true;
       } else if (m.type === 'endSession') {
         await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true, ...(s.phase === 'REVEALED' && s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}), ...(s.phase === 'REVEALED' ? review(s, item) : {}) });
         s.phase = 'ENDED'; s.status = 'ended'; changed = true;
@@ -383,10 +474,12 @@ export class LessonRoom {
       await this.save(s);
       if (m.type === 'next') await this.flush(s).catch(() => {});
       if (s.phase === 'ANSWERING') await this.ctx.storage.setAlarm(s.endsAt + GRACE_MS);
+      else if (s.phase === 'POLL') await this.ctx.storage.setAlarm(s.poll.endsAt + GRACE_MS);
       else if (s.phase === 'ENDED') { await this.ctx.storage.deleteAlarm(); await this.flush(s).catch(() => {}); }
       this.broadcast(s, a.role === 'student', a.userId);
       if (m.type === 'endNow') await this.advance(s);
       if (m.type === 'kick' && this.allSubmitted(s)) await this.completeSet(s).catch(() => {});
+      if (m.type === 'kick' && s.phase === 'POLL') await this.pollAdvance(s);
     } else this.send(ws, this.snapshot(s, a));
   }
   // Everyone with a non-empty set has submitted (G6: zero-assignment students don't count).
@@ -396,6 +489,7 @@ export class LessonRoom {
     return takers.length > 0 && takers.every(userId => s.submitted[userId]);
   }
   async selfMessage(ws, s, a, m) {
+    if (m.type === 'vote') return this.vote(ws, s, a, m);
     const ids = s.assigned[a.userId] || [];
     let err = null;
     if (s.status !== 'live' || s.phase !== 'ANSWERING' || Date.now() > s.endsAt + GRACE_MS) err = 'set closed';
@@ -430,6 +524,18 @@ export class LessonRoom {
     }
     // Navigation and time need no reply; the throttled instructor refresh still runs.
     this.broadcast(s, true, m.type === 'select' || m.type === 'submitAll' ? a.userId : null);
+  }
+  // §8.7: option 2 counts only with a pick from this poll's list. A student may change their vote until close.
+  async vote(ws, s, a, m) {
+    let err = null;
+    if (s.phase !== 'POLL' || Date.now() > s.poll.endsAt + GRACE_MS) err = 'poll closed';
+    else if (m.option === 2 && !m.questionId) err = 'Pick a question from the list for your vote to count.';
+    else if (m.option === 2 && !s.poll.choices.includes(m.questionId)) err = 'not in this poll';
+    if (err) { this.send(ws, { type: 'error', error: err }); return; }
+    s.poll.votes[a.userId] = m.option === 2 ? { option: 2, questionId: m.questionId } : { option: 1 };
+    await this.save(s);
+    if (this.allVoted(s)) return this.pollAdvance(s);
+    this.broadcast(s, true, a.userId);
   }
   webSocketClose(ws, code, reason) { ws.close(code, reason); }
   webSocketError(ws) { ws.close(1011, 'Socket error'); }

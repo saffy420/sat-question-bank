@@ -34,6 +34,20 @@ export type SelfRoom = {
     }
   >;
   questions?: Record<string, Question & { notes: string }>;
+  // After the set (§8.6–8.7).
+  overview?: Overview;
+  reviewed?: string[];
+  poll?: { endsAt: number; mostMissed: string; missed: number; choices: string[]; one: number; two: number; picks: Record<string, number>; voted: number; connected: number };
+  pollResult?: { questionId: string; number: number; winner: 1 | 2; one: number; two: number; endsAt: number };
+};
+export type Overview = {
+  students: Record<string, { assigned: number; scorable: number; right: number; answered: number; ms: number }>;
+  questions: { questionId: string; assigned: number; answered: number; wrong: number; right: number; skill: string; difficulty: string }[];
+  ranking: string[];
+  mean: number | null;
+  median: number | null;
+  takers: number;
+  completed: number;
 };
 
 const clock = (ms: number | null) =>
@@ -122,7 +136,7 @@ export function SelfGrid({ s }: { s: SelfRoom }) {
   );
 }
 
-function QuestionCard({ s, id, close }: { s: SelfRoom; id: string; close: () => void }) {
+export function QuestionCard({ s, id, close }: { s: SelfRoom; id: string; close: () => void }) {
   const [group, setGroup] = useState<number | null>(null);
   const card = s.cards[id];
   const index = s.items.findIndex((x) => x.questionId === id);
