@@ -159,6 +159,7 @@ test('task03 nav join, live lobby, after-start admission, physical outage recove
     await connected(otherTab);
     await otherTab.screenshot({ path: `${artifacts}/08-second-tab.png` });
 
+    await teacher.locator('.roster-details summary').click();
     await teacher.locator('#live-lock').check();
     await expect(teacher.locator('#live-lock')).toBeChecked();
     await expect.poll(async () => (await (await admin.request.get(`/api/lessons/${room.sessionId}`)).json()).lockedJoin).toBe(true);

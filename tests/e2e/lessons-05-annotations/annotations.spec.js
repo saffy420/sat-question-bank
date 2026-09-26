@@ -187,8 +187,8 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     await expect.poll(() => texts(second)).toEqual([highlighted, highlighted, 'Each detail helps explain']);
     expect((await layer()).some(m => m.type === 'stroke')).toBe(true);
     await screenshot(student, '11-student-strike-erased');
-    teacher.once('dialog', dialog => dialog.accept());
     await teacher.locator('[data-tool="clear"]').click();
+    await teacher.getByRole('dialog').getByRole('button', { name: 'Clear all', exact: true }).click();
     for (const p of [teacher, student, second]) await expect(p.locator(p === teacher ? '#live-card [data-ann-mark]' : '#lesson-card [data-ann-mark]')).toHaveCount(0);
     await expect.poll(async () => (await layer()).length).toBe(0);
     await student.reload();

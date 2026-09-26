@@ -5,6 +5,11 @@ const artifact = '.opencode/pipeline/lessons-02-builder/e2e';
 const ids = ['e2e-core-rw', 'e2e-core-math', 'e2e-core-spr'];
 const order = page => page.locator('#lesson-items li').evaluateAll(rows => rows.map(row => row.textContent.match(/e2e-core-[\w-]+/)[0]));
 
+async function openFilter(page, name) {
+  const details = page.locator('.multi details').filter({ has: page.locator('summary', { hasText: name }) });
+  if (await details.getAttribute('open') === null) await details.locator('summary').click();
+}
+
 test('task02 builder: filtered add, drag, remove, custom times, math notes, persistence, usage filter, join code', async ({ browser }) => {
   const context = await newUserContext(browser, 'e2e-admin');
   try {
@@ -14,8 +19,10 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await page.locator('#lesson-title').fill(`E2E builder ${Date.now()}`);
 
     await page.locator('#f-section').selectOption('Reading & Writing');
+    await openFilter(page, 'Domain');
     await page.locator('[data-domain="Craft and Structure"]').check();
-    await expect(page.locator('[data-skill="Words in Context"]')).toBeVisible();
+    await expect(page.locator('[data-skill="Words in Context"]')).toHaveCount(1);
+    await openFilter(page, 'Skill');
     await page.locator('[data-skill="Words in Context"]').check();
     await expect(page.locator('#results [data-add]')).toHaveCount(1);
     await expect(page.locator('#results [data-add]')).toHaveAttribute('data-add', ids[0]);
@@ -24,7 +31,9 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await page.screenshot({ path: `${artifact}/01-domain-skill.png` });
 
     await page.locator('#f-section').selectOption('Math');
+    await openFilter(page, 'Domain');
     await page.locator('[data-domain="Algebra"]').check();
+    await openFilter(page, 'Skill');
     await page.locator('[data-skill="Linear Equations in One Variable"]').check();
     await expect(page.locator('#results [data-add]')).toHaveCount(2);
     await page.locator(`[data-add="${ids[1]}"]`).click();
@@ -36,7 +45,9 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await page.locator(`[data-remove="1"]`).click();
     expect(await order(page)).toEqual([ids[2], ids[1]]);
     await page.locator('#f-section').selectOption('Reading & Writing');
+    await openFilter(page, 'Domain');
     await page.locator('[data-domain="Craft and Structure"]').check();
+    await openFilter(page, 'Skill');
     await page.locator('[data-skill="Words in Context"]').check();
     await expect(page.locator(`[data-add="${ids[0]}"]`)).toBeVisible();
     await page.locator(`[data-add="${ids[0]}"]`).click();
@@ -80,7 +91,9 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await page.screenshot({ path: `${artifact}/05-reloaded.png` });
 
     await page.locator('#f-section').selectOption('Math');
+    await openFilter(page, 'Domain');
     await page.locator('[data-domain="Algebra"]').check();
+    await openFilter(page, 'Skill');
     await page.locator('[data-skill="Linear Equations in One Variable"]').check();
     await expect(page.locator(`[data-preview="${ids[2]}"]`)).toBeVisible();
     await expect(page.locator(`[data-preview="${ids[2]}"]`).locator('..').locator('.usage-badge')).toHaveText('900001');
