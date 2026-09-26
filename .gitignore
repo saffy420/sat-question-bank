@@ -9,6 +9,7 @@ node_modules/
 *.db
 .database_id
 public/qimg/
+public/lesson-ui/
 .claude/
 .superpowers/
 extract_math/

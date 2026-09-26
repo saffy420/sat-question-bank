@@ -5,9 +5,14 @@
   "private": true,
   "scripts": {
     "test": "node --test \"tests/test_*.cjs\"",
+    "build:lesson": "vite build",
+    "typecheck": "tsc -p tsconfig.lesson.json",
+    "dev:lesson": "vite build --watch",
+    "predev": "npm run build:lesson",
+    "pretest:e2e": "npm run build:lesson",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "predeploy": "node tools/predeploy.cjs",
+    "predeploy": "npm run build:lesson && node tools/predeploy.cjs",
     "dev:e2e": "node tools/e2e_server.cjs enabled",
     "dev:e2e:unset": "node tools/e2e_server.cjs unset",
     "dev:e2e:production": "node tools/e2e_server.cjs production",
@@ -16,7 +21,18 @@
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "better-sqlite3": "^13.0.3",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
     "wrangler": "latest"
+  },
+  "dependencies": {
+    "@fontsource/roboto": "^5.3.0",
+    "@fontsource/source-serif-4": "^5.3.0",
+    "lucide-react": "^1.48.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   }
 }
