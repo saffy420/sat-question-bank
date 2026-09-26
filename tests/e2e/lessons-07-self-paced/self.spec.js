@@ -201,8 +201,8 @@ test('task07 self-paced run: navigation, flags, review, submit all, auto-submit,
     await expect(row('e2e-student-2', RW)).toHaveAttribute('title', /^D · /);
     const finished = await (await admin.request.get(`/api/lessons/${sessionId}`)).json();
     expect(finished.status).toBe('review');
-    expect(finished.grid['e2e-student-2'][RW].answer).toBe('D');
-    expect(finished.grid['e2e-student-3'][ids[0]].answer).toBe('B');
+    expect(finished.grid['e2e-student-2'][RW][0]).toBe('D');
+    expect(finished.grid['e2e-student-3'][ids[0]][0]).toBe('B');
     for (const page of pages) await noReveal(page);
     await screenshot(two, '11-auto-submitted');
     await screenshot(teacher, '12-grid-finished');
@@ -256,6 +256,6 @@ test('task07 self-paced set ends early once every joined student submitted', asy
     const state = await (await admin.request.get(`/api/lessons/${sessionId}`)).json();
     expect(state.status).toBe('review');
     expect(state.endsAt - Date.now()).toBeGreaterThan(5000);
-    expect(state.grid['e2e-student-3'][RW].answer).toBeNull();
+    expect(state.grid['e2e-student-3'][RW][0]).toBeNull();
   } finally { for (const context of students.reverse()) await context.close().catch(() => {}); await admin.close().catch(() => {}); }
 });
