@@ -300,3 +300,32 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 5. Instructor-paced students' self-only actions are now rejected instead of locking.
 
 **Manual checks:** poll + review flow in class conditions on real Chromebooks.
+
+---
+
+## 2026-09-26 — Task 09: History and stats (Claude Code pipeline; review PASS)
+
+**Shipped (BRIEF §9, §10; §2 usedInLesson; §3.2 Lessons tab, deferred here by G4):**
+- **Self-paced write-back:**
+  - Set completion writes one attempt per assigned scorable question, tagged `lesson_session_id`, with time, changes and answer history, in the same batch as the responses.
+  - Progress moves through the practice marker rule, shared now between the SPA and the room. Blanks are Red (G3).
+  - Unscorable and unassigned questions write nothing.
+  - Exactly once: migration 0010 adds a unique index, and progress is guarded against replays.
+- **Instructor-paced lessons** write no attempts and no progress.
+- **Usage:** the final end records `question_lesson_usage` for the questions shown. `/api/questions` carries `usedInLesson`.
+- **Bank filter:** **Lesson questions** (Show all / Hide questions from lessons I attended / Hide all lesson questions). The same logic serves the builder, where the middle option reads "lessons I ran". Usage badges appear in Browse and on Mistakes.
+- **My Lessons:** a list of session, title, date, mode and score. It opens a read-only history with the answer, the correct answer, the explanation, the notes as **Breakdown**, the saved highlights and the final Desmos graph. It is available only after the session ends.
+- **Tags and admin:** mistakes show "Lesson 00003", in both the student and admin views. The admin Lessons tab lists sessions with score and "counts toward stats".
+
+**E2E:** task 1/1; full suite 25/25 (three green runs). Unit 97/97.
+
+**Deviations:**
+1. Write-back at set completion (G6).
+2. History uses `/api/lesson-history` and shows the current bank question body.
+3. Builder "Hide questions from lessons I ran".
+4. E2E self-paced specs use a new local account, student 6, so student 1's pinned stats stay fixed; the bank fixture has 7 questions.
+
+**Manual checks:**
+- spot-check stats and the mistake log after a real self-paced lesson, and that an instructor-paced lesson changes nothing;
+- My Lessons on a Chromebook;
+- apply migration 0010 before deploying.
