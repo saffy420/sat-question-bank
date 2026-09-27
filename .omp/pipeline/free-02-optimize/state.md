@@ -1,7 +1,7 @@
 Task: free-02-optimize
 Branch: claude/free-02-optimize   Base: claude/free-01-measure (PR #8 open, stacked)
-Last completed step: 8 (docs/handoff)   Commit: ee0dde7
-Next step: 9 — push and open PR "free-02: optimize" (body .omp/pipeline/free-02-optimize/pr.md); then HARD STOP for the rebuild-invocation decision (A/B/C). 2026-09-28 00:10Z: staging day 2 (history load + self-paced ★ + admin recompute) appended to the free-02 report/PR.
+Last completed step: 9 (PR opened: https://github.com/saffy420/sat-question-bank/pull/9)   Commit: 19cc27c
+Next step: HARD STOP — wait for the user to choose A/B/C for rebuild invocations (report "Open: rebuild invocations"). 2026-09-28 00:10Z: staging day 2 (load .wrangler/budget-staging/budget_history.sql; node tools/budget_measure.cjs staging self-paced-end,poll-review,admin-students,admin-student-detail --warm; node tools/budget_report.cjs; append to report + PR #9; keep < 10% caps). Do not start free-03 before the decision.
 Open blockers: decision needed — CPU of rebuild invocations (admin stats recompute grows with history); options in docs/perf/free-plan-budget.md "Open: rebuild invocations"
 Decisions made this task: stacked on free-01; Cache API for /api/questions and admin stats (1 h TTL for in-place edits); per-isolate memos keyed by max rowid; stats stamp = latest attempt time (batched index seek) with a 2-minute settle; json_remove not json_each (row billing); ID reads ≤ 50 params
 Staging quota used today: 2026-09-27 8,105 rows written / 415,422 rows read / 776 requests (Cloudflare analytics; 8.1% / 8.3% / 0.8%)
