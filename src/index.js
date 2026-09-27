@@ -250,12 +250,19 @@ async function bank(env) {
 // Choice HTML is dropped with json_remove on fixed paths: json_each would bill every choice as a D1 row read.
 const LEAN = `id, section, domain, difficulty, skill, correct_answer, source,
   CASE WHEN json_valid(choices_json) THEN json_remove(choices_json, ${Array.from({ length: 8 }, (_, i) => `'$[${i}].content'`).join(', ')}) ELSE '[]' END AS choices_json`;
+// Kept per isolate like the builder index (same key and expiry); callers only read the rows.
+let statMemo = null;
 async function statBank(env, keep = null) {
+  const key = await bankStamp(env);
+  if (!(statMemo?.key === key && Date.now() - statMemo.at < BANK_TTL * 1000)) statMemo = { key, at: Date.now(), qs: await leanBank(env) };
+  return keep ? statMemo.qs.filter(q => keep.has(q.id)) : statMemo.qs;
+}
+async function leanBank(env) {
   const [core, ai] = await Promise.all([
     env.DB.prepare(`SELECT ${LEAN} FROM questions`).all(),
     env.AI_DB.prepare(`SELECT ${LEAN}, level FROM questions`).all()
   ]);
-  const raw = [...(core.results || []), ...(ai.results || [])].filter(r => !keep || keep.has(r.id)), qs = raw.map(normalizeQuestion);
+  const raw = [...(core.results || []), ...(ai.results || [])], qs = raw.map(normalizeQuestion);
   const blank = qs.flatMap((q, i) => q.spr && !q.answer ? [i] : []);
   for (const ai of [false, true]) {
     const list = blank.filter(i => qs[i].ai === ai);
@@ -315,13 +322,19 @@ async function statStamps(env, users, args) {
 }
 // §2 usedInLesson: padded session IDs per question, oldest first. With a user, only the
 // questions of sessions they attended (My Lessons refreshes those after a lesson ends).
+// The global map is kept per isolate under the usage table's max rowid: rows are only ever inserted,
+// so an unchanged max rowid means an unchanged map.
+let usageMemo = null;
 async function lessonUsage(env, userId = null) {
+  const key = userId ? null : await maxRowid(env.DB, 'question_lesson_usage');
+  if (!userId && usageMemo?.key === key) return usageMemo.map;
   const used = await (userId ? env.DB.prepare(`SELECT question_id, session_id FROM question_lesson_usage WHERE question_id IN
       (SELECT u.question_id FROM question_lesson_usage u JOIN session_participants p ON p.session_id = u.session_id WHERE p.user_id = ?)
       ORDER BY used_at, session_id`).bind(userId)
     : env.DB.prepare('SELECT question_id, session_id FROM question_lesson_usage ORDER BY used_at, session_id')).all();
   const usageById = new Map();
   for (const r of used.results || []) { if (!usageById.has(r.question_id)) usageById.set(r.question_id, []); usageById.get(r.question_id).push(padSessionId(r.session_id)); }
+  if (!userId) usageMemo = { key, map: usageById };
   return usageById;
 }
 async function adminData(env, id) {

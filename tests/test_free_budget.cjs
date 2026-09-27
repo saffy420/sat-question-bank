@@ -6,6 +6,7 @@ const { DatabaseSync } = require('node:sqlite');
 const { readFileSync } = require('node:fs');
 const root = __dirname + '/../';
 const origin = 'https://roadto1600.org';
+let fixtures = 0;
 
 function d1(db, log) {
   const stmt = (query, args = []) => ({
@@ -38,6 +39,8 @@ async function fixture(t, { cache = false } = {}) {
   ai.exec(`INSERT INTO questions (id,section,domain,skill,difficulty,stem_html,choices_json,correct_answer,explanation_html,source,level) VALUES
     ('ai1','Reading & Writing','Craft and Structure','Words in Context','Hard','<p>AI</p>','[{"letter":"A","trap":"tone"},{"letter":"B"}]','A','<p>A.</p>','AI',5);`);
   db.exec("INSERT INTO ai_ids (id) VALUES ('ai1')");
+  // A distinct max rowid per fixture, so the Worker's per-isolate bank memos never carry across tests.
+  db.prepare("INSERT INTO questions (rowid,id,section,domain,skill,difficulty,choices_json,correct_answer,source) VALUES (?,?,'Math','Algebra','Systems','Easy','[]','1','College Board')").run(1000 + ++fixtures, 'zz' + fixtures);
   const users = [['admin', 'admin'], ['s1', 'student'], ['s2', 'student'], ['s3', 'student']];
   for (const [id, role] of users) {
     db.prepare('INSERT INTO users (id,email,name,role) VALUES (?,?,?,?)').run(id, id + '@ccs.us', 'Name ' + id, role);
@@ -202,4 +205,14 @@ test('builder search narrowed in SQL finds exactly what the full scan finds', as
     assert.deepEqual(res.questions.map(q => q.id).sort(), want, term);
     assert.equal(res.total, want.length, term);
   }
+});
+
+test('builder usage badges and filters follow a lesson ending (usage memo keyed by the insert-only table)', async t => {
+  const f = await fixture(t);
+  const mc2 = async () => (await (await f.get('/api/admin/questions?page=1&search=mc2')).json()).questions.find(q => q.id === 'mc2');
+  assert.deepEqual((await mc2()).usedInLesson, []);
+  f.db.exec("INSERT INTO question_lesson_usage (question_id,session_id,used_at) VALUES ('mc2',9,'2026-09-10 10:00:00')");
+  assert.deepEqual((await mc2()).usedInLesson, ['00009']);
+  const hidden = await (await f.get('/api/admin/questions?page=1&lessonUsage=hide-all&search=mc2')).json();
+  assert.equal(hidden.total, 0);
 });
