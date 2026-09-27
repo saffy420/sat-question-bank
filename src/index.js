@@ -2,6 +2,7 @@ import { breakdown, normalizeQuestion, direction, cbSort } from '../public/share
 import { CODE, USAGE_MODES, lessonUsageVisible } from '../public/shared/lesson.js';
 import { padSessionId, progressStatement, attemptStatement, attendedSessions, lessonHistory } from './record.js';
 export { LessonRoom } from './lesson-room.js';
+import { traceEnv } from './budget.js';
 
 export const validLessonUpgrade = (req, url) => req.method === 'GET' &&
   req.headers.get('Upgrade')?.toLowerCase() === 'websocket' &&
@@ -402,13 +403,25 @@ async function saveLesson(env, u, b, id = null) {
 
 export default {
   async fetch(req, env) {
+    const t = traceEnv(env, 'worker', req.method + ' ' + new URL(req.url).pathname);
+    let res;
     try {
-      return await handleRequest(req, env);
+      res = await handleRequest(req, t.env);
     } catch {
-      return json({ error: 'service unavailable' }, 503);
+      res = json({ error: 'service unavailable' }, 503);
     }
+    return withTrace(res, t);
   }
 };
+
+// BUDGET_TRACE=1 only: the invocation's D1 counts ride back on the response (not on 101s).
+export function withTrace(res, t) {
+  const trace = t.done({ status: res.status });
+  if (!trace || res.status === 101) return res;
+  const out = new Response(res.body, res);
+  out.headers.set('X-Budget-Trace', JSON.stringify(trace));
+  return out;
+}
 
 export async function handleRequest(req, env, resolveIdentity = whoami) {
     const url = new URL(req.url);

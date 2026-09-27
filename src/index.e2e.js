@@ -1,12 +1,25 @@
-import { handleRequest } from './index.js';
+import { handleRequest, withTrace } from './index.js';
+import { traceEnv } from './budget.js';
 export { LessonRoom } from './lesson-room.js';
+import { budgetProbe } from './budget-probe.js';
+export { BudgetProbe } from './budget-probe.js';
 
 // e2e-student-6 takes the self-paced lessons: those now write practice stats (§10), and the
 // dashboard specs assert student 1's seeded stats exactly.
 const accounts = new Set(['e2e-admin', 'e2e-student-1', 'e2e-student-2', 'e2e-student-3', 'e2e-student-4', 'e2e-student-6']);
+// Free-plan budget runs (docs/perf/FREE-PLAN-BRIEF.md §4) sign in a 30-student club; only
+// tools/budget_seed.cjs gives these accounts the approved membership login requires.
+const budgetAccount = account => /^e2e-budget-(?:0[1-9]|[1-3]\d|40)$/.test(account);
 const sessions = new Map();
 const cookie = '__Host-sat_session';
 const loopback = host => host === '127.0.0.1' || host === 'localhost' || host === '[::1]';
+// Staging (wrangler.toml [env.staging]) serves this entry on workers.dev. Off loopback a
+// request needs the STAGING_TEST_TOKEN secret in X-Staging-Test-Token; without the secret
+// configured nothing off loopback is served, exactly as before.
+const same = (a, b) => { let d = a.length ^ b.length; for (let i = 0; i < b.length; i++) d |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i); return d === 0; };
+export const stagingAllowed = (req, env) => typeof env.STAGING_TEST_TOKEN === 'string' && env.STAGING_TEST_TOKEN.length >= 32 &&
+  typeof req.headers.get('X-Staging-Test-Token') === 'string' && same(req.headers.get('X-Staging-Test-Token'), env.STAGING_TEST_TOKEN);
+const allowed = (req, env) => loopback(new URL(req.url).hostname) || stagingAllowed(req, env);
 const reply = (body, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' } });
 const tokenOf = req => req.headers.has('Authorization')
   ? req.headers.get('Authorization').match(/^Bearer\s+([^\s]+)$/i)?.[1] || ''
@@ -24,7 +37,7 @@ function issue(account) {
 }
 
 function identity(req, env) {
-  if (env.E2E_TEST_MODE !== '1' || !loopback(new URL(req.url).hostname)) return null;
+  if (env.E2E_TEST_MODE !== '1' || !allowed(req, env)) return null;
   const token = tokenOf(req);
   const entry = sessions.get(token);
   if (!entry) return null;
@@ -35,7 +48,8 @@ function identity(req, env) {
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    if (!loopback(url.hostname)) return reply({ error: 'not found' }, 404);
+    if (!allowed(req, env)) return reply({ error: 'not found' }, 404);
+    if (url.pathname === '/api/e2e/budget-probe') return budgetProbe(req, env);
     if (url.pathname === '/api/e2e/login') {
       if (env.E2E_TEST_MODE !== '1') return reply({ error: 'not found' }, 404);
       if (req.method !== 'POST') return reply({ error: 'not found' }, 404);
@@ -58,7 +72,7 @@ export default {
         for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
         body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
       } catch { return reply({ error: 'invalid body' }, 400); }
-      if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 1 || !accounts.has(body.account)) return reply({ error: 'not found' }, 404);
+      if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 1 || !(accounts.has(body.account) || budgetAccount(body.account))) return reply({ error: 'not found' }, 404);
       // Local seed must contain account and approved membership before issuing access.
       if (!env.DB) return reply({ error: 'service unavailable' }, 503);
       let member;
@@ -71,7 +85,10 @@ export default {
       response.headers.set('Set-Cookie', `${cookie}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600`);
       return response;
     }
-    try { return await handleRequest(req, env, identity); }
-    catch { return reply({ error: 'service unavailable' }, 503); }
+    const t = traceEnv(env, 'worker', req.method + ' ' + url.pathname);
+    let res;
+    try { res = await handleRequest(req, t.env, identity); }
+    catch { res = reply({ error: 'service unavailable' }, 503); }
+    return withTrace(res, t);
   }
 };

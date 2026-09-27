@@ -1,11 +1,12 @@
 import { normalizeQuestion, isRight } from '../public/shared/stats.js';
 import { GRACE_MS, POLL_MS, RESULT_MS, MAX_FRAME, MAX_DESMOS_FRAME, validAction, lessonQuestion, responseGroups, lateJoinSet, setResults, mostMissed, pollWinner, shownQuestionIds } from '../public/shared/lesson.js';
 import { lessonWriteBack } from './record.js';
+import { traceDurableObject } from './budget.js';
 
 const sqlTime = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 const review = (s, item) => s.desmos?.questionId === item.question_id ? { desmos: s.desmos.state } : {};
 
-export class LessonRoom {
+class Room {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
@@ -564,3 +565,5 @@ export class LessonRoom {
   }
   webSocketError(ws) { ws.close(1011, 'Socket error'); }
 }
+// BUDGET_TRACE=1 only: one D1 trace per object event (src/budget.js); otherwise a pass-through.
+export const LessonRoom = traceDurableObject(Room);
