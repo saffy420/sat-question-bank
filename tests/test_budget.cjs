@@ -64,6 +64,7 @@ test('on: queries, batches, statements and rows are counted at the binding', asy
   assert.equal(trace.byBinding.AI_DB.queries, 1);
   assert.equal(trace.byBinding.DB.queries, 4);
   assert.equal(trace.status, 200);
+  assert.equal(trace.maxParams, 1);
   assert.equal(log.mock.callCount(), 1);
   assert.match(log.mock.calls[0].arguments[0], /^BUDGET_TRACE \{/);
 });
@@ -88,17 +89,22 @@ test('Durable Object events each get their own trace', async t => {
   const { traceDurableObject } = await budget();
   const log = quiet(t);
   class Room {
-    constructor(ctx, env) { this.env = env; }
+    constructor(ctx, env) { this.ctx = ctx; this.env = env; }
     async webSocketMessage(ws, raw) { await this.env.DB.prepare('SELECT 1').all(); return raw; }
-    async alarm() { await this.env.DB.batch([this.env.DB.prepare('X'), this.env.DB.prepare('Y')]); }
+    async alarm() { await this.env.DB.batch([this.env.DB.prepare('X'), this.env.DB.prepare('Y')]); await this.ctx.storage.put('room', 1); await this.ctx.storage.setAlarm(5); }
   }
   const Traced = traceDurableObject(Room);
   assert.equal(Traced.name, 'Room');
-  const room = new Traced({}, { DB: fakeD1(), BUDGET_TRACE: '1' });
+  const stored = {};
+  const storage = { put: async (k, v) => { stored[k] = v; }, setAlarm: async () => {}, get: async k => stored[k] };
+  const room = new Traced({ storage, id: 'x' }, { DB: fakeD1(), BUDGET_TRACE: '1' });
+  assert.equal(room.ctx.id, 'x');
   assert.equal(await room.webSocketMessage({}, '{"type":"select"}'), '{"type":"select"}');
   await room.alarm();
   const traces = log.mock.calls.map(c => JSON.parse(c.arguments[0].slice('BUDGET_TRACE '.length)));
   assert.deepEqual(traces.map(x => [x.kind, x.label, x.queries, x.batches]), [['do.webSocketMessage', 'select', 1, 0], ['do.alarm', '', 0, 1]]);
+  assert.deepEqual(traces[1].storage, { put: 1, setAlarm: 1 });
+  assert.equal(stored.room, 1);
 });
 
 test('production config never enables the trace or the staging test surface', async () => {
@@ -140,4 +146,26 @@ test('staging gate: off loopback only with the configured token; probe needs eve
   const ok = await worker.fetch(remote({ 'X-Staging-Test-Token': token }), { ...base, STAGING_TEST_TOKEN: token });
   assert.equal(ok.status, 200);
   assert.deepEqual(await ok.json(), { ok: 60 });
+});
+
+test('staging sign-in: stateless signed token works across isolates; tampered or ungated tokens do not', async t => {
+  const worker = (await import(pathToFileURL(root + 'src/index.e2e.js'))).default;
+  quiet(t);
+  const token = 'b'.repeat(40), host = 'https://roadto1600-staging.example.workers.dev';
+  const db = { prepare: () => ({ bind() { return this; }, first: async () => ({ status: 'approved' }), all: async () => ({ results: [] }), run: async () => ({ meta: {} }) }) };
+  const env = { E2E_TEST_MODE: '1', STAGING_TEST_TOKEN: token, DB: db };
+  const login = await worker.fetch(new Request(host + '/api/e2e/login', { method: 'POST',
+    headers: { Origin: host, 'Content-Type': 'application/json', 'X-Staging-Test-Token': token }, body: JSON.stringify({ account: 'e2e-budget-07' }) }), env);
+  assert.equal(login.status, 200);
+  const session = (await login.json()).token;
+  assert.match(session, /^e2e\.[\w-]+\.[\w-]+$/);
+  const get = (bearer, gate = token, e = env) => worker.fetch(new Request(host + '/api/settings', { headers: { Authorization: 'Bearer ' + bearer, 'X-Staging-Test-Token': gate } }), e);
+  assert.equal((await get(session)).status, 200);
+  const [h, p, mac] = session.split('.');
+  const forged = btoa(JSON.stringify({ exp: 9999999999, account: 'e2e-admin' })).replace(/=+$/, '');
+  assert.equal((await get(`${h}.${forged}.${mac}`)).status, 401);
+  assert.equal((await get(`${h}.${p}.${mac.slice(0, -2)}xx`)).status, 401);
+  assert.equal((await get(session, 'c'.repeat(40))).status, 404);
+  assert.equal((await get(session, token, { ...env, STAGING_TEST_TOKEN: 'd'.repeat(40) })).status, 404);
+  assert.equal((await get(session, token, { ...env, E2E_TEST_MODE: '0' })).status, 401);
 });

@@ -8,7 +8,7 @@ export const budgetOn = env => env?.BUDGET_TRACE === '1';
 export function traceEnv(env, kind, label = '') {
   if (!budgetOn(env)) return { env, trace: null, done: () => null };
   const trace = { kind, label, queries: 0, batches: 0, batchStatements: [], statements: 0, rowsRead: 0, rowsWritten: 0,
-    d1Ms: 0, byBinding: {}, errors: [] };
+    d1Ms: 0, maxParams: 0, byBinding: {}, errors: [] };
   const start = Date.now();
   const wrapped = Object.create(env);
   for (const name of D1) if (env[name]) Object.defineProperty(wrapped, name, { value: tracedDb(env[name], name, trace), enumerable: true });
@@ -44,7 +44,7 @@ async function timed(trace, binding, statements, batch, call, metaOf) {
 function tracedDb(db, binding, trace) {
   const statement = inner => ({
     inner,
-    bind: (...args) => statement(inner.bind(...args)),
+    bind: (...args) => { trace.maxParams = Math.max(trace.maxParams, args.length); return statement(inner.bind(...args)); },
     run: () => timed(trace, binding, 1, false, () => inner.run(), r => [r?.meta]),
     all: () => timed(trace, binding, 1, false, () => inner.all(), r => [r?.meta]),
     raw: options => timed(trace, binding, 1, false, () => inner.raw(options), () => []),
@@ -67,12 +67,38 @@ function tracedDb(db, binding, trace) {
   };
 }
 
+// DO storage calls are rows on the object's own SQLite meter (every put/delete/setAlarm is a
+// row written), so they are counted too, into the trace of the event that is running.
+const STORAGE = ['get', 'put', 'delete', 'list', 'setAlarm', 'deleteAlarm', 'getAlarm', 'deleteAll'];
+function tracedCtx(ctx, box) {
+  if (!ctx?.storage) return ctx;
+  const storage = new Proxy(ctx.storage, { get(target, key) {
+    const value = Reflect.get(target, key, target);
+    if (typeof value !== 'function') return value;
+    if (!STORAGE.includes(key)) return value.bind(target);
+    return (...args) => {
+      const ops = box.trace && (box.trace.storage ||= {});
+      if (ops) ops[key] = (ops[key] || 0) + (Array.isArray(args[0]) ? args[0].length : typeof args[0] === 'object' && args[0] && key === 'put' ? Object.keys(args[0]).length : 1);
+      return value.apply(target, args);
+    };
+  } });
+  return new Proxy(ctx, { get(target, key) {
+    if (key === 'storage') return storage;
+    const value = Reflect.get(target, key, target);
+    return typeof value === 'function' ? value.bind(target) : value;
+  } });
+}
+
 // One trace per Durable Object event. D1 work from two events interleaved on the same
 // object is attributed to whichever started last (this.env is per object, not per event).
 const EVENTS = ['fetch', 'alarm', 'webSocketMessage', 'webSocketClose', 'webSocketError'];
 export function traceDurableObject(Base) {
   class Traced extends Base {
-    constructor(ctx, env) { super(ctx, env); this.budgetEnv = env; }
+    constructor(ctx, env) {
+      const box = { trace: null };
+      super(budgetOn(env) ? tracedCtx(ctx, box) : ctx, env);
+      this.budgetEnv = env; this.budgetBox = box;
+    }
   }
   for (const event of EVENTS) {
     if (typeof Base.prototype[event] !== 'function') continue;
@@ -82,7 +108,7 @@ export function traceDurableObject(Base) {
       if (event === 'webSocketMessage') try { label = JSON.parse(args[1]).type || ''; } catch { /* not JSON */ }
       if (event === 'fetch') label = args[0].headers.get('Upgrade') ? 'upgrade' : 'post';
       const t = traceEnv(this.budgetEnv, 'do.' + event, label);
-      this.env = t.env;
+      this.env = t.env; this.budgetBox.trace = t.trace;
       try { return await Base.prototype[event].apply(this, args); }
       finally { t.done(); }
     };

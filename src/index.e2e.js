@@ -26,12 +26,32 @@ const tokenOf = req => req.headers.has('Authorization')
   : (req.headers.get('Cookie') || '').split(';').map(s => s.trim()).find(s => s.startsWith(cookie + '='))?.slice(cookie.length + 1) || '';
 
 // ponytail: isolate-local memory caps at 64 sessions/one hour; use local durable storage only if reload-mid-test matters.
+const b64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const testUser = account => ({ id: account, email: `${account}@e2e.test`, email_confirmed_at: new Date().toISOString(), user_metadata: { full_name: account === 'e2e-admin' ? 'E2E Admin' : `E2E Student ${account.slice(-1)}` } });
+// Staging spreads requests over many isolates, so the in-memory map below would forget a
+// session between requests. With the staging secret configured, a session is instead a
+// stateless token signed with that secret (HMAC-SHA-256). Local runs keep the map.
+const hmac = async (env, text) => b64(await crypto.subtle.sign('HMAC',
+  await crypto.subtle.importKey('raw', new TextEncoder().encode(env.STAGING_TEST_TOKEN), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']), new TextEncoder().encode(text)));
+async function issueSigned(env, account) {
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const body = `e2e.${b64(new TextEncoder().encode(JSON.stringify({ exp, account })))}`;
+  return { token: `${body}.${await hmac(env, body)}`, user: testUser(account) };
+}
+async function signedIdentity(env, token) {
+  const [head, payload, mac] = token.split('.');
+  if (head !== 'e2e' || !payload || !mac || !same(mac, await hmac(env, `${head}.${payload}`))) return null;
+  let claims; try { claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))); } catch { return null; }
+  if (!Number.isInteger(claims.exp) || claims.exp * 1000 <= Date.now() || !(accounts.has(claims.account) || budgetAccount(claims.account))) return null;
+  return testUser(claims.account);
+}
+
 function issue(account) {
   const exp = Math.floor(Date.now() / 1000) + 3600;
   for (const [key, entry] of sessions) if (entry.exp <= Date.now()) sessions.delete(key);
   while (sessions.size >= 64) sessions.delete(sessions.keys().next().value);
   const token = `e2e.${btoa(JSON.stringify({ exp })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}.${crypto.randomUUID()}`;
-  const user = { id: account, email: `${account}@e2e.test`, email_confirmed_at: new Date().toISOString(), user_metadata: { full_name: account === 'e2e-admin' ? 'E2E Admin' : `E2E Student ${account.slice(-1)}` } };
+  const user = testUser(account);
   sessions.set(token, { user, exp: exp * 1000 });
   return { token, user };
 }
@@ -39,6 +59,7 @@ function issue(account) {
 function identity(req, env) {
   if (env.E2E_TEST_MODE !== '1' || !allowed(req, env)) return null;
   const token = tokenOf(req);
+  if (stagingAllowed(req, env)) return signedIdentity(env, token);
   const entry = sessions.get(token);
   if (!entry) return null;
   if (entry.exp <= Date.now()) { sessions.delete(token); return null; }
@@ -79,7 +100,7 @@ export default {
       try { member = await env.DB.prepare('SELECT status FROM membership WHERE user_id = ?').bind(body.account).first(); }
       catch { return reply({ error: 'service unavailable' }, 503); }
       if (member?.status !== 'approved') return reply({ error: 'not found' }, 404);
-      const { token, user } = issue(body.account);
+      const { token, user } = stagingAllowed(req, env) ? await issueSigned(env, body.account) : issue(body.account);
       const response = reply({ token, user_id: user.id, user });
       // Cookie precedes first /app navigation; SPA still bootstraps its own Bearer session.
       response.headers.set('Set-Cookie', `${cookie}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600`);

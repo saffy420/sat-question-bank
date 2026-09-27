@@ -1,0 +1,800 @@
+{
+ "target": "staging",
+ "at": "2026-09-27T05:21:48.677Z",
+ "config": {
+  "coreQuestions": 3000,
+  "students": 30,
+  "historyAttempts": 30,
+  "historyQuestions": 20,
+  "pastSessions": 0,
+  "pastSessionSize": 20,
+  "lessonQuestions": 20,
+  "staging": {
+   "coreQuestions": 3000,
+   "historyAttempts": 30,
+   "historyQuestions": 20,
+   "pastSessions": 0
+  }
+ },
+ "seed": {
+  "core": 3000,
+  "ai": 400,
+  "progress": 600,
+  "attempts": 900,
+  "sessionResponses": 0,
+  "usage": 0
+ },
+ "instructor": {},
+ "flows": {
+  "student-boot": {
+   "ms": 9765,
+   "questions": 3407,
+   "questionsBytes": 7429952,
+   "invocations": [
+    {
+     "kind": "worker",
+     "label": "GET /app",
+     "queries": 1,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 1,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 34,
+     "byBinding": {
+      "DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 43,
+     "cpuMs": 2,
+     "tailWallMs": 51,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "POST /api/auth/session",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 2,
+     "rowsWritten": 1,
+     "d1Ms": 72,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 2,
+       "rowsWritten": 1
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 72,
+     "cpuMs": 2,
+     "tailWallMs": 78,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/questions",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 3414,
+     "rowsWritten": 0,
+     "d1Ms": 738,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 3013,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 330,
+     "cpuMs": 114,
+     "tailWallMs": 534,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /exams.json",
+     "queries": 1,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 1,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 36,
+     "byBinding": {
+      "DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 40,
+     "cpuMs": 2,
+     "tailWallMs": 51,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/progress",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 73,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 73,
+     "cpuMs": 3,
+     "tailWallMs": 82,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/notes",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 69,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 69,
+     "cpuMs": 1,
+     "tailWallMs": 76,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/attempts",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 71,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 71,
+     "cpuMs": 2,
+     "tailWallMs": 77,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/sessions",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 2,
+     "rowsWritten": 0,
+     "d1Ms": 69,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 2,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 69,
+     "cpuMs": 1,
+     "tailWallMs": 76,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/lesson-history",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 10,
+     "rowsWritten": 0,
+     "d1Ms": 144,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 10,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 107,
+     "cpuMs": 3,
+     "tailWallMs": 119,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/settings",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 81,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 81,
+     "cpuMs": 2,
+     "tailWallMs": 91,
+     "outcome": "ok"
+    }
+   ],
+   "responses": [
+    {
+     "kind": "worker",
+     "label": "POST /api/auth/session",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 2,
+     "rowsWritten": 1,
+     "d1Ms": 72,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 2,
+       "rowsWritten": 1
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 72
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/questions",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 3414,
+     "rowsWritten": 0,
+     "d1Ms": 738,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 3013,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 330
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/progress",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 73,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 73
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/notes",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 69,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 69
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/attempts",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 71,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 71
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/sessions",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 2,
+     "rowsWritten": 0,
+     "d1Ms": 69,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 2,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 69
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/lesson-history",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 10,
+     "rowsWritten": 0,
+     "d1Ms": 144,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 10,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 107
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/settings",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 81,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 81
+    }
+   ]
+  },
+  "bank-filter": {
+   "ms": 10123,
+   "invocations": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 3415,
+     "rowsWritten": 0,
+     "d1Ms": 526,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 3014,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 419,
+     "cpuMs": 114,
+     "tailWallMs": 535,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 6,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 6,
+     "rowsRead": 3421,
+     "rowsWritten": 0,
+     "d1Ms": 553,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 3020,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 440,
+     "cpuMs": 90,
+     "tailWallMs": 534,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 3415,
+     "rowsWritten": 0,
+     "d1Ms": 425,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 3014,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 376,
+     "cpuMs": 73,
+     "tailWallMs": 454,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 3415,
+     "rowsWritten": 0,
+     "d1Ms": 396,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 3014,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 285,
+     "cpuMs": 59,
+     "tailWallMs": 350,
+     "outcome": "ok"
+    }
+   ],
+   "responses": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 3415,
+     "rowsWritten": 0,
+     "d1Ms": 526,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 3014,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 419
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 6,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 6,
+     "rowsRead": 3421,
+     "rowsWritten": 0,
+     "d1Ms": 553,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 3020,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 440
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 3415,
+     "rowsWritten": 0,
+     "d1Ms": 425,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 3014,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 376
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 3415,
+     "rowsWritten": 0,
+     "d1Ms": 396,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 3014,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 401,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 285
+    }
+   ]
+  },
+  "admin-students": {
+   "ms": 9163,
+   "error": "GET /api/admin/students?page=1&search=&sort=name&order=asc -> 503 Worker exceeded resource limits | roadto1600-staging.sat-question-bank-leon.workers.dev | Cloudflare",
+   "invocations": [
+    {
+     "kind": "worker",
+     "label": "/api/admin/students?page=1&search=&sort=name&order=asc",
+     "outcome": "exceededCpu",
+     "cpuMs": 235,
+     "tailWallMs": 1054,
+     "killed": true
+    }
+   ],
+   "responses": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students",
+     "status": 503,
+     "failed": true
+    }
+   ]
+  },
+  "admin-student-detail": {
+   "ms": 8341,
+   "error": "GET /api/admin/students/e2e-budget-01 -> 503 Worker exceeded resource limits | roadto1600-staging.sat-question-bank-leon.workers.dev | Cloudflare",
+   "invocations": [
+    {
+     "kind": "worker",
+     "label": "/api/admin/students/e2e-budget-01",
+     "outcome": "exceededCpu",
+     "cpuMs": 10,
+     "tailWallMs": 250,
+     "killed": true
+    }
+   ],
+   "responses": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students/e2e-budget-01",
+     "status": 503,
+     "failed": true
+    }
+   ]
+  }
+ }
+}
