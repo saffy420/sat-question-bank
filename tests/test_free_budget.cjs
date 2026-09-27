@@ -49,13 +49,13 @@ async function fixture(t, { cache = false } = {}) {
   const prog = db.prepare('INSERT INTO progress (user_id,question_id,attempts,corrects,marker,last_reviewed,time_taken_ms) VALUES (?,?,?,?,?,?,?)');
   const att = db.prepare('INSERT INTO attempts (user_id,question_id,ts,correct,time_taken_ms,picked,changes,answer_history_json,lesson_session_id) VALUES (?,?,?,?,?,?,?,?,?)');
   prog.run('s1', 'mc1', 2, 1, 'Orange', '2026-09-02T00:00:00Z', 50000); prog.run('s1', 'spr1', 1, 0, 'Red', '2026-09-03T00:00:00Z', 90000);
-  prog.run('s1', 'ai1', 1, 1, 'Green', '2026-09-04T00:00:00Z', 30000); prog.run('s1', 'gone', 1, 0, 'Red', '2026-09-04T00:00:00Z', 1);
+  prog.run('s1', 'ai1', 1, 1, 'Green', '2026-09-04T00:00:00Z', 30000); prog.run('s1', 'gone', 1, 0, 'Red', '2026-09-05T00:00:00Z', 1);
   att.run('s1', 'mc1', '2026-09-01T00:00:00Z', 0, 20000, 'A', 1, '[{"answer":"B","atMs":1},{"answer":"A","atMs":2}]', null);
   att.run('s1', 'mc1', '2026-09-02T00:00:00Z', 1, 50000, 'B', 0, null, 7);
   att.run('s1', 'spr1', '2026-09-03T00:00:00Z', 0, 90000, '0.7', 2, '[{"answer":".75","atMs":1},{"answer":"0.7","atMs":9}]', null);
   att.run('s1', 'ai1', '2026-09-04T00:00:00Z', 1, 30000, 'A', 0, null, null);
   att.run('s1', 'gone', '2026-09-05T00:00:00Z', 0, 1000, 'C', 0, null, null);
-  prog.run('s2', 'mc2', 1, 0, 'Red', '2026-09-06T00:00:00Z', 200000); prog.run('s2', 'spr2', 1, 1, 'Green', '2026-09-06T00:00:00Z', 10000);
+  prog.run('s2', 'mc2', 1, 0, 'Red', '2026-09-06T00:00:00Z', 200000); prog.run('s2', 'spr2', 1, 1, 'Green', '2026-09-06T00:00:01Z', 10000);
   att.run('s2', 'mc2', '2026-09-06T00:00:00Z', 0, 200000, 'B', 0, null, null);
   att.run('s2', 'spr2', '2026-09-06T00:00:01Z', 1, 10000, '1.5', 0, null, null);
   db.exec("INSERT INTO question_lesson_usage (question_id,session_id,used_at) VALUES ('mc1',3,'2026-09-01 10:00:00')");
@@ -128,7 +128,7 @@ test('lean stats read the explanation only for grid-ins whose answer comes out e
   assert.ok(!f.log.some(q => /stem_html/.test(q) && !/WHERE id IN/.test(q)), 'no whole-bank HTML read');
 });
 
-test('cached admin stats move with a new attempt or progress write and are reused otherwise', async t => {
+test('cached admin stats move with a new attempt, wait for its progress row, and are reused otherwise', async t => {
   const f = await fixture(t, { cache: true });
   const row = async id => (await (await f.get('/api/admin/students?page=1')).json()).students.find(x => x.id === id);
   assert.equal((await row('s2')).done, 2);
@@ -141,9 +141,20 @@ test('cached admin stats move with a new attempt or progress write and are reuse
   assert.deepEqual((({ id, email, name, status, ...r }) => r)(await row('s2')), fresh.listRow('s2'));
   const detail = await (await f.get('/api/admin/students/s2')).json();
   assert.equal(detail.totalHistory, 3);
-  // A progress rewrite with no new attempt (e.g. a Red corrected elsewhere) also moves the stamp.
-  f.db.prepare("UPDATE progress SET marker='Orange', corrects=1, last_reviewed='2026-09-08T00:00:00Z' WHERE user_id='s2' AND question_id='mc2'").run();
+  // One answer arrives as two requests. Attempt first, views in between, then its progress row:
+  // the views between are not kept, so the view after sees the progress row.
+  f.att.run('s2', 'mc2', '2026-09-08T00:00:00Z', 1, 30000, 'A', 0, null, null);
+  for (let k = 0; k < 2; k++) {
+    assert.deepEqual((({ id, email, name, status, ...r }) => r)(await row('s2')), (await reference(f)).listRow('s2'));
+    assert.deepEqual((await (await f.get('/api/admin/students/s2')).json()).stats, (await reference(f)).detail('s2').stats);
+  }
+  f.db.prepare("UPDATE progress SET attempts=2, corrects=1, marker='Orange', last_reviewed='2026-09-08T00:00:00Z' WHERE user_id='s2' AND question_id='mc2'").run();
+  assert.deepEqual((({ id, email, name, status, ...r }) => r)(await row('s2')), (await reference(f)).listRow('s2'));
   assert.deepEqual((await (await f.get('/api/admin/students/s2')).json()).stats, (await reference(f)).detail('s2').stats);
+  // Settled again: the next views are served from the cache (no attempt rows read).
+  f.log.length = 0;
+  await row('s2'); await f.get('/api/admin/students/s2');
+  assert.ok(!f.log.some(q => /FROM attempts WHERE user_id (IN|=)[^M]*ORDER BY ts/.test(q) && !/MAX\(ts\)/.test(q)), f.log.join('\n'));
   // Nothing a student can read: the stats caches are opened only behind the admin check.
   f.stub.calls.length = 0;
   assert.equal((await f.get('/api/admin/students?page=1', 's1')).status, 403);
