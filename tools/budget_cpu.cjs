@@ -22,8 +22,8 @@ const H = { 'X-Staging-Test-Token': env.STAGING_TEST_TOKEN, Origin: env.STAGING_
   const { token } = await login.json();
   for (let k = 0; k < +count; k++) for (const p of paths) {
     const r = await fetch(env.STAGING_URL + p, { headers: { ...H, Authorization: 'Bearer ' + token } });
-    await r.arrayBuffer();
-    if (!r.ok) console.log(p, r.status);
+    const body = await r.text();
+    if (!r.ok) console.log(p, r.status, body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 200));
     await sleep(300);
   }
   await sleep(8000); tail.kill();
@@ -31,6 +31,7 @@ const H = { 'X-Staging-Test-Token': env.STAGING_TEST_TOKEN, Origin: env.STAGING_
   for (const e of events) {
     const u = (e.event?.request?.url || '').replace(/^https?:\/\/[^/]+/, '');
     if (u !== '/api/e2e/login') (by[u] ||= []).push(e.cpuTime + (e.outcome !== 'ok' ? ' ' + e.outcome : ''));
+    for (const x of e.exceptions || []) console.log('exception', u, x.name, String(x.message).slice(0, 200));
   }
   for (const [u, list] of Object.entries(by)) console.log(`${u}\tCPU ms: ${list.join(', ')}`);
 })();
