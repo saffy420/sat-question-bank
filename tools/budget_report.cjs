@@ -45,6 +45,8 @@ function cpu(name) {
     worst: inv.reduce((w, x) => x.cpuMs > (w?.cpuMs ?? -1) ? x : w, null), error: f.error || null, at: staging.at };
 }
 const S = Object.fromEntries(Object.keys(TITLES).map(k => [k, stats(local.flows[k])]));
+// `<flow>@warm`: the same flow again right after, served from the free-02 caches (budget_measure --warm).
+const W = Object.fromEntries(Object.keys(TITLES).map(k => [k, local.flows[k + '@warm'] ? stats(local.flows[k + '@warm']) : S[k]]));
 const n = x => typeof x === 'number' ? (Number.isInteger(x) ? x.toLocaleString('en-US') : x.toLocaleString('en-US', { maximumFractionDigits: 1 })) : x;
 const pct = (v, cap) => (100 * v / cap).toFixed(1) + '%';
 
@@ -77,9 +79,11 @@ function fmtStorage(f) { const t = {}; local.flows[f].invocations.forEach(x => O
 // --- daily model ---------------------------------------------------------------------------
 const scale = (cfg.lessonStudents * cfg.lessonQuestions) / (25 * 20);
 const parts = [
-  ['Student boots', cfg.practiceStudents * cfg.bootsPerStudent, S['student-boot'], { workerRequests: cfg.staticAssetsPerBoot }],
+  ['Student boots, bank cache miss', Math.min(cfg.bankCacheMisses ?? Infinity, cfg.practiceStudents * cfg.bootsPerStudent), S['student-boot'], { workerRequests: cfg.staticAssetsPerBoot }],
+  ['Student boots, bank cache hit', Math.max(0, cfg.practiceStudents * cfg.bootsPerStudent - (cfg.bankCacheMisses ?? Infinity)), W['student-boot'], { workerRequests: cfg.staticAssetsPerBoot }],
   ['Practice answers', cfg.practiceStudents * cfg.practiceQuestionsPerStudent, S['practice-answer'], { workerRequests: cfg.figureCropsPerPracticeQuestion, d1RowsRead: cfg.figureCropsPerPracticeQuestion }],
-  ['Admin dashboard views (list + detail)', cfg.adminViews, sumStats(S['admin-students'], S['admin-student-detail'])],
+  ['Admin dashboard views (list + detail), recomputed', Math.min(cfg.adminColdViews ?? Infinity, cfg.adminViews), sumStats(S['admin-students'], S['admin-student-detail'])],
+  ['Admin dashboard views (list + detail), cached', Math.max(0, cfg.adminViews - (cfg.adminColdViews ?? Infinity)), sumStats(W['admin-students'], W['admin-student-detail'])],
   ['Lessons built', cfg.lessonsBuilt, builder()],
   ['Instructor-paced lessons', cfg.instructorLessons, scaleStats(S['instructor-lesson'], scale)],
   ['Self-paced lessons (+ poll/review)', cfg.selfPacedLessons, scaleStats(sumStats(S['self-paced-end'], S['poll-review']), scale)],
