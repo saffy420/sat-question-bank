@@ -24,14 +24,15 @@ test('D1 failures: daily limit and overload are told apart from everything else'
   assert.equal(d1Failure(undefined), 'other');
 });
 
-test('retry schedule: 5 s for other errors, doubling backoff for overload, quota bounded by the UTC reset', async () => {
+test('retry schedule: doubling backoff to 5 minutes for overload and other errors, quota bounded by the UTC reset', async () => {
   const { retryAt, nextReset } = await flush();
   const noon = Date.UTC(2026, 8, 28, 12, 0, 0), s = 1000, min = 60 * s, h = 60 * min;
   assert.equal(nextReset(noon), Date.UTC(2026, 8, 29));
   assert.equal(nextReset(Date.UTC(2026, 8, 29)), Date.UTC(2026, 8, 30));
   assert.equal(nextReset(Date.UTC(2026, 8, 29) - 1), Date.UTC(2026, 8, 29));
-  for (const n of [1, 2, 9, 100]) assert.equal(retryAt('other', n, noon) - noon, 5 * s);
-  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 50].map(n => retryAt('overload', n, noon) - noon), [5 * s, 10 * s, 20 * s, 40 * s, 80 * s, 160 * s, 5 * min, 5 * min]);
+  // An idle room stuck on a permanent error costs at most ~300 retries a day, not 17,280.
+  for (const kind of ['overload', 'other'])
+    assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 50, 1e6].map(n => retryAt(kind, n, noon) - noon), [5 * s, 10 * s, 20 * s, 40 * s, 80 * s, 160 * s, 5 * min, 5 * min, 5 * min]);
   assert.deepEqual([1, 2, 10, 11, 12, 1e6].map(n => retryAt('quota', n, noon) - noon), [5 * s, 10 * s, 2560 * s, h, h, h]);
   // Near midnight the next quota retry is one minute after the reset, never later.
   const late = Date.UTC(2026, 8, 28, 23, 50);

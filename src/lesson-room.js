@@ -194,7 +194,13 @@ class Room {
     await this.save(s);
     return s;
   }
-  async flush(s) {
+  // One flush at a time per object: events interleave while D1 answers, and callers that arrive
+  // mid-flush share its outcome instead of racing it over `pending` / `nextPending`.
+  flush(s) {
+    if (!this.flushing) this.flushing = this.flushOnce(s).finally(() => { this.flushing = null; });
+    return this.flushing;
+  }
+  async flushOnce(s) {
     const pending = await this.ctx.storage.get('pending');
     if (!pending) return;
     try {
@@ -228,15 +234,15 @@ class Room {
       await this.ctx.storage.delete('pending');
       if (await this.ctx.storage.get('flushRetry')) { await this.ctx.storage.delete('flushRetry'); await this.syncStatus(s, null); }
       const next = await this.ctx.storage.get('nextPending');
-      if (next) { await this.ctx.storage.put('pending', next); await this.ctx.storage.delete('nextPending'); await this.flush(s); }
+      if (next) { await this.ctx.storage.put('pending', next); await this.ctx.storage.delete('nextPending'); await this.flushOnce(s); }
     } catch (e) {
       if (!e?.[SCHEDULED]) await this.flushFailed(s, e);
       throw e;
     }
   }
   // The unflushed work stays in `pending` (DO storage) until D1 takes it. A daily-limit error waits
-  // for the 00:00 UTC reset with backoff probes before it, overload backs off, anything else retries
-  // in 5 s (src/flush.js). While a retry is scheduled, failures from messages leave it alone.
+  // for the 00:00 UTC reset with backoff probes before it; anything else backs off to 5 minutes
+  // (src/flush.js). While a retry is scheduled, failures from messages leave it alone.
   async flushFailed(s, e) {
     const held = await this.ctx.storage.get('flushRetry'), now = Date.now();
     if (held && !this.retrying && now < held.at) return;

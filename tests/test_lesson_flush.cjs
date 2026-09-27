@@ -176,7 +176,7 @@ test('daily limit mid write-back: landed chunks stay, the rest waits in DO stora
   assert.equal(after, before);
 }));
 
-test('overload backs off from 5 s to a 5-minute cap; other errors keep the 5 s retry', async () => withClock(async (tick, now) => {
+test('overload and other errors back off from 5 s to a 5-minute cap', async () => withClock(async (tick, now) => {
   const f = await fixture();
   await f.fault(f.room, 'overload');
   const seen = [];
@@ -193,9 +193,9 @@ test('overload backs off from 5 s to a 5-minute cap; other errors keep the 5 s r
   g.env.DB.batch = async () => { throw new Error('D1_ERROR: UNIQUE constraint failed: session_responses.session_id'); };
   for (let n = 1; n <= 3; n++) {
     await g.room.alarm();
-    assert.equal((await g.store.getAlarm()) - now(), 5000);
+    assert.equal((await g.store.getAlarm()) - now(), 5000 * 2 ** (n - 1));
     assert.deepEqual([(await g.store.get('flushRetry')).kind, (await g.store.get('flushRetry')).failures], ['other', n]);
-    tick(5000);
+    tick(5000 * 2 ** (n - 1));
   }
 }));
 
@@ -244,4 +244,49 @@ test('sync registry: rooms report and clear; GET lists; bad bodies refused; inte
   await call('POST', { sessionId: 9, clear: true });
   assert.deepEqual((await (await call('GET')).json()).pending.map(p => p.sessionId), [3]);
   assert.equal((await call('PUT', {})).status, 404);
+});
+
+test('GET /api/admin/lesson-sync: admins only, reads the registry, 503 when it fails, never cached', async () => {
+  const { handleRequest } = await import('../src/index.js');
+  const db = new DatabaseSync(':memory:'); db.exec(readFileSync(root + 'schema.sql', 'utf8'));
+  db.exec("INSERT INTO users (id,email,name,role) VALUES ('teacher','t@x','T','admin'),('kid','k@x','K','student')");
+  db.exec("INSERT INTO membership (user_id,email,status) VALUES ('teacher','teacher@x','approved'),('kid','kid@x','approved')");
+  const calls = [];
+  let answer = () => Response.json({ pending: [{ sessionId: 7, at: 2, kind: 'quota', since: 1 }] });
+  const env = { DB: d1(db, { queries: 0, batches: [] }), ASSETS: { fetch: async () => new Response('asset') },
+    LESSON_SYNC: { getByName: name => ({ fetch: async req => { calls.push([name, req.method, req.headers.get('X-Lesson-Internal')]); return answer(); } }) } };
+  const get = (user, method = 'GET') => handleRequest(new Request('https://roadto1600.org/api/admin/lesson-sync', { method, headers: { Origin: 'https://roadto1600.org' } }), env, async () => ({ id: user, email: user + '@x' }));
+  let res = await get('teacher');
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { pending: [{ sessionId: 7, at: 2, kind: 'quota', since: 1 }] });
+  assert.match(res.headers.get('Cache-Control'), /no-store/);
+  assert.deepEqual(calls, [['all', 'GET', 'sync']]);
+  assert.equal((await get('kid')).status, 403);
+  assert.equal((await get('teacher', 'POST')).status, 404);
+  answer = () => new Response('nope', { status: 500 });
+  assert.equal((await get('teacher')).status, 503);
+  answer = () => { throw new Error('DO unavailable'); };
+  assert.equal((await get('teacher')).status, 503);
+  assert.equal(calls.length, 3, 'students and other methods never reach the registry');
+});
+
+test('concurrent flushes (alarm and student messages during a write-back) share one run: nothing overwritten, nothing lost', async () => {
+  const f = await fixture({ flag: '' });
+  const s = await f.room.state();
+  // The set is finishing, and End session has already queued the session's end behind it.
+  s.phase = 'FINISHED'; s.status = 'review'; await f.room.save(s);
+  const rows = [];
+  for (const [userId, answers] of Object.entries(s.responses)) for (const [questionId, r] of Object.entries(answers))
+    rows.push({ userId, questionId, answer: r.answer || null, correct: r.answer ? (r.answer === 'B' ? 1 : 0) : 0, locked: false, ms: 1000, changes: 0, history: [] });
+  await f.store.put('pending', { rows, end: false, review: true, writeBack: { at: Date.now() }, finished: [] });
+  await f.store.put('nextPending', { questionId: 'q02', rows: [], end: true, usage: ['q01', 'q02'], annotations: [{ id: 'm1' }] });
+  const runs = await Promise.allSettled([f.room.flush(s), f.room.flush(await f.room.state()), f.room.flush(await f.room.state())]);
+  assert.deepEqual(runs.map(r => r.status), ['fulfilled', 'fulfilled', 'fulfilled']);
+  const c = f.counts();
+  assert.deepEqual([c.responses, c.attempts, c.distinct, c.status], [S * Q, S * Q, S * Q, 'ended']);
+  assert.equal(f.db.prepare('SELECT COUNT(*) n FROM question_lesson_usage WHERE session_id=?').get(SESSION).n, 2);
+  assert.equal(f.db.prepare('SELECT annotations_json FROM session_question_review WHERE session_id=? AND question_id=?').get(SESSION, 'q02').annotations_json, '[{"id":"m1"}]');
+  assert.equal(await f.store.get('pending'), undefined);
+  assert.equal(await f.store.get('nextPending'), undefined);
+  assert.deepEqual(f.log.batches, [480, 480, 480, 61, 3], 'one pass over the work, not one per caller');
 });
