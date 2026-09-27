@@ -252,8 +252,7 @@ const LEAN = `id, section, domain, difficulty, skill, correct_answer, source,
   CASE WHEN json_valid(choices_json) THEN json_remove(choices_json, ${Array.from({ length: 8 }, (_, i) => `'$[${i}].content'`).join(', ')}) ELSE '[]' END AS choices_json`;
 // Kept per isolate like the builder index (same key and expiry); callers only read the rows.
 let statMemo = null;
-async function statBank(env, keep = null) {
-  const key = await bankStamp(env);
+async function statBank(env, key, keep = null) {
   if (!(statMemo?.key === key && Date.now() - statMemo.at < BANK_TTL * 1000)) statMemo = { key, at: Date.now(), qs: await leanBank(env) };
   return keep ? statMemo.qs.filter(q => keep.has(q.id)) : statMemo.qs;
 }
@@ -288,15 +287,19 @@ async function byIds(db, cols, ids) {
 // added or replaced (max rowid of either bank) or a lesson adds usage rows (insert-only table); an
 // edit to an existing question shows once the entry expires. Clients still get private, no-store.
 const BANK_CACHE = 'https://bank-cache.internal/v1/', BANK_TTL = 3600;
-const maxRowid = (db, table) => db.prepare(`SELECT MAX(rowid) AS r FROM ${table}`).all().then(x => x.results?.[0]?.r ?? '');
-const bankStamp = env => Promise.all([maxRowid(env.DB, 'questions'), maxRowid(env.AI_DB, 'questions')]).then(r => r.join('-'));
+// Both banks' max rowid and the usage table's, one query per database. Each route reads them once
+// and hands them to the caches and memos below.
+const stamps = env => Promise.all([
+  env.DB.prepare('SELECT (SELECT MAX(rowid) FROM questions) AS q, (SELECT MAX(rowid) FROM question_lesson_usage) AS u').all(),
+  env.AI_DB.prepare('SELECT MAX(rowid) AS q FROM questions').all()
+]).then(([core, ai]) => ({ bank: `${core.results?.[0]?.q ?? ''}-${ai.results?.[0]?.q ?? ''}`, usage: core.results?.[0]?.u ?? '' }));
 async function questionsResponse(env) {
-  const [bankKey, usage] = await Promise.all([bankStamp(env), maxRowid(env.DB, 'question_lesson_usage')]);
-  const key = BANK_CACHE + bankKey + '-' + usage;
+  const st = await stamps(env);
+  const key = BANK_CACHE + st.bank + '-' + st.usage;
   const cache = typeof caches === 'undefined' ? null : await caches.open('bank');
   const hit = await cache?.match(key);
   if (hit) return new Response(hit.body, { headers: harden(new Headers({ 'Content-Type': 'application/json' })) });
-  const [rows, usageById] = await Promise.all([bank(env), lessonUsage(env)]);
+  const [rows, usageById] = await Promise.all([bank(env), lessonUsage(env, null, st.usage)]);
   const body = JSON.stringify(rows.map(q => ({ ...q, usedInLesson: usageById.get(q.id) || [] })));
   await cache?.put(key, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=' + BANK_TTL } }));
   return new Response(body, { headers: harden(new Headers({ 'Content-Type': 'application/json' })) });
@@ -311,8 +314,8 @@ const statsCache = async () => typeof caches === 'undefined' ? null : caches.ope
 const cachedStats = async (cache, key) => { const r = await cache?.match(STATS_CACHE + key); return r ? r.json() : null; };
 const keepStats = (cache, key, value) => cache?.put(STATS_CACHE + key, new Response(JSON.stringify(value),
   { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=' + BANK_TTL } }));
-async function statStamps(env, ids) {
-  const [latest, bankKey] = await Promise.all([ids.length ? env.DB.batch(ids.map(id => env.DB.prepare('SELECT MAX(ts) AS ts FROM attempts WHERE user_id = ?').bind(id))) : [], bankStamp(env)]);
+async function statStamps(env, ids, bankKey) {
+  const latest = ids.length ? await env.DB.batch(ids.map(id => env.DB.prepare('SELECT MAX(ts) AS ts FROM attempts WHERE user_id = ?').bind(id))) : [];
   const out = new Map(ids.map((id, i) => [id, bankKey + '|' + (latest[i].results?.[0]?.ts ?? '')]));
   return id => out.get(id);
 }
@@ -323,23 +326,22 @@ const settled = log => { const last = log.reduce((a, x) => x.ts > a ? x.ts : a, 
 // The global map is kept per isolate under the usage table's max rowid: rows are only ever inserted,
 // so an unchanged max rowid means an unchanged map.
 let usageMemo = null;
-async function lessonUsage(env, userId = null) {
-  const key = userId ? null : await maxRowid(env.DB, 'question_lesson_usage');
-  if (!userId && usageMemo?.key === key) return usageMemo.map;
+async function lessonUsage(env, userId = null, key = null) {
+  if (!userId && key != null && usageMemo?.key === key) return usageMemo.map;
   const used = await (userId ? env.DB.prepare(`SELECT question_id, session_id FROM question_lesson_usage WHERE question_id IN
       (SELECT u.question_id FROM question_lesson_usage u JOIN session_participants p ON p.session_id = u.session_id WHERE p.user_id = ?)
       ORDER BY used_at, session_id`).bind(userId)
     : env.DB.prepare('SELECT question_id, session_id FROM question_lesson_usage ORDER BY used_at, session_id')).all();
   const usageById = new Map();
   for (const r of used.results || []) { if (!usageById.has(r.question_id)) usageById.set(r.question_id, []); usageById.get(r.question_id).push(padSessionId(r.session_id)); }
-  if (!userId) usageMemo = { key, map: usageById };
+  if (!userId && key != null) usageMemo = { key, map: usageById };
   return usageById;
 }
-async function adminData(env, id) {
+async function adminData(env, id, bankKey) {
   const [progress, attempts, qs] = await Promise.all([
     env.DB.prepare('SELECT question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id = ?').bind(id).all(),
     env.DB.prepare('SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json, lesson_session_id FROM attempts WHERE user_id = ? ORDER BY ts').bind(id).all(),
-    statBank(env)
+    statBank(env, bankKey)
   ]);
   const prog = Object.fromEntries((progress.results || []).map(p => [p.question_id, p]));
   const log = attempts.results || [];
@@ -375,8 +377,7 @@ const lessonBody = b => b && !Array.isArray(b) && typeof b === 'object' &&
 // builder's order (cbSort is one fixed order, so any filtered subset of the sorted list is sorted
 // too), while both banks' max rowid hold and for at most BANK_TTL, like the bank cache.
 let builderMemo = null;
-async function builderIndex(env, fresh = false) {
-  const key = await bankStamp(env);
+async function builderIndex(env, key, fresh = false) {
   if (!fresh && builderMemo?.key === key && Date.now() - builderMemo.at < BANK_TTL * 1000) return builderMemo;
   const cols = 'id, section, domain, difficulty, skill';
   const [core, ai] = await Promise.all([env.DB.prepare(`SELECT ${cols} FROM questions`).all(), env.AI_DB.prepare(`SELECT ${cols} FROM questions`).all()]);
@@ -423,13 +424,14 @@ async function lessonRoutes(req, env, url, p, u) {
         [domains,skills,difficulties].some(v => v.length > 30) || [...domains,...skills].some(s => !s || s.length > 150) ||
         difficulties.some(d => !['Easy','Medium','Hard'].includes(d)) || !USAGE_MODES.includes(usage) || search.length > 100 ||
         [...params.keys()].some(k => !['page','section','domain','skill','difficulty','lessonUsage','search'].includes(k))) return json({ error: 'invalid filter' }, 400);
-    const [usageById, found] = await Promise.all([lessonUsage(env), search ? searchBank(env, search) : null]);
+    const st = await stamps(env);
+    const [usageById, found] = await Promise.all([lessonUsage(env, null, st.usage), search ? searchBank(env, search) : null]);
     // The instructor "attended" every session of a lesson they created: they ran it.
     const ran = usage === 'hide-attended' ? new Set(((await env.DB.prepare('SELECT s.id FROM lesson_sessions s JOIN lessons l ON l.id=s.lesson_id WHERE l.created_by=?').bind(u.id).all()).results || []).map(r => padSessionId(r.id))) : new Set();
     let index, rows, shown, full;
     // A question deleted since the index was built is missing from the page read: rebuild the index once.
     for (const fresh of [false, true]) {
-      index = await builderIndex(env, fresh);
+      index = await builderIndex(env, st.bank, fresh);
       // The index is already in the builder's order, so every filtered subset is too.
       rows = index.rows.filter(q => (!section || q.section === section) && (!domains.length || domains.includes(q.domain)) && (!skills.length || skills.includes(q.skill)) &&
         (!difficulties.length || difficulties.includes(q.difficulty)) && lessonUsageVisible(usageById.get(q.id), usage, ran) && (!found || found[q.ai ? 1 : 0].has(q.id)));
@@ -674,7 +676,8 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         // table (not two per student), each over only the questions that student touched: every field
         // below is keyed by their own progress/attempt rows.
         const roster = `SELECT u.id ${where} LIMIT 501`;
-        const [stamp, cache] = await Promise.all([statStamps(env, (users.results || []).map(x => x.id)), statsCache()]);
+        const st = await stamps(env);
+        const [stamp, cache] = await Promise.all([statStamps(env, (users.results || []).map(x => x.id), st.bank), statsCache()]);
         const held = (await cachedStats(cache, 'list')) || {};
         const stale = (users.results || []).filter(x => held[x.id]?.stamp !== stamp(x.id)).map(x => x.id);
         const progs = new Map(), logs = new Map(), touchedIds = new Set();
@@ -687,7 +690,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
           for (const { user_id, ...r } of progress.results || []) { (progs.get(user_id) || progs.set(user_id, {}).get(user_id))[r.question_id] = r; touchedIds.add(r.question_id); }
           for (const { user_id, ...r } of attempts.results || []) { (logs.get(user_id) || logs.set(user_id, []).get(user_id)).push(r); touchedIds.add(r.question_id); }
         }
-        const byId = new Map(stale.length ? (await statBank(env, touchedIds)).map(q => [q.id, q]) : []);
+        const byId = new Map(stale.length ? (await statBank(env, st.bank, touchedIds)).map(q => [q.id, q]) : []);
         const students = (users.results || []).map(student => {
           if (!stale.includes(student.id)) return { ...student, ...held[student.id].row };
           const prog = progs.get(student.id) || {}, log = logs.get(student.id) || [];
@@ -729,11 +732,12 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
           return json({ results: rows.results || [], total: total.n, page, pages: Math.max(1, Math.ceil(total.n / PAGE_SIZE)) });
         }
         // Stats, directions and the Mistakes list are reused while the student's stamp holds (see statStamps).
-        const [stamp, cache] = await Promise.all([statStamps(env, [id]), statsCache()]);
+        const st = await stamps(env);
+        const [stamp, cache] = await Promise.all([statStamps(env, [id], st.bank), statsCache()]);
         const key = 'detail/' + encodeURIComponent(id);
         let held = await cachedStats(cache, key);
         if (held?.stamp !== stamp(id)) {
-          const { qs, prog, log, stats, directions } = await adminData(env, id);
+          const { qs, prog, log, stats, directions } = await adminData(env, id, st.bank);
           const latest = new Map();
           for (const x of log) if (!latest.has(x.question_id) || x.ts >= latest.get(x.question_id).ts) latest.set(x.question_id, x);
           const wrong = qs.filter(q => ['Red', 'Orange'].includes(prog[q.id]?.marker)).map(q => ({ question_id: q.id, marker: prog[q.id].marker,

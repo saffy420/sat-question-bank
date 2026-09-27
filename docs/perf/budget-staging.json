@@ -1,6 +1,6 @@
 {
  "target": "staging",
- "at": "2026-09-27T05:21:48.677Z",
+ "at": "2026-09-27T18:00:48.926Z",
  "config": {
   "coreQuestions": 3000,
   "students": 30,
@@ -27,7 +27,7 @@
  "instructor": {},
  "flows": {
   "student-boot": {
-   "ms": 9765,
+   "ms": 9617,
    "questions": 3407,
    "questionsBytes": 7429952,
    "invocations": [
@@ -40,7 +40,8 @@
      "statements": 1,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 34,
+     "d1Ms": 38,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 1,
@@ -52,9 +53,9 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 43,
-     "cpuMs": 2,
-     "tailWallMs": 51,
+     "wallMs": 52,
+     "cpuMs": 5,
+     "tailWallMs": 65,
      "outcome": "ok"
     },
     {
@@ -66,7 +67,8 @@
      "statements": 2,
      "rowsRead": 2,
      "rowsWritten": 1,
-     "d1Ms": 72,
+     "d1Ms": 73,
+     "maxParams": 4,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -78,9 +80,9 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 72,
+     "wallMs": 73,
      "cpuMs": 2,
-     "tailWallMs": 78,
+     "tailWallMs": 82,
      "outcome": "ok"
     },
     {
@@ -90,30 +92,31 @@
      "batches": 0,
      "batchStatements": [],
      "statements": 4,
-     "rowsRead": 3414,
+     "rowsRead": 4,
      "rowsWritten": 0,
-     "d1Ms": 738,
+     "d1Ms": 231,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 3,
        "batches": 0,
        "statements": 3,
-       "rowsRead": 3013,
+       "rowsRead": 3,
        "rowsWritten": 0
       },
       "AI_DB": {
        "queries": 1,
        "batches": 0,
        "statements": 1,
-       "rowsRead": 401,
+       "rowsRead": 1,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 330,
-     "cpuMs": 114,
-     "tailWallMs": 534,
+     "wallMs": 169,
+     "cpuMs": 4,
+     "tailWallMs": 181,
      "outcome": "ok"
     },
     {
@@ -125,7 +128,8 @@
      "statements": 1,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 36,
+     "d1Ms": 38,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 1,
@@ -137,9 +141,9 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 40,
-     "cpuMs": 2,
-     "tailWallMs": 51,
+     "wallMs": 45,
+     "cpuMs": 1,
+     "tailWallMs": 52,
      "outcome": "ok"
     },
     {
@@ -151,7 +155,8 @@
      "statements": 2,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 73,
+     "d1Ms": 76,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -163,9 +168,9 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 73,
-     "cpuMs": 3,
-     "tailWallMs": 82,
+     "wallMs": 76,
+     "cpuMs": 2,
+     "tailWallMs": 84,
      "outcome": "ok"
     },
     {
@@ -177,7 +182,8 @@
      "statements": 2,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 69,
+     "d1Ms": 84,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -189,9 +195,9 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 69,
-     "cpuMs": 1,
-     "tailWallMs": 76,
+     "wallMs": 84,
+     "cpuMs": 6,
+     "tailWallMs": 93,
      "outcome": "ok"
     },
     {
@@ -203,7 +209,8 @@
      "statements": 2,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 71,
+     "d1Ms": 79,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -215,9 +222,9 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 71,
+     "wallMs": 79,
      "cpuMs": 2,
-     "tailWallMs": 77,
+     "tailWallMs": 85,
      "outcome": "ok"
     },
     {
@@ -229,7 +236,8 @@
      "statements": 2,
      "rowsRead": 2,
      "rowsWritten": 0,
-     "d1Ms": 69,
+     "d1Ms": 70,
+     "maxParams": 2,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -241,9 +249,9 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 69,
-     "cpuMs": 1,
-     "tailWallMs": 76,
+     "wallMs": 70,
+     "cpuMs": 2,
+     "tailWallMs": 77,
      "outcome": "ok"
     },
     {
@@ -255,7 +263,8 @@
      "statements": 4,
      "rowsRead": 10,
      "rowsWritten": 0,
-     "d1Ms": 144,
+     "d1Ms": 149,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 4,
@@ -267,9 +276,9 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 107,
+     "wallMs": 112,
      "cpuMs": 3,
-     "tailWallMs": 119,
+     "tailWallMs": 124,
      "outcome": "ok"
     },
     {
@@ -281,7 +290,8 @@
      "statements": 2,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 81,
+     "d1Ms": 75,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -293,9 +303,9 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 81,
+     "wallMs": 75,
      "cpuMs": 2,
-     "tailWallMs": 91,
+     "tailWallMs": 84,
      "outcome": "ok"
     }
    ],
@@ -309,7 +319,8 @@
      "statements": 2,
      "rowsRead": 2,
      "rowsWritten": 1,
-     "d1Ms": 72,
+     "d1Ms": 73,
+     "maxParams": 4,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -321,7 +332,7 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 72
+     "wallMs": 73
     },
     {
      "kind": "worker",
@@ -330,28 +341,29 @@
      "batches": 0,
      "batchStatements": [],
      "statements": 4,
-     "rowsRead": 3414,
+     "rowsRead": 4,
      "rowsWritten": 0,
-     "d1Ms": 738,
+     "d1Ms": 231,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 3,
        "batches": 0,
        "statements": 3,
-       "rowsRead": 3013,
+       "rowsRead": 3,
        "rowsWritten": 0
       },
       "AI_DB": {
        "queries": 1,
        "batches": 0,
        "statements": 1,
-       "rowsRead": 401,
+       "rowsRead": 1,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 330
+     "wallMs": 169
     },
     {
      "kind": "worker",
@@ -362,7 +374,8 @@
      "statements": 2,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 73,
+     "d1Ms": 76,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -374,7 +387,7 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 73
+     "wallMs": 76
     },
     {
      "kind": "worker",
@@ -385,7 +398,8 @@
      "statements": 2,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 69,
+     "d1Ms": 84,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -397,7 +411,7 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 69
+     "wallMs": 84
     },
     {
      "kind": "worker",
@@ -408,7 +422,8 @@
      "statements": 2,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 71,
+     "d1Ms": 79,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -420,7 +435,7 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 71
+     "wallMs": 79
     },
     {
      "kind": "worker",
@@ -431,7 +446,8 @@
      "statements": 2,
      "rowsRead": 2,
      "rowsWritten": 0,
-     "d1Ms": 69,
+     "d1Ms": 70,
+     "maxParams": 2,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -443,7 +459,7 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 69
+     "wallMs": 70
     },
     {
      "kind": "worker",
@@ -454,7 +470,8 @@
      "statements": 4,
      "rowsRead": 10,
      "rowsWritten": 0,
-     "d1Ms": 144,
+     "d1Ms": 149,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 4,
@@ -466,7 +483,7 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 107
+     "wallMs": 112
     },
     {
      "kind": "worker",
@@ -477,7 +494,8 @@
      "statements": 2,
      "rowsRead": 1,
      "rowsWritten": 0,
-     "d1Ms": 81,
+     "d1Ms": 75,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
        "queries": 2,
@@ -489,143 +507,147 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 81
+     "wallMs": 75
     }
    ]
   },
   "bank-filter": {
-   "ms": 10123,
+   "ms": 9387,
    "invocations": [
     {
      "kind": "worker",
      "label": "GET /api/admin/questions",
-     "queries": 5,
+     "queries": 10,
      "batches": 0,
      "batchStatements": [],
-     "statements": 5,
-     "rowsRead": 3415,
+     "statements": 10,
+     "rowsRead": 3468,
      "rowsWritten": 0,
-     "d1Ms": 526,
+     "d1Ms": 431,
+     "maxParams": 20,
      "byBinding": {
       "DB": {
-       "queries": 4,
+       "queries": 7,
        "batches": 0,
-       "statements": 4,
-       "rowsRead": 3014,
+       "statements": 7,
+       "rowsRead": 3026,
        "rowsWritten": 0
       },
       "AI_DB": {
-       "queries": 1,
+       "queries": 3,
        "batches": 0,
-       "statements": 1,
-       "rowsRead": 401,
+       "statements": 3,
+       "rowsRead": 442,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 419,
-     "cpuMs": 114,
-     "tailWallMs": 535,
+     "wallMs": 312,
+     "cpuMs": 58,
+     "tailWallMs": 405,
      "outcome": "ok"
     },
     {
      "kind": "worker",
      "label": "GET /api/admin/questions",
-     "queries": 6,
+     "queries": 8,
      "batches": 0,
      "batchStatements": [],
-     "statements": 6,
-     "rowsRead": 3421,
+     "statements": 8,
+     "rowsRead": 61,
      "rowsWritten": 0,
-     "d1Ms": 553,
+     "d1Ms": 273,
+     "maxParams": 20,
+     "byBinding": {
+      "DB": {
+       "queries": 6,
+       "batches": 0,
+       "statements": 6,
+       "rowsRead": 20,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 41,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 203,
+     "cpuMs": 14,
+     "tailWallMs": 250,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 7,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 7,
+     "rowsRead": 55,
+     "rowsWritten": 0,
+     "d1Ms": 252,
+     "maxParams": 20,
      "byBinding": {
       "DB": {
        "queries": 5,
        "batches": 0,
        "statements": 5,
-       "rowsRead": 3020,
+       "rowsRead": 14,
        "rowsWritten": 0
       },
       "AI_DB": {
-       "queries": 1,
+       "queries": 2,
        "batches": 0,
-       "statements": 1,
-       "rowsRead": 401,
+       "statements": 2,
+       "rowsRead": 41,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 440,
-     "cpuMs": 90,
-     "tailWallMs": 534,
+     "wallMs": 181,
+     "cpuMs": 10,
+     "tailWallMs": 220,
      "outcome": "ok"
     },
     {
      "kind": "worker",
      "label": "GET /api/admin/questions",
-     "queries": 5,
+     "queries": 7,
      "batches": 0,
      "batchStatements": [],
-     "statements": 5,
-     "rowsRead": 3415,
+     "statements": 7,
+     "rowsRead": 55,
      "rowsWritten": 0,
-     "d1Ms": 425,
+     "d1Ms": 236,
+     "maxParams": 18,
      "byBinding": {
       "DB": {
-       "queries": 4,
+       "queries": 5,
        "batches": 0,
-       "statements": 4,
-       "rowsRead": 3014,
+       "statements": 5,
+       "rowsRead": 40,
        "rowsWritten": 0
       },
       "AI_DB": {
-       "queries": 1,
+       "queries": 2,
        "batches": 0,
-       "statements": 1,
-       "rowsRead": 401,
+       "statements": 2,
+       "rowsRead": 15,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 376,
-     "cpuMs": 73,
-     "tailWallMs": 454,
-     "outcome": "ok"
-    },
-    {
-     "kind": "worker",
-     "label": "GET /api/admin/questions",
-     "queries": 5,
-     "batches": 0,
-     "batchStatements": [],
-     "statements": 5,
-     "rowsRead": 3415,
-     "rowsWritten": 0,
-     "d1Ms": 396,
-     "byBinding": {
-      "DB": {
-       "queries": 4,
-       "batches": 0,
-       "statements": 4,
-       "rowsRead": 3014,
-       "rowsWritten": 0
-      },
-      "AI_DB": {
-       "queries": 1,
-       "batches": 0,
-       "statements": 1,
-       "rowsRead": 401,
-       "rowsWritten": 0
-      }
-     },
-     "errors": [],
-     "status": 200,
-     "wallMs": 285,
-     "cpuMs": 59,
-     "tailWallMs": 350,
+     "wallMs": 171,
+     "cpuMs": 9,
+     "tailWallMs": 201,
      "outcome": "ok"
     }
    ],
@@ -633,166 +655,1284 @@
     {
      "kind": "worker",
      "label": "GET /api/admin/questions",
-     "queries": 5,
+     "queries": 10,
      "batches": 0,
      "batchStatements": [],
-     "statements": 5,
-     "rowsRead": 3415,
+     "statements": 10,
+     "rowsRead": 3468,
      "rowsWritten": 0,
-     "d1Ms": 526,
+     "d1Ms": 431,
+     "maxParams": 20,
      "byBinding": {
       "DB": {
-       "queries": 4,
+       "queries": 7,
        "batches": 0,
-       "statements": 4,
-       "rowsRead": 3014,
+       "statements": 7,
+       "rowsRead": 3026,
        "rowsWritten": 0
       },
       "AI_DB": {
-       "queries": 1,
+       "queries": 3,
        "batches": 0,
-       "statements": 1,
-       "rowsRead": 401,
+       "statements": 3,
+       "rowsRead": 442,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 419
+     "wallMs": 312
     },
     {
      "kind": "worker",
      "label": "GET /api/admin/questions",
-     "queries": 6,
+     "queries": 8,
      "batches": 0,
      "batchStatements": [],
-     "statements": 6,
-     "rowsRead": 3421,
+     "statements": 8,
+     "rowsRead": 61,
      "rowsWritten": 0,
-     "d1Ms": 553,
+     "d1Ms": 273,
+     "maxParams": 20,
+     "byBinding": {
+      "DB": {
+       "queries": 6,
+       "batches": 0,
+       "statements": 6,
+       "rowsRead": 20,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 41,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 203
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 7,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 7,
+     "rowsRead": 55,
+     "rowsWritten": 0,
+     "d1Ms": 252,
+     "maxParams": 20,
      "byBinding": {
       "DB": {
        "queries": 5,
        "batches": 0,
        "statements": 5,
-       "rowsRead": 3020,
+       "rowsRead": 14,
        "rowsWritten": 0
       },
       "AI_DB": {
-       "queries": 1,
+       "queries": 2,
        "batches": 0,
-       "statements": 1,
-       "rowsRead": 401,
+       "statements": 2,
+       "rowsRead": 41,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 440
+     "wallMs": 181
     },
     {
      "kind": "worker",
      "label": "GET /api/admin/questions",
-     "queries": 5,
+     "queries": 7,
      "batches": 0,
      "batchStatements": [],
-     "statements": 5,
-     "rowsRead": 3415,
+     "statements": 7,
+     "rowsRead": 55,
      "rowsWritten": 0,
-     "d1Ms": 425,
+     "d1Ms": 236,
+     "maxParams": 18,
      "byBinding": {
       "DB": {
-       "queries": 4,
+       "queries": 5,
        "batches": 0,
-       "statements": 4,
-       "rowsRead": 3014,
+       "statements": 5,
+       "rowsRead": 40,
        "rowsWritten": 0
       },
       "AI_DB": {
-       "queries": 1,
+       "queries": 2,
        "batches": 0,
-       "statements": 1,
-       "rowsRead": 401,
+       "statements": 2,
+       "rowsRead": 15,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 376
-    },
-    {
-     "kind": "worker",
-     "label": "GET /api/admin/questions",
-     "queries": 5,
-     "batches": 0,
-     "batchStatements": [],
-     "statements": 5,
-     "rowsRead": 3415,
-     "rowsWritten": 0,
-     "d1Ms": 396,
-     "byBinding": {
-      "DB": {
-       "queries": 4,
-       "batches": 0,
-       "statements": 4,
-       "rowsRead": 3014,
-       "rowsWritten": 0
-      },
-      "AI_DB": {
-       "queries": 1,
-       "batches": 0,
-       "statements": 1,
-       "rowsRead": 401,
-       "rowsWritten": 0
-      }
-     },
-     "errors": [],
-     "status": 200,
-     "wallMs": 285
+     "wallMs": 171
     }
    ]
   },
   "admin-students": {
-   "ms": 9163,
-   "error": "GET /api/admin/students?page=1&search=&sort=name&order=asc -> 503 Worker exceeded resource limits | roadto1600-staging.sat-question-bank-leon.workers.dev | Cloudflare",
+   "ms": 8591,
    "invocations": [
     {
      "kind": "worker",
-     "label": "/api/admin/students?page=1&search=&sort=name&order=asc",
-     "outcome": "exceededCpu",
-     "cpuMs": 235,
-     "tailWallMs": 1054,
-     "killed": true
+     "label": "GET /api/admin/students",
+     "queries": 11,
+     "batches": 1,
+     "batchStatements": [
+      36
+     ],
+     "statements": 47,
+     "rowsRead": 3526,
+     "rowsWritten": 0,
+     "d1Ms": 572,
+     "maxParams": 2,
+     "byBinding": {
+      "DB": {
+       "queries": 8,
+       "batches": 1,
+       "statements": 44,
+       "rowsRead": 3123,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 403,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 401,
+     "cpuMs": 38,
+     "tailWallMs": 460,
+     "outcome": "ok"
     }
    ],
    "responses": [
     {
      "kind": "worker",
      "label": "GET /api/admin/students",
-     "status": 503,
-     "failed": true
+     "queries": 11,
+     "batches": 1,
+     "batchStatements": [
+      36
+     ],
+     "statements": 47,
+     "rowsRead": 3526,
+     "rowsWritten": 0,
+     "d1Ms": 572,
+     "maxParams": 2,
+     "byBinding": {
+      "DB": {
+       "queries": 8,
+       "batches": 1,
+       "statements": 44,
+       "rowsRead": 3123,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 403,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 401
     }
    ]
   },
   "admin-student-detail": {
-   "ms": 8341,
-   "error": "GET /api/admin/students/e2e-budget-01 -> 503 Worker exceeded resource limits | roadto1600-staging.sat-question-bank-leon.workers.dev | Cloudflare",
+   "ms": 8722,
    "invocations": [
     {
      "kind": "worker",
-     "label": "/api/admin/students/e2e-budget-01",
-     "outcome": "exceededCpu",
-     "cpuMs": 10,
-     "tailWallMs": 250,
-     "killed": true
+     "label": "GET /api/admin/students/e2e-budget-01",
+     "queries": 7,
+     "batches": 1,
+     "batchStatements": [
+      1
+     ],
+     "statements": 8,
+     "rowsRead": 10,
+     "rowsWritten": 0,
+     "d1Ms": 297,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 6,
+       "batches": 1,
+       "statements": 7,
+       "rowsRead": 9,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 260,
+     "cpuMs": 18,
+     "tailWallMs": 303,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students/e2e-budget-01/history",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 4,
+     "rowsWritten": 0,
+     "d1Ms": 203,
+     "maxParams": 3,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 4,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 203,
+     "cpuMs": 6,
+     "tailWallMs": 229,
+     "outcome": "ok"
     }
    ],
    "responses": [
     {
      "kind": "worker",
      "label": "GET /api/admin/students/e2e-budget-01",
-     "status": 503,
-     "failed": true
+     "queries": 7,
+     "batches": 1,
+     "batchStatements": [
+      1
+     ],
+     "statements": 8,
+     "rowsRead": 10,
+     "rowsWritten": 0,
+     "d1Ms": 297,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 6,
+       "batches": 1,
+       "statements": 7,
+       "rowsRead": 9,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 260
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students/e2e-budget-01/history",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 4,
+     "rowsWritten": 0,
+     "d1Ms": 203,
+     "maxParams": 3,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 4,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 203
+    }
+   ]
+  },
+  "student-boot@warm": {
+   "ms": 9605,
+   "questions": 3407,
+   "questionsBytes": 7429952,
+   "invocations": [
+    {
+     "kind": "worker",
+     "label": "GET /app",
+     "queries": 1,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 1,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 42,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 56,
+     "cpuMs": 5,
+     "tailWallMs": 67,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "POST /api/auth/session",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 2,
+     "rowsWritten": 1,
+     "d1Ms": 77,
+     "maxParams": 4,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 2,
+       "rowsWritten": 1
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 77,
+     "cpuMs": 2,
+     "tailWallMs": 85,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/questions",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 4,
+     "rowsWritten": 0,
+     "d1Ms": 139,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 3,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 92,
+     "cpuMs": 4,
+     "tailWallMs": 106,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /exams.json",
+     "queries": 1,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 1,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 35,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 42,
+     "cpuMs": 1,
+     "tailWallMs": 49,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/progress",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 65,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 65,
+     "cpuMs": 2,
+     "tailWallMs": 73,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/notes",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 72,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 72,
+     "cpuMs": 5,
+     "tailWallMs": 83,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/attempts",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 68,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 68,
+     "cpuMs": 1,
+     "tailWallMs": 74,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/sessions",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 2,
+     "rowsWritten": 0,
+     "d1Ms": 72,
+     "maxParams": 2,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 2,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 72,
+     "cpuMs": 1,
+     "tailWallMs": 78,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/lesson-history",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 10,
+     "rowsWritten": 0,
+     "d1Ms": 138,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 10,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 100,
+     "cpuMs": 3,
+     "tailWallMs": 114,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/settings",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 68,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 68,
+     "cpuMs": 3,
+     "tailWallMs": 76,
+     "outcome": "ok"
+    }
+   ],
+   "responses": [
+    {
+     "kind": "worker",
+     "label": "POST /api/auth/session",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 2,
+     "rowsWritten": 1,
+     "d1Ms": 77,
+     "maxParams": 4,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 2,
+       "rowsWritten": 1
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 77
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/questions",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 4,
+     "rowsWritten": 0,
+     "d1Ms": 139,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 3,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 92
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/progress",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 65,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 65
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/notes",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 72,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 72
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/attempts",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 68,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 68
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/sessions",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 2,
+     "rowsWritten": 0,
+     "d1Ms": 72,
+     "maxParams": 2,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 2,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 72
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/lesson-history",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 10,
+     "rowsWritten": 0,
+     "d1Ms": 138,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 0,
+       "statements": 4,
+       "rowsRead": 10,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 100
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/settings",
+     "queries": 2,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 2,
+     "rowsRead": 1,
+     "rowsWritten": 0,
+     "d1Ms": 68,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 68
+    }
+   ]
+  },
+  "bank-filter@warm": {
+   "ms": 9292,
+   "invocations": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 10,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 10,
+     "rowsRead": 3468,
+     "rowsWritten": 0,
+     "d1Ms": 390,
+     "maxParams": 20,
+     "byBinding": {
+      "DB": {
+       "queries": 7,
+       "batches": 0,
+       "statements": 7,
+       "rowsRead": 3026,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 442,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 286,
+     "cpuMs": 36,
+     "tailWallMs": 343,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 8,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 8,
+     "rowsRead": 61,
+     "rowsWritten": 0,
+     "d1Ms": 297,
+     "maxParams": 20,
+     "byBinding": {
+      "DB": {
+       "queries": 6,
+       "batches": 0,
+       "statements": 6,
+       "rowsRead": 20,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 41,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 234,
+     "cpuMs": 9,
+     "tailWallMs": 260,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 7,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 7,
+     "rowsRead": 55,
+     "rowsWritten": 0,
+     "d1Ms": 252,
+     "maxParams": 20,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 14,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 41,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 189,
+     "cpuMs": 7,
+     "tailWallMs": 213,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 7,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 7,
+     "rowsRead": 55,
+     "rowsWritten": 0,
+     "d1Ms": 245,
+     "maxParams": 18,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 40,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 15,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 182,
+     "cpuMs": 8,
+     "tailWallMs": 206,
+     "outcome": "ok"
+    }
+   ],
+   "responses": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 10,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 10,
+     "rowsRead": 3468,
+     "rowsWritten": 0,
+     "d1Ms": 390,
+     "maxParams": 20,
+     "byBinding": {
+      "DB": {
+       "queries": 7,
+       "batches": 0,
+       "statements": 7,
+       "rowsRead": 3026,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 442,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 286
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 8,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 8,
+     "rowsRead": 61,
+     "rowsWritten": 0,
+     "d1Ms": 297,
+     "maxParams": 20,
+     "byBinding": {
+      "DB": {
+       "queries": 6,
+       "batches": 0,
+       "statements": 6,
+       "rowsRead": 20,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 41,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 234
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 7,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 7,
+     "rowsRead": 55,
+     "rowsWritten": 0,
+     "d1Ms": 252,
+     "maxParams": 20,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 14,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 41,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 189
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/questions",
+     "queries": 7,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 7,
+     "rowsRead": 55,
+     "rowsWritten": 0,
+     "d1Ms": 245,
+     "maxParams": 18,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 40,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 2,
+       "batches": 0,
+       "statements": 2,
+       "rowsRead": 15,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 182
+    }
+   ]
+  },
+  "admin-students@warm": {
+   "ms": 8318,
+   "invocations": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students",
+     "queries": 5,
+     "batches": 1,
+     "batchStatements": [
+      36
+     ],
+     "statements": 41,
+     "rowsRead": 78,
+     "rowsWritten": 0,
+     "d1Ms": 216,
+     "maxParams": 2,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 1,
+       "statements": 40,
+       "rowsRead": 77,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 164,
+     "cpuMs": 7,
+     "tailWallMs": 187,
+     "outcome": "ok"
+    }
+   ],
+   "responses": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students",
+     "queries": 5,
+     "batches": 1,
+     "batchStatements": [
+      36
+     ],
+     "statements": 41,
+     "rowsRead": 78,
+     "rowsWritten": 0,
+     "d1Ms": 216,
+     "maxParams": 2,
+     "byBinding": {
+      "DB": {
+       "queries": 4,
+       "batches": 1,
+       "statements": 40,
+       "rowsRead": 77,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 164
+    }
+   ]
+  },
+  "admin-student-detail@warm": {
+   "ms": 8626,
+   "invocations": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students/e2e-budget-01",
+     "queries": 7,
+     "batches": 1,
+     "batchStatements": [
+      1
+     ],
+     "statements": 8,
+     "rowsRead": 10,
+     "rowsWritten": 0,
+     "d1Ms": 301,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 6,
+       "batches": 1,
+       "statements": 7,
+       "rowsRead": 9,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 243,
+     "cpuMs": 9,
+     "tailWallMs": 280,
+     "outcome": "ok"
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students/e2e-budget-01/history",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 4,
+     "rowsWritten": 0,
+     "d1Ms": 183,
+     "maxParams": 3,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 4,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 183,
+     "cpuMs": 6,
+     "tailWallMs": 205,
+     "outcome": "ok"
+    }
+   ],
+   "responses": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students/e2e-budget-01",
+     "queries": 7,
+     "batches": 1,
+     "batchStatements": [
+      1
+     ],
+     "statements": 8,
+     "rowsRead": 10,
+     "rowsWritten": 0,
+     "d1Ms": 301,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 6,
+       "batches": 1,
+       "statements": 7,
+       "rowsRead": 9,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 1,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 243
+    },
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students/e2e-budget-01/history",
+     "queries": 5,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 5,
+     "rowsRead": 4,
+     "rowsWritten": 0,
+     "d1Ms": 183,
+     "maxParams": 3,
+     "byBinding": {
+      "DB": {
+       "queries": 5,
+       "batches": 0,
+       "statements": 5,
+       "rowsRead": 4,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 183
     }
    ]
   }
