@@ -282,10 +282,10 @@ async function byIds(db, cols, ids) {
 // added or replaced (max rowid of either bank) or a lesson adds usage rows (insert-only table); an
 // edit to an existing question shows once the entry expires. Clients still get private, no-store.
 const BANK_CACHE = 'https://bank-cache.internal/v1/', BANK_TTL = 3600;
-const bankStamp = env => Promise.all([env.DB.prepare('SELECT MAX(rowid) AS r FROM questions').first('r'),
-  env.AI_DB.prepare('SELECT MAX(rowid) AS r FROM questions').first('r')]).then(r => r.join('-'));
+const maxRowid = (db, table) => db.prepare(`SELECT MAX(rowid) AS r FROM ${table}`).all().then(x => x.results?.[0]?.r ?? '');
+const bankStamp = env => Promise.all([maxRowid(env.DB, 'questions'), maxRowid(env.AI_DB, 'questions')]).then(r => r.join('-'));
 async function questionsResponse(env) {
-  const [bankKey, usage] = await Promise.all([bankStamp(env), env.DB.prepare('SELECT MAX(rowid) AS r FROM question_lesson_usage').first('r')]);
+  const [bankKey, usage] = await Promise.all([bankStamp(env), maxRowid(env.DB, 'question_lesson_usage')]);
   const key = BANK_CACHE + bankKey + '-' + usage;
   const cache = typeof caches === 'undefined' ? null : await caches.open('bank');
   const hit = await cache?.match(key);
