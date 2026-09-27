@@ -110,17 +110,40 @@ test('Durable Object events each get their own trace', async t => {
 test('production config never enables the trace or the staging test surface', async () => {
   const toml = readFileSync(root + 'wrangler.toml', 'utf8');
   const top = toml.split(/^\[env\./m)[0].replace(/^#.*$/gm, '');
-  assert.doesNotMatch(top, /BUDGET_TRACE|BUDGET_PROBE|E2E_TEST_MODE|STAGING_TEST_TOKEN/);
+  assert.doesNotMatch(top, /BUDGET_TRACE|BUDGET_PROBE|E2E_TEST_MODE|STAGING_TEST_TOKEN|D1_FAULT_INJECTION/);
+  // The fault flag is set by no config at all, staging included: only local test runs pass it.
+  assert.doesNotMatch(toml.replace(/^#.*$/gm, ''), /D1_FAULT_INJECTION/);
   assert.match(top, /^main = "src\/index.js"$/m);
-  for (const file of ['wrangler.e2e.toml', 'wrangler.e2e-production.toml']) assert.doesNotMatch(readFileSync(root + file, 'utf8'), /BUDGET_TRACE|BUDGET_PROBE|STAGING_TEST_TOKEN/);
+  for (const file of ['wrangler.e2e.toml', 'wrangler.e2e-production.toml']) assert.doesNotMatch(readFileSync(root + file, 'utf8'), /BUDGET_TRACE|BUDGET_PROBE|STAGING_TEST_TOKEN|D1_FAULT_INJECTION/);
   const src = readFileSync(root + 'src/index.js', 'utf8');
-  assert.doesNotMatch(src, /BUDGET_TRACE\s*[:=]\s*['"]|budget-probe|STAGING_TEST_TOKEN/);
+  assert.doesNotMatch(src, /BUDGET_TRACE\s*[:=]\s*['"]|budget-probe|STAGING_TEST_TOKEN|D1_FAULT_INJECTION|d1-fault/);
   // The production worker, even handed the flags, serves no probe and prints no trace line.
   const worker = (await import(pathToFileURL(root + 'src/index.js'))).default;
   const res = await worker.fetch(new Request('https://roadto1600.org/api/e2e/budget-probe?kind=worker-serial', { method: 'POST', headers: { Origin: 'https://roadto1600.org' } }),
     { ASSETS: { fetch: async () => new Response('404', { status: 404 }) } });
   assert.equal(res.status, 404);
   assert.equal(res.headers.get('X-Budget-Trace'), null);
+  // No fault route in production, even handed both flags.
+  const fault = await worker.fetch(new Request('https://roadto1600.org/api/e2e/d1-fault', { method: 'POST', headers: { Origin: 'https://roadto1600.org', 'Content-Type': 'application/json' }, body: '{"sessionId":1,"kind":"quota"}' }),
+    { E2E_TEST_MODE: '1', D1_FAULT_INJECTION: '1', LESSON_ROOM: { getByName() { throw new Error('reached a room'); } }, ASSETS: { fetch: async () => new Response('404', { status: 404 }) } });
+  assert.equal(fault.status, 404);
+});
+
+test('fault flag: the local route needs E2E_TEST_MODE, D1_FAULT_INJECTION, loopback and same origin; staging never', async t => {
+  const e2e = (await import(pathToFileURL(root + 'src/index.e2e.js'))).default;
+  const seen = [];
+  const env = flags => ({ ...flags, STAGING_TEST_TOKEN: 'x'.repeat(40), LESSON_ROOM: { getByName: name => ({ fetch: async req => { seen.push([name, req.headers.get('X-Lesson-Internal'), await req.json()]); return Response.json({ ok: true }); } }) } });
+  const call = (flags, { host = 'http://127.0.0.1:8791', origin = host, headers = {} } = {}) => e2e.fetch(new Request(host + '/api/e2e/d1-fault',
+    { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ sessionId: 7, kind: 'quota', after: 1 }) }), env(flags));
+  quiet(t);
+  const both = { E2E_TEST_MODE: '1', D1_FAULT_INJECTION: '1' };
+  for (const flags of [{}, { E2E_TEST_MODE: '1' }, { D1_FAULT_INJECTION: '1' }, { E2E_TEST_MODE: '1', D1_FAULT_INJECTION: 'true' }]) assert.equal((await call(flags)).status, 404);
+  // Staging (off loopback, with the staging token) never reaches it.
+  assert.equal((await call(both, { host: 'https://roadto1600-staging.example.workers.dev', headers: { 'X-Staging-Test-Token': 'x'.repeat(40) } })).status, 404);
+  assert.equal((await call(both, { origin: 'http://evil.test' })).status, 403);
+  assert.deepEqual(seen, []);
+  assert.equal((await call(both)).status, 200);
+  assert.deepEqual(seen, [['7', 'fault', { kind: 'quota', after: 1 }]]);
 });
 
 test('staging gate: off loopback only with the configured token; probe needs every flag', async t => {
