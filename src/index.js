@@ -285,7 +285,7 @@ async function byIds(db, cols, ids) {
 // usedInLesson), and building it is the costliest CPU on the free plan, so the finished body is kept
 // in a named cache and served only after the membership checks. Its key moves when a question is
 // added or replaced (max rowid of either bank) or a lesson adds usage rows (insert-only table); an
-// edit to an existing question shows once the entry expires. Clients still get private, no-store.
+// edit or deletion of an existing question shows once the entry expires. Clients still get private, no-store.
 const BANK_CACHE = 'https://bank-cache.internal/v1/', BANK_TTL = 3600;
 // Both banks' max rowid and the usage table's, one query per database. Each route reads them once
 // and hands them to the caches and memos below.
@@ -309,6 +309,8 @@ async function questionsResponse(env) {
 // batch. A first Check writes its progress row and its attempt as two requests (retried together
 // every 15 s), so an entry computed within two minutes of the student's latest attempt is not kept:
 // its progress row may still be on the way. Retries append attempts without progress, by design.
+// Attempt times come from the student's clock: a device running behind its own earlier attempts
+// leaves that student's entry in place until it expires (BANK_TTL).
 const STATS_CACHE = 'https://admin-stats.internal/v1/';
 const statsCache = async () => typeof caches === 'undefined' ? null : caches.open('admin-stats');
 const cachedStats = async (cache, key) => { const r = await cache?.match(STATS_CACHE + key); return r ? r.json() : null; };
@@ -679,10 +681,10 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         const st = await stamps(env);
         const [stamp, cache] = await Promise.all([statStamps(env, (users.results || []).map(x => x.id), st.bank), statsCache()]);
         const held = (await cachedStats(cache, 'list')) || {};
-        const stale = (users.results || []).filter(x => held[x.id]?.stamp !== stamp(x.id)).map(x => x.id);
+        const stale = new Set((users.results || []).filter(x => held[x.id]?.stamp !== stamp(x.id)).map(x => x.id));
         const progs = new Map(), logs = new Map(), touchedIds = new Set();
-        if (stale.length) {
-          const [who, args] = stale.length <= 50 ? [stale.map(() => '?').join(','), stale] : [roster, [term, term]];
+        if (stale.size) {
+          const [who, args] = stale.size <= 50 ? [[...stale].map(() => '?').join(','), [...stale]] : [roster, [term, term]];
           const [progress, attempts] = await Promise.all([
             env.DB.prepare(`SELECT user_id, question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id IN (${who})`).bind(...args).all(),
             env.DB.prepare(`SELECT user_id, question_id, ts, correct, time_taken_ms, picked, changes FROM attempts WHERE user_id IN (${who}) ORDER BY user_id, ts`).bind(...args).all()
@@ -690,9 +692,9 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
           for (const { user_id, ...r } of progress.results || []) { (progs.get(user_id) || progs.set(user_id, {}).get(user_id))[r.question_id] = r; touchedIds.add(r.question_id); }
           for (const { user_id, ...r } of attempts.results || []) { (logs.get(user_id) || logs.set(user_id, []).get(user_id)).push(r); touchedIds.add(r.question_id); }
         }
-        const byId = new Map(stale.length ? (await statBank(env, st.bank, touchedIds)).map(q => [q.id, q]) : []);
+        const byId = new Map(stale.size ? (await statBank(env, st.bank, touchedIds)).map(q => [q.id, q]) : []);
         const students = (users.results || []).map(student => {
-          if (!stale.includes(student.id)) return { ...student, ...held[student.id].row };
+          if (!stale.has(student.id)) return { ...student, ...held[student.id].row };
           const prog = progs.get(student.id) || {}, log = logs.get(student.id) || [];
           const touched = [...new Set([...Object.keys(prog), ...log.map(x => x.question_id)])].map(id => byId.get(id)).filter(Boolean);
           const stats = breakdown(touched, prog, log);
@@ -704,8 +706,8 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
             weakest: weak?.[0] || null, avgMs: n ? ms / n : null, targetMs: n ? target / n : null,
             guessRate: stats.guessing.n ? stats.guessing.changedN / stats.guessing.n : null, lastActive: stats.lastActive };
         });
-        if (stale.length) {
-          for (const x of students) if (stale.includes(x.id)) { const { id, email, name, status, ...row } = x; held[id] = { stamp: settled(logs.get(id) || []) ? stamp(id) : null, row }; }
+        if (stale.size) {
+          for (const x of students) if (stale.has(x.id)) { const { id, email, name, status, ...row } = x; held[id] = { stamp: settled(logs.get(id) || []) ? stamp(id) : null, row }; }
           await keepStats(cache, 'list', held);
         }
         students.sort((a, b) => {
