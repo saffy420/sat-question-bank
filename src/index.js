@@ -338,8 +338,11 @@ async function lessonRoutes(req, env, url, p, u) {
         [domains,skills,difficulties].some(v => v.length > 30) || [...domains,...skills].some(s => !s || s.length > 150) ||
         difficulties.some(d => !['Easy','Medium','Hard'].includes(d)) || !USAGE_MODES.includes(usage) || search.length > 100 ||
         [...params.keys()].some(k => !['page','section','domain','skill','difficulty','lessonUsage','search'].includes(k))) return json({ error: 'invalid filter' }, 400);
-    const bankRows = (await bank(env)).map(normalizeQuestion);
-    const usageById = await lessonUsage(env);
+    // Filter and sort on the columns the filters read; only the page's rows are read in full.
+    const cols = 'id, section, domain, difficulty, skill' + (search ? ', stem_html' : '');
+    const [core, ai, usageById] = await Promise.all([env.DB.prepare(`SELECT ${cols} FROM questions`).all(),
+      env.AI_DB.prepare(`SELECT ${cols} FROM questions`).all(), lessonUsage(env)]);
+    const bankRows = [...(core.results || []), ...(ai.results || []).map(q => ({ ...q, ai: true }))];
     // The instructor "attended" every session of a lesson they created: they ran it.
     const ran = usage === 'hide-attended' ? new Set(((await env.DB.prepare('SELECT s.id FROM lesson_sessions s JOIN lessons l ON l.id=s.lesson_id WHERE l.created_by=?').bind(u.id).all()).results || []).map(r => padSessionId(r.id))) : new Set();
     const rows = bankRows.filter(q => (!section || q.section === section) && (!domains.length || domains.includes(q.domain)) && (!skills.length || skills.includes(q.skill)) &&
@@ -348,7 +351,11 @@ async function lessonRoutes(req, env, url, p, u) {
     const domainOrder = cbSort([...new Set(rows.map(q => q.domain || ''))]), skillOrder = cbSort([...new Set(rows.map(q => q.skill || ''))]);
     rows.sort((a,b) => domainOrder.indexOf(a.domain || '') - domainOrder.indexOf(b.domain || '') ||
       skillOrder.indexOf(a.skill || '') - skillOrder.indexOf(b.skill || '') || a.id.localeCompare(b.id));
-    return json({ questions: rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE).map(q => ({ ...q, usedInLesson: usageById.get(q.id) || [] })),
+    const shown = rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+    const [coreFull, aiFull] = await Promise.all([byIds(env.DB, BANK_COLS, shown.filter(q => !q.ai).map(q => q.id)),
+      byIds(env.AI_DB, BANK_COLS + ', level', shown.filter(q => q.ai).map(q => q.id))]);
+    const full = [new Map(coreFull.flat().map(r => [r.id, r])), new Map(aiFull.flat().map(r => [r.id, r]))];
+    return json({ questions: shown.map(q => ({ ...normalizeQuestion(full[q.ai ? 1 : 0].get(q.id)), usedInLesson: usageById.get(q.id) || [] })),
       total: rows.length, page, pages: Math.max(1, Math.ceil(rows.length/PAGE_SIZE)),
       domains: cbSort([...new Set(bankRows.filter(q => !section || q.section === section).map(q => q.domain).filter(Boolean))]),
       skillsByDomain: Object.fromEntries(cbSort([...new Set(bankRows.filter(q => !section || q.section === section).map(q => q.domain).filter(Boolean))]).map(d =>
