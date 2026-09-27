@@ -272,11 +272,11 @@ async function leanBank(env) {
   }
   return qs;
 }
-// Rows by ID in chunks under D1's 100 bound parameters.
+// Rows by ID, 50 per statement: half of D1's 100 bound parameters (the brief flags anything over 70%).
 async function byIds(db, cols, ids) {
   const out = [];
-  for (let i = 0; i < ids.length; i += 90) {
-    const part = ids.slice(i, i + 90);
+  for (let i = 0; i < ids.length; i += 50) {
+    const part = ids.slice(i, i + 50);
     out.push((await db.prepare(`SELECT ${cols} FROM questions WHERE id IN (${part.map(() => '?').join(',')})`).bind(...part).all()).results || []);
   }
   return out;
@@ -682,7 +682,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         const stale = (users.results || []).filter(x => held[x.id]?.stamp !== stamp(x.id)).map(x => x.id);
         const progs = new Map(), logs = new Map(), touchedIds = new Set();
         if (stale.length) {
-          const [who, args] = stale.length <= 90 ? [stale.map(() => '?').join(','), stale] : [roster, [term, term]];
+          const [who, args] = stale.length <= 50 ? [stale.map(() => '?').join(','), stale] : [roster, [term, term]];
           const [progress, attempts] = await Promise.all([
             env.DB.prepare(`SELECT user_id, question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id IN (${who})`).bind(...args).all(),
             env.DB.prepare(`SELECT user_id, question_id, ts, correct, time_taken_ms, picked, changes FROM attempts WHERE user_id IN (${who}) ORDER BY user_id, ts`).bind(...args).all()

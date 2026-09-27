@@ -42,30 +42,30 @@ Differences from the brief's table (the verified value wins):
 ## Per-flow table
 
 <!-- per-flow:start -->
-Measured [local] on 2026-09-27 with the seed in `tools/budget_seed.cjs` (3,000 core + 400 AI questions, 30 students × 400 attempts, 10 past lessons). CPU column [staging] (2026-09-27T05:21Z; staging history is smaller, see "Staging seed").
+Measured [local] on 2026-09-27 with the seed in `tools/budget_seed.cjs` (3,000 core + 400 AI questions, 30 students × 400 attempts, 10 past lessons). CPU column [staging] (2026-09-27T18:00Z; staging history is smaller, see "Staging seed").
 
 | Flow | Worker invocations | DO invocations | Worst invocation: D1 queries (batch = 1) | Largest batch (statements) | D1 rows read | D1 rows written | DO storage rows written | Max CPU per invocation |
 |---|---|---|---|---|---|---|---|---|
-| Student sign-in + first page load | 10 | 0 | 4 (worker GET /api/questions) | — | 10,983 | 1 | 0 | 114 ms (GET /api/questions) [staging] |
-| Question bank load + filter change (builder search, 3 usage options) ★ | 4 | 0 | 6 (worker GET /api/admin/questions) | — | 15,228 | 0 | 0 | 114 ms (GET /api/admin/questions) [staging] |
+| Student sign-in + first page load | 10 | 0 | 8 (worker GET /api/questions) | — | 10,987 | 1 | 0 | 6 ms (GET /api/notes) [staging] |
+| Question bank load + filter change (builder search, 3 usage options) ★ | 4 | 0 | 9 (worker GET /api/admin/questions) | — | 3,640 | 0 | 0 | 58 ms (GET /api/admin/questions) [staging] |
 | Answer one practice question | 2 | 0 | 6 (worker POST /api/attempts) | 1 | 412 | 7 | 0 | — (not a ★ flow) |
-| Admin students list, 30 students ★ | 1 | 0 | 65 (worker GET /api/admin/students) | — | 24,523 | 0 | 0 | **killed: /api/admin/students (exceededCpu, 235 ms)** [staging] |
-| Admin student detail, every tab ★ | 2 | 0 | 9 (worker GET /api/admin/students/e2e-budget-01) | — | 9,809 | 0 | 0 | **killed: /api/admin/students/e2e-budget-01 (exceededCpu, 10 ms)** [staging] |
-| Lesson builder search + save | 4 | 0 | 5 (worker GET /api/admin/questions) | 22 | 4,280 | 143 | 0 | — (not a ★ flow) |
+| Admin students list, 30 students ★ | 1 | 0 | 10 (worker GET /api/admin/students) | 30 | 24,614 | 0 | 0 | 38 ms (GET /api/admin/students) [staging] |
+| Admin student detail, every tab ★ | 2 | 0 | 13 (worker GET /api/admin/students/e2e-budget-01) | 1 | 6,610 | 0 | 0 | 18 ms (GET /api/admin/students/e2e-budget-01) [staging] |
+| Lesson builder search + save | 4 | 0 | 9 (worker GET /api/admin/questions) | 22 | 3,933 | 143 | 0 | — (not a ★ flow) |
 | Instructor-paced lesson, 25 students × 20 questions | 52 | 1,677 (1,580 WS msgs) | 25 (do.fetch upgrade) | 25 | 354 | 1,136 | 2,416 | — (not a ★ flow) |
 | Self-paced, 25 × 20, through end + write-back ★ | 52 | 1,702 (1,651 WS msgs) | 26 (do.webSocketMessage submitAll) | 1526 | 9,425 | 4,542 | 1,731 | — (not a ★ flow) |
 | Poll + review (after the self-paced set) | 0 | 58 (31 WS msgs) | 1 (do.webSocketMessage next) | 21 | 3 | 43 | 41 | — (not a ★ flow) |
-| My Lessons list + one session | 2 | 0 | 28 (worker GET /api/lesson-history/920012) | — | 8,007 | 0 | 0 | — (not a ★ flow) |
+| My Lessons list + one session | 2 | 0 | 25 (worker GET /api/lesson-history/920010) | — | 6,714 | 0 | 0 | — (not a ★ flow) |
 
 Flow details [local]:
-- Student boot: `/api/questions` alone reads 3,801 rows (full scans of both banks + `question_lesson_usage`); `/api/lesson-history` reads 6,470.
+- Student boot: `/api/questions` reads 3,805 rows when it rebuilds the cached body (full scans of both banks + `question_lesson_usage`) and 4 when served from the cache; `/api/lesson-history` reads 6,470.
 - Practice answer: 7 rows written and 412 read per Check; `POST /api/attempts` counts the student's whole log (`SELECT COUNT(*)`), so its reads grow with history.
-- Admin students list: one invocation runs 65 queries (2 per student + bank) and reads 24,523 rows.
+- Admin students list: 10 queries and 24,614 rows read when every student is recomputed; 6 queries and 96 rows from the stats cache (the per-student stamps are one batch).
 - Builder: create = batch of 20 + 21 statements; one autosave (PUT) writes 81 rows.
 - Instructor-paced: per question the end-of-question flush writes 25 D1 rows on average; 1,580 WS messages for the lesson; 20 alarms; DO storage: get 5,122, put 1,316, setAlarm 1,040, delete 59, deleteAlarm 1.
-- Self-paced end: the finishing `submitAll` runs 25 separate queries (one progress SELECT per student) + one batch of 1,526 statements, writing 4,487 rows in 1,283 ms [local]; DO storage: get 5,108, put 1,729, setAlarm 1, delete 1.
-- My Lessons: the session view runs 28 queries (one question lookup per item); the list reads 7,722 rows.
-- Largest bound-parameter count on any statement: 13 (limit 100).
+- Self-paced end: the finishing `submitAll` runs 25 separate queries (one progress SELECT per student) + one batch of 1,526 statements, writing 4,487 rows in 945 ms [local]; DO storage: get 5,108, put 1,729, setAlarm 1, delete 1.
+- My Lessons: the session view runs 25 queries (one question lookup per item); the list reads 6,470 rows.
+- Largest bound-parameter count on any statement: 50 (limit 100).
 <!-- per-flow:end -->
 
 ## Daily model
@@ -81,6 +81,8 @@ The heavy club day. Edit this block and rerun `node tools/budget_report.cjs`. Le
   "staticAssetsPerBoot": 10,
   "figureCropsPerPracticeQuestion": 0.5,
   "adminViews": 20,
+  "adminColdViews": 10,
+  "bankCacheMisses": 8,
   "lessonsBuilt": 1,
   "builderSearchesPerLesson": 5,
   "builderAutosavesPerLesson": 20,
@@ -97,23 +99,27 @@ Assumptions [est]:
 - **`staticAssetsPerBoot`:** `run_worker_first = true` sends every static file through the Worker, and each costs a Worker request.
 - **`figureCropsPerPracticeQuestion`:** each `/qimg` crop also costs one D1 membership read.
 - **`adminViews`:** each "dashboard view" is one students-list load plus one student detail.
+- **`adminColdViews`** (free-02): views that recompute every student's stats because all of them practised since the last view; the rest are served from the stats cache. Half is a conservative guess for a club day.
+- **`bankCacheMisses`** (free-02): boots that rebuild the `/api/questions` body: one per lesson that ends (usage rows change the key) plus one per hour of use as entries expire, per Cloudflare location.
 
 <!-- daily:start -->
 | Part of the day | Count | Worker requests | D1 rows read | D1 rows written | DO requests | DO storage rows written |
 |---|---|---|---|---|---|---|
-| Student boots | 30 | 600 | 329,490 | 30 | 0 | 0 |
+| Student boots, bank cache miss | 8 | 160 | 87,896 | 8 | 0 | 0 |
+| Student boots, bank cache hit | 22 | 440 | 158,092 | 22 | 0 | 0 |
 | Practice answers | 1,200 | 3,000 | 495,000 | 8,400 | 0 | 0 |
-| Admin dashboard views (list + detail) | 20 | 60 | 686,640 | 0 | 0 | 0 |
-| Lessons built | 1 | 27 | 21,464 | 1,682 | 0 | 0 |
+| Admin dashboard views (list + detail), recomputed | 10 | 30 | 312,240 | 0 | 0 | 0 |
+| Admin dashboard views (list + detail), cached | 10 | 30 | 60,040 | 0 | 0 | 0 |
+| Lessons built | 1 | 27 | 19,729 | 1,682 | 0 | 0 |
 | Instructor-paced lessons | 1 | 52 | 354 | 1,136 | 1,677 | 2,416 |
 | Self-paced lessons (+ poll/review) | 1 | 52 | 9,428 | 4,585 | 1,760 | 1,772 |
-| My Lessons views | 25 | 50 | 200,175 | 0 | 0 | 0 |
-| **Total** | | **3,841** | **1,742,551** | **15,833** | **3,437** | **4,188** |
+| My Lessons views | 25 | 50 | 167,850 | 0 | 0 | 0 |
+| **Total** | | **3,841** | **1,310,629** | **15,833** | **3,437** | **4,188** |
 
 | Daily cap | Heavy day | % of cap | Basis |
 |---|---|---|---|
 | Worker requests (100,000) | 3,841 | 3.8% | measured-local flows + estimated static assets/crops |
-| D1 rows read (5,000,000) | 1,742,551 | 34.9% | measured-local × model |
+| D1 rows read (5,000,000) | 1,310,629 | 26.2% | measured-local × model |
 | D1 rows written (100,000) | 15,833 | 15.8% | measured-local × model |
 | DO requests (100,000; WS messages 1:1) | 3,437 | 3.4% | measured-local × model |
 | DO duration (13,000 GB-s) | 1–675 GB-s | 0.0%–5.2% | estimated: event wall time (floor) to object active for the whole lesson (ceiling) |
@@ -126,11 +132,11 @@ Assumptions [est]:
 <!-- per-invocation:start -->
 | Per-invocation limit | Worst single invocation | % of limit |
 |---|---|---|
-| D1 queries (1,000 verified; brief assumed 50) | 65 — admin-students: worker GET /api/admin/students [local] | 6.5% (130.0% of 50) |
+| D1 queries (1,000 verified; brief assumed 50) | 26 — self-paced-end: do.webSocketMessage submitAll [local] | 2.6% (52.0% of 50) |
 | Statements in one batch | 1526 — self-paced-end: do.webSocketMessage submitAll [local] | counts as 1 query; per-statement limits apply |
-| Bound parameters per statement (100) | 13 — self-paced-end: do.webSocketMessage submitAll [local] | 13.0% |
-| CPU (10 ms) | 235 ms — admin-students: /api/admin/students (exceededCpu) [staging] | 2350.0% |
-| Batch duration (30 s) | 1,283 ms whole invocation incl. the 1,526-statement write batch [local]; 177–187 ms for a 1,500-statement read batch [staging] | 4.3% |
+| Bound parameters per statement (100) | 50 — admin-student-detail: worker GET /api/admin/students/e2e-budget-01 [local] | 50.0% |
+| CPU (10 ms) | 58 ms — bank-filter: GET /api/admin/questions (ok) [staging] | 580.0% |
+| Batch duration (30 s) | 945 ms whole invocation incl. the 1,526-statement write batch [local]; 177–187 ms for a 1,500-statement read batch [staging] | 3.1% |
 <!-- per-invocation:end -->
 
 ## Ranked problems
