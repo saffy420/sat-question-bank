@@ -87,19 +87,21 @@ async function main() {
   const out = {};
   for (const [label, path, user] of routes) {
     const runs = [];
-    let status, bytes;
+    let status, bytes, first, stable = true;
     for (let i = 0; i < n + 1; i++) {
       clock.excluded = 0;
       const t = cpu();
       const res = await handleRequest(new Request(origin + path), env, who(user));
-      const body = await res.text();
+      // The body is streamed out by the runtime, not by Worker JS, so reading it is not timed.
       const used = cpu() - t - clock.excluded;
+      const body = await res.text();
       status = res.status; bytes = body.length;
+      if (!i) first = body; else if (body !== first) stable = false; // cached responses must match the computed one
       if (process.env.BENCH_DUMP && !i) writeFileSync(join(process.env.BENCH_DUMP, label.replace(/[^\w]+/g, '_') + '.json'), body);
-      if (i) runs.push(used); // first run warms the JIT (and fills any cache)
+      if (i) runs.push(used); // the first run fills any cache; the rest are timed
     }
     runs.sort((a, b) => a - b);
-    out[label] = { status, bytes, medianMs: +runs[Math.floor(runs.length / 2)].toFixed(1), maxMs: +runs.at(-1).toFixed(1) };
+    out[label] = { status, bytes, stable, medianMs: +runs[Math.floor(runs.length / 2)].toFixed(1), maxMs: +runs.at(-1).toFixed(1) };
   }
   console.table(out);
   if (process.env.BENCH_JSON) console.log(JSON.stringify(out));

@@ -276,6 +276,44 @@ async function byIds(db, cols, ids) {
   }
   return out;
 }
+// The /api/questions body is the same for every signed-in user (both banks and the global
+// usedInLesson), and building it is the costliest CPU on the free plan, so the finished body is kept
+// in a named cache and served only after the membership checks. Its key moves when a question is
+// added or replaced (max rowid of either bank) or a lesson adds usage rows (insert-only table); an
+// edit to an existing question shows once the entry expires. Clients still get private, no-store.
+const BANK_CACHE = 'https://bank-cache.internal/v1/', BANK_TTL = 3600;
+const bankStamp = env => Promise.all([env.DB.prepare('SELECT MAX(rowid) AS r FROM questions').first('r'),
+  env.AI_DB.prepare('SELECT MAX(rowid) AS r FROM questions').first('r')]).then(r => r.join('-'));
+async function questionsResponse(env) {
+  const [bankKey, usage] = await Promise.all([bankStamp(env), env.DB.prepare('SELECT MAX(rowid) AS r FROM question_lesson_usage').first('r')]);
+  const key = BANK_CACHE + bankKey + '-' + usage;
+  const cache = typeof caches === 'undefined' ? null : await caches.open('bank');
+  const hit = await cache?.match(key);
+  if (hit) return new Response(hit.body, { headers: harden(new Headers({ 'Content-Type': 'application/json' })) });
+  const [rows, usageById] = await Promise.all([bank(env), lessonUsage(env)]);
+  const body = JSON.stringify(rows.map(q => ({ ...q, usedInLesson: usageById.get(q.id) || [] })));
+  await cache?.put(key, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=' + BANK_TTL } }));
+  return new Response(body, { headers: harden(new Headers({ 'Content-Type': 'application/json' })) });
+}
+// Admin stats are kept per student in a named cache (admin-only data, read only behind the admin
+// check) under a stamp of what they are computed from: the bank, the student's attempts (append-only,
+// autoincrement id) and progress (every write sets last_reviewed). A new attempt or progress write
+// moves the stamp, so only students who practised since the last view are recomputed.
+const STATS_CACHE = 'https://admin-stats.internal/v1/';
+const statsCache = async () => typeof caches === 'undefined' ? null : caches.open('admin-stats');
+const cachedStats = async (cache, key) => { const r = await cache?.match(STATS_CACHE + key); return r ? r.json() : null; };
+const keepStats = (cache, key, value) => cache?.put(STATS_CACHE + key, new Response(JSON.stringify(value),
+  { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=' + BANK_TTL } }));
+async function statStamps(env, users, args) {
+  const [a, p, bankKey] = await Promise.all([
+    env.DB.prepare(`SELECT user_id, COUNT(*) AS n, MAX(id) AS last FROM attempts WHERE user_id IN (${users}) GROUP BY user_id`).bind(...args).all(),
+    env.DB.prepare(`SELECT user_id, COUNT(*) AS n, TOTAL(attempts) AS att, TOTAL(corrects) AS ok, MAX(last_reviewed) AS last FROM progress WHERE user_id IN (${users}) GROUP BY user_id`).bind(...args).all(),
+    bankStamp(env)]);
+  const out = new Map();
+  for (const r of a.results || []) out.set(r.user_id, `a${r.n}.${r.last}`);
+  for (const r of p.results || []) out.set(r.user_id, (out.get(r.user_id) || '') + `p${r.n}.${r.att}.${r.ok}.${r.last}`);
+  return id => bankKey + '|' + (out.get(id) || '');
+}
 // §2 usedInLesson: padded session IDs per question, oldest first. With a user, only the
 // questions of sessions they attended (My Lessons refreshes those after a lesson ends).
 async function lessonUsage(env, userId = null) {
@@ -588,18 +626,26 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         const users = await env.DB.prepare(`SELECT u.id, u.email, u.name, m.status ${where} LIMIT 501`).bind(term, term).all();
         // ponytail: explicit club-size ceiling; use SQL materialized aggregates when >500 members.
         if ((users.results || []).length > 500) return json({ error: 'Student list exceeds supported size' }, 413);
-        // One read per table for the whole roster (not two per student), and each student's stats over
-        // only the questions they touched: every field below is keyed by their progress/attempt rows.
+        // Cached rows are reused while a student's stamp holds. The rest are computed with one read per
+        // table (not two per student), each over only the questions that student touched: every field
+        // below is keyed by their own progress/attempt rows.
         const roster = `SELECT u.id ${where} LIMIT 501`;
-        const [progress, attempts] = await Promise.all([
-          env.DB.prepare(`SELECT user_id, question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id IN (${roster})`).bind(term, term).all(),
-          env.DB.prepare(`SELECT user_id, question_id, ts, correct, time_taken_ms, picked, changes FROM attempts WHERE user_id IN (${roster}) ORDER BY ts`).bind(term, term).all()
-        ]);
+        const [stamp, cache] = await Promise.all([statStamps(env, roster, [term, term]), statsCache()]);
+        const held = (await cachedStats(cache, 'list')) || {};
+        const stale = (users.results || []).filter(x => held[x.id]?.stamp !== stamp(x.id)).map(x => x.id);
         const progs = new Map(), logs = new Map(), touchedIds = new Set();
-        for (const { user_id, ...r } of progress.results || []) { (progs.get(user_id) || progs.set(user_id, {}).get(user_id))[r.question_id] = r; touchedIds.add(r.question_id); }
-        for (const { user_id, ...r } of attempts.results || []) { (logs.get(user_id) || logs.set(user_id, []).get(user_id)).push(r); touchedIds.add(r.question_id); }
-        const byId = new Map((await statBank(env, touchedIds)).map(q => [q.id, q]));
+        if (stale.length) {
+          const [who, args] = stale.length <= 90 ? [stale.map(() => '?').join(','), stale] : [roster, [term, term]];
+          const [progress, attempts] = await Promise.all([
+            env.DB.prepare(`SELECT user_id, question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id IN (${who})`).bind(...args).all(),
+            env.DB.prepare(`SELECT user_id, question_id, ts, correct, time_taken_ms, picked, changes FROM attempts WHERE user_id IN (${who}) ORDER BY ts`).bind(...args).all()
+          ]);
+          for (const { user_id, ...r } of progress.results || []) { (progs.get(user_id) || progs.set(user_id, {}).get(user_id))[r.question_id] = r; touchedIds.add(r.question_id); }
+          for (const { user_id, ...r } of attempts.results || []) { (logs.get(user_id) || logs.set(user_id, []).get(user_id)).push(r); touchedIds.add(r.question_id); }
+        }
+        const byId = new Map(stale.length ? (await statBank(env, touchedIds)).map(q => [q.id, q]) : []);
         const students = (users.results || []).map(student => {
+          if (!stale.includes(student.id)) return { ...student, ...held[student.id].row };
           const prog = progs.get(student.id) || {}, log = logs.get(student.id) || [];
           const touched = [...new Set([...Object.keys(prog), ...log.map(x => x.question_id)])].map(id => byId.get(id)).filter(Boolean);
           const stats = breakdown(touched, prog, log);
@@ -611,6 +657,10 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
             weakest: weak?.[0] || null, avgMs: n ? ms / n : null, targetMs: n ? target / n : null,
             guessRate: stats.guessing.n ? stats.guessing.changedN / stats.guessing.n : null, lastActive: stats.lastActive };
         });
+        if (stale.length) {
+          for (const x of students) if (stale.includes(x.id)) { const { id, email, name, status, ...row } = x; held[id] = { stamp: stamp(id), row }; }
+          await keepStats(cache, 'list', held);
+        }
         students.sort((a, b) => {
           const x = a[sort], y = b[sort];
           if (x == null || y == null) return (x == null) - (y == null) || a.id.localeCompare(b.id);
@@ -634,18 +684,27 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
             FROM attempts WHERE user_id = ? ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?`).bind(id, PAGE_SIZE, (page - 1) * PAGE_SIZE).all();
           return json({ results: rows.results || [], total: total.n, page, pages: Math.max(1, Math.ceil(total.n / PAGE_SIZE)) });
         }
-        const { qs, prog, log, stats, directions } = await adminData(env, id);
-        const latest = new Map();
-        for (const x of log) if (!latest.has(x.question_id) || x.ts >= latest.get(x.question_id).ts) latest.set(x.question_id, x);
+        // Stats, directions and the Mistakes list are reused while the student's stamp holds (see statStamps).
+        const [stamp, cache] = await Promise.all([statStamps(env, '?', [id]), statsCache()]);
+        const key = 'detail/' + encodeURIComponent(id);
+        let held = await cachedStats(cache, key);
+        if (held?.stamp !== stamp(id)) {
+          const { qs, prog, log, stats, directions } = await adminData(env, id);
+          const latest = new Map();
+          for (const x of log) if (!latest.has(x.question_id) || x.ts >= latest.get(x.question_id).ts) latest.set(x.question_id, x);
+          const wrong = qs.filter(q => ['Red', 'Orange'].includes(prog[q.id]?.marker)).map(q => ({ question_id: q.id, marker: prog[q.id].marker,
+            picked: latest.get(q.id)?.picked || null, lessonSessionId: latest.get(q.id)?.lesson_session_id ? padSessionId(latest.get(q.id).lesson_session_id) : null, ai: q.ai }));
+          held = { stamp: stamp(id), stats, directions, wrong, totalHistory: log.length };
+          await keepStats(cache, key, held);
+        }
         // The stats read lean rows; the Mistakes tab shows whole questions, so only those are read in full.
-        const wrong = qs.filter(q => ['Red', 'Orange'].includes(prog[q.id]?.marker));
-        const full = new Map((await Promise.all([byIds(env.DB, BANK_COLS, wrong.filter(q => !q.ai).map(q => q.id)), byIds(env.AI_DB, BANK_COLS + ', level', wrong.filter(q => q.ai).map(q => q.id))]))
-          .flat(2).map(r => [r.id, normalizeQuestion(r)]));
-        const mistakes = wrong.map(q => ({ question_id: q.id, marker: prog[q.id].marker,
-          picked: latest.get(q.id)?.picked || null, lessonSessionId: latest.get(q.id)?.lesson_session_id ? padSessionId(latest.get(q.id).lesson_session_id) : null, question: full.get(q.id) }));
+        const { wrong } = held;
+        const full = await Promise.all([byIds(env.DB, BANK_COLS, wrong.filter(q => !q.ai).map(q => q.question_id)), byIds(env.AI_DB, BANK_COLS + ', level', wrong.filter(q => q.ai).map(q => q.question_id))]);
+        const byQ = [new Map(full[0].flat().map(r => [r.id, r])), new Map(full[1].flat().map(r => [r.id, r]))];
+        const mistakes = wrong.map(({ ai, ...m }) => ({ ...m, question: byQ[ai ? 1 : 0].has(m.question_id) ? normalizeQuestion(byQ[ai ? 1 : 0].get(m.question_id)) : undefined }));
         // §3.2 Lessons: only self-paced sessions feed the stats above (§10).
         const lessons = (await attendedSessions(env.DB, id)).map(({ endedAt, ...x }) => ({ ...x, counted: x.mode === 'self' }));
-        return json({ student, stats, directions, mistakes, lessons, totalHistory: log.length });
+        return json({ student, stats: held.stats, directions: held.directions, mistakes, lessons, totalHistory: held.totalHistory });
       }
       return json({ error: 'not found' }, 404);
     }
@@ -678,8 +737,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       // Not SELECT *: stem_text is a legacy OCR column nothing renders, and it
       // is 15% of a payload the client downloads whole.
       // Shared bank read; AI_DB failures stay 503 rather than core-only success.
-      const [rows, usageById] = await Promise.all([bank(env), lessonUsage(env)]);
-      return json(rows.map(q => ({ ...q, usedInLesson: usageById.get(q.id) || [] })));
+      return questionsResponse(env);
     }
 
     if (p === '/api/account' && req.method === 'GET') {
