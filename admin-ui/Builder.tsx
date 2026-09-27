@@ -35,6 +35,7 @@ import {
   Preview,
   useResource,
 } from "./ui";
+import { QuestionViewer } from "./QuestionViewer";
 
 type Filters = {
   section: string;
@@ -53,6 +54,8 @@ type Results = {
   skillsByDomain: Record<string, string[]>;
 };
 export type Guard = MutableRefObject<null | ((next: () => void) => void)>;
+// Server page size for /api/admin/questions.
+const PAGE = 25;
 const initial: Filters = {
   section: "",
   domains: [],
@@ -125,15 +128,21 @@ function Multi({
 export function QuestionBrowser({
   items,
   add,
+  remove,
   cache,
 }: {
   items?: Item[];
   add?: (qs: BankQuestion[]) => void;
+  remove?: (id: string) => void;
   cache?: (qs: BankQuestion[]) => void;
 }) {
   const [f, setF] = useState<Filters>(initial);
   const [search, setSearch] = useState("");
-  const [preview, setPreview] = useState<BankQuestion>();
+  // Viewer position in the current result page; stepping past either end loads the
+  // neighbouring page and lands on its first/last question, so it follows the list order.
+  const [view, setView] = useState<number | null>(null);
+  const [shown, setShown] = useState<BankQuestion>();
+  const landing = useRef<"first" | "last" | null>(null);
   const [taxonomy, setTaxonomy] = useState<Record<string, string[]>>({});
   const query = new URLSearchParams({
     section: f.section,
@@ -158,8 +167,24 @@ export function QuestionBrowser({
     if (data) {
       setTaxonomy(data.skillsByDomain);
       cache?.(data.questions);
+      if (landing.current && data.questions.length)
+        setView(landing.current === "first" ? 0 : data.questions.length - 1);
+      landing.current = null;
     }
   }, [data]);
+  const current = view == null ? undefined : data?.questions[view];
+  useEffect(() => {
+    if (current) setShown(current);
+  }, [current]);
+  const step = (delta: number) => {
+    if (!data || view == null) return;
+    const next = view + delta;
+    if (next >= 0 && next < data.questions.length) setView(next);
+    else if (next < 0 ? data.page > 1 : data.page < data.pages) {
+      landing.current = next < 0 ? "last" : "first";
+      setF((old) => ({ ...old, page: old.page + (next < 0 ? -1 : 1) }));
+    }
+  };
   const update = (part: Partial<Filters>) =>
     setF((old) => ({ ...old, ...part, page: 1 }));
   const domains: string[] = cbSort(Object.keys(taxonomy));
@@ -261,7 +286,7 @@ export function QuestionBrowser({
                     <button
                       className="result-preview"
                       data-preview={q.id}
-                      onClick={() => setPreview(q)}
+                      onClick={() => setView(data.questions.indexOf(q))}
                     >
                       <span>
                         <strong>{q.id}</strong>
@@ -299,16 +324,26 @@ export function QuestionBrowser({
         </div>
         <p id="add-error" role="alert" />
       </section>
-      {preview && (
-        <Dialog
-          title={`Question ${preview.id}`}
-          slide
-          close={() => setPreview(undefined)}
-        >
-          <div id="question-preview">
-            <Preview q={preview} />
-          </div>
-        </Dialog>
+      {view != null && (current || shown) && (
+        <QuestionViewer
+          q={(current || shown)!}
+          loading={!current}
+          position={data ? (data.page - 1) * PAGE + view + 1 : 0}
+          total={data?.total || 0}
+          hasPrev={!!data && (view > 0 || data.page > 1)}
+          hasNext={
+            !!data && (view < data.questions.length - 1 || data.page < data.pages)
+          }
+          onPrev={() => step(-1)}
+          onNext={() => step(1)}
+          close={() => {
+            setView(null);
+            setShown(undefined);
+          }}
+          added={!!current && !!items?.some((i) => i.question_id === current.id)}
+          onAdd={add ? () => current && add([current]) : undefined}
+          onRemove={remove ? () => current && remove(current.id) : undefined}
+        />
       )}
     </>
   );
@@ -513,6 +548,10 @@ export function Builder({
       <div className="builder">
         <QuestionBrowser
           items={items}
+          remove={(id) => {
+            setEditor(-1);
+            update({ items: items.filter((i) => i.question_id !== id) });
+          }}
           cache={(qs) =>
             setQuestions((old) => ({
               ...old,

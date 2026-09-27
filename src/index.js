@@ -232,6 +232,7 @@ async function syncRole(env, u) {
     ON CONFLICT(id) DO UPDATE SET email=excluded.email,
       name=CASE WHEN excluded.name<>'' THEN excluded.name ELSE users.name END, role=excluded.role`)
     .bind(u.id, u.email, name, role).run();
+  return role;
 }
 async function bank(env) {
   const cols = 'id, external_id, section, domain, difficulty, skill, stem_html, choices_json, correct_answer, explanation_html, source, source_page, has_figure';
@@ -476,8 +477,9 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         return res;
       }
       if (p === '/api/auth/session') {
-        await syncRole(env, u);
-        const res = json({ user_id: u.id, status: membership.status });
+        // The client shows admin navigation only from this server-derived role.
+        const role = await syncRole(env, u);
+        const res = json({ user_id: u.id, status: membership.status, role });
         res.headers.set('Set-Cookie', sessionCookie(tokenOf(req)));
         return res;
       }
@@ -505,7 +507,9 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       try { role = await env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(u.id).first(); }
       catch { return json({ error: 'authorization unavailable' }, 503); }
       if (!role || !['student', 'admin'].includes(role.role)) return json({ error: 'authorization unavailable' }, 503);
-      if (role.role !== 'admin') return adminPath(p) || p === '/admin.js' ? redirect('/app') : json({ error: 'forbidden' }, 403);
+      if (role.role !== 'admin') return adminPath(p) || p === '/admin.js'
+        ? new Response('<!doctype html><meta charset="utf-8"><title>Forbidden</title><p>Admin access required. <a href="/app">Back to the app</a></p>', { status: 403, headers: harden(new Headers({ 'Content-Type': 'text/html; charset=utf-8' })) })
+        : json({ error: 'forbidden' }, 403);
       if (p === '/admin.js') return asset(env, req);
       if (adminPath(p)) {
         if (!['GET', 'HEAD'].includes(req.method)) return json({ error: 'not found' }, 404);

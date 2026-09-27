@@ -96,3 +96,40 @@ export function mathify(root: HTMLElement) {
     /* Malformed authored math must not blank previews. */
   }
 }
+// College Board rationales often run every choice together in one paragraph; give each
+// "Choice X is/isn't/does…" explanation its own paragraph. DOM-based so inline markup and
+// TeX survive the split.
+const CHOICE_START = /Choice [A-D] (?:is|isn[’']t|does|doesn[’']t|was|can|can[’']t)\b/g;
+export function rationaleHTML(html: string, doc: Document = document) {
+  const box = doc.createElement("div");
+  box.innerHTML = html;
+  if (![...box.childNodes].some((n) => n.nodeName === "P")) {
+    const p = doc.createElement("p");
+    p.append(...box.childNodes);
+    box.append(p);
+  }
+  for (let p of [...box.querySelectorAll<HTMLParagraphElement>(":scope > p")]) {
+    for (;;) {
+      const walker = doc.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+      let pos = 0,
+        split: [Text, number] | null = null;
+      for (let node = walker.nextNode() as Text | null; node && !split; node = walker.nextNode() as Text | null) {
+        for (const m of node.data.matchAll(CHOICE_START))
+          if (pos + m.index! > 0 && /[.!?]["”’)]?\s*$/.test(p.textContent!.slice(0, pos + m.index!))) {
+            split = [node, m.index!];
+            break;
+          }
+        pos += node.data.length;
+      }
+      if (!split) break;
+      const range = doc.createRange();
+      range.setStart(split[0], split[1]);
+      range.setEndAfter(p.lastChild!);
+      const next = doc.createElement("p");
+      next.append(range.extractContents());
+      p.after(next);
+      p = next as HTMLParagraphElement;
+    }
+  }
+  return box.innerHTML;
+}

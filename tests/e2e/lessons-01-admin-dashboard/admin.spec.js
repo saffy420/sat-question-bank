@@ -125,9 +125,11 @@ test('C3 student and anonymous admin routes gated including unknown and aliases'
     const page = await context.newPage();
     for (const path of ['/admin', '/admin.html', '/admin.js']) {
       const response = await page.goto(path);
-      expect(response.status()).toBe(200);
-      await expect(page).toHaveURL(ORIGIN + '/app');
+      expect(response.status()).toBe(403);
     }
+    await page.goto('/app');
+    await expect(page.locator('#user-name')).not.toHaveText('Guest');
+    await expect(page.locator('#admin-link')).toBeHidden();
     for (const path of ['/api/admin/students', '/api/admin/unknown', '/api/admin/students/e2e-student-1/history']) {
       expect((await context.request.get(path)).status()).toBe(403);
     }

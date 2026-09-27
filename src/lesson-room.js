@@ -375,8 +375,13 @@ export class LessonRoom {
     if (m.type === 'annotate' || m.type === 'laser') {
       if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
       if (m.type === 'laser') {
-        if (Date.now() - (this.lastLaser || 0) < 50) return;
+        // Presenter sends ~30 Hz; the floor sheds anything faster. A hide is never dropped.
+        if (!m.hide && Date.now() - (this.lastLaser || 0) < 25) return;
         this.lastLaser = Date.now();
+        // Relay to everyone except the sender (it draws its own dot) and without serverNow.
+        const frame = JSON.stringify(m.hide ? { type:'laser', questionId:m.questionId, hide:true } : { type:'laser', questionId:m.questionId, x:m.x, y:m.y, ...(m.a ? { a:m.a } : {}) });
+        for (const peer of this.sockets()) if (peer !== ws) try { peer.send(frame); } catch { /* disconnected */ }
+        return;
       } else {
         const layer = s.annotations?.[m.questionId] || [];
         const op = m.op;
@@ -396,7 +401,7 @@ export class LessonRoom {
         (s.annotations ||= {})[m.questionId] = next;
         await this.save(s);
       }
-      for (const peer of this.sockets()) try { this.send(peer, { type:m.type, questionId:m.questionId, ...(m.type === 'laser' ? { x:m.x,y:m.y } : { op:m.op }) }); } catch { /* disconnected */ }
+      for (const peer of this.sockets()) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:m.op }); } catch { /* disconnected */ }
       return;
     }
     if (a.role === 'student') {
@@ -408,7 +413,8 @@ export class LessonRoom {
         if (current.locked) err = 'answer locked';
         else if (m.type === 'select') {
           const q = s.questions[m.questionId];
-          if (q.spr ? !/^[-\d./]{1,32}$/.test(m.answer) : !q.choices.some(c => c.letter === m.answer)) err = 'invalid answer';
+          if (m.answer === '') { if (current.answer) { current.answer = null; changed = true; } }
+          else if (q.spr ? !/^[-\d./]{1,32}$/.test(m.answer) : !q.choices.some(c => c.letter === m.answer)) err = 'invalid answer';
           else if (m.answer !== current.answer) {
             if (current.answer) current.changes++;
             current.answer = m.answer;
@@ -508,11 +514,11 @@ export class LessonRoom {
     const r = m.questionId ? own[m.questionId] ||= { answer: null, changes: 0, history: [], ms: 0 } : null;
     if (m.type === 'select') {
       const q = s.questions[m.questionId];
-      if (q.spr ? !/^[-\d./]{1,32}$/.test(m.answer) : !q.choices.some(c => c.letter === m.answer)) { this.send(ws, { type: 'error', error: 'invalid answer' }); return; }
-      if (m.answer !== r.answer) {
+      if (m.answer && (q.spr ? !/^[-\d./]{1,32}$/.test(m.answer) : !q.choices.some(c => c.letter === m.answer))) { this.send(ws, { type: 'error', error: 'invalid answer' }); return; }
+      if (m.answer !== (r.answer || '')) {
         if (r.answer) r.changes++;
-        r.answer = m.answer;
-        if (r.history.length < 128) r.history.push({ answer: m.answer, atMs: Date.now() - s.startedAt });
+        r.answer = m.answer || null;
+        if (m.answer && r.history.length < 128) r.history.push({ answer: m.answer, atMs: Date.now() - s.startedAt });
       }
     } else if (m.type === 'navigate') s.positions[a.userId] = m.questionId;
     else if (m.type === 'time') {
@@ -551,6 +557,10 @@ export class LessonRoom {
       if (s?.phase === 'POLL') await this.pollAdvance(s, ws).catch(() => {});
     }
     ws.close(code, reason);
+    if (ws.deserializeAttachment()?.role !== 'admin') return;
+    // Presenter gone: take their laser off every student screen.
+    const s = await this.state(), item = s?.items[s.index];
+    if (item) for (const peer of this.sockets('student')) try { peer.send(JSON.stringify({ type:'laser', questionId:item.question_id, hide:true })); } catch { /* disconnected */ }
   }
   webSocketError(ws) { ws.close(1011, 'Socket error'); }
 }

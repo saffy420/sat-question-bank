@@ -12,6 +12,7 @@ export function HistoryView({ history, mathify, close }: { history: LessonHistor
   const explanation = useRef<HTMLDivElement>(null);
   const breakdown = useRef<HTMLDivElement>(null);
   const item = history.questions[at];
+  useLayoutEffect(() => { document.getElementById('lesson-live')?.scrollTo(0, 0); }, [at]);
   useLayoutEffect(() => {
     if (!item) return;
     if (explanation.current) { explanation.current.innerHTML = item.question.explanation_html || ''; mathify(explanation.current); }

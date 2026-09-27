@@ -71,7 +71,7 @@ test('nextProgress is the marker rule: Red wrong, Orange right after Red, Green 
   assert.deepEqual(attemptRow('q', null, 'T', 5, null, 0, []), { question_id: 'q', ts: 'T', correct: 0, time_taken_ms: 5, picked: '', changes: 0 });
   assert.equal(attemptRow('q', true, 'T', 5, 'B', 1, [{ answer: 'B', atMs: 1 }]).answer_history_json, '[{"answer":"B","atMs":1}]');
   const page = readFileSync(__dirname + '/../public/index.html', 'utf8');
-  assert.match(page, /function recordProgress\(q, ok, now, ms\) \{\n  const p = Stats\.nextProgress\(/);
+  assert.match(page, /function recordProgress\(q, ok, now, ms\) \{\r?\n  const p = Stats\.nextProgress\(/);
   assert.match(page, /const ev = Stats\.attemptRow\(/);
 });
 
@@ -93,7 +93,7 @@ test('usage filter, lesson score and shown questions', async () => {
 });
 
 test('0010 upgrades a pre-0010 database and matches the fresh snapshot', () => {
-  const old = schema.replace('  lesson_session_id INTEGER,\n', '').replace(/^CREATE UNIQUE INDEX IF NOT EXISTS attempts_lesson.*$/m, '');
+  const old = schema.replace(/  lesson_session_id INTEGER,\r?\n/, '').replace(/^CREATE UNIQUE INDEX IF NOT EXISTS attempts_lesson.*$/m, '');
   const db = new DatabaseSync(':memory:'); db.exec(old);
   db.exec("INSERT INTO attempts(user_id,question_id,ts) VALUES('u','q','t')");
   db.exec(migration);

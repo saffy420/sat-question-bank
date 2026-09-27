@@ -42,6 +42,7 @@ test('origin/upgrade gate and role action allowlist', async () => {
   assert.equal(validLessonUpgrade(req({ Upgrade:'websocket', Origin:origin }),url),true);
   for (const headers of [{ Upgrade:'websocket', Origin:'https://evil.test' },{ Origin:origin },{ Upgrade:'websocket', Origin:origin,'Sec-Fetch-Site':'cross-site' }]) assert.equal(validLessonUpgrade(req(headers),url),false);
   assert.equal(validAction({type:'select',questionId:'q',answer:'A'},'student'),true);
+  assert.equal(validAction({type:'select',questionId:'q',answer:''},'student'),true);
   for (const m of [{type:'start'}, {type:'select',questionId:'q',answer:'A',role:'admin'}, {type:'time',questionId:'q',deltaMs:100}, {type:'addTime',sec:500}]) assert.equal(validAction(m,'student'),false);
   assert.equal(validAction({type:'addTime',sec:15},'admin'),true);
   assert.equal(validAction({type:'kick',userId:'x'},'student'),false);
@@ -59,6 +60,12 @@ test('server grace and durable finalize persist once, late select rejected after
   const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx,f.env);
   const { ws, sent } = f.socket('alice');
   await room.save(f.s);
+  await room.webSocketMessage(ws,JSON.stringify({type:'select',questionId:'q',answer:'A'}));
+  assert.equal((await room.state()).responses.alice.q.answer,'A');
+  // Crossing out the selected choice clears the selection.
+  await room.webSocketMessage(ws,JSON.stringify({type:'select',questionId:'q',answer:''}));
+  assert.equal((await room.state()).responses.alice.q.answer,null);
+  assert.equal(sent.at(-1).ownSelection,null);
   await room.webSocketMessage(ws,JSON.stringify({type:'select',questionId:'q',answer:'A'}));
   assert.equal((await room.state()).responses.alice.q.answer,'A');
   assert.equal(f.writes.length,0);
@@ -210,10 +217,24 @@ test('annotation protocol gates role, shape, sizes and phase; laser never persis
   assert.deepEqual(student.sent.at(-1).op,mark); assert.equal(f.writes.length,0);
   await room.webSocketMessage(teacher.ws,JSON.stringify({type:'laser',questionId:'q',x:.5,y:.5}));
   assert.equal(student.sent.at(-1).type,'laser'); assert.deepEqual((await room.state()).annotations.q,[mark]);
+  // Relayed to peers only (the presenter draws its own dot), without serverNow; hide bypasses the rate floor.
+  const teacherFrames = teacher.sent.length;
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'laser',questionId:'q',hide:true}));
+  assert.deepEqual(student.sent.at(-1),{type:'laser',questionId:'q',hide:true}); assert.equal(teacher.sent.length,teacherFrames);
+  // Content anchors: glyph anchors carry bounded px offsets, element anchors bounded fractions.
+  for (const [a, x, y, ok] of [['s:1@37',-12.5,8,true],['c:B@0',3999,-3999,true],['i:0',-.5,1.2,true],['P',.5,.5,true],[undefined,.5,.5,true],
+    [undefined,1.5,.5,false],['s:1@37',4001,0,false],['i:0',6,0,false],['x:1',.5,.5,false],['s:1@3@4',0,0,false],['c:E@1',0,0,false],['s:1@',0,0,false]]) {
+    assert.equal(validAction({type:'laser',questionId:'q',x,y,...(a === undefined ? {} : {a})},'admin'),ok,`laser ${a} ${x} ${y}`);
+    assert.equal(validAction({type:'annotate',questionId:'q',op:{type:'stroke',id:'s1',color:'#ff7676',points:[[x,y]],...(a === undefined ? {} : {a})}},'admin'),ok,`stroke ${a} ${x} ${y}`);
+  }
+  for (const m of [{type:'laser',questionId:'q',hide:true,x:.5,y:.5},{type:'laser',questionId:'q',hide:false,x:.5,y:.5},{type:'laser',questionId:'q',x:.5}]) assert.equal(validAction(m,'admin'),false);
+  await room.webSocketClose(teacher.ws,1000,'bye');
+  assert.deepEqual(student.sent.at(-1),{type:'laser',questionId:'q',hide:true});
   assert.equal(JSON.stringify(room.snapshot({...f.s,phase:'ANSWERING',annotations:{q:[mark]}},{role:'student',userId:'alice'})).includes('mark1'),false);
   assert.equal(JSON.stringify(room.snapshot({...await room.state()},{role:'student',userId:'alice'})).includes('PRIVATE_NOTE'),false);
-  await room.webSocketMessage(teacher.ws,'é'.repeat(1100));
-  assert.equal(teacher.ws.code,1008);
+  const again = f.socket('teacher','admin');
+  await room.webSocketMessage(again.ws,'é'.repeat(1100));
+  assert.equal(again.ws.code,1008);
 });
 test('strike, erase and clear persist to DO; review outbox flushes at boundary once and retries', async () => {
   const { LessonRoom } = await roomModule(); const f=fixture(), room=new LessonRoom(f.ctx,f.env), teacher=f.socket('teacher','admin');
@@ -371,6 +392,10 @@ test('self-paced student payload: own set only, no answers/grades/notes/peers; a
   const { ws, sent } = f.socket('bob');
   await room.webSocketMessage(ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'A' }));
   assert.deepEqual(sent.at(-1).selections, { q1: 'A' });
+  await room.webSocketMessage(ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: '' }));
+  assert.deepEqual(sent.at(-1).selections, {}, 'crossing out selected choice clears it');
+  assert.equal((await room.state()).responses.bob.q1.answer, null);
+  await room.webSocketMessage(ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'A' }));
   assert.equal(Object.hasOwn(sent.at(-1), 'questions'), false);
   await room.webSocketMessage(ws, JSON.stringify({ type: 'select', questionId: 'q2', answer: 'A' }));
   assert.equal(sent.at(-1).error, 'not in your set');

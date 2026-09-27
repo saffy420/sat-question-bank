@@ -23,7 +23,7 @@ import { Stage } from "../lesson-ui/Stage";
 import { DesmosLeader } from "../lesson-ui/Desmos";
 import { SelfGrid, type SelfRoom } from "./SelfLive";
 import { Overview, PollPanel, ResultPanel } from "./Review";
-import type { Snapshot, Laser, Mark } from "../lesson-ui/types";
+import type { Snapshot, Mark } from "../lesson-ui/types";
 import * as Ink from "/shared/annotations.js";
 import { isRight } from "/shared/stats.js";
 import {
@@ -127,17 +127,17 @@ export function LiveRooms() {
 
 export function Live({ id }: { id: string }) {
   const [s, setState] = useState<Room>();
-  const room = useRef<Room | undefined>(undefined);
-  room.current = s;
   const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
   const [connected, setConnected] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [laser, setLaser] = useState<Laser | null>(null);
   const socket = useRef<WebSocket | null>(null);
   const offset = useRef(0);
   const [sort, setSort] = useState("name");
   const [group, setGroup] = useState<number | null>(null);
+  // The presenter's own cross-outs: local only, never sent or shown to students.
+  const [strikeMode, setStrikeMode] = useState(false);
+  const [struck, setStruck] = useState<Record<string, string[]>>({});
   const send: Send = (type, fields = {}) => {
     if (socket.current?.readyState === WebSocket.OPEN)
       socket.current.send(JSON.stringify({ type, ...fields }));
@@ -145,8 +145,7 @@ export function Live({ id }: { id: string }) {
   useEffect(() => {
     let alive = true,
       best = Infinity,
-      retry: ReturnType<typeof setTimeout>,
-      laserTimer: ReturnType<typeof setTimeout>;
+      retry: ReturnType<typeof setTimeout>;
     offset.current = 0;
     setState(undefined);
     setError("");
@@ -193,11 +192,7 @@ export function Live({ id }: { id: string }) {
                         : [...(old.annotations || []), m.op],
                 },
           );
-        else if (m.type === "laser" && room.current?.questionId === m.questionId) {
-          setLaser(m);
-          clearTimeout(laserTimer);
-          laserTimer = setTimeout(() => setLaser(null), 300);
-        } else if (m.type === "error") {
+        else if (m.type === "error") {
           setError(m.error);
           api<Room>(`/api/lessons/${id}`)
             .then((room) => {
@@ -233,7 +228,6 @@ export function Live({ id }: { id: string }) {
     return () => {
       alive = false;
       clearTimeout(retry);
-      clearTimeout(laserTimer);
       clearInterval(clock);
       socket.current?.close(1000);
       socket.current = null;
@@ -241,7 +235,6 @@ export function Live({ id }: { id: string }) {
   }, [id, version]);
   useEffect(() => {
     setGroup(null);
-    setLaser(null);
   }, [s?.questionId]);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
@@ -432,8 +425,21 @@ export function Live({ id }: { id: string }) {
               <InstructorStage
                 key={s.questionId}
                 s={s}
-                laser={laser}
                 send={send}
+                strikeMode={strikeMode}
+                struck={struck[s.questionId]}
+                onStrikeMode={() => setStrikeMode(!strikeMode)}
+                onStrike={(letter) =>
+                  setStruck((all) => {
+                    const list = all[s.questionId] || [];
+                    return {
+                      ...all,
+                      [s.questionId]: list.includes(letter)
+                        ? list.filter((x) => x !== letter)
+                        : [...list, letter],
+                    };
+                  })
+                }
               />
             )}
           </section>
@@ -641,12 +647,18 @@ export function Live({ id }: { id: string }) {
 
 function InstructorStage({
   s,
-  laser,
   send,
+  strikeMode,
+  struck,
+  onStrikeMode,
+  onStrike,
 }: {
   s: Room;
-  laser: Laser | null;
   send: Send;
+  strikeMode: boolean;
+  struck?: string[];
+  onStrikeMode: () => void;
+  onStrike: (letter: string) => void;
 }) {
   const [tool, setTool] = useState("highlight");
   const [color, setColor] = useState(colors[0]);
@@ -667,18 +679,68 @@ function InstructorStage({
     let points: number[][] = [],
       drawing = false,
       interval: ReturnType<typeof setInterval> | undefined,
-      lastLaser = 0;
-    card.style.cursor = !tool
-      ? ""
-      : ["pen", "erase", "laser"].includes(tool)
-        ? "crosshair"
-        : "text";
+      // One content anchor per pen gesture (see Ink.locate), so strokes land on the same
+      // words for students whose stage is laid out at a different width.
+      anchor: string | undefined,
+      toAnchor: ReturnType<typeof Ink.frame> = null;
+    card.style.cursor = ["pen", "erase", "laser"].includes(tool)
+      ? "crosshair"
+      : "";
+    card.classList.toggle(
+      "tool-highlight",
+      tool === "highlight" || tool === "strike",
+    );
     const point = (e: PointerEvent) => {
-      const r = card.getBoundingClientRect();
-      return [
-        Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
-        Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)),
-      ];
+      const [lo, hi] = !anchor ? [0, 1] : anchor.includes("@") ? [-4000, 4000] : [-4, 5];
+      return toAnchor!
+        .fromClient(e.clientX, e.clientY)
+        .map((v) => Math.max(lo, Math.min(hi, v)));
+    };
+    // Laser: coalesce pointermoves into at most one send per animation frame and
+    // ~30 Hz, skip unchanged positions, heartbeat while idle, hide explicitly.
+    const dot = Ink.laser(card);
+    type Aim = { x: number; y: number; a?: string };
+    // Latest pointer position; resolved to a content anchor only when a frame is sent.
+    let aim: [number, number] | null = null,
+      sent: Aim | null = null,
+      sentAt = 0,
+      frame = 0;
+    const laserSend = (fields: Record<string, unknown>, now = performance.now()) => {
+      latest.current.send("laser", {
+        questionId: latest.current.s.questionId,
+        ...fields,
+      });
+      sentAt = now;
+    };
+    // Frame timestamps: every second 60 Hz frame (~30 Hz); 28 ms absorbs frame jitter.
+    const pump = (now: number) => {
+      frame = 0;
+      if (!aim) return;
+      if (now - sentAt < 28) {
+        frame = requestAnimationFrame(pump);
+        return;
+      }
+      const at: Aim = Ink.locate(card, aim[0], aim[1]);
+      aim = null;
+      dot.show(at);
+      if (sent && at.x === sent.x && at.y === sent.y && at.a === sent.a) return;
+      sent = at;
+      laserSend(at, now);
+    };
+    const heartbeat =
+      tool === "laser"
+        ? setInterval(() => {
+            if (sent && performance.now() - sentAt > 2400) laserSend(sent);
+          }, 2500)
+        : undefined;
+    const laserOff = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      aim = null;
+      dot.hide();
+      // After Next/End the room is no longer REVEALED; students drop the old card's dot anyway.
+      if (sent && latest.current.s.phase === "REVEALED") laserSend({ hide: true });
+      sent = null;
     };
     const mark = (op: Partial<Mark>) =>
       latest.current.send("annotate", {
@@ -692,6 +754,7 @@ function InstructorStage({
         id: crypto.randomUUID(),
         points: points.slice(0, 32),
         color,
+        ...(anchor ? { a: anchor } : {}),
       });
       points = drawing ? points.slice(-1) : [];
     };
@@ -700,7 +763,10 @@ function InstructorStage({
       e.preventDefault();
       card.setPointerCapture(e.pointerId);
       drawing = true;
-      points = [point(e)];
+      const start = Ink.locate(card, e.clientX, e.clientY);
+      anchor = start.a;
+      toAnchor = Ink.frame(card, anchor);
+      points = [[start.x, start.y]];
       interval = setInterval(() => {
         if (points.length > 1) flush();
       }, 50);
@@ -710,14 +776,9 @@ function InstructorStage({
         points.push(point(e));
         if (points.length >= 32) flush();
       }
-      if (tool === "laser" && Date.now() - lastLaser >= 50) {
-        lastLaser = Date.now();
-        const [x, y] = point(e);
-        latest.current.send("laser", {
-          questionId: latest.current.s.questionId,
-          x,
-          y,
-        });
+      if (tool === "laser") {
+        aim = [e.clientX, e.clientY];
+        if (!frame) frame = requestAnimationFrame(pump);
       }
     };
     const up = (e: PointerEvent) => {
@@ -731,7 +792,10 @@ function InstructorStage({
         }
         points = [];
       }
-      if (tool === "highlight" || tool === "strike") {
+      if (
+        (tool === "highlight" || tool === "strike") &&
+        !(e.target as Element).closest(".badge")
+      ) {
         const range = Ink.anchor(card, window.getSelection());
         if (range)
           mark({ type: tool, id: crypto.randomUUID(), ...range, color });
@@ -742,13 +806,14 @@ function InstructorStage({
         if (id) mark({ type: "erase", id });
         else {
           const r = card.getBoundingClientRect(),
-            [x, y] = point(e);
+            scale = r.width / card.offsetWidth || 1,
+            x = (e.clientX - r.left) / scale,
+            y = (e.clientY - r.top) / scale;
           const stroke = latest.current.s.annotations?.find(
             (m) =>
               m.type === "stroke" &&
-              m.points?.some(
-                ([px, py]) =>
-                  Math.hypot((px - x) * r.width, (py - y) * r.height) < 12,
+              Ink.strokePoints(card, m).some(
+                ([px, py]: number[]) => Math.hypot(px - x, py - y) < 12,
               ),
           );
           if (stroke) mark({ type: "erase", id: stroke.id });
@@ -759,13 +824,18 @@ function InstructorStage({
     card.addEventListener("pointermove", move);
     card.addEventListener("pointerup", up);
     card.addEventListener("pointercancel", up);
+    card.addEventListener("pointerleave", laserOff);
     return () => {
       clearInterval(interval);
+      clearInterval(heartbeat);
+      laserOff();
+      card.removeEventListener("pointerleave", laserOff);
       card.removeEventListener("pointerdown", down);
       card.removeEventListener("pointermove", move);
       card.removeEventListener("pointerup", up);
       card.removeEventListener("pointercancel", up);
       card.style.cursor = "";
+      card.classList.remove("tool-highlight");
     };
   }, [card, tool, color, s.phase]);
   return (
@@ -829,9 +899,12 @@ function InstructorStage({
             id="live-card"
             revealed
             marks={s.annotations}
-            laser={laser}
             mathify={mathify}
             onReady={setCard}
+            strikeMode={strikeMode}
+            struck={struck}
+            onStrikeMode={onStrikeMode}
+            onStrike={onStrike}
           />
         </div>
         <details className="instructor-drawer">

@@ -1018,6 +1018,140 @@ body {
   border-radius: 0;
   padding: 28px;
 }
+:where(#admin-root) dialog.question-viewer {
+  width: min(1480px, calc(100vw - 40px));
+  height: min(940px, calc(100vh - 40px));
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+}
+:where(#admin-root) dialog.question-viewer[open] {
+  display: flex;
+  flex-direction: column;
+}
+:where(#admin-root) dialog.question-viewer > header {
+  align-items: center;
+  margin: 0;
+  padding: 16px 20px 16px 26px;
+  border-bottom: 1px solid var(--line);
+}
+:where(#admin-root) .qv-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+}
+:where(#admin-root) .qv-title h2 {
+  font-size: 22px;
+}
+:where(#admin-root) .qv-skill {
+  color: var(--muted);
+  font-size: 14px;
+}
+:where(#admin-root) .qv-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+:where(#admin-root) .qv-body[aria-busy="true"] {
+  opacity: 0.6;
+}
+:where(#admin-root) .qv-question,
+:where(#admin-root) .qv-answer {
+  overflow: auto;
+  padding: 26px 30px 34px;
+}
+:where(#admin-root) .qv-question {
+  border-right: 1px solid var(--line);
+}
+:where(#admin-root) .qv-question .passage {
+  margin-bottom: 18px;
+}
+:where(#admin-root) .qv-answer h3 {
+  margin: 0 0 12px;
+  font:
+    600 18px/1.4 "Lesson Serif",
+    serif;
+}
+:where(#admin-root) .qv-correct {
+  display: inline-block;
+  margin: 0 0 26px;
+  padding: 11px 16px;
+  border-radius: 6px;
+  background: #1f7a45;
+  color: #fff;
+  font-size: 15px;
+}
+:where(#admin-root) .qv-rationale {
+  font:
+    17px/1.6 "Lesson Serif",
+    serif;
+}
+:where(#admin-root) .qv-rationale p {
+  margin: 0 0 18px;
+}
+:where(#admin-root) .qv-hidden {
+  color: var(--muted);
+}
+:where(#admin-root) dialog.question-viewer > footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px 14px 26px;
+  border-top: 1px solid var(--line);
+}
+:where(#admin-root) .qv-toggle {
+  font-size: 15px;
+  cursor: pointer;
+}
+:where(#admin-root) .qv-toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+:where(#admin-root) .qv-position {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+:where(#admin-root) .qv-actions,
+:where(#admin-root) .qv-added-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+:where(#admin-root) .qv-actions button {
+  min-width: 110px;
+  justify-content: center;
+}
+:where(#admin-root) .qv-added {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  color: #1f7a45;
+  font-weight: 600;
+}
+@media (max-width: 860px) {
+  :where(#admin-root) .qv-body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+  :where(#admin-root) .qv-question,
+  :where(#admin-root) .qv-answer {
+    overflow: visible;
+  }
+  :where(#admin-root) .qv-question {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  :where(#admin-root) dialog.question-viewer > footer {
+    flex-wrap: wrap;
+  }
+}
 :where(#admin-root) .question-preview {
   font:
     17px/1.55 "Lesson Serif",

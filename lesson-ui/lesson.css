@@ -1,4 +1,6 @@
-:where(#lesson-live, #admin-root) { --text:#171717; --dim:#555; --bg:#fff; --bg2:#f4f4f4; --border:#777; --accent:#304fc5; }
+:where(#lesson-live, #admin-root) { --text:#171717; --dim:#555; --bg:#fff; --bg2:#f4f4f4; --border:#777; --accent:#304fc5;
+  /* Bluebook divider: black dashes with yellow/cyan accents. Header, footer and question bar share it. */
+  --lesson-dashes:repeating-linear-gradient(90deg,#636363 0 20px,transparent 20px 24px,#636363 24px 44px,transparent 44px 48px,#636363 48px 68px,transparent 68px 72px,#f4d92e 72px 92px,transparent 92px 96px,#28a4ba 96px 116px,transparent 116px 120px,#636363 120px 140px,transparent 140px 144px); }
 @font-face { font-family:'Lesson Serif'; font-style:normal; font-weight:400; font-display:block; src:url('../node_modules/@fontsource/source-serif-4/files/source-serif-4-latin-400-normal.woff2') format('woff2'); }
 @font-face { font-family:'Lesson Sans'; font-style:normal; font-weight:400; font-display:block; src:url('../node_modules/@fontsource/roboto/files/roboto-latin-400-normal.woff2') format('woff2'); }
 
@@ -10,12 +12,12 @@
 #lesson-live button:disabled { cursor:default; opacity:.6; }
 #lesson-live button:focus-visible, #lesson-live summary:focus-visible, #lesson-live input:focus-visible { outline:3px solid #156fd1; outline-offset:4px; }
 .lesson-header { position:sticky; top:0; z-index:5; display:grid; grid-template-columns:1fr 150px 1fr; min-height:102px; padding:15px 28px 12px; background:#fff; align-items:center; }
-.lesson-header::after, .lesson-footer::before { content:''; height:2px; position:absolute; left:0; right:0; bottom:0; background:repeating-linear-gradient(90deg,#636363 0 20px,transparent 20px 24px,#636363 24px 44px,transparent 44px 48px,#636363 48px 68px,transparent 68px 72px,#f4d92e 72px 92px,transparent 92px 96px,#28a4ba 96px 116px,transparent 116px 120px,#636363 120px 140px,transparent 140px 144px); }
+.lesson-header::after, .lesson-footer::before { content:''; height:2px; position:absolute; left:0; right:0; bottom:0; background:var(--lesson-dashes); }
 .lesson-header h1 { margin:0; font-size:20px; line-height:1.3; font-weight:500; }
 .lesson-timer { display:flex; flex-direction:column; align-items:center; gap:1px; min-height:67px; }
 #lesson-clock { font-size:28px; line-height:1.25; font-weight:500; font-variant-numeric:tabular-nums; min-height:35px; }
 #lesson-live .lesson-timer button { padding:0 15px; border-radius:16px; font-size:13px; line-height:22px; }
-.lesson-tools { display:flex; align-items:center; justify-content:flex-end; gap:23px; }
+.lesson-tools { display:flex; align-items:center; justify-content:flex-end; gap:23px; -webkit-user-select:none; user-select:none; }
 #lesson-live .lesson-tools>button, .lesson-follow-tool, .lesson-more>summary { display:flex; flex-direction:column; align-items:center; gap:5px; background:none; border:0; padding:4px; font-size:13px; cursor:pointer; }
 .lesson-tools svg { width:21px; height:21px; stroke-width:1.8; }
 #lesson-live .lesson-tools button[aria-pressed=true] { background:#e8edff; color:#2345be; }
@@ -24,30 +26,69 @@
 .lesson-more { position:relative; }
 .lesson-more summary { list-style:none; }
 .lesson-more summary::-webkit-details-marker { display:none; }
-.lesson-more>div { position:absolute; top:65px; right:0; width:260px; border:1px solid #bbb; border-radius:8px; background:#fff; padding:8px; box-shadow:0 8px 22px #0002; }
+/* Above the header's ::after dashed divider, which paints later in the same stacking context. */
+.lesson-more>div { position:absolute; z-index:10; top:65px; right:0; width:260px; border:1px solid #bbb; border-radius:8px; background:#fff; padding:8px; box-shadow:0 8px 22px #0002; }
 #lesson-live .lesson-more button { display:flex; gap:12px; width:100%; text-align:left; border:0; padding:12px; }
 #lesson-connection { color:#26793b; display:flex; }
 #lesson-connection svg { width:9px; height:9px; }
 .lesson-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .lesson-reconnect { position:sticky; top:102px; z-index:4; text-align:center; padding:4px; background:#fff0bd; font-size:14px; }
 .lesson-phase { padding:3px 28px; height:26px; color:#606060; font-size:11px; letter-spacing:.05em; }
-.lesson-main { padding:12px 24px 105px; }
-.stage-host { position:relative; width:100%; max-width:1240px; margin:0 auto; }
-.lesson-stage { position:relative; width:1240px; transform-origin:top left; background:#fff; color:#171717; font:20px/1.5 'Lesson Serif',serif; border:0; padding:0; text-align:left; color-scheme:light; }
-.lesson-stage.stage-reading { display:grid; grid-template-columns:620px 620px; }
-.lesson-stage .stage-passage { padding:24px 35px 35px 12px; border-right:2px solid #cfcfcf; }
-.lesson-stage .stage-question { padding:24px 30px 35px 35px; }
-.lesson-stage.stage-single .stage-question { width:680px; margin:0 auto; padding:24px 0 35px; }
-.lesson-stage .stage-strip { height:36px; margin-bottom:20px; background:#f0f0f0; font:20px/36px 'Lesson Sans',sans-serif; }
+.lesson-main { padding:12px clamp(16px, 2.5vw, 48px) 105px; }
+/* Fluid stage: fills its container at any zoom; panes keep a readable measure instead of the
+   whole layout shrinking. Container queries so the presenter's narrower panel stacks too. */
+.stage-host { position:relative; width:100%; container-type:inline-size; }
+.lesson-stage { position:relative; width:100%; background:#fff; color:#171717; font:20px/1.5 'Lesson Serif',serif; border:0; padding:0; text-align:left; color-scheme:light; }
+.lesson-stage.stage-split { display:grid; grid-template-columns:minmax(0, var(--split, 50%)) auto minmax(0, 1fr); }
+.lesson-stage .stage-passage { padding:24px clamp(20px, 3vw, 56px) 35px 0; }
+/* Bluebook-style resizable divider: drag the line or grip, arrow keys, or expand either pane. */
+.lesson-stage .stage-divider { position:relative; width:2px; background:#cfcfcf; cursor:col-resize; touch-action:none; }
+.lesson-stage .stage-divider::before { content:''; position:absolute; inset:0 -9px; }
+.lesson-stage .stage-divider:focus-visible { outline:3px solid #156fd1; outline-offset:2px; }
+.lesson-stage .stage-divider-controls { position:sticky; z-index:4; top:24px; display:flex; flex-direction:column; align-items:center; gap:6px; width:30px; margin-left:-14px; }
+#lesson-live .lesson-stage .stage-divider-controls { top:calc(50vh - 50px); }
+.lesson-stage.stage-figure .stage-passage img { display:block; margin-inline:auto; }
+.lesson-stage .stage-grip { display:inline-flex; align-items:center; justify-content:center; width:30px; height:34px; border-radius:7px; background:#171717; color:#fff; box-shadow:0 1px 4px #0003; }
+.lesson-stage .stage-divider .stage-expand, #lesson-live .lesson-stage .stage-divider .stage-expand { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; margin:0; padding:0; border:1px solid #777; border-radius:6px; background:#fff; color:#171717; cursor:pointer; }
+.lesson-stage .stage-divider .stage-expand[aria-pressed=true], #lesson-live .lesson-stage .stage-divider .stage-expand[aria-pressed=true] { background:#304fc5; border-color:#304fc5; color:#fff; }
+.lesson-stage.stage-resizing, .lesson-stage.stage-resizing * { cursor:col-resize !important; -webkit-user-select:none; user-select:none; }
+.lesson-stage .stage-question { padding:24px 0 35px clamp(20px, 3vw, 56px); }
+.lesson-stage.stage-single .stage-question { width:min(100%, 40em); margin:0 auto; padding:24px 0 35px; }
+@container (max-width: 720px) {
+  .lesson-stage.stage-split { grid-template-columns:minmax(0,1fr); }
+  .lesson-stage .stage-divider { display:none; }
+  .lesson-stage .stage-passage { padding:16px 0 24px; border-bottom:2px solid #cfcfcf; }
+  .lesson-stage .stage-question { padding:24px 0 35px; }
+}
+.lesson-stage .stage-strip { position:relative; display:flex; align-items:center; height:36px; margin-bottom:30px; background:#f0f0f0; font:20px/36px 'Lesson Sans',sans-serif; }
+.lesson-stage .stage-strip::after { content:''; position:absolute; left:0; right:0; bottom:-8px; height:2px; background:var(--lesson-dashes); }
 .lesson-stage .stage-strip>span { display:inline-block; min-width:34px; padding:0 7px; color:#fff; background:#161616; text-align:center; }
+.lesson-stage .stage-strip .stage-strike-toggle, #lesson-live .lesson-stage .stage-strip .stage-strike-toggle { margin:0 6px 0 auto; padding:0 6px; height:26px; border:1.5px solid #171717; border-radius:5px; background:#fff; color:#171717; font:700 12px/1 'Lesson Sans',sans-serif; letter-spacing:.02em; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.lesson-stage .stage-strike-toggle s { text-decoration-thickness:2px; }
+.lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true], #lesson-live .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true] { background:#304fc5; border-color:#304fc5; color:#fff; }
 .lesson-stage p { margin:0 0 18px; }
 .lesson-stage .passage { margin:0; padding:0; border:0; background:none; font:inherit; max-height:none; overflow:visible; }
+/* Readable measure inside each pane (after .passage's margin reset so it can centre). */
+.lesson-stage .stage-passage>*, .lesson-stage.stage-split .stage-question>* { max-width:44em; margin-inline:auto; }
 .lesson-stage .lesson-stem { font:inherit; }
 .lesson-stage .choices { display:flex; flex-direction:column; gap:16px; margin-top:22px; }
 .lesson-stage .choices button, #lesson-live .lesson-stage .choices button { display:block; width:100%; text-align:left; padding:0; margin:0; background:none; border:0; font:inherit; color:#171717; border-radius:10px; opacity:1; }
+.lesson-stage .stage-choice { display:flex; align-items:center; gap:12px; }
+.lesson-stage .stage-choice>[data-lesson-choice] { position:relative; flex:1; min-width:0; }
+.lesson-stage .stage-choice.struck .choice { opacity:.5; }
+.lesson-stage .stage-choice.struck>[data-lesson-choice]::after { content:''; position:absolute; left:-6px; right:-6px; top:50%; height:2px; background:#171717; pointer-events:none; }
+.lesson-stage .choices .stage-strike, #lesson-live .lesson-stage .choices .stage-strike { display:none; flex:none; align-items:center; justify-content:center; width:52px; height:36px; margin:0; padding:0; border:0; background:none; color:#171717; font:15px/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.lesson-stage.strike-on .choices .stage-strike, #lesson-live .lesson-stage.strike-on .choices .stage-strike { display:inline-flex; }
+.lesson-stage .stage-strike-letter { position:relative; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border:1.5px solid #171717; border-radius:50%; font-size:13px; }
+.lesson-stage .stage-strike-letter::after { content:''; position:absolute; left:-5px; right:-5px; top:50%; height:1.5px; background:#171717; }
+.lesson-stage .stage-strike-undo { display:none; font-weight:700; text-decoration:underline; }
+.lesson-stage .stage-strike[aria-pressed=true] .stage-strike-letter { display:none; }
+.lesson-stage .stage-strike[aria-pressed=true] .stage-strike-undo { display:inline; }
 .lesson-stage .choice-row { display:block; margin:0; border:0; padding:0; gap:0; background:none; }
 .lesson-stage .choice { display:flex; align-items:center; gap:15px; min-height:58px; border:1px solid #555; border-radius:10px; padding:11px 14px; background:#fff; color:#171717; font:inherit; box-shadow:none; margin:0; }
-.lesson-stage .choice .badge { display:inline-flex; flex:none; align-items:center; justify-content:center; width:27px; height:27px; margin:0; border:1px solid #444; border-radius:50%; background:#fff; color:#171717; font:17px/1 'Lesson Sans',sans-serif; font-weight:400; }
+/* Choice text is selectable (inside a button) so it can be highlighted; the letter badge is not. */
+.lesson-stage .choice>span:last-child { -webkit-user-select:text; user-select:text; }
+.lesson-stage .choice .badge { -webkit-user-select:none; user-select:none; display:inline-flex; flex:none; align-items:center; justify-content:center; width:27px; height:27px; margin:0; border:1px solid #444; border-radius:50%; background:#fff; color:#171717; font:17px/1 'Lesson Sans',sans-serif; font-weight:400; }
 .lesson-stage .badge { position:relative; }
 .lesson-stage .stage-verdict { display:inline-flex; flex:none; align-items:center; }
 .lesson-stage .choice.right .stage-verdict { color:#26783d; }
@@ -64,6 +105,15 @@
 .lesson-stage .gridin { width:200px; height:52px; border:2px solid #555; border-radius:4px; background:#fff; color:#171717; font:24px 'Lesson Serif',serif; padding:6px 12px; }
 .lesson-stage .spr-preview { grid-column:1/-1; font-size:17px; min-height:30px; }
 .lesson-stage .lesson-ink { max-width:none; }
+/* Highlighter tool: pen cursor over the stage, a larger I-beam over annotatable text, pointer on the
+   choice letter (which still selects and is never highlighted). Hotspots: pen tip, I-beam centre. */
+.lesson-stage.tool-highlight { cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M3 29.5h11' stroke='%23f4d92e' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M14 18 25 7l4 4-11 11z' fill='%23fff' stroke='%23171717' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='m12 20 2-2 4 4-2 2z' fill='%23171717' stroke='%23171717' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='m12 20 4 4-5 3.5-2.5-2.5z' fill='%23f4d92e' stroke='%23171717' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") 10 26, crosshair; }
+.lesson-stage.tool-highlight [data-ann-node] { cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='32' viewBox='0 0 20 32'%3E%3Cpath d='M5 3h10M5 29h10M10 3v26' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M5 3h10M5 29h10M10 3v26' stroke='%23171717' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") 10 16, text; }
+.lesson-stage.tool-highlight [data-ann-node] img { cursor:inherit; }
+.lesson-stage.tool-highlight .qfig, .lesson-stage.tool-highlight .qimg, .lesson-stage.tool-highlight .qtable { cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M3 29.5h11' stroke='%23f4d92e' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M14 18 25 7l4 4-11 11z' fill='%23fff' stroke='%23171717' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='m12 20 2-2 4 4-2 2z' fill='%23171717' stroke='%23171717' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='m12 20 4 4-5 3.5-2.5-2.5z' fill='%23f4d92e' stroke='%23171717' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") 10 26, crosshair; }
+.lesson-stage.tool-highlight .badge { cursor:pointer; }
+.lesson-stage .lesson-laser { position:absolute; left:0; top:0; z-index:3; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:#e32020; box-shadow:0 0 0 3px rgba(227,32,32,.25), 0 0 14px 5px rgba(227,32,32,.35); pointer-events:none; will-change:transform; }
+.lesson-stage .lesson-laser[hidden] { display:none; }
 .lesson-footer { position:fixed; left:0; bottom:0; right:0; z-index:5; display:grid; grid-template-columns:1fr 1fr 1fr; align-items:center; padding:18px 28px; height:80px; background:#fff; }
 .lesson-footer::before { top:0; bottom:auto; }
 .lesson-position { justify-self:center; color:#fff; background:#171717; padding:7px 18px; border-radius:8px; font-weight:500; }
@@ -73,7 +123,7 @@
 .lesson-lobby h2 { font-size:24px; font-weight:500; margin:24px 0 12px; }
 .lesson-lobby p { color:#555; }
 .lesson-locked { display:flex; justify-content:center; align-items:center; gap:9px; padding:20px; }
-.lesson-reveal { max-width:680px; margin:24px auto; }
+.lesson-reveal { width:min(100%, 44rem); margin:24px auto; }
 .lesson-verdict { display:flex; align-items:center; gap:8px; margin-bottom:18px; }
 .lesson-verdict svg { display:block; }
 .lesson-reveal details { padding:16px 0; border-top:1px solid #bbb; }
