@@ -2,6 +2,7 @@ import { breakdown, normalizeQuestion, direction, cbSort } from '../public/share
 import { CODE, USAGE_MODES, lessonUsageVisible } from '../public/shared/lesson.js';
 import { padSessionId, progressStatement, attemptStatement, attendedSessions, lessonHistory } from './record.js';
 export { LessonRoom } from './lesson-room.js';
+export { LessonSync } from './lesson-sync.js';
 import { traceEnv } from './budget.js';
 
 export const validLessonUpgrade = (req, url) => req.method === 'GET' &&
@@ -754,6 +755,14 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         });
         return json({ students: students.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), total: students.length,
           page, pages: Math.max(1, Math.ceil(students.length / PAGE_SIZE)) });
+      }
+      // Lesson results a room is still holding because D1 refused them (src/lesson-room.js flushFailed).
+      if (p === '/api/admin/lesson-sync') {
+        try {
+          const r = await env.LESSON_SYNC.getByName('all').fetch(new Request('https://lesson.internal/', { headers: { 'X-Lesson-Internal': 'sync' } }));
+          if (!r.ok) throw Error('sync status ' + r.status);
+          return json(await r.json());
+        } catch { return json({ error: 'sync status unavailable' }, 503); }
       }
       const match = /^\/api\/admin\/students\/([^/]+)(?:\/(history))?$/.exec(p);
       if (match) {

@@ -1,7 +1,9 @@
 import { handleRequest, withTrace } from './index.js';
 export { adminStats } from './index.js';
 import { traceEnv } from './budget.js';
+import { faultOn } from './fault.js';
 export { LessonRoom } from './lesson-room.js';
+export { LessonSync } from './lesson-sync.js';
 import { budgetProbe } from './budget-probe.js';
 export { BudgetProbe } from './budget-probe.js';
 
@@ -72,6 +74,17 @@ export default {
     const url = new URL(req.url);
     if (!allowed(req, env)) return reply({ error: 'not found' }, 404);
     if (url.pathname === '/api/e2e/budget-probe') return budgetProbe(req, env);
+    // free-03 quota-failure test (src/fault.js): loopback only, never staging, and only when the
+    // local run sets D1_FAULT_INJECTION=1 as well as E2E_TEST_MODE=1.
+    if (url.pathname === '/api/e2e/d1-fault') {
+      if (env.E2E_TEST_MODE !== '1' || !faultOn(env) || !loopback(url.hostname) || req.method !== 'POST') return reply({ error: 'not found' }, 404);
+      if (req.headers.get('Origin') !== url.origin || req.headers.get('Sec-Fetch-Site') === 'cross-site') return reply({ error: 'forbidden origin' }, 403);
+      if (Number(req.headers.get('Content-Length') || 0) > 1024) return reply({ error: 'invalid body' }, 400);
+      let body; try { body = await req.json(); } catch { return reply({ error: 'invalid body' }, 400); }
+      if (!Number.isInteger(body?.sessionId) || body.sessionId < 1) return reply({ error: 'invalid body' }, 400);
+      return env.LESSON_ROOM.getByName(String(body.sessionId)).fetch(new Request('https://lesson.internal/', { method: 'POST',
+        headers: { 'X-Lesson-Internal': 'fault', 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: body.kind ?? null, after: body.after ?? 0 }) }));
+    }
     if (url.pathname === '/api/e2e/login') {
       if (env.E2E_TEST_MODE !== '1') return reply({ error: 'not found' }, 404);
       if (req.method !== 'POST') return reply({ error: 'not found' }, 404);

@@ -7,15 +7,15 @@
 //   --warm   runs each read-only flow a second time right after, recorded as `<flow>@warm`
 //            (the first run fills the free-02 caches; the second is served from them)
 // Local only ever touches .wrangler/state-budget; staging only the roadto1600-staging Worker.
+// tests/test_budget_flows.cjs requires `measure()` for a local run on its own port and state
+// directory, with the free-03 quota-recovery phase (D1 fault injection, src/fault.js) after the flows.
 const { spawn, spawnSync } = require('node:child_process');
 const { resolve, join } = require('node:path');
 const { rmSync, writeFileSync, readFileSync, existsSync, mkdirSync } = require('node:fs');
 const { build, CONFIG } = require('./budget_seed.cjs');
 const root = resolve(__dirname, '..');
-const target = process.argv[2];
-if (!['local', 'staging'].includes(target)) throw new Error('usage: node tools/budget_measure.cjs local|staging [flow,...]');
-const args = process.argv.slice(3).filter(a => a !== '--warm'), warm = process.argv.includes('--warm');
-const only = args[0] ? new Set(args[0].split(',')) : null;
+let target, warm = false, only = null, log = console.log;
+let PORT = 8790, INSPECTOR = 9239, PERSIST = '.wrangler/state-budget', SEED_DIR = '.wrangler/budget', FAULTS = false, QUOTA = false;
 const READ_ONLY = new Set(['student-boot', 'bank-filter', 'admin-students', 'admin-student-detail', 'my-lessons']);
 const wranglerBin = resolve(root, 'node_modules/wrangler/bin/wrangler.js');
 const childEnv = { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' };
@@ -33,21 +33,28 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // --- local server -----------------------------------------------------------------------
 function d1(binding, file) {
-  const r = spawnSync(process.execPath, [wranglerBin, 'd1', 'execute', binding, '--local', '--config', 'wrangler.e2e.toml', '--persist-to', '.wrangler/state-budget', '--file', file],
+  const r = spawnSync(process.execPath, [wranglerBin, 'd1', 'execute', binding, '--local', '--config', 'wrangler.e2e.toml', '--persist-to', PERSIST, '--file', file],
     { cwd: root, env: childEnv, encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`seed ${file} failed: ${r.stderr || r.stdout}`);
 }
+// Read-only query against the running local database (the quota-recovery checks).
+function d1Query(sql) {
+  const r = spawnSync(process.execPath, [wranglerBin, 'd1', 'execute', 'DB', '--local', '--config', 'wrangler.e2e.toml', '--persist-to', PERSIST, '--json', '--command', sql],
+    { cwd: root, env: childEnv, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`query failed: ${r.stderr || r.stdout}`);
+  return JSON.parse(r.stdout.slice(r.stdout.indexOf('[')))[0].results;
+}
 async function startLocal() {
-  rmSync(join(root, '.wrangler/state-budget'), { recursive: true, force: true });
-  const dir = join(root, '.wrangler/budget'); mkdirSync(dir, { recursive: true });
-  spawnSync(process.execPath, [join(__dirname, 'budget_seed.cjs'), dir], { stdio: 'inherit' });
+  rmSync(join(root, PERSIST), { recursive: true, force: true });
+  const dir = join(root, SEED_DIR); mkdirSync(dir, { recursive: true });
+  spawnSync(process.execPath, [join(__dirname, 'budget_seed.cjs'), dir], { stdio: log === console.log ? 'inherit' : 'ignore' });
   for (const [b, f] of [['DB', 'schema.sql'], ['AI_DB', 'schema_ai.sql'], ['AI_DB', join(dir, 'budget_ai.sql')],
     ...['questions', 'accounts', 'history', 'past', 'live'].map(p => ['DB', join(dir, `budget_${p}.sql`)])]) d1(b, f);
-  const child = spawn(process.execPath, [wranglerBin, 'dev', '--local', '--config', 'wrangler.e2e.toml', '--persist-to', '.wrangler/state-budget',
-    '--ip', '127.0.0.1', '--port', '8790', '--local-protocol', 'http', '--show-interactive-dev-session=false', '--inspector-port', '9239',
-    '--var', 'E2E_TEST_MODE:1', '--var', 'BUDGET_TRACE:1', '--env-file', 'tools/e2e_unset.env'], { cwd: root, env: childEnv });
+  const child = spawn(process.execPath, [wranglerBin, 'dev', '--local', '--config', 'wrangler.e2e.toml', '--persist-to', PERSIST,
+    '--ip', '127.0.0.1', '--port', String(PORT), '--local-protocol', 'http', '--show-interactive-dev-session=false', '--inspector-port', String(INSPECTOR),
+    '--var', 'E2E_TEST_MODE:1', '--var', 'BUDGET_TRACE:1', ...(FAULTS ? ['--var', 'D1_FAULT_INJECTION:1'] : []), '--env-file', 'tools/e2e_unset.env'], { cwd: root, env: childEnv });
   lineReader(child.stdout); lineReader(child.stderr);
-  BASE = 'http://127.0.0.1:8790';
+  BASE = 'http://127.0.0.1:' + PORT;
   for (let i = 0; i < 120; i++) { try { if ((await fetch(BASE + '/login')).ok) return child; } catch { /* starting */ } await sleep(500); }
   child.kill(); throw new Error('local worker did not start');
 }
@@ -122,12 +129,12 @@ async function record(name, fn) {
   const from = traces.length, fromHttp = httpTraces.length, t = Date.now();
   let extra = {};
   // A failed flow is a finding (e.g. Error 1102, CPU limit): record it and carry on.
-  try { extra = await fn() || {}; } catch (e) { extra = { error: String(e.message).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 400) }; console.log(name + ' FAILED: ' + extra.error); }
+  try { extra = await fn() || {}; } catch (e) { extra = { error: String(e.message).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 400) }; log(name + ' FAILED: ' + extra.error); }
   await sleep(target === 'staging' ? 8000 : 800);
   const list = traces.slice(from);
   results[name] = { ms: Date.now() - t, ...extra, invocations: list.map(({ seen, ...x }) => x), ...(target === 'staging' ? { responses: httpTraces.slice(fromHttp) } : {}) };
   const sum = k => list.reduce((n, x) => n + (x[k] || 0), 0);
-  console.log(`${name}: ${list.length} invocations, ${sum('statements')} statements, ${sum('rowsRead')} rows read, ${sum('rowsWritten')} rows written`);
+  log(`${name}: ${list.length} invocations, ${sum('statements')} statements, ${sum('rowsRead')} rows read, ${sum('rowsWritten')} rows written`);
 }
 
 async function main() {
@@ -266,16 +273,79 @@ async function main() {
       const h = await api(students[1], 'GET', '/api/lesson-history');
       await api(students[1], 'GET', '/api/lesson-history/' + (selfSession?.session.sessionId || h.sessions[0].sessionId));
     });
-    return { config: target === 'local' ? CONFIG : { ...CONFIG, ...CONFIG.staging }, seed: bank.counts, instructor: instructorExtra };
+    // free-03 quota recovery (local, D1_FAULT_INJECTION=1 only): a 25 × 20 self-paced write-back
+    // meets D1's daily write limit after its first chunk, then the limit clears. Not a budget flow.
+    let quota = null;
+    if (QUOTA && target === 'local') {
+      const ids = students.map(u => `'${u.id}'`).join(',');
+      const count = sql => d1Query(sql)[0].n;
+      const { session, a, socks } = await run(910002);
+      const sessionId = session.sessionId;
+      const fault = body => api(admin, 'POST', '/api/e2e/d1-fault', { sessionId, ...body });
+      const pending = async () => (await api(admin, 'GET', '/api/admin/lesson-sync')).pending.filter(p => p.sessionId === sessionId);
+      const landed = () => d1Query(`SELECT
+        (SELECT COUNT(*) FROM session_responses WHERE session_id = ${sessionId}) AS responses,
+        (SELECT COUNT(*) FROM session_responses WHERE session_id = ${sessionId} AND is_correct IS NOT NULL) AS scorable,
+        (SELECT COUNT(*) FROM attempts WHERE lesson_session_id = ${sessionId}) AS attempts,
+        (SELECT COUNT(*) FROM (SELECT DISTINCT user_id, question_id FROM attempts WHERE lesson_session_id = ${sessionId})) AS distinctAttempts,
+        (SELECT COALESCE(SUM(attempts), 0) FROM progress WHERE user_id IN (${ids})) AS progressAttempts,
+        (SELECT COUNT(*) FROM session_participants WHERE session_id = ${sessionId} AND finished_at IS NOT NULL) AS finished,
+        (SELECT status FROM lesson_sessions WHERE id = ${sessionId}) AS status`)[0];
+      const before = landed();
+      a.send({ type: 'start' });
+      await Promise.all(socks.map(s => s.until(m => m.phase === 'ANSWERING' && m.assignedQuestionIds?.length)));
+      await Promise.all(socks.map(async (s, k) => {
+        let n = 0;
+        for (const qid of s.last.assignedQuestionIds) {
+          s.send({ type: 'navigate', questionId: qid });
+          s.send({ type: 'select', questionId: qid, answer: answers[qid][k % answers[qid].length] });
+          s.send({ type: 'time', questionId: qid, deltaMs: 20000, seq: ++n });
+          await sleep(15);
+        }
+      }));
+      await sleep(500);
+      const injected = await fault({ kind: 'quota', after: 1 });
+      socks.forEach(s => s.send({ type: 'submitAll' }));
+      let held = [];
+      for (let i = 0; i < 60 && !held.length; i++) { await sleep(500); held = await pending(); }
+      const during = landed();
+      const cleared = await fault({ kind: null });
+      const t = Date.now();
+      for (let i = 0; i < 240 && (await pending()).length; i++) await sleep(500);
+      const recoveredMs = Date.now() - t, after = landed(), afterPending = await pending();
+      a.send({ type: 'endSession' });
+      await a.until(m => m.status === 'ended', 60000).catch(() => {});
+      [a, ...socks].forEach(s => s.ws.close());
+      quota = { sessionId, students: socks.length, questions: CONFIG.lessonQuestions, injected, cleared, held, before, during, after, afterPending, recoveredMs };
+      log(`quota-recovery: during ${JSON.stringify(during)} after ${JSON.stringify(after)} in ${recoveredMs} ms`);
+    }
+    return { config: target === 'local' ? CONFIG : { ...CONFIG, ...CONFIG.staging }, seed: bank.counts, instructor: instructorExtra, quota };
   } finally {
     await sleep(target === 'staging' ? 5000 : 500);
-    server?.kill(); tail?.kill();
+    tail?.kill();
+    if (server) { const exited = new Promise(ok => server.once('exit', ok)); server.kill(); await Promise.race([exited, sleep(10000)]); }
   }
 }
-main().then(meta => {
-  const file = join(root, `docs/perf/budget-${target}.json`);
-  const prev = existsSync(file) && only ? JSON.parse(readFileSync(file, 'utf8')) : { flows: {} };
-  writeFileSync(file, JSON.stringify({ target, at: new Date().toISOString(), ...meta, flows: { ...prev.flows, ...results } }, null, 1));
-  console.log('wrote ' + file);
-  process.exit(0);
-}).catch(e => { console.error(e); process.exit(1); });
+// One run per process (module state): `measure({ target: 'local', port, inspector, persist, seedDir, warm, faults, quota, log })`.
+async function measure(opts) {
+  ({ target } = opts);
+  if (!['local', 'staging'].includes(target)) throw new Error('target must be local or staging');
+  warm = !!opts.warm; only = opts.only ? new Set(opts.only) : null; log = opts.log || console.log;
+  PORT = opts.port || PORT; INSPECTOR = opts.inspector || INSPECTOR; PERSIST = opts.persist || PERSIST; SEED_DIR = opts.seedDir || SEED_DIR;
+  FAULTS = !!opts.faults; QUOTA = !!opts.quota;
+  const meta = await main();
+  return { ...meta, flows: results };
+}
+module.exports = { measure };
+
+if (require.main === module) {
+  const cli = process.argv[2], args = process.argv.slice(3).filter(a => a !== '--warm');
+  if (!['local', 'staging'].includes(cli)) throw new Error('usage: node tools/budget_measure.cjs local|staging [flow,...]');
+  measure({ target: cli, warm: process.argv.includes('--warm'), only: args[0] ? args[0].split(',') : null }).then(({ quota, ...meta }) => {
+    const file = join(root, `docs/perf/budget-${target}.json`);
+    const prev = existsSync(file) && only ? JSON.parse(readFileSync(file, 'utf8')) : { flows: {} };
+    writeFileSync(file, JSON.stringify({ target, at: new Date().toISOString(), ...meta, flows: { ...prev.flows, ...results } }, null, 1));
+    console.log('wrote ' + file);
+    process.exit(0);
+  }).catch(e => { console.error(e); process.exit(1); });
+}
