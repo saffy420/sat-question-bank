@@ -1,7 +1,7 @@
 Task: free-01-measure
 Branch: claude/free-01-measure   Base: main (all lessons-* PRs merged; no claude/lessons-* branches remain on origin)
-Last completed step: 6 (review round 1 PASS; e2e full suite running)   Commit: 210c1d6
-Next step: record e2e results in e2e.md; after 00:00 UTC 2026-09-28 (send_later trig_01G1EfDybRAgZPKzHTgvbE2Y fires 00:10) load budget_history.sql on staging, run ★ self-paced-end + poll-review + admin flows on staging, regenerate report, then handoff + PR
+Last completed step: 6 (test round: full e2e 31/31 green; review round 1 PASS)   Commit: d278a3b
+Next step: at 00:10 UTC 2026-09-28 (send_later trig_01G1EfDybRAgZPKzHTgvbE2Y) load .wrangler/budget-staging/budget_history.sql on staging DB, run `node tools/budget_measure.cjs staging self-paced-end,poll-review,admin-students,admin-student-detail`, `node tools/budget_report.cjs`, update staging usage log, then step 8 handoff + step 9 PR
 Open blockers: none (hard stop resolved: user confirmed Workers Free and said continue)
 Decisions made this task: base = main; query target measured against verified 1,000/invocation, CPU target stays ≤ 7 ms, DO daily caps added to model; synthetic bank (3,000 core + 400 real AI) since production reads were denied; staging uses two D1 DBs; staging runs split over two UTC days to stay < 10% of caps; staging test sign-in uses HMAC-signed stateless tokens (isolates don't share memory)
 Staging quota used today: 2026-09-27 ~8,102 rows written / ~70,000 rows read / ~400 requests
