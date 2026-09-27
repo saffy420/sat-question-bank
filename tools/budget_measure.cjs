@@ -4,6 +4,8 @@
 //   node tools/budget_measure.cjs local            fresh local state on :8790, writes docs/perf/budget-local.json
 //   node tools/budget_measure.cjs staging [flows]  STAGING_URL / STAGING_TEST_TOKEN from .e2e.staging.env,
 //                                                   traces from X-Budget-Trace + `wrangler tail`
+//   --warm   runs each read-only flow a second time right after, recorded as `<flow>@warm`
+//            (the first run fills the free-02 caches; the second is served from them)
 // Local only ever touches .wrangler/state-budget; staging only the roadto1600-staging Worker.
 const { spawn, spawnSync } = require('node:child_process');
 const { resolve, join } = require('node:path');
@@ -12,7 +14,9 @@ const { build, CONFIG } = require('./budget_seed.cjs');
 const root = resolve(__dirname, '..');
 const target = process.argv[2];
 if (!['local', 'staging'].includes(target)) throw new Error('usage: node tools/budget_measure.cjs local|staging [flow,...]');
-const only = process.argv[3] ? new Set(process.argv[3].split(',')) : null;
+const args = process.argv.slice(3).filter(a => a !== '--warm'), warm = process.argv.includes('--warm');
+const only = args[0] ? new Set(args[0].split(',')) : null;
+const READ_ONLY = new Set(['student-boot', 'bank-filter', 'admin-students', 'admin-student-detail', 'my-lessons']);
 const wranglerBin = resolve(root, 'node_modules/wrangler/bin/wrangler.js');
 const childEnv = { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' };
 delete childEnv.E2E_TEST_MODE;
@@ -111,6 +115,10 @@ function socket(u, sessionId, client) {
 const results = {};
 async function flow(name, fn) {
   if (only && !only.has(name)) return;
+  await record(name, fn);
+  if (warm && READ_ONLY.has(name)) await record(name + '@warm', fn);
+}
+async function record(name, fn) {
   const from = traces.length, fromHttp = httpTraces.length, t = Date.now();
   let extra = {};
   // A failed flow is a finding (e.g. Error 1102, CPU limit): record it and carry on.

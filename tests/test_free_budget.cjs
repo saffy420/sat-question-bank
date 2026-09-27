@@ -185,3 +185,21 @@ test('demoji and normalizeQuestion fast paths return what the full paths return'
     assert.equal(got, want, JSON.stringify(a));
   }
 });
+
+test('builder search narrowed in SQL finds exactly what the full scan finds', async t => {
+  const f = await fixture(t);
+  f.db.exec(`INSERT INTO questions (id,section,domain,skill,difficulty,stem_html,choices_json,correct_answer,source) VALUES
+    ('t1','Math','Algebra','Linear functions','Easy','<p>The <b>cat</b> sat</p>','[]','1','College Board'),
+    ('t2','Math','Algebra','Linear functions','Easy','<p>K-means clustering</p>','[]','1','College Board'),
+    ('t3','Reading & Writing','Standard English Conventions','Form, Structure, and Sense','Easy','<p>İz</p>','[]','1','College Board'),
+    ('t4','Reading & Writing','Craft and Structure','Words in Context','Hard','<p>ÜBER alles</p>','[]','1','College Board'),
+    ('T5-Upper','Math','Algebra','Linear functions','Easy','<p>cat<br>sat</p>','[]','1','College Board');`);
+  const all = [...f.db.prepare('SELECT id, skill, stem_html FROM questions').all(), ...f.ai.prepare('SELECT id, skill, stem_html FROM questions').all()];
+  for (const term of ['the cat', 'cat sat', 'k-means', 'i', 'z', 'über', 'UBER', 't5-up', '<b>', 'b>cat', 'words in', 'zzz', 'at  s']) {
+    const search = term.trim().toLowerCase();
+    const want = all.filter(q => [q.id, q.skill, q.stem_html?.replace(/<[^>]*>/g, ' ')].some(v => String(v || '').toLowerCase().includes(search))).map(q => q.id).sort();
+    const res = await (await f.get('/api/admin/questions?page=1&search=' + encodeURIComponent(term))).json();
+    assert.deepEqual(res.questions.map(q => q.id).sort(), want, term);
+    assert.equal(res.total, want.length, term);
+  }
+});

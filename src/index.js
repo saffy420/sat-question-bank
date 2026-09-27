@@ -247,10 +247,9 @@ async function bank(env) {
 // trap, not its HTML (free-plan CPU, docs/perf/free-plan-budget.md). normalizeQuestion still runs on
 // the rows. It reads explanation_html only for a grid-in whose answer comes out empty; those few
 // rows are read again with it.
+// Choice HTML is dropped with json_remove on fixed paths: json_each would bill every choice as a D1 row read.
 const LEAN = `id, section, domain, difficulty, skill, correct_answer, source,
-  CASE WHEN json_valid(choices_json) AND json_type(choices_json) = 'array' THEN (SELECT json_group_array(json(c)) FROM
-    (SELECT json_object('letter', json_extract(value, '$.letter'), 'trap', json_extract(value, '$.trap')) AS c FROM json_each(choices_json) ORDER BY key))
-  ELSE '[]' END AS choices_json`;
+  CASE WHEN json_valid(choices_json) THEN json_remove(choices_json, ${Array.from({ length: 8 }, (_, i) => `'$[${i}].content'`).join(', ')}) ELSE '[]' END AS choices_json`;
 async function statBank(env, keep = null) {
   const [core, ai] = await Promise.all([
     env.DB.prepare(`SELECT ${LEAN} FROM questions`).all(),
@@ -360,6 +359,43 @@ const lessonBody = b => b && !Array.isArray(b) && typeof b === 'object' &&
     Number.isInteger(x.time_limit_sec) && x.time_limit_sec >= 5 && x.time_limit_sec <= 10800 &&
     typeof x.notes === 'string' && x.notes.length <= MAX_NOTE) &&
   new Set(b.items.map(x => x.question_id)).size === b.items.length;
+// The builder filters and pages the whole bank on every search. Receiving its 3,400 light rows from
+// D1 alone costs more CPU than the free plan's 10 ms, so each isolate keeps them, sorted once in the
+// builder's order (cbSort is one fixed order, so any filtered subset of the sorted list is sorted
+// too), while both banks' max rowid hold and for at most BANK_TTL, like the bank cache.
+let builderMemo = null;
+async function builderIndex(env, fresh = false) {
+  const key = await bankStamp(env);
+  if (!fresh && builderMemo?.key === key && Date.now() - builderMemo.at < BANK_TTL * 1000) return builderMemo;
+  const cols = 'id, section, domain, difficulty, skill';
+  const [core, ai] = await Promise.all([env.DB.prepare(`SELECT ${cols} FROM questions`).all(), env.AI_DB.prepare(`SELECT ${cols} FROM questions`).all()]);
+  const bank = [...(core.results || []), ...(ai.results || []).map(q => ({ ...q, ai: true }))];
+  const rank = list => new Map(cbSort(list).map((k, i) => [k, i]));
+  const domainOrder = rank([...new Set(bank.map(q => q.domain || ''))]), skillOrder = rank([...new Set(bank.map(q => q.skill || ''))]), byText = new Intl.Collator().compare;
+  // Same order as indexOf + localeCompare; a Map and one collator (what localeCompare uses) cost less per comparison.
+  const rows = bank.slice().sort((a,b) => domainOrder.get(a.domain || '') - domainOrder.get(b.domain || '') ||
+    skillOrder.get(a.skill || '') - skillOrder.get(b.skill || '') || byText(a.id, b.id));
+  return builderMemo = { key, at: Date.now(), bank, rows, taxonomy: {} };
+}
+function taxonomy(bank, section) {
+  const inSection = bank.filter(q => !section || q.section === section);
+  const domains = cbSort([...new Set(inSection.map(q => q.domain).filter(Boolean))]);
+  return { domains, skillsByDomain: Object.fromEntries(domains.map(d => [d, cbSort([...new Set(inSection.filter(q => q.domain === d).map(q => q.skill).filter(Boolean))])])) };
+}
+// Search matches the ID, skill or tag-stripped stem, lower-cased. D1 first narrows to rows whose raw
+// text holds every whitespace-free piece of the term: tag stripping only inserts spaces, and for an
+// ASCII term SQLite's lower() agrees with toLowerCase() except on U+0130 and U+212A, which JS lowers
+// to ASCII, so rows holding those always pass. The exact test below then decides, as before.
+async function searchBank(env, search) {
+  const pieces = search.split(/\s+/).filter(Boolean);
+  const narrow = pieces.every(x => /^[\x21-\x7e]+$/.test(x));
+  const has = f => pieces.map((_, i) => `instr(lower(${f}), ?${i + 1}) > 0`).join(' AND ');
+  const where = narrow ? ` WHERE (${has('id')}) OR (${has('skill')}) OR (${has('stem_html')}) OR
+    instr(COALESCE(id, '') || COALESCE(skill, '') || COALESCE(stem_html, ''), char(304)) > 0 OR instr(COALESCE(id, '') || COALESCE(skill, '') || COALESCE(stem_html, ''), char(8490)) > 0` : '';
+  const read = db => db.prepare('SELECT id, skill, stem_html FROM questions' + where).bind(...(narrow ? pieces : [])).all();
+  const match = q => [q.id, q.skill, q.stem_html?.replace(/<[^>]*>/g, ' ')].some(v => String(v || '').toLowerCase().includes(search));
+  return (await Promise.all([read(env.DB), read(env.AI_DB)])).map(r => new Set((r.results || []).filter(match).map(q => q.id)));
+}
 async function lessonDetail(env, id) {
   const lesson = await env.DB.prepare('SELECT * FROM lessons WHERE id=?').bind(id).first();
   if (!lesson) return null;
@@ -376,28 +412,25 @@ async function lessonRoutes(req, env, url, p, u) {
         [domains,skills,difficulties].some(v => v.length > 30) || [...domains,...skills].some(s => !s || s.length > 150) ||
         difficulties.some(d => !['Easy','Medium','Hard'].includes(d)) || !USAGE_MODES.includes(usage) || search.length > 100 ||
         [...params.keys()].some(k => !['page','section','domain','skill','difficulty','lessonUsage','search'].includes(k))) return json({ error: 'invalid filter' }, 400);
-    // Filter and sort on the columns the filters read; only the page's rows are read in full.
-    const cols = 'id, section, domain, difficulty, skill' + (search ? ', stem_html' : '');
-    const [core, ai, usageById] = await Promise.all([env.DB.prepare(`SELECT ${cols} FROM questions`).all(),
-      env.AI_DB.prepare(`SELECT ${cols} FROM questions`).all(), lessonUsage(env)]);
-    const bankRows = [...(core.results || []), ...(ai.results || []).map(q => ({ ...q, ai: true }))];
+    const [usageById, found] = await Promise.all([lessonUsage(env), search ? searchBank(env, search) : null]);
     // The instructor "attended" every session of a lesson they created: they ran it.
     const ran = usage === 'hide-attended' ? new Set(((await env.DB.prepare('SELECT s.id FROM lesson_sessions s JOIN lessons l ON l.id=s.lesson_id WHERE l.created_by=?').bind(u.id).all()).results || []).map(r => padSessionId(r.id))) : new Set();
-    const rows = bankRows.filter(q => (!section || q.section === section) && (!domains.length || domains.includes(q.domain)) && (!skills.length || skills.includes(q.skill)) &&
-      (!difficulties.length || difficulties.includes(q.difficulty)) && lessonUsageVisible(usageById.get(q.id), usage, ran) &&
-      (!search || [q.id,q.skill,q.stem_html?.replace(/<[^>]*>/g, ' ')].some(v => String(v || '').toLowerCase().includes(search))));
-    const domainOrder = cbSort([...new Set(rows.map(q => q.domain || ''))]), skillOrder = cbSort([...new Set(rows.map(q => q.skill || ''))]);
-    rows.sort((a,b) => domainOrder.indexOf(a.domain || '') - domainOrder.indexOf(b.domain || '') ||
-      skillOrder.indexOf(a.skill || '') - skillOrder.indexOf(b.skill || '') || a.id.localeCompare(b.id));
-    const shown = rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
-    const [coreFull, aiFull] = await Promise.all([byIds(env.DB, BANK_COLS, shown.filter(q => !q.ai).map(q => q.id)),
-      byIds(env.AI_DB, BANK_COLS + ', level', shown.filter(q => q.ai).map(q => q.id))]);
-    const full = [new Map(coreFull.flat().map(r => [r.id, r])), new Map(aiFull.flat().map(r => [r.id, r]))];
+    let index, rows, shown, full;
+    // A question deleted since the index was built is missing from the page read: rebuild the index once.
+    for (const fresh of [false, true]) {
+      index = await builderIndex(env, fresh);
+      // The index is already in the builder's order, so every filtered subset is too.
+      rows = index.rows.filter(q => (!section || q.section === section) && (!domains.length || domains.includes(q.domain)) && (!skills.length || skills.includes(q.skill)) &&
+        (!difficulties.length || difficulties.includes(q.difficulty)) && lessonUsageVisible(usageById.get(q.id), usage, ran) && (!found || found[q.ai ? 1 : 0].has(q.id)));
+      shown = rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+      const [coreFull, aiFull] = await Promise.all([byIds(env.DB, BANK_COLS, shown.filter(q => !q.ai).map(q => q.id)),
+        byIds(env.AI_DB, BANK_COLS + ', level', shown.filter(q => q.ai).map(q => q.id))]);
+      full = [new Map(coreFull.flat().map(r => [r.id, r])), new Map(aiFull.flat().map(r => [r.id, r]))];
+      if (shown.every(q => full[q.ai ? 1 : 0].has(q.id))) break;
+    }
     return json({ questions: shown.map(q => ({ ...normalizeQuestion(full[q.ai ? 1 : 0].get(q.id)), usedInLesson: usageById.get(q.id) || [] })),
       total: rows.length, page, pages: Math.max(1, Math.ceil(rows.length/PAGE_SIZE)),
-      domains: cbSort([...new Set(bankRows.filter(q => !section || q.section === section).map(q => q.domain).filter(Boolean))]),
-      skillsByDomain: Object.fromEntries(cbSort([...new Set(bankRows.filter(q => !section || q.section === section).map(q => q.domain).filter(Boolean))]).map(d =>
-        [d, cbSort([...new Set(bankRows.filter(q => q.domain === d && (!section || q.section === section)).map(q => q.skill).filter(Boolean))])])) });
+      ...(index.taxonomy[section] ||= taxonomy(index.bank, section)) });
   }
   if (p === '/api/admin/lessons' && method === 'GET') {
     const rows = await env.DB.prepare(`SELECT l.*, COUNT(DISTINCT q.question_id) AS questionCount,

@@ -73,6 +73,11 @@ export async function budgetProbe(req, env) {
     await cache.put(key, new Response('x', { headers: { 'Cache-Control': 'max-age=60' } }));
     return reply({ hit: !!(await cache.match(key)) });
   }
+  // d1-all / d1-raw: CPU of receiving the builder's 3,400 light rows as objects or as arrays.
+  if (kind === 'd1-all' || kind === 'd1-raw') {
+    const st = env.DB.prepare('SELECT id, section, domain, difficulty, skill FROM questions');
+    return reply({ rows: kind === 'd1-raw' ? (await st.raw()).length : (await st.all()).results.length });
+  }
   if (kind.startsWith('cpu-')) {
     const n = (k, d, max) => { const v = Number(new URL(req.url).searchParams.get(k) ?? d); return Number.isInteger(v) && v >= 0 && v <= max ? v : d; };
     return reply(cpuProbe(kind.slice(4), n('students', 30, 200), n('attempts', 400, 5000), n('questions', 3400, 10000)));
