@@ -30,7 +30,7 @@ CPU figures are [staging, untraced] (the same code path as production) or [stagi
 
 ## Links
 - Spec: `.omp/pipeline/free-02-optimize/spec.md`
-- E2E: `.omp/pipeline/free-02-optimize/e2e.md` — **31/31** twice. Every optimized route's response is byte-identical to free-01, cached or not (15 variants).
+- E2E: `.omp/pipeline/free-02-optimize/e2e.md` — **31/31** twice before option A. With option A: 31/31, 30/31, then 31/31. The one failure was a raw `3131` substring check in the Desmos spec; free-02 doesn't touch lesson code, and the spec passed 6/6 when repeated (analysis in e2e.md). Every optimized route's response is byte-identical to free-01, cached or not (15 variants), and the fan-out matches the inline path.
 - Review: `.omp/pipeline/free-02-optimize/review.md` — **PASS** after round 1 and round 2 (option A).
 - Handoff: `.omp/pipeline/free-02-optimize/handoff.md`
 
