@@ -1,7 +1,7 @@
 Task: free-01-measure
 Branch: claude/free-01-measure   Base: main (all lessons-* PRs merged; no claude/lessons-* branches remain on origin)
-Last completed step: 8 (handoff)   Commit: f84ebdb
-Next step: 9 — open PR free-01: measure (body .omp/pipeline/free-01-measure/pr.md); staging self-paced ★ run moves to free-02 as its 'before' number (next UTC day)
+Last completed step: 9 (PR opened)   Commit: def62c9
+Next step: done — PR https://github.com/saffy420/sat-question-bank/pull/8 (step 9). Staging self-paced ★ run carried into free-02.
 Open blockers: none (hard stop resolved: user confirmed Workers Free and said continue)
 Decisions made this task: base = main; query target measured against verified 1,000/invocation, CPU target stays ≤ 7 ms, DO daily caps added to model; synthetic bank (3,000 core + 400 real AI) since production reads were denied; staging uses two D1 DBs; staging runs split over two UTC days to stay < 10% of caps; staging test sign-in uses HMAC-signed stateless tokens (isolates don't share memory)
 Staging quota used today: 2026-09-27 ~8,102 rows written / ~70,000 rows read / ~400 requests
