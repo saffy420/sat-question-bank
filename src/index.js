@@ -235,13 +235,46 @@ async function syncRole(env, u) {
     .bind(u.id, u.email, name, role).run();
   return role;
 }
+const BANK_COLS = 'id, external_id, section, domain, difficulty, skill, stem_html, choices_json, correct_answer, explanation_html, source, source_page, has_figure';
 async function bank(env) {
-  const cols = 'id, external_id, section, domain, difficulty, skill, stem_html, choices_json, correct_answer, explanation_html, source, source_page, has_figure';
   const [core, ai] = await Promise.all([
-    env.DB.prepare(`SELECT ${cols} FROM questions`).all(),
-    env.AI_DB.prepare(`SELECT ${cols}, level FROM questions`).all()
+    env.DB.prepare(`SELECT ${BANK_COLS} FROM questions`).all(),
+    env.AI_DB.prepare(`SELECT ${BANK_COLS}, level FROM questions`).all()
   ]);
   return [...(core.results || []), ...(ai.results || [])];
+}
+// What the shared stats read from a question: taxonomy, level, answer and each choice's letter and
+// trap, not its HTML (free-plan CPU, docs/perf/free-plan-budget.md). normalizeQuestion still runs on
+// the rows. It reads explanation_html only for a grid-in whose answer comes out empty; those few
+// rows are read again with it.
+const LEAN = `id, section, domain, difficulty, skill, correct_answer, source,
+  CASE WHEN json_valid(choices_json) AND json_type(choices_json) = 'array' THEN (SELECT json_group_array(json(c)) FROM
+    (SELECT json_object('letter', json_extract(value, '$.letter'), 'trap', json_extract(value, '$.trap')) AS c FROM json_each(choices_json) ORDER BY key))
+  ELSE '[]' END AS choices_json`;
+async function statBank(env, keep = null) {
+  const [core, ai] = await Promise.all([
+    env.DB.prepare(`SELECT ${LEAN} FROM questions`).all(),
+    env.AI_DB.prepare(`SELECT ${LEAN}, level FROM questions`).all()
+  ]);
+  const raw = [...(core.results || []), ...(ai.results || [])].filter(r => !keep || keep.has(r.id)), qs = raw.map(normalizeQuestion);
+  const blank = qs.flatMap((q, i) => q.spr && !q.answer ? [i] : []);
+  for (const ai of [false, true]) {
+    const list = blank.filter(i => qs[i].ai === ai);
+    for (const rows of await byIds(ai ? env.AI_DB : env.DB, 'id, explanation_html', list.map(i => qs[i].id))) {
+      const html = new Map(rows.map(r => [r.id, r.explanation_html]));
+      for (const i of list) if (html.has(qs[i].id)) qs[i] = normalizeQuestion({ ...raw[i], explanation_html: html.get(qs[i].id) });
+    }
+  }
+  return qs;
+}
+// Rows by ID in chunks under D1's 100 bound parameters.
+async function byIds(db, cols, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += 90) {
+    const part = ids.slice(i, i + 90);
+    out.push((await db.prepare(`SELECT ${cols} FROM questions WHERE id IN (${part.map(() => '?').join(',')})`).bind(...part).all()).results || []);
+  }
+  return out;
 }
 // §2 usedInLesson: padded session IDs per question, oldest first. With a user, only the
 // questions of sessions they attended (My Lessons refreshes those after a lesson ends).
@@ -254,13 +287,12 @@ async function lessonUsage(env, userId = null) {
   for (const r of used.results || []) { if (!usageById.has(r.question_id)) usageById.set(r.question_id, []); usageById.get(r.question_id).push(padSessionId(r.session_id)); }
   return usageById;
 }
-async function adminData(env, id, questionBank = null) {
-  const [progress, attempts, questions] = await Promise.all([
+async function adminData(env, id) {
+  const [progress, attempts, qs] = await Promise.all([
     env.DB.prepare('SELECT question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id = ?').bind(id).all(),
     env.DB.prepare('SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json, lesson_session_id FROM attempts WHERE user_id = ? ORDER BY ts').bind(id).all(),
-    questionBank || bank(env)
+    statBank(env)
   ]);
-  const qs = questions.map(normalizeQuestion);
   const prog = Object.fromEntries((progress.results || []).map(p => [p.question_id, p]));
   const log = attempts.results || [];
   const stats = breakdown(qs, prog, log);
@@ -549,9 +581,21 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         const users = await env.DB.prepare(`SELECT u.id, u.email, u.name, m.status ${where} LIMIT 501`).bind(term, term).all();
         // ponytail: explicit club-size ceiling; use SQL materialized aggregates when >500 members.
         if ((users.results || []).length > 500) return json({ error: 'Student list exceeds supported size' }, 413);
-        const questions = await bank(env);
-        const students = await Promise.all((users.results || []).map(async student => {
-          const { stats } = await adminData(env, student.id, questions);
+        // One read per table for the whole roster (not two per student), and each student's stats over
+        // only the questions they touched: every field below is keyed by their progress/attempt rows.
+        const roster = `SELECT u.id ${where} LIMIT 501`;
+        const [progress, attempts] = await Promise.all([
+          env.DB.prepare(`SELECT user_id, question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id IN (${roster})`).bind(term, term).all(),
+          env.DB.prepare(`SELECT user_id, question_id, ts, correct, time_taken_ms, picked, changes FROM attempts WHERE user_id IN (${roster}) ORDER BY ts`).bind(term, term).all()
+        ]);
+        const progs = new Map(), logs = new Map(), touchedIds = new Set();
+        for (const { user_id, ...r } of progress.results || []) { (progs.get(user_id) || progs.set(user_id, {}).get(user_id))[r.question_id] = r; touchedIds.add(r.question_id); }
+        for (const { user_id, ...r } of attempts.results || []) { (logs.get(user_id) || logs.set(user_id, []).get(user_id)).push(r); touchedIds.add(r.question_id); }
+        const byId = new Map((await statBank(env, touchedIds)).map(q => [q.id, q]));
+        const students = (users.results || []).map(student => {
+          const prog = progs.get(student.id) || {}, log = logs.get(student.id) || [];
+          const touched = [...new Set([...Object.keys(prog), ...log.map(x => x.question_id)])].map(id => byId.get(id)).filter(Boolean);
+          const stats = breakdown(touched, prog, log);
           const weak = Object.entries(stats.skills).filter(([, v]) => v.a).sort((a, b) => a[1].c / a[1].a - b[1].c / b[1].a || a[0].localeCompare(b[0]))[0];
           const n = Object.values(stats.paceSection).reduce((sum, x) => sum + x.n, 0);
           const ms = Object.values(stats.paceSection).reduce((sum, x) => sum + x.ms, 0);
@@ -559,7 +603,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
           return { ...student, done: stats.tally.att, accuracy: stats.tally.att ? Math.round(100 * stats.tally.corr / stats.tally.att) : null,
             weakest: weak?.[0] || null, avgMs: n ? ms / n : null, targetMs: n ? target / n : null,
             guessRate: stats.guessing.n ? stats.guessing.changedN / stats.guessing.n : null, lastActive: stats.lastActive };
-        }));
+        });
         students.sort((a, b) => {
           const x = a[sort], y = b[sort];
           if (x == null || y == null) return (x == null) - (y == null) || a.id.localeCompare(b.id);
@@ -586,8 +630,12 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         const { qs, prog, log, stats, directions } = await adminData(env, id);
         const latest = new Map();
         for (const x of log) if (!latest.has(x.question_id) || x.ts >= latest.get(x.question_id).ts) latest.set(x.question_id, x);
-        const mistakes = qs.filter(q => ['Red', 'Orange'].includes(prog[q.id]?.marker)).map(q => ({ question_id: q.id, marker: prog[q.id].marker,
-          picked: latest.get(q.id)?.picked || null, lessonSessionId: latest.get(q.id)?.lesson_session_id ? padSessionId(latest.get(q.id).lesson_session_id) : null, question: q }));
+        // The stats read lean rows; the Mistakes tab shows whole questions, so only those are read in full.
+        const wrong = qs.filter(q => ['Red', 'Orange'].includes(prog[q.id]?.marker));
+        const full = new Map((await Promise.all([byIds(env.DB, BANK_COLS, wrong.filter(q => !q.ai).map(q => q.id)), byIds(env.AI_DB, BANK_COLS + ', level', wrong.filter(q => q.ai).map(q => q.id))]))
+          .flat(2).map(r => [r.id, normalizeQuestion(r)]));
+        const mistakes = wrong.map(q => ({ question_id: q.id, marker: prog[q.id].marker,
+          picked: latest.get(q.id)?.picked || null, lessonSessionId: latest.get(q.id)?.lesson_session_id ? padSessionId(latest.get(q.id).lesson_session_id) : null, question: full.get(q.id) }));
         // §3.2 Lessons: only self-paced sessions feed the stats above (§10).
         const lessons = (await attendedSessions(env.DB, id)).map(({ endedAt, ...x }) => ({ ...x, counted: x.mode === 'self' }));
         return json({ student, stats, directions, mistakes, lessons, totalHistory: log.length });

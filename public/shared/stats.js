@@ -7,7 +7,9 @@ const MOJIBAKE = [
   ['\u0393\u00eb\u00ea', '\u2248'], ['\u00a4\u00c7', '\u03c0'], ['\u251c\u00f9', '\u00d7'],
   ['\u252c\u00b0', '\u00b0'], ['\u252c\u2557', '\u00b7'], ['\u252c\u2593', '\u00b2']
 ];
-export const demoji = h => MOJIBAKE.reduce((a, [bad, good]) => a.split(bad).join(good), h || '');
+// Every mojibake sequence starts with one of these characters; text without them is returned as is.
+const MOJIBAKE_LEAD = /[\u0393\u00a4\u251c\u252c]/;
+export const demoji = h => typeof h === 'string' && !MOJIBAKE_LEAD.test(h) ? h : MOJIBAKE.reduce((a, [bad, good]) => a.split(bad).join(good), h || '');
 export const levelOf = q => q.level || ({ easy: 1, medium: 2, hard: 3 })[String(q.difficulty || '').toLowerCase()] || 2;
 export const TARGET_MS = { Math: 95000, 'Reading & Writing': 71000 };
 export const targetOf = q => TARGET_MS[q.section] || 85000;
@@ -123,7 +125,11 @@ export function attemptRow(questionId, ok, now, ms, picked, changes, history) {
 export function normalizeQuestion(q) {
   let choices; try { choices = typeof q.choices_json === 'string' ? JSON.parse(q.choices_json) : (q.choices_json || []); if (!Array.isArray(choices)) choices = []; } catch { choices = []; }
   choices.forEach((c, i) => { if (!String(c.letter ?? '').trim()) c.letter = 'ABCD'[i] || String(i + 1); });
-  let answer; try { const a = typeof q.correct_answer === 'string' ? JSON.parse(q.correct_answer) : (q.correct_answer || []); answer = Array.isArray(a) ? a.join('') : String(a); } catch { answer = q.correct_answer || ''; }
+  // JSON text can only start with one of these after JSON whitespace; anything else would throw, so it
+  // takes the same fallback without a thrown exception per question.
+  let answer;
+  if (typeof q.correct_answer === 'string' && !/^[\t\n\r ]*[-[{"0-9tfn]/.test(q.correct_answer)) answer = q.correct_answer || '';
+  else try { const a = typeof q.correct_answer === 'string' ? JSON.parse(q.correct_answer) : (q.correct_answer || []); answer = Array.isArray(a) ? a.join('') : String(a); } catch { answer = q.correct_answer || ''; }
   answer = String(answer || '').replace(/\\u([0-9a-f]{4})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
   answer = demoji(answer);
   const spr = !choices.length;

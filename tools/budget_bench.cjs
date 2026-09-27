@@ -3,9 +3,9 @@
 // and reports Worker-side CPU per route. D1's own work (SQLite + serializing the result) is timed
 // separately and subtracted; parsing the result JSON is left in, as it is in the Worker isolate.
 // Numbers are [local-node]: a proxy for ranking changes. Staging is the authority for the 10 ms limit.
-//   node tools/budget_bench.cjs [iterations]
+//   node tools/budget_bench.cjs [iterations]   (BENCH_DUMP=<dir> writes each route's first response body)
 const { DatabaseSync } = require('node:sqlite');
-const { readdirSync, copyFileSync, mkdtempSync, existsSync } = require('node:fs');
+const { readdirSync, copyFileSync, mkdtempSync, existsSync, writeFileSync } = require('node:fs');
 const { join, resolve } = require('node:path');
 const { tmpdir } = require('node:os');
 const root = resolve(__dirname, '..');
@@ -88,6 +88,7 @@ async function main() {
       const body = await res.text();
       const used = cpu() - t - clock.excluded;
       status = res.status; bytes = body.length;
+      if (process.env.BENCH_DUMP && !i) writeFileSync(join(process.env.BENCH_DUMP, label.replace(/[^\w]+/g, '_') + '.json'), body);
       if (i) runs.push(used); // first run warms the JIT (and fills any cache)
     }
     runs.sort((a, b) => a - b);
