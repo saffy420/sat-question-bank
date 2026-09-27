@@ -103,7 +103,7 @@ test('Durable Object events each get their own trace', async t => {
 
 test('production config never enables the trace or the staging test surface', async () => {
   const toml = readFileSync(root + 'wrangler.toml', 'utf8');
-  const top = toml.split(/^\[env\./m)[0];
+  const top = toml.split(/^\[env\./m)[0].replace(/^#.*$/gm, '');
   assert.doesNotMatch(top, /BUDGET_TRACE|BUDGET_PROBE|E2E_TEST_MODE|STAGING_TEST_TOKEN/);
   assert.match(top, /^main = "src\/index.js"$/m);
   for (const file of ['wrangler.e2e.toml', 'wrangler.e2e-production.toml']) assert.doesNotMatch(readFileSync(root + file, 'utf8'), /BUDGET_TRACE|BUDGET_PROBE|STAGING_TEST_TOKEN/);

@@ -25,6 +25,10 @@ async function run(db, kind) {
   if (kind === 'batch') return batch(db, 200, true);
   if (kind === 'mix') return { batch: await batch(db, 200, false), serial: await serial(db, 60) };
   if (kind === 'half') return serial(db, 45);
+  // ceiling: where separate queries actually stop; big: a read-only batch the size of a
+  // 25 x 20 self-paced flush (~1,500 statements), for its duration.
+  if (kind === 'ceiling') return serial(db, 1100);
+  if (kind === 'big') return batch(db, 1500, false);
   return null;
 }
 
