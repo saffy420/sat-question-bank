@@ -38,6 +38,25 @@ test('shared annotations module is publicly served without opening other paths',
   assert.equal((await request('/shared/annotations.js', null, 'HEAD')).status, 200);
   assert.equal((await request('/shared/missing.js')).status, 404);
 });
+test('lesson pages alone get the Desmos CSP; shared desmos module served; key falls back to demo only locally', async t => {
+  const { request, id } = await fixture(t);
+  const { desmosApiKey } = await import('../src/index.js');
+  const csp = res => res.headers.get('Content-Security-Policy');
+  const desmos = await request('/shared/desmos.js');
+  assert.equal(desmos.status, 200); assert.doesNotMatch(csp(desmos), /unsafe-eval|desmos\.com\/?[^;]*;?\s*worker/);
+  assert.doesNotMatch(csp(await request('/login')), /unsafe-eval|worker-src/);
+  assert.equal((await request('/api/auth/session', 'admin', 'POST')).status, 200);
+  const admin = await request('/admin', 'admin');
+  assert.equal(admin.status, 200, await admin.clone().text());
+  assert.match(csp(admin), /script-src [^;]*'unsafe-eval'[^;]*https:\/\/www\.desmos\.com/);
+  assert.match(csp(admin), /worker-src blob:/);
+  assert.match(csp(admin), /frame-src https:\/\/www\.desmos\.com/);
+  assert.doesNotMatch(csp(await request('/api/admin/students', 'admin')), /unsafe-eval/);
+  assert.equal(desmosApiKey({ DESMOS_API_KEY: 'abc' }, new URL('https://roadto1600.org/')), 'abc');
+  assert.equal(desmosApiKey({}, new URL('https://roadto1600.org/')), null);
+  assert.equal(desmosApiKey({}, new URL('https://127.0.0.1:8787/')), 'dcb31709b452b1cf9dc26972add0fda6');
+  assert.ok(id);
+});
 test('0007 fresh snapshot and existing upgrade both constrain roles and preserve old attempts', () => {
   for (const upgrade of [false,true]) {
     const db = new DatabaseSync(':memory:');

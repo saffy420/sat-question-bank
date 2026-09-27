@@ -5,10 +5,16 @@ import { Check, X, Highlighter, Focus, EllipsisVertical, Circle, LogOut, Eraser,
 import { isRight } from '/shared/stats.js';
 import * as Ink from '/shared/annotations.js';
 import { Stage, followStage } from './Stage';
-import type { Bridge, PlayerModel, Mark, Laser } from './types';
+import { DesmosFollower } from './Desmos';
+import { SelfPlayer } from './Self';
+import { PollScreen } from './Poll';
+import { HistoryView } from './History';
+import { loadDesmos } from '/shared/desmos.js';
+import type { Bridge, PlayerModel, Mark, Laser, LessonHistory } from './types';
 import type { StageProps } from './Stage';
 import './lesson.css';
 export { Stage } from './Stage';
+export { notesHTML } from './notes';
 export type { StageProps } from './Stage';
 
 const NONE: Mark[] = [];
@@ -43,6 +49,8 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
   };
   useLayoutEffect(() => { setConfirm(null); }, [s.questionId]);
   useLayoutEffect(() => { if (!active) setConfirm(null); }, [active]);
+  // Fetch the Desmos API during the lobby so slow Wi-Fi is not paying for it at reveal.
+  useLayoutEffect(() => { if (s.hasMath && s.desmosKey) loadDesmos(s.desmosKey).catch(() => {}); }, [s.hasMath, s.desmosKey]);
   useLayoutEffect(() => {
     const card = document.getElementById('lesson-card');
     if (card && s.phase !== 'REVEALED') Ink.laser(card).hide();
@@ -60,12 +68,15 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
     const card = document.getElementById('lesson-card');
     if (card && follow && followMark) followStage(card, followMark);
   }, [followMark]);
+  // Below a long passage, a status that just appeared (lock, reveal, class results) is brought on screen.
+  const status = revealed ? (s.classResults && s.distribution ? '.lesson-results' : '.lesson-reveal') : s.locked || model.lockPending ? '.lesson-locked' : '';
+  useLayoutEffect(() => { if (status) document.querySelector(status)?.scrollIntoView({ block: 'nearest' }); }, [status, s.questionId]);
   if (terminal) return <div className="lesson-terminal" role="status"><h2>{terminal}</h2></div>;
   return <>
     <span hidden id="lesson-check-icon"><Check size={20} aria-label="Correct"/></span><span hidden id="lesson-x-icon"><X size={20} aria-label="Incorrect"/></span>
     <header className="lesson-header">
       <h1>{s.title}</h1>
-      <div className="lesson-timer"><strong id="lesson-clock" style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: s.phase === 'ANSWERING' && remaining <= 5000 ? '#bd2424' : s.phase === 'ANSWERING' && remaining <= 10000 ? '#b56a00' : undefined }}>{s.endsAt ? `${Math.floor(Math.ceil(remaining / 1000) / 60)}:${String(Math.ceil(remaining / 1000) % 60).padStart(2, '0')}` : ''}</strong><button aria-label={hiddenClock ? 'Show timer' : 'Hide timer'} onClick={() => hideClock(!hiddenClock)}>{hiddenClock ? 'Show' : 'Hide'}</button></div>
+      <div className="lesson-timer"><strong id="lesson-clock" style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: s.phase === 'ANSWERING' && remaining <= 5000 ? '#bd2424' : s.phase === 'ANSWERING' && remaining <= 10000 ? '#b56a00' : undefined }}>{s.endsAt ? `${Math.floor(Math.ceil(remaining / 1000) / 60)}:${String(Math.ceil(remaining / 1000) % 60).padStart(2, '0')}` : ''}</strong>{!s.reviewMode && <button aria-label={hiddenClock ? 'Show timer' : 'Hide timer'} onClick={() => hideClock(!hiddenClock)}>{hiddenClock ? 'Show' : 'Hide'}</button>}</div>
       <nav className="lesson-tools" aria-label="Lesson tools">
         <button id="lesson-private" aria-pressed={privateOn} onClick={() => setPrivateOn(!privateOn)}><Highlighter aria-hidden="true"/><span>Annotate</span></button>
         <label className="lesson-follow-tool"><Focus aria-hidden="true"/><span>Follow me</span><input id="lesson-follow" type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /></label>
@@ -74,18 +85,19 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
       </nav>
     </header>
     {!model.connected && <div className="lesson-reconnect" role="status">Reconnecting…</div>}
-    <div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.phase}</div>
-    <main className="lesson-main">
+    <div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.reviewMode ? 'REVIEW' : s.phase}</div>
+    <main className={`lesson-main${revealed && s.desmos ? ' with-desmos' : ''}`}>
       {s.status === 'lobby' ? <section className="lesson-lobby"><Users size={36} aria-hidden="true"/><h2>Waiting for the instructor to start…</h2><p>{s.count} joined</p></section> : s.question && <>
         <Stage key={s.questionId} question={s.question} number={s.index + 1} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={ownMarks} mathify={bridge.mathify} onSelect={select} strikeMode={strikeMode} struck={ownStruck} onStrikeMode={() => setStrikeMode(!strikeMode)} onStrike={strike} annotating={privateOn} onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [s.questionId]: [...(all[s.questionId] || []), mark] })) : undefined}/>
         {!revealed && (s.locked || model.lockPending) && <p className="lesson-locked" role="status"><LockKeyhole size={18} aria-hidden="true"/>Answer locked in. Waiting for time to end…</p>}
-        {revealed && <section className="lesson-reveal"><p>Correct answer: {s.question.answer}{s.question.spr && <> · Your answer: {picked || 'blank'} · {isRight(s.question, picked) ? 'Correct' : 'Incorrect'}</>}</p><div className="lesson-verdict"><span>{isRight(s.question, picked) ? <Check aria-label="Correct"/> : <X aria-label="Incorrect"/>}</span>{picked ? `Your answer: ${picked}` : 'No answer selected'}</div><details key={s.questionId}><summary>Official explanation</summary><div ref={explanation}/></details>
+        {revealed && <section className="lesson-reveal"><p>Correct answer: {s.question.answer}{s.question.spr && !s.notInSet && <> · Your answer: {picked || 'blank'} · {isRight(s.question, picked) ? 'Correct' : 'Incorrect'}</>}</p>{s.notInSet ? <div className="lesson-verdict" id="lesson-not-in-set">Not in your set</div> : <div className="lesson-verdict"><span>{isRight(s.question, picked) ? <Check aria-label="Correct"/> : <X aria-label="Incorrect"/>}</span>{picked ? `Your answer: ${picked}` : 'No answer selected'}</div>}<details key={s.questionId}><summary>Official explanation</summary><div ref={explanation}/></details>
           {s.classResults && s.distribution && <section className="lesson-results"><h3>Class results</h3>{s.distribution.map((g, index) => <div className="lesson-result" key={g.label}><span>{g.label}</span><span className="lesson-result-track"><i style={{ width: `${100 * g.count / Math.max(1, ...s.distribution!.map(row => row.count))}%`, background: ['#1182a4', '#126bb3', '#706caf', '#398437'][index % 4] }}/></span><strong>{g.count}</strong>{g.correct && <Check size={18} aria-label="Correct"/>}</div>)}</section>}
         </section>}
       </>}
       <p id="lesson-error" role="alert">{model.error}</p>
     </main>
-    <footer className="lesson-footer"><span>{model.name}</span><span className="lesson-position">Question {s.index + 1} of {s.total}</span><button id="lesson-lock" className="lesson-submit" disabled={!active} onClick={() => setConfirm(s.questionId)}>Submit</button></footer>
+    {revealed && s.desmos && <DesmosFollower key={s.questionId} apiKey={s.desmosKey} state={s.desmos}/>}
+    <footer className="lesson-footer"><span>{model.name}</span><span className="lesson-position">Question {s.index + 1} of {s.total}</span>{!s.reviewMode && <button id="lesson-lock" className="lesson-submit" disabled={!active} onClick={() => setConfirm(s.questionId)}>Submit</button>}</footer>
     <dialog className="lesson-confirm-dialog" ref={dialog} onCancel={() => setConfirm(null)}><p>Have you double checked your answer and made sure it's right?</p><div><button id="lesson-back" onClick={() => { setConfirm(null); document.getElementById('lesson-lock')?.focus(); }}>Go back</button><button id="lesson-confirm" onClick={() => { const id = confirm; setConfirm(null); if (id && active && id === s.questionId) bridge.lock(id); }}>Yes, submit</button></div></dialog>
   </>;
 }
@@ -96,7 +108,7 @@ export function mountLesson(root: HTMLElement, bridge: Bridge) {
   let followMark: Mark | null = null;
   let terminal = '';
   let expiry: ReturnType<typeof setTimeout>;
-  const render = () => { if (model) flushSync(() => react.render(<Player model={model} bridge={bridge} terminal={terminal} followMark={followMark}/>)); };
+  const render = () => { if (model) flushSync(() => react.render(terminal ? <div className="lesson-terminal" role="status"><h2>{terminal}</h2></div> : model.snapshot.mode === 'self' && model.self && !model.snapshot.reviewMode ? model.snapshot.poll || model.snapshot.pollResult ? <PollScreen key={model.snapshot.poll?.endsAt ?? 'result'} model={model} bridge={bridge}/> : <SelfPlayer model={model} bridge={bridge}/> : <Player model={model} bridge={bridge} terminal={terminal} followMark={followMark}/>)); };
   const dot = () => { const card = document.getElementById('lesson-card'); return card ? Ink.laser(card) : null; };
   return {
     update(next: PlayerModel) { model = next; render(); },
@@ -118,5 +130,12 @@ export function mountLesson(root: HTMLElement, bridge: Bridge) {
 export function mountStage(root: HTMLElement, props: StageProps) {
   const react = createRoot(root);
   flushSync(() => react.render(<Stage {...props}/>));
+  return () => react.unmount();
+}
+
+// §9.1 My Lessons: a read-only view of one ended session.
+export function mountHistory(root: HTMLElement, history: LessonHistory, mathify: (el: HTMLElement) => void, close: () => void) {
+  const react = createRoot(root);
+  flushSync(() => react.render(<HistoryView history={history} mathify={mathify} close={close}/>));
   return () => react.unmount();
 }

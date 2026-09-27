@@ -53,3 +53,20 @@ INSERT OR IGNORE INTO attempts (user_id,question_id,ts,correct,time_taken_ms,pic
 WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<29)
 INSERT OR IGNORE INTO attempts (user_id,question_id,ts,correct,time_taken_ms,picked,changes)
 SELECT 'e2e-student-1','e2e-core-math',printf('2026-09-22T10:%02d:00Z',i),i%2,90000,CASE WHEN i%2=1 THEN 'C' ELSE 'B' END,0 FROM n;
+-- Task09: student 6 takes the self-paced lessons (they write practice stats; student 1's stay fixed).
+INSERT OR IGNORE INTO users (id,email,name) VALUES ('e2e-student-6','e2e-student-6@e2e.test','E2E Student 6');
+INSERT OR IGNORE INTO membership (user_id,email,status) VALUES ('e2e-student-6','e2e-student-6@e2e.test','approved');
+-- Task09 bank filter: one question per skill, used in a lesson student 6 attended / one they did not / never.
+-- No live lesson uses these, so their usage never changes between runs.
+INSERT INTO questions (id,external_id,section,domain,difficulty,skill,stem_html,choices_json,correct_answer,explanation_html,source) VALUES
+ ('e2e-used-mine','e2e-used-mine','Reading & Writing','Expression of Ideas','Easy','Transitions','<p>Which transition fits? The plan worked. _____, the club kept it.</p>','[{"letter":"A","content":"Therefore"},{"letter":"B","content":"However"},{"letter":"C","content":"Instead"},{"letter":"D","content":"Meanwhile"}]','A','<p>Therefore fits the result.</p>','College Board'),
+ ('e2e-used-other','e2e-used-other','Reading & Writing','Expression of Ideas','Easy','Rhetorical Synthesis','<p>Which choice best states the goal of the club?</p>','[{"letter":"A","content":"To practice together"},{"letter":"B","content":"To stop meeting"},{"letter":"C","content":"To sell books"},{"letter":"D","content":"To travel"}]','A','<p>The notes stress practice.</p>','College Board'),
+ ('e2e-unused','e2e-unused','Reading & Writing','Standard English Conventions','Easy','Boundaries','<p>Which choice completes the text? The club met _____ then it practiced.</p>','[{"letter":"A","content":"early,"},{"letter":"B","content":"early;"},{"letter":"C","content":"early"},{"letter":"D","content":"early:"}]','B','<p>A semicolon joins two clauses.</p>','College Board')
+ON CONFLICT(id) DO UPDATE SET section=excluded.section, domain=excluded.domain, skill=excluded.skill, choices_json=excluded.choices_json, stem_html=excluded.stem_html, explanation_html=excluded.explanation_html, correct_answer=excluded.correct_answer;
+INSERT OR IGNORE INTO lessons (id,title,mode,created_by) VALUES (900003,'E2E attended fixture','instructor','e2e-admin'),(900004,'E2E other fixture','instructor','e2e-admin');
+INSERT OR IGNORE INTO lesson_sessions (id,lesson_id,join_code,status,snapshot_json) VALUES
+ (900003,900003,'E2ESE3','ended','{"title":"E2E attended fixture","mode":"instructor","items":[{"question_id":"e2e-used-mine","time_limit_sec":60,"notes":""}]}'),
+ (900004,900004,'E2ESE4','ended','{"title":"E2E other fixture","mode":"instructor","items":[{"question_id":"e2e-used-other","time_limit_sec":60,"notes":""}]}');
+INSERT OR IGNORE INTO session_participants (session_id,user_id,assigned_question_ids_json) VALUES
+ (900003,'e2e-student-6','["e2e-used-mine"]'),(900004,'e2e-student-2','["e2e-used-other"]');
+INSERT OR IGNORE INTO question_lesson_usage (question_id,session_id) VALUES ('e2e-used-mine',900003),('e2e-used-other',900004);

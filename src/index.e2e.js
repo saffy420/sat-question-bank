@@ -1,7 +1,9 @@
 import { handleRequest } from './index.js';
 export { LessonRoom } from './lesson-room.js';
 
-const accounts = new Set(['e2e-admin', 'e2e-student-1', 'e2e-student-2', 'e2e-student-3', 'e2e-student-4']);
+// e2e-student-6 takes the self-paced lessons: those now write practice stats (§10), and the
+// dashboard specs assert student 1's seeded stats exactly.
+const accounts = new Set(['e2e-admin', 'e2e-student-1', 'e2e-student-2', 'e2e-student-3', 'e2e-student-4', 'e2e-student-6']);
 const sessions = new Map();
 const cookie = '__Host-sat_session';
 const loopback = host => host === '127.0.0.1' || host === 'localhost' || host === '[::1]';

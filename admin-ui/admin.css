@@ -533,6 +533,36 @@ body {
   min-width: 0;
   flex: 1;
 }
+:where(#admin-root) .live-desmos {
+  position: sticky;
+  top: 0;
+  width: 420px;
+  flex-shrink: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 640px;
+  border-left: 1px solid var(--line);
+}
+:where(#admin-root) .live-desmos-calc {
+  flex: 1;
+  min-height: 600px;
+}
+:where(#admin-root) .live-desmos-note {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted, #555);
+}
+:where(#admin-root) #live-desmos-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+:where(#admin-root) #live-desmos-toggle[aria-pressed="true"] {
+  background: #e1e8fc;
+  color: var(--accent);
+}
 :where(#admin-root) .instructor-drawer {
   width: 38px;
   flex-shrink: 0;
@@ -1541,4 +1571,210 @@ body {
   :where(#admin-root) .response-list {
     max-height: 140px;
   }
+}
+/* Self-paced grid (§8.4) */
+:where(#admin-root) .self-live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
+  gap: 16px;
+  align-items: start;
+}
+:where(#admin-root) .self-live:has(> :only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+:where(#admin-root) .self-grid-scroll {
+  overflow: auto;
+}
+:where(#admin-root) #self-grid {
+  border-collapse: collapse;
+  font-size: 14px;
+}
+:where(#admin-root) #self-grid th,
+:where(#admin-root) #self-grid td {
+  padding: 4px 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+:where(#admin-root) #self-grid tbody th {
+  text-align: left;
+  font-weight: 500;
+}
+:where(#admin-root) #self-grid tbody th .badge-ui {
+  margin-left: 6px;
+}
+:where(#admin-root) #self-grid thead button {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+:where(#admin-root) #self-grid thead button[aria-pressed="true"] {
+  background: #e1e8fc;
+  color: var(--accent);
+}
+:where(#admin-root) .cell {
+  font-size: 18px;
+  line-height: 1;
+  color: #8a929f;
+}
+:where(#admin-root) .cell[data-state="right"] {
+  color: #2f7d3a;
+}
+:where(#admin-root) .cell[data-state="wrong"] {
+  color: #b42336;
+}
+:where(#admin-root) .cell[data-current="true"] {
+  color: var(--accent);
+}
+:where(#admin-root) .cell[data-state="unassigned"] {
+  color: #b7bcc6;
+}
+:where(#admin-root) .self-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+:where(#admin-root) .self-hint {
+  font-size: 12px;
+  color: #666;
+  margin: 10px 0 0;
+}
+:where(#admin-root) .self-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 14px;
+}
+:where(#admin-root) .self-card-details {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  font-size: 14px;
+}
+:where(#admin-root) .self-card-details > summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+:where(#admin-root) .roster-details.panel {
+  margin-top: 16px;
+}
+/* Self-paced overview, launcher and polls (§8.6–8.7) */
+:where(#admin-root) .review-overview {
+  display: grid;
+  gap: 16px;
+}
+:where(#admin-root) .review-launcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+:where(#admin-root) .review-launcher label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+:where(#admin-root) .review-launcher p {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+:where(#admin-root) .review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 40px;
+}
+:where(#admin-root) .review-summary p {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+}
+:where(#admin-root) .review-summary strong {
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--text, #171717);
+}
+:where(#admin-root) .review-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  :where(#admin-root) .review-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+:where(#admin-root) .review-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+:where(#admin-root) .review-table th,
+:where(#admin-root) .review-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+:where(#admin-root) .review-table button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+:where(#admin-root) .review-table thead button svg {
+  width: 13px;
+  height: 13px;
+  color: #888;
+}
+:where(#admin-root) .review-table tbody th button {
+  color: var(--accent);
+  text-decoration: underline;
+}
+:where(#admin-root) .review-student {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  font-size: 14px;
+}
+:where(#admin-root) .review-student p {
+  display: grid;
+  grid-template-columns: 48px 80px 24px 60px;
+  align-items: center;
+  margin: 4px 0;
+}
+:where(#admin-root) .review-student svg {
+  width: 16px;
+  height: 16px;
+}
+:where(#admin-root) .review-missed {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+}
+:where(#admin-root) .review-missed li {
+  margin: 6px 0;
+}
+:where(#admin-root) .review-missed button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+:where(#admin-root) .review-poll h2 {
+  margin: 0 0 8px;
+}
+:where(#admin-root) .review-poll p {
+  font-size: 16px;
+  margin: 6px 0;
 }

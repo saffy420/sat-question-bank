@@ -103,6 +103,23 @@ export function isRight(q, val) {
   if (!q.choices.some(c => String(c.letter || '').trim().toUpperCase() === a)) return null;
   return a === String(val).trim().toUpperCase();
 }
+// The record moves once per graded question: Red is wrong, Orange is right after a Red,
+// Green is right. Practice, exams and the self-paced lesson write-back all go through here.
+export function nextProgress(prev, questionId, ok, now, ms) {
+  const p = { ...(prev || { question_id: questionId, attempts: 0, corrects: 0 }) };
+  p.attempts = (p.attempts | 0) + 1;
+  p.corrects = (p.corrects | 0) + (ok === true ? 1 : 0);
+  p.marker = ok === true ? (p.marker === 'Red' ? 'Orange' : 'Green') : 'Red';
+  p.last_reviewed = now;
+  p.time_taken_ms = ms;
+  return p;
+}
+export function attemptRow(questionId, ok, now, ms, picked, changes, history) {
+  const ev = { question_id: questionId, ts: now, correct: ok === true ? 1 : 0, time_taken_ms: ms,
+    picked: String(picked == null ? '' : picked).slice(0, 32), changes: changes | 0 };
+  if (history?.length) ev.answer_history_json = JSON.stringify(history);
+  return ev;
+}
 export function normalizeQuestion(q) {
   let choices; try { choices = typeof q.choices_json === 'string' ? JSON.parse(q.choices_json) : (q.choices_json || []); if (!Array.isArray(choices)) choices = []; } catch { choices = []; }
   choices.forEach((c, i) => { if (!String(c.letter ?? '').trim()) c.letter = 'ABCD'[i] || String(i + 1); });

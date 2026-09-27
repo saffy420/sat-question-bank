@@ -1,6 +1,8 @@
-# Brief: Live Lessons ("Pear Deck" mode) for roadto1600.org
+# Brief: Live Lessons ("Pear Deck" mode) for roadto1600.org — finish tasks 06–10
 
-**To the Architect:** this is the user brief for a multi-task feature. Before doing anything, copy this file into the repo at `docs/lessons/BRIEF.md` so every subagent can read the same source of truth. Run the work as the sequence of pipeline tasks in §12. Each task goes through the pipeline in `.omp/pipeline/<task-name>/`, with one added stage: a separate **Test Developer** runs Playwright checkpoints between the Developer and the Reviewer (§12.1).
+**Run context:** Claude Code (cloud). One session runs `lessons-06-desmos` → `lessons-10-e2e-regression` in order, one branch and one PR per task. §0–§11 are the feature spec (unchanged). §12 replaces the old OpenCode Architect/subagent pipeline. **First action, before anything else:** create branch `claude/lessons-06-desmos`, save this entire prompt verbatim over `docs/lessons/BRIEF.md`, check that every heading §0–§13 is present, and commit it. From then on, `docs/lessons/BRIEF.md` is the only copy of these instructions you rely on. The pasted prompt will not survive compaction.
+
+**Already done — do not rerun, re-audit, or reimplement:** `lessons-00-audit`, `00b-e2e-harness`, `01-admin-dashboard`, `02-builder`, `03-realtime-core`, `04-instructor-paced`, `05-annotations`. Their outputs are inputs: `docs/lessons/PLAN.md`, `docs/lessons/STATUS.md`, `.omp/pipeline/<task>/handoff.md`, and `tests/e2e/`.
 
 The app is my fork of `sat-question-bank`, deployed at roadto1600.org.
 Stack: Cloudflare Worker (`src/index.js`) + static SPA (`public/index.html`) + D1 (user data and questions) + Supabase (auth only). Users are students in my school's SAT club; I am the instructor/admin. Students use slow school Chromebooks (1366×768) on slow school Wi-Fi. That constraint drives most decisions below: **send small events, never video or screenshots.**
@@ -11,7 +13,7 @@ Items marked **[DEFAULT]** are already decided. Build them as written; they are 
 
 ## 0. Ground rules (apply to every task)
 
-1. **Research before building.** Task 00 is research only. No feature code until I approve `docs/lessons/PLAN.md`.
+1. **Project-level research is done.** `lessons-00-audit` is complete and `docs/lessons/PLAN.md` is approved. Per-task research happens only as §12 allows.
 2. **Reuse, don't re-implement.** The platform already computes per-student: question history, mistake log, weak spots, accuracy by domain/skill, accuracy by difficulty, pacing, traps fallen for, and second-guessing (answer changes). Find that code and call it. If it only runs client-side for the logged-in user, refactor it into a shared module the Worker can run for any student. Never write a second copy of any stat.
 3. **Reuse the existing question renderer** (Bluebook-style layout, math rendering, figure crops, SPR/grid-in input and SPR answer checking). Lesson views wrap it; they don't replace it.
 4. **The server is the authority** for timers, answer locks, reveals, and late-join question sets. The client only displays what the server decided.
@@ -124,8 +126,8 @@ Three-column layout:
 │ FILTERS      │ RESULTS                      │ LESSON (ordered)           │
 │ Section      │ [+] Q-id  skill  diff  00003 │ Title: ________________    │
 │ Domain  [×]  │ [+] ...                      │ Mode: (•)Instructor ( )Self│
-│ Skill   [×]  │ (click row = preview)        │ Total time: 14:30          │
-│ Difficulty   │                              │ ≡ 1. Q-id  0:30  ✎         │
+│ Skill   [×]  │ [+] ...                      │ Total time: 14:30          │
+│ Difficulty   │ (click row = preview)        │ ≡ 1. Q-id  0:30  ✎         │
 │ Lesson qs ▾  │                              │ ≡ 2. Q-id  1:30  ✎         │
 │ Search text  │ [Add all on page]            │ ...  drag to reorder       │
 └──────────────┴──────────────────────────────┴────────────────────────────┘
@@ -367,86 +369,123 @@ Define in one shared module used by both the Worker/DO and the client. All JSON;
 
 ---
 
-## 12. Pipeline
+## 12. Pipeline (Claude Code, tasks 06–10)
 
-### 12.1 Per-task flow
+### 12.1 Execution model
 
+- **You do everything in the main session:** spec, implementation, unit tests, Playwright tests, review, docs, git, PRs. No Developer, Test Developer, Reviewer, or Documentation subagents.
+- **The only subagent is `lessons-researcher`** (read-only, Sonnet, low effort). Create it in the `lessons-06` PR as `.claude/agents/lessons-researcher.md`:
+
+  ```markdown
+  ---
+  name: lessons-researcher
+  description: Read-only research for roadto1600 Live Lessons tasks. Answers one focused question about the codebase or external docs and returns a compact report.
+  model: sonnet
+  effort: low
+  disallowedTools: Write, Edit, NotebookEdit
+  ---
+  You answer one research question for the current lessons task. Read docs/lessons/BRIEF.md §0–§11 only as needed for context. Research only what the question asks. Never modify files or run mutating commands. Use Context7 for version-specific docs (Cloudflare Durable Objects, Desmos API, Playwright) if it is available; otherwise official docs via web fetch. Return ≤ 300 words: findings with file:line refs or doc URLs, then open risks. Say "not found" instead of guessing.
+  ```
+
+- **Researcher use:** at most 2 per task, launched in parallel, only for independent questions (good split: A = current code/ownership, B = external docs/invariants). Skip research when prior handoffs already answer the question. Save returned summaries to `.omp/pipeline/<task>/research.md`.
+
+### 12.2 Run preflight (once, before lessons-06)
+
+1. `npm ci`; `npx playwright install --with-deps chromium`.
+2. Create `.dev.vars` from the existing example with `E2E_TEST_MODE=1` (never commit it). Apply local D1 migrations, run the seed script, start `wrangler dev` with local D1 + Durable Objects, and confirm the 00b test sign-in route works.
+3. Confirm `[www.desmos.com](https://www.desmos.com)` is reachable (06 and 10 need the Desmos API script).
+4. Run the full existing e2e suite on the base branch. It must be green.
+
+If any step fails because of the cloud environment's network allowlist, **hard stop** and list the exact domains to allow. If the base suite is red, **hard stop** — don't build on a red base.
+
+### 12.3 Per-task flow
+
+Every step ends with a **checkpoint** (§12.5). Steps:
+
+1. **Start.** `git fetch`. Create branch `claude/lessons-NN-<name>` from the previous task's branch (stacked), or from `main` if the previous PR is already merged. Read this brief's relevant sections, `PLAN.md`, `STATUS.md`, the previous task's `handoff.md`, and `.omp/pipeline/<task>/state.md` if it exists — if it does, resume from its `Next step` instead of restarting.
+2. **Research** (optional, per §12.7 research focus).
+3. **Spec.** Write `.omp/pipeline/<task>/spec.md`: brief sections in scope, files to touch, required unit tests, every e2e checkpoint from §12.7 (you may add, never drop), and task-specific review items.
+4. **Implement.** App code + the unit tests the spec requires (e.g. §8.2 late-join cases, §8.5 accumulated time). Run unit tests. Commit as `feat(lessons-NN): …`.
+5. **Test round.**
+   - Drive the local site through every checkpoint with Playwright (Playwright MCP/skill if the environment has one, otherwise scripts), with student screenshots at 1366×768.
+   - Turn each checkpoint into a committed spec under `tests/e2e/<task>/`.
+   - Run the task's specs **and the full existing suite**.
+   - Write `.omp/pipeline/<task>/e2e.md`: checkpoint → pass/fail, command, artifact paths, and every failure classified as **test bug** or **app bug** (repro, expected vs. actual, failing spec).
+   - Fix test bugs in `test(lessons-NN): …` commits that touch only `tests/e2e/`, fixtures, and seeds. App bugs go to step 7, never into a test commit.
+6. **Review round.** A separate pass after testing: re-read the whole task diff (`git diff <base>...HEAD`) against the spec and §12.6. List every finding before fixing any. Write `.omp/pipeline/<task>/review.md`: PASS, or blockers with file:line and why.
+7. **Repair rounds** (only if step 5 or 6 found app bugs/blockers). Fix only the blockers in `fix(lessons-NN): …` commits → rerun unit tests, the task's specs, and the full suite → re-review the blocker, the repair diff, and regressions it caused. Append each round to `review.md`. Limit: 5 rounds per task; if the same blocker survives 2 rounds, stop looping and decide whether the spec or a user decision is the real problem (hard stop if it's a decision).
+8. **Docs.** Write `.omp/pipeline/<task>/handoff.md` and append a dated `docs/lessons/STATUS.md` entry: what shipped, e2e summary, measured values (e.g. Desmos latency), deviations from this brief, manual checks for me.
+9. **PR.** Push and open a PR titled `lessons-NN: <name>`, base = previous task's branch (or `main`). Body: summary, links to `spec.md`/`e2e.md`/`review.md`, e2e pass table, review verdict, deviations, and a **Manual check before merge** list (§12.7). If `gh` is unavailable, push, write the body to `.omp/pipeline/<task>/pr.md`, and print the compare URL.
+
+A task can't reach step 8 with a failing, skipped, or missing checkpoint.
+
+### 12.4 Gates
+
+- **Soft gates (don't wait):** the old per-task STOPs. Put them in the PR's **Manual check before merge** list and continue to the next task.
+- **Hard stops (end the turn, explain, wait for me):** preflight failure; research contradicting this brief; a choice that would change architecture; a checkpoint that can't pass within the repair limit; no convention for unanswered questions (§10) in `PLAN.md`. Don't start later tasks while a hard stop is open.
+
+### 12.5 Checkpoints and compaction
+
+After **every step**, overwrite the checkpoint block at the top of `.omp/pipeline/<task>/state.md` and commit it:
+
+```text
+Task: lessons-NN-<name>
+Branch: claude/lessons-NN-<name>   Base: <branch or main>
+Last completed step: <1–9>   Commit: <sha>
+Next step: <exact next action>
+Open blockers: <none | list>
+Decisions made this task: <short list>
+PR: <url or pending>
+Instructions: docs/lessons/BRIEF.md — re-read §0, §12, §13 + <this task's spec sections>
 ```
-Researcher → Architect writes spec.md (incl. that task's e2e checkpoints from §12.5)
-          → Developer → Test Developer → Reviewer ─ PASS → Documentation
-                ▲                            │
-                └──── Developer fixes ◄──────┘ FAIL (app bug or review finding)
-```
 
-- **Developer** implements the spec and writes the unit tests the spec calls for (e.g. the §8.2 late-join cases, the §8.5 time test). It does not write Playwright tests.
-- **Test Developer** is a separate Developer spawn with fresh context, never the instance that implemented the task. It **never edits app code**; its diff is limited to `tests/e2e/`, e2e fixtures, and seed data. For each task it:
-  1. starts the local environment (§12.2) and uses the **Playwright CLI skill** to drive the site through every e2e checkpoint in `spec.md`, capturing screenshots at 1366×768;
-  2. turns each checkpoint into a committed Playwright Test spec under `tests/e2e/<task-name>/` so it becomes permanent regression coverage;
-  3. runs that task's specs **and the full existing e2e suite** (earlier tasks must not regress);
-  4. writes `.omp/pipeline/<task-name>/e2e.md`: each checkpoint → pass/fail, the command run, screenshot/trace paths, and for every failure a classification:
-     - **test bug** → it fixes its own test and reruns;
-     - **app bug** → it stops and reports repro steps, expected vs. actual, and the failing spec.
-- **App bugs** route Architect → Developer (fix only the bug) → Test Developer reruns → Reviewer. These count toward the 5-round repair limit.
-- After any Developer repair (from an app bug or a review finding), the Test Developer reruns the full suite before the Reviewer looks again.
-- **Reviewer** stays read-only and writes no tests. It reviews the implementation diff, the test diff, and `e2e.md` (checks in §12.4).
-- A task can't reach Documentation with a failing, skipped, or missing e2e checkpoint unless I approve it at a gate.
+Treat anything not in `state.md` or the repo as gone after each step; never rely on earlier conversation for it. **After any compaction (automatic or manual), before doing anything else:**
+1. Re-read `docs/lessons/BRIEF.md` §0, §12, §13, and the spec sections for the current task (§12.7).
+2. Re-read `.omp/pipeline/<task>/state.md` and, if they exist, `spec.md`, `e2e.md`, and `review.md`.
+3. Continue from `Next step`.
 
-### 12.2 E2E environment
+Never work from a compaction summary's paraphrase of these instructions.
 
-- Run against local `wrangler dev` with local D1 and Durable Objects, seeded by a script. **Never run e2e against production roadto1600.org or production data.**
-- **Test sign-in (decided in `PLAN.md`, which I approve at the task 00 STOP):** Google OAuth can't be automated. The proposal to evaluate: a dev-only sign-in route that creates a session for seeded accounts (`e2e-admin`, `e2e-student-1` … `e2e-student-4`), active only when `E2E_TEST_MODE=1` is set in `.dev.vars`. The Worker refuses the route when the flag is unset, production config never sets it, and a test proves the route 404s without it. Task 00 compares this against alternatives (e.g. Supabase test users) and the Architect picks one.
-- **Seeded lessons** use **5–10 second** time limits. Timers live in the Durable Object, so the browser can't fast-forward them; short real timers keep the suite fast. Include: an instructor-paced lesson and a self-paced lesson, each with R&W + Math questions and at least one SPR question; a self-paced lesson with mixed time limits for late-join checks.
-- **Multi-user tests:** one browser context per user (instructor + 2–4 students) inside the same test.
-- **Chromebook profile:** student contexts at 1366×768. Slow Wi-Fi via CDP `Network.emulateNetworkConditions` (Chromium). Disconnects via `context.setOffline(true/false)`.
-- **Leak capture helper:** records every HTTP response body and WebSocket frame on a student context (`page.on('response')`, `page.on('websocket')` → `framereceived`) and searches them for the current question's correct answer, explanation, and my notes.
-- Wait on conditions (a selector, a WS message, a timer reaching 0), not fixed sleeps.
-- Screenshots and traces go to `.omp/pipeline/<task-name>/e2e/` (gitignored), not the repo.
+After step 9 of each task, end your turn with exactly:
 
-### 12.3 Standing rules for every task
+`CHECKPOINT lessons-NN done — PR <url>. Run: /compact Keep only: tasks completed so far, and that after compaction you must re-read docs/lessons/BRIEF.md (§0, §12, §13, next task's sections) and .omp/pipeline/<next-task>/state.md before acting — then send "continue".`
 
-- **Researcher:** read `docs/lessons/BRIEF.md` for context, but research only what that task's spec needs. Use Context7 for Cloudflare Durable Objects / WebSocket Hibernation, the Desmos API, and Playwright; all are version-specific.
-- **Documentation:** write `handoff.md` as usual, and (Architect: request this explicitly) append a dated entry to `docs/lessons/STATUS.md` with what shipped, the e2e result summary, and any deviation from this brief.
-- **User-decision gates:** every **STOP** below; any research finding that contradicts this brief; the unanswered-question convention in §10 if none exists; any e2e checkpoint that can't pass. **[DEFAULT]** items are not gates.
-
-### 12.4 Reviewer checks (every task, in addition to the task's own list)
+### 12.6 Review checklist (every task, plus the task's own items)
 
 - **Code:** (a) no answer, explanation, or note reaches a student payload before it's allowed (rule 5); (b) timers/locks decided server-side (rule 4); (c) no per-event D1 writes (rule 6); (d) no duplicated stat logic (rule 2); (e) nothing built from a later task (rule 7).
-- **Tests:** (f) every checkpoint in `spec.md` has a spec that actually asserts it; (g) no `.skip`, `.only`, `fixme`, loosened assertions, or inflated timeouts added to force a pass; (h) no fixed sleeps where a condition wait works; (i) the Test Developer's diff touches no app code; (j) `e2e.md` shows the full suite ran, not only the new specs.
+- **Tests:** (f) every checkpoint in `spec.md` has a spec that actually asserts it; (g) no `.skip`, `.only`, `fixme`, loosened assertions, or inflated timeouts added to force a pass; (h) no fixed sleeps where a condition wait works; (i) `test(…)` commits touch no app code; (j) `e2e.md` shows the full suite ran, not only the new specs.
+- **PR:** (k) the diff against its base contains only this task's work.
 
-### 12.5 Tasks and e2e checkpoints
+### 12.7 Tasks
 
-| Task | Scope | Research focus | Reviewer must verify | Gate |
+| Task | Scope | Research focus | Task review items | Manual check before merge |
 |---|---|---|---|---|
-| `lessons-00-audit` | Research only. Architect writes `docs/lessons/PLAN.md` from `research.md`. | Where each stat in rule 2 is computed and whether it can run server-side for any user · question schema, answer formats, SPR equivalence checker · where answers/explanations reach the client today · how attempts are recorded, incl. skipped/timed-out · auth path (JWT → Worker) · current Desmos embed + CSP · question bank filter UI · next unused migration number · running Worker + D1 + DO locally · test sign-in options · existing Playwright config/tests and where the Playwright CLI skill lives | `PLAN.md` against the facts in `research.md`; flag anything unsupported | **STOP** |
-| `lessons-00b-e2e-harness` | Developer: test sign-in route + seed script. Test Developer: fixtures, multi-context helper, leak capture helper, Chromebook/throttle/offline helpers. | Outcome of 00 | Test sign-in unreachable without the flag; nothing test-only ships to production | — |
-| `lessons-01-admin-dashboard` | §1 Roles, §3 | Stat modules found in 00 | Admin routes reject students; each tab calls existing stat code | **STOP** |
-| `lessons-02-builder` | §2 migrations, §4 | Existing filter/query code to reuse | Migrations number cleanly; template edits never touch past sessions | **STOP** |
-| `lessons-03-realtime-core` | §1 DO + clock sync, §5, §11, reconnect/snapshot | Context7: DO WebSocket Hibernation, alarms | One socket per student; snapshot restores full state; late answers rejected after `endsAt + 750ms` | — |
-| `lessons-04-instructor-paced` | §6 | Existing renderer + SPR checker hooks | Reveal only at 0/End now; early submit hides correctness; notes never sent to students | **STOP** (I test on real Chromebooks) |
-| `lessons-05-annotations` | §7.1 | How the renderer structures text nodes | Highlights anchored by node + offsets, strokes normalized; snapshot includes layer | **STOP** |
-| `lessons-06-desmos` | §7.2 | Context7: Desmos API version, key, events, CSP | Student calculators read-only unless forked; unchanged states not resent | **STOP** |
-| `lessons-07-self-paced` | §8.1–8.5 | — | §8.2 and §8.5 unit tests pass exactly; subset never recomputed | **STOP** |
-| `lessons-08-review-polls` | §8.6–8.7 | — | Early close, tie rules, reviewed-question exclusion; reviews change no data | **STOP** |
-| `lessons-09-history-stats` | §9, §10 | Attempt-recording path from 00 | Self-paced writes via existing path with source tag; instructor-paced writes nothing; all three filter options | **STOP** |
-| `lessons-10-e2e-regression` | Test Developer only: full suite + an exploratory Playwright CLI pass through both lesson modes as I would run them in class | — | `e2e.md` covers both modes end to end | **STOP** |
+| `lessons-06-desmos` | §7.2 | Context7: Desmos API version, key, events, CSP | Student calculators read-only unless forked; unchanged states not resent | Desmos sync on a real Chromebook |
+| `lessons-07-self-paced` | §8.1–8.5 | — | §8.2 and §8.5 unit tests pass exactly; subset never recomputed | Self-paced run on real Chromebooks |
+| `lessons-08-review-polls` | §8.6–8.7 | — | Early close, tie rules, reviewed-question exclusion; reviews change no data | Poll + review flow in class conditions |
+| `lessons-09-history-stats` | §9, §10 | Attempt-recording path from 00 | Self-paced writes via existing path with source tag; instructor-paced writes nothing; all three filter options | Spot-check my stats/mistake log |
+| `lessons-10-e2e-regression` | Tests only: full suite + an exploratory Playwright pass through both lesson modes as I'd run them in class. App bugs found here go through repair rounds in `fix(…)` commits. | — | `e2e.md` covers both modes end to end | Look through the screenshot tour |
 
-**E2E checkpoints** (the Architect copies the task's list into its `spec.md`; the Test Developer may add more but not drop any):
+**E2E checkpoints** (copy the current task's list into `spec.md`):
 
-- **00b:** admin and a student sign in through the test route; question bank loads for both; the test route 404s with `E2E_TEST_MODE` unset.
-- **01:** admin sees the student list and every detail tab renders data for a seeded student; a student gets redirected from `/admin` and 403 from `/api/admin/*`.
-- **02:** build a lesson using domain + skill filters; add, reorder by drag, remove; set custom times; write notes with math and see the preview; save, reload, everything persists; total time updates; "Hide all lesson questions" works in the builder; **Save & start session** produces a join code.
-- **03:** join through the nav modal (wrong code shows inline error; lowercase and pasted codes work); instructor lobby shows names live; joining after start works; student offline for 20s then back restores question, time, and selection; opening a second tab as the same student closes the first; **Lock joining** blocks new joins.
-- **04:** full lesson with instructor + 3 students: responses panel updates live (○/◐/● states); early-submit modal's **Go back** keeps editing, **Yes, submit** locks and hides correctness; at 0 an unsubmitted selection becomes final; reveal colors are correct; distribution counts match and clicking a bar lists the right names; **Show class results** toggles the student chart; **+15s** and **End now** work; SPR responses group by normalized value; leak helper finds no answer/explanation/notes before reveal and no notes at all during the session.
-- **05:** instructor highlights at 1920×1080; students at 1366×768 and at 110% zoom have the same text highlighted (compare the highlighted string); pen strokes and laser appear live; Follow me scrolls a long passage; a student who reconnects sees existing annotations; students can't draw on the shared layer.
 - **06:** an expression typed in the instructor's Desmos appears in student panels, measured under Slow 3G throttling (target ≤ 0.5s, record the measured value); students can't edit; **Try it yourself** edits don't propagate; **Back to instructor view** resyncs.
 - **07:** full self-paced run: Next/Back/navigator/flag; review page; submit-all modal; auto-submit at the shared end for a student who didn't submit; no correctness, explanation, or notes shown during the set (leak helper); visiting a question twice shows accumulated time in the instructor card; a late joiner gets a smaller set whose times fit the remaining time the server reported, and the instructor grid shows ░ for their unassigned questions.
 - **08:** overview ranks most-missed correctly with per-question denominators; poll closes early when all vote; option 2 requires a dropdown pick; a split vote resolves to most-missed; review mode syncs annotations; a reviewed question disappears from the next poll.
 - **09:** My Lessons shows each question with the student's answer, explanation, my notes as "Breakdown", and saved annotations/Desmos state; questions show padded session IDs; each of the three filter options hides exactly the right questions; a self-paced mistake appears in the mistake log tagged with its session; an instructor-paced wrong answer does not.
-- **10:** entire suite green; screenshot tour of both modes at 1366×768 (lobby, answering, locked, reveal, annotations, Desmos, self-paced grid, overview, poll, review, My Lessons) saved for me to look through.
+- **10:** entire suite green; screenshot tour of both modes at 1366×768 (lobby, answering, locked, reveal, annotations, Desmos, self-paced grid, overview, poll, review, My Lessons). The cloud sandbox is discarded after the run, so commit the tour (compressed PNGs) to `docs/lessons/tour/` in the 10 PR.
 
-## 13. Acceptance checks
+### 12.8 E2E environment
 
-Unit-level checks are the Developer's; browser-level checks are covered by the Test Developer's Playwright specs in §12.5.
+- Run against local `wrangler dev` with local D1 and Durable Objects, seeded by the 00b seed script. **Never run e2e against production roadto1600.org or production data.**
+- Sign in with the 00b test route (`E2E_TEST_MODE=1` in `.dev.vars` only).
+- Seeded lessons use **5–10 second** time limits (timers live in the DO and can't be fast-forwarded). Seeds include an instructor-paced and a self-paced lesson, each with R&W + Math and at least one SPR question, plus a self-paced lesson with mixed time limits for late-join checks. Extend seeds if a task needs more.
+- **Multi-user tests:** one browser context per user (instructor + 2–4 students) inside the same test.
+- **Chromebook profile:** student contexts at 1366×768. Slow Wi-Fi via CDP `Network.emulateNetworkConditions`. Disconnects via `context.setOffline(true/false)`.
+- **Leak capture helper** (from 00b): records every HTTP response body and WebSocket frame on a student context and searches for the current question's correct answer, explanation, and my notes.
+- Wait on conditions (a selector, a WS message, a timer reaching 0), not fixed sleeps.
+- Screenshots and traces go to `.omp/pipeline/<task>/e2e/` (gitignored), except the task 10 tour.
+
+## 13. Acceptance checks (all must hold by the end of lessons-10)
 
 - A student can't find the correct answer, explanation, or my notes in any network response or JS state before they're allowed to see them, on a personal (non-managed) browser.
 - Killing Wi-Fi on a student device for 20s mid-question, then restoring it: they rejoin with the correct question, remaining time, their selection, their assigned set, and all annotations.
@@ -459,53 +498,3 @@ Unit-level checks are the Developer's; browser-level checks are covered by the T
 - Reusing a lesson creates a new session with a new code and a new session ID; old results are unchanged.
 - A finished session adds its padded ID to `usedInLesson` on every question shown; each filter option in §9.2 hides exactly the right questions.
 - Self-paced answers appear in the mistake log tagged with their session; instructor-paced answers change no stat.
-
----
-
-## Amendments — 2026-09-23 User Approval
-
-The following amendments override specific BRIEF.md requirements per the PLAN.md approval record dated 2026-09-23. All G1–G6 gates resolved; commit policy established.
-
-### G1 Secrecy Scope (Option A: Narrowed Lesson-Channel Guarantee)
-- **Overrides:** §0 rule 5, §6.2, §6.3, §7.1, §7.2, §13 acceptance checks
-- **Change:** Practice bank `/api/questions` remains unchanged — full answers, explanations, trap tags, and crop URLs stay accessible to signed-in members. Lesson channels (HTTP/WS payloads and lesson client state) are role/phase-safe: strip answer-derived trap metadata, rationale leaks, instructor notes, correct answers before reveal. Existing practice access and all prior disclosures are explicit exceptions. Student cannot receive instructor notes or identifiable individual responses in lesson snapshots/reveals. Anonymous distribution of others' answers in class charts remains approved. Anonymous lobby count uses distinct safe count update, not named roster. §13 acceptance check 1 applies to lesson channels only; practice bank disclosure is outside scope.
-
-### G2 Deadline / Reveal Timing
-- **Overrides:** §6.1 "REVEALED fires immediately at 0"
-- **Change:** UI freezes selection at `endsAt`. Server accepts in-flight answer changes through `endsAt + 750ms`, then finalizes and reveals. REVEALED fires after grace window, not at 0. Alternative (drop grace entirely) rejected.
-
-### G3 Blank Scorable Questions / Unavailable Metrics
-- **Overrides:** §10 (implicit), §8.5, §8.6, §10 write-back conventions
-- **Change:** Assigned blank scorable self-paced question writes `picked=null`, `correct=0`, zero `answer_changes` unless earlier selections exist; `source` tag (`lesson_session_id`) + `time_spent_ms` retained. Updates Red/mistake state via shared progress path. Unassigned questions: no attempt row. Unscorable: null/excluded, never turned into wrong. Prospective `answer_history_json` capture added for direction stats (right→wrong / wrong→right); old records display "unknown", never fabricated. No timeout/skip writer exists in current platform.
-
-### G4 Staged Dependency Exceptions
-- **Overrides:** §12.5 task checkpoints for tasks 01, 02, 03 and the §12.2 short-timer fixture rule
-- **Approved shifts:**
-  - Task 01: Lessons tab honestly empty/unavailable (populated assertion moves to task 09)
-  - Task 02: Session row creation + join-code allocation move here (so Save & start checkpoint is real)
-  - Task 03: Minimal answering lifecycle (start/answering/lock) moves here, including one longer outage fixture — 45–60s question with deliberate 20s offline for reconnect testing (so after-start/offline checkpoint is real)
-
-- No checkpoints dropped overall.
-
-### G5 Time Budget Accumulation
-- **Overrides:** §8.5 "previous event" wording (that phrase reintroduces ambiguity; use precise boundary)
-- **Change:** Accumulate against **previous accepted time-flush/visit boundary and authoritative deadline**, not every select/ping. Server bounds: `time_spent_ms += deltaMs` rejecting any delta larger than the elapsed interval since that student's previous accepted time-flush/visit boundary. Replay-safe event identity/sequence for time deltas prevents reconnect duplication. Contract extension documented, not silently inferred from deltaMs alone. Client hiding/disconnect accounting is not proof of attention; server bounds dishonest inflation only. Unit test: Q1 10s → Q2 5s → Q1 7s ⇒ Q1 17s, Q2 5s exactly.
-
-### G6 Session Lifecycle / Review / End Semantics
-- **Overrides:** §8.6, §8.7 ambiguity
-- **Change:**
-  - Self-paced set completion: finalizes responses once → `status=review` (write-back via shared path at this point)
-  - Join code remains valid for **review-only** admission; new arrivals get no expired assignment
-  - Notes/My Lessons unlock at final `ended`, not during live review; joins stop then
-  - Results immutable during review
-  - Zero-assignment participants: excluded from score mean/median and "everyone submitted" completion test; still eligible for connected-student polls
-  - Explicitly label set-finished vs session-ended in UI
-
-### Other Approved Items
-- **Local-only test auth (§4):** Separate local entry/config (Option B), `E2E_TEST_MODE=1` flag, seeded identity, isolated D1/DO, browser-only Supabase session adapter, production bundle excludes test imports
-- **Shared stats extraction (§2):** One shared module (e.g. `public/shared/stats.js`) with explicit inputs; Worker imports same source; dashboard calls it
-- **Schema additions:** `source` tag (`lesson_session_id`) on attempts for self-paced write-back, uniqueness on session/user/question, `answer_history_json` for direction tracking — added when needed
-- **SPR grouping:** Exact-value deterministic parsed numeric keys (1/2 = .5); rounded-but-accepted distinct values stay separate groups; `isRight` preserved unchanged
-- **Duplicate template question IDs:** Rejected at addition time (response key is session/user/question, not position)
-- **Pipeline path:** `.opencode/pipeline/<task-name>/` (workspace instruction), not brief's `.omp/`
-- **Commit policy:** After user approves each task STOP, one local commit for that task. No push/deploy.

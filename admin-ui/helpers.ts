@@ -1,4 +1,3 @@
-import { escapeHTML } from "../lesson-ui/escape.ts";
 import type { Question } from "../lesson-ui/types";
 export type BankQuestion = Question & {
   domain: string;
@@ -49,24 +48,7 @@ export const time = (x: number | null | undefined) =>
   x == null ? "Unavailable" : `${Math.round(x / 1000)}s`;
 export const pct = (v?: { a: number; c: number }) =>
   v?.a ? Math.round((v.c / v.a) * 100) : null;
-export const notesHTML = (text: string) =>
-  escapeHTML(text)
-    .split(/\n\s*\n/)
-    .map((block) => {
-      const lines = block.split("\n");
-      const inline = (s: string) =>
-        s.replace(/(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g, (token) =>
-          token.startsWith("`")
-            ? `<code>${token.slice(1, -1)}</code>`
-            : token.startsWith("**")
-              ? `<strong>${token.slice(2, -2)}</strong>`
-              : `<em>${token.slice(1, -1)}</em>`,
-        );
-      return lines.every((s) => /^[-*] /.test(s))
-        ? `<ul>${lines.map((s) => `<li>${inline(s.slice(2))}</li>`).join("")}</ul>`
-        : `<p>${lines.map(inline).join("<br>")}</p>`;
-    })
-    .join("");
+export { notesHTML } from "../lesson-ui/notes.ts";
 export async function api<T>(
   url: string,
   method = "GET",

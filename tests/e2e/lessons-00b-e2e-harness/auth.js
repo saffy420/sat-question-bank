@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import { serveCachedCdn } from '../cdn-cache.js';
 
 export const ORIGIN = 'https://127.0.0.1:8787';
 export const CHROMEBOOK = { width: 1366, height: 768 };
@@ -43,6 +44,7 @@ export async function newUserContext(browser, account, options = {}) {
       if (forbidden.test(new URL(req.url()).hostname)) throw new Error(`Production network request: ${req.url()}`);
     });
     await context.route(url => forbidden.test(url.hostname), route => route.abort('blockedbyclient'));
+    await serveCachedCdn(context);
     await signIn(context, account);
     return context;
   } catch (error) {
