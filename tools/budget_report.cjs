@@ -67,7 +67,7 @@ const perFlow = [
   `- Admin students list: ${n(S['admin-students'].worstQueries)} queries and ${n(S['admin-students'].rowsRead)} rows read when every student is recomputed; ${n(W['admin-students'].worstQueries)} queries and ${n(W['admin-students'].rowsRead)} rows from the stats cache (the per-student stamps are one batch).`,
   `- Builder: create = batch of ${local.flows['builder-search-save'].invocations.find(x => x.label === 'POST /api/admin/lessons')?.batchStatements.join(' + ')} statements; one autosave (PUT) writes ${n(local.flows['builder-search-save'].invocations.find(x => x.label.startsWith('PUT'))?.rowsWritten)} rows.`,
   `- Instructor-paced: per question the end-of-question flush writes ${n(Math.round(avg(local.flows['instructor-lesson'].invocations.filter(x => x.label === 'endNow' || x.kind === 'do.alarm').map(x => x.rowsWritten))))} D1 rows on average; ${n(S['instructor-lesson'].wsMessages)} WS messages for the lesson; ${n(countLabel('instructor-lesson', 'do.alarm'))} alarms; DO storage: ${fmtStorage('instructor-lesson')}.`,
-  `- Self-paced end: the finishing \`submitAll\` runs ${n(worstOf('self-paced-end').queries)} separate queries (one progress SELECT per student) + one batch of ${n(S['self-paced-end'].maxBatch)} statements, writing ${n(S['self-paced-end'].maxInvRowsWritten)} rows in ${n(S['self-paced-end'].maxInvWallMs)} ms [local]; DO storage: ${fmtStorage('self-paced-end')}.`,
+  `- Self-paced end: the finishing \`submitAll\` runs ${n(worstOf('self-paced-end').queries)} separate queries (one progress SELECT per student) + ${n(worstOf('self-paced-end').batches)} write batches of at most ${n(S['self-paced-end'].maxBatch)} statements (free-03 chunks; free-02 sent one batch of 1,526), writing ${n(S['self-paced-end'].maxInvRowsWritten)} rows in ${n(S['self-paced-end'].maxInvWallMs)} ms [local]; DO storage: ${fmtStorage('self-paced-end')}.`,
   `- My Lessons: the session view runs ${n(local.flows['my-lessons'].invocations.at(-1)?.queries)} queries (one question lookup per item); the list reads ${n(local.flows['my-lessons'].invocations[0]?.rowsRead)} rows.`,
   `- Largest bound-parameter count on any statement: ${Math.max(...Object.values(S).map(s => s.maxParams))} (limit 100).`
 ].join('\n');
@@ -138,7 +138,7 @@ const perInvocation = [
   `| Statements in one batch | ${Math.max(...worstB.batchStatements)} — ${worstB.flow}: ${worstB.kind} ${worstB.label} [local] | counts as 1 query; per-statement limits apply |`,
   `| Bound parameters per statement (100) | ${worstP.maxParams} — ${worstP.flow}: ${worstP.kind} ${worstP.label} [local] | ${pct(worstP.maxParams, LIMITS.params)} |`,
   `| CPU (10 ms) | ${worstC ? `${worstC.cpuMs} ms — ${worstC.flow}: ${worstC.label.split('?')[0]} (${worstC.outcome}) [staging]` : 'not measured'} | ${worstC ? pct(worstC.cpuMs, LIMITS.cpuMs) : ''} |`,
-  `| Batch duration (30 s) | ${n(S['self-paced-end'].maxInvWallMs)} ms whole invocation incl. the 1,526-statement write batch [local]; 177–187 ms for a 1,500-statement read batch [staging] | ${pct(S['self-paced-end'].maxInvWallMs / 1000, LIMITS.batchS)} |`
+  `| Batch duration (30 s) | ${n(S['self-paced-end'].maxInvWallMs)} ms whole invocation incl. every write-back batch [local]; 177–187 ms for a 1,500-statement read batch [staging] | ${pct(S['self-paced-end'].maxInvWallMs / 1000, LIMITS.batchS)} |`
 ].join('\n');
 
 const replace = (tag, body) => { report = report.replace(new RegExp(`(<!-- ${tag}:start -->)[\\s\\S]*?(<!-- ${tag}:end -->)`), `$1\n${body}\n$2`); };
