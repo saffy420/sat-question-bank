@@ -15,7 +15,7 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
   try {
     const page = await context.newPage();
     await page.goto('/admin/lessons/new');
-    await expect(page.locator('#results [data-add]')).toHaveCount(4);
+    await expect(page.locator('#results [data-add]')).toHaveCount(7);
     await page.locator('#lesson-title').fill(`E2E builder ${Date.now()}`);
 
     await page.locator('#f-section').selectOption('Reading & Writing');
@@ -90,17 +90,20 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await page.locator('#close-editor').click();
     await page.screenshot({ path: `${artifact}/05-reloaded.png` });
 
-    await page.locator('#f-section').selectOption('Math');
+    // Since task 09 every ended live session records usage, so the lesson questions above are used
+    // by earlier specs. The seeded task09 fixtures keep a fixed usage: 900003, 900004 and none.
+    await page.locator('#f-section').selectOption('Reading & Writing');
     await openFilter(page, 'Domain');
-    await page.locator('[data-domain="Algebra"]').check();
-    await openFilter(page, 'Skill');
-    await page.locator('[data-skill="Linear Equations in One Variable"]').check();
-    await expect(page.locator(`[data-preview="${ids[2]}"]`)).toBeVisible();
-    await expect(page.locator(`[data-preview="${ids[2]}"]`).locator('..').locator('.usage-badge')).toHaveText('900001');
+    await page.locator('[data-domain="Expression of Ideas"]').check();
+    await page.locator('[data-domain="Standard English Conventions"]').check();
+    const badge = id => page.locator(`[data-preview="${id}"]`).locator('..').locator('.usage-badge');
+    await expect(page.locator('#results [data-preview]')).toHaveCount(3);
+    await expect(badge('e2e-used-mine')).toHaveText('900003');
+    await expect(badge('e2e-used-other')).toHaveText('900004');
+    await expect(badge('e2e-unused')).toHaveCount(0);
     await page.locator('#f-usage').selectOption('hide-all');
-    await expect(page.locator('#results [data-add]')).toHaveCount(1);
-    await expect(page.locator(`[data-add="${ids[2]}"]`)).toHaveCount(0);
-    await expect(page.locator(`[data-add="${ids[1]}"]`)).toBeVisible();
+    await expect(page.locator('#results [data-preview]')).toHaveCount(1);
+    await expect(page.locator('[data-add="e2e-unused"]')).toBeVisible();
     await page.screenshot({ path: `${artifact}/06-hide-used.png` });
 
     await page.locator('#save-start').click();

@@ -8,11 +8,11 @@ test('C1 admin student list, search, sort, zero activity', async ({ browser }) =
   try {
     const page = await context.newPage();
     await page.goto('/admin');
-    await expect(page.locator('#message')).toContainText('5 club members');
+    await expect(page.locator('#message')).toContainText('6 club members');
     await expect(page.locator('thead th')).toHaveCount(7);
     for (const heading of ['Name', 'Questions done', 'Overall current accuracy', 'Weakest skill', 'Avg pace vs target', 'Second-guess rate', 'Last active'])
       await expect(page.locator('thead')).toContainText(heading);
-    await expect(page.locator('tbody tr')).toHaveCount(5);
+    await expect(page.locator('tbody tr')).toHaveCount(6);
     await expect(page.locator('tbody')).toContainText('E2E Student 5');
     await expect(page.locator('tbody tr').filter({ hasText: 'E2E Student 5' })).toContainText('Unavailable');
     await page.screenshot({ path: `${artifact}/C1-list.png` });
@@ -39,7 +39,9 @@ test('C2 seeded student all eight tabs and real mistake previews', async ({ brow
     const page = await context.newPage();
     await page.goto('/admin');
     await expect(page.locator('[data-id="e2e-student-1"]')).toBeVisible();
+    const detailResponse = page.waitForResponse(r => new URL(r.url()).pathname === '/api/admin/students/e2e-student-1');
     await page.locator('[data-id="e2e-student-1"]').click();
+    const detail = await (await detailResponse).json();
     await expect(page.locator('#message')).toContainText('4 questions done · 50% current accuracy');
     await expect(page.locator('[role="tab"]')).toHaveCount(8);
     await expect(page.locator('#tab-content')).toContainText('Math');
@@ -94,7 +96,12 @@ test('C2 seeded student all eight tabs and real mistake previews', async ({ brow
     await expect(history.locator('p')).toHaveCount(10);
     await expect(history.locator('p').first()).toContainText('2026-09-22T10:10:00Z');
     await page.getByRole('tab', { name: 'Lessons' }).click();
-    await expect(page.locator('#tab-content')).toContainText('Unavailable until task09');
+    // Task 09 fills the tab: exactly the sessions this detail response listed; only self-paced counts.
+    if (detail.lessons.length) {
+      await expect(page.locator('#student-lessons tbody tr')).toHaveCount(detail.lessons.length);
+      await expect(page.locator('#student-lessons tbody tr td:nth-child(1)')).toHaveText(detail.lessons.map(x => x.paddedId));
+      await expect(page.locator('#student-lessons tbody tr td:nth-child(6)')).toHaveText(detail.lessons.map(x => x.mode === 'self' ? 'Yes' : 'No'));
+    } else await expect(page.locator('#tab-content')).toContainText('No lessons attended yet.');
     expect(await (await observed.request.get('/api/progress')).json()).toEqual(progressBefore);
     expect(await (await observed.request.get('/api/attempts')).json()).toEqual(attemptsBefore);
     const browse = await context.newPage();

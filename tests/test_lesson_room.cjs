@@ -13,7 +13,7 @@ function fixture() {
   const storage = { get: async k => data.get(k), put: async (k,v) => data.set(k, structuredClone(v)), delete: async k => data.delete(k),
     setAlarm: async n => { data.set('alarm', n); }, deleteAlarm: async () => data.delete('alarm') };
   const ctx = { storage, getWebSockets: () => sockets, acceptWebSocket: ws => sockets.push(ws) };
-  const env = { DB: { batch: async statements => { for (const stmt of statements) await stmt.run(); }, prepare: sql => ({ bind: (...args) => ({ run: async () => { writes.push([sql,args]); } }) }) } };
+  const env = { DB: { batch: async statements => { for (const stmt of statements) await stmt.run(); }, prepare: sql => ({ bind: (...args) => ({ run: async () => { writes.push([sql,args]); }, all: async () => ({ results: [] }) }) }) } };
   const s = { id: 7, code: 'ABCDEF', title: 'Frozen', owner: 'teacher', status: 'live', phase: 'ANSWERING', index: 0,
     endsAt: Date.now()+5000, startedAt: Date.now(), lockedJoin: false, kicked: [], roster: { alice:'Alice', bob:'Bob' },
     items: [{ question_id:'q',time_limit_sec:60,notes:'PRIVATE_NOTE' }],
@@ -249,4 +249,344 @@ test('one live student socket replacement closes old transport; lock and selecti
   assert.equal(new LessonRoom(f.ctx,f.env).snapshot(await room.state(),{role:'student',userId:'alice'}).locked,true);
   await room.webSocketMessage(second.ws,JSON.stringify({type:'select',questionId:'q',answer:'B'}));
   assert.equal(second.sent.at(-1).error,'answer locked');
+});
+test('desmos protocol: admin only, bounded size, exact fields', async () => {
+  const { validAction, MAX_DESMOS_BYTES } = await protocol();
+  const msg = { type:'desmos', questionId:'q', state:{ version:11, expressions:{ list:[{ id:'1', latex:'y=x' }] } } };
+  assert.equal(validAction(msg,'admin'),true); assert.equal(validAction(msg,'student'),false);
+  assert.equal(validAction({...msg,extra:1},'admin'),false);
+  assert.equal(validAction({...msg,state:[1]},'admin'),false);
+  assert.equal(validAction({...msg,state:null},'admin'),false);
+  assert.equal(validAction({...msg,state:{ big:'x'.repeat(MAX_DESMOS_BYTES) }},'admin'),false);
+});
+test('desmos state gated to REVEALED, stored in DO, sent to others once, hidden before reveal, flushed at boundary', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx,f.env);
+  const teacher = f.socket('teacher','admin'), student = f.socket('alice'), other = f.socket('bob');
+  const state = { version:11, expressions:{ list:[{ id:'1', latex:'y=x^2', note:'x'.repeat(4000) }] } };
+  const msg = JSON.stringify({ type:'desmos', questionId:'q', state });
+  assert.ok(new TextEncoder().encode(msg).length > 2048);
+  await room.save(f.s);
+  await room.webSocketMessage(student.ws, JSON.stringify({ type:'desmos', questionId:'q', state:{} }));
+  assert.equal(student.sent.at(-1).error,'invalid action');
+  await room.webSocketMessage(teacher.ws, msg);
+  assert.equal(teacher.sent.at(-1).error,'invalid phase'); assert.equal(await f.storage.get('desmos'), undefined);
+  const hidden = room.snapshot({ ...f.s, desmos:{ questionId:'q', state } }, { role:'student', userId:'alice' });
+  assert.equal(hidden.desmos, null); assert.equal(JSON.stringify(hidden).includes('y=x^2'), false);
+  f.s.phase = 'REVEALED'; await room.save(f.s);
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type:'desmos', questionId:'wrong', state }));
+  assert.equal(teacher.sent.at(-1).error,'invalid phase');
+  const before = teacher.sent.length;
+  await room.webSocketMessage(teacher.ws, msg);
+  assert.deepEqual(await f.storage.get('desmos'), { questionId:'q', state });
+  assert.equal(teacher.sent.length, before, 'sender gets no echo');
+  for (const peer of [student, other]) { assert.equal(peer.sent.at(-1).type,'desmos'); assert.deepEqual(peer.sent.at(-1).state, state); assert.ok(peer.sent.at(-1).serverNow); }
+  const counts = [student.sent.length, other.sent.length];
+  await room.webSocketMessage(teacher.ws, msg);
+  assert.deepEqual([student.sent.length, other.sent.length], counts, 'unchanged state is not resent');
+  assert.equal(f.writes.length, 0, 'no per-event D1 writes');
+  assert.equal((await f.storage.get('room')).desmos, undefined, 'room object stays small');
+  const snap = new LessonRoom(f.ctx,f.env).snapshot(await room.state(), { role:'student', userId:'alice', desmosKey:'dcb31709b452b1cf9dc26972add0fda6' });
+  assert.deepEqual(snap.desmos, state); assert.equal(snap.hasMath, true); assert.equal(snap.desmosKey, 'dcb31709b452b1cf9dc26972add0fda6');
+  f.s.items.push({ question_id:'q2', time_limit_sec:60 }); const s = await room.state(); s.items = f.s.items; await room.save(s);
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type:'next' }));
+  const review = f.writes.filter(([sql]) => sql.includes('session_question_review'));
+  assert.equal(review.length, 1); assert.deepEqual(JSON.parse(review[0][1][3]), state); assert.equal(review[0][1][2], null);
+  assert.equal(await f.storage.get('desmos'), undefined); assert.equal((await room.state()).desmos, null);
+  const next = await room.state(); next.phase = 'REVEALED'; await room.save(next);
+  const later = { version:11, expressions:{ list:[{ id:'2', latex:'y=2' }] } };
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type:'desmos', questionId:'q2', state:later }));
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type:'endSession' }));
+  const final = f.writes.filter(([sql]) => sql.includes('session_question_review'));
+  assert.equal(final.length, 2); assert.equal(final[1][1][1], 'q2'); assert.deepEqual(JSON.parse(final[1][1][3]), later);
+});
+test('admin frames above MAX_FRAME must be desmos; room context rejects malformed desmos keys', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx,f.env), teacher = f.socket('teacher','admin');
+  f.s.phase = 'REVEALED'; await room.save(f.s);
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type:'annotate', questionId:'q', op:{ type:'clear' }, pad:'x'.repeat(3000) }));
+  assert.equal(teacher.ws.code, 1008);
+  const bad = await room.fetch(new Request('https://lesson.internal/', { method:'POST', headers:{ 'X-Lesson-Internal':'room' }, body: JSON.stringify({ ws:false, sessionId:7, userId:'teacher', role:'admin', desmosKey:'<script>' }) }));
+  assert.equal(bad.status, 400);
+});
+test('self-paced late join: exact §8.2 cases, lesson order, difficulty tie-break', async () => {
+  const { lateJoinSet } = await protocol();
+  const lesson = (...groups) => groups.flatMap(([n, sec]) => Array.from({ length: n }, () => sec)).map((sec, i) => ({ question_id: `q${i}`, time_limit_sec: sec }));
+  const secs = (items, ids) => ids.map(id => items.find(x => x.question_id === id).time_limit_sec);
+  const a = lesson([4, 30], [10, 60]);
+  assert.deepEqual(secs(a, lateJoinSet(a, 480000)), Array(8).fill(60));
+  const b = lesson([4, 45], [6, 30], [5, 60]);
+  const eight = lateJoinSet(b, 480000);
+  assert.deepEqual(secs(b, eight).sort(), [...Array(4).fill(45), ...Array(5).fill(60)].sort());
+  const eightThirty = lateJoinSet(b, 510000);
+  assert.equal(eightThirty.length, 10);
+  assert.deepEqual(eightThirty.filter(id => !eight.includes(id)).map(id => b.find(x => x.question_id === id).time_limit_sec), [30]);
+  assert.deepEqual(eightThirty, b.map(x => x.question_id).filter(id => eightThirty.includes(id)), 'original lesson order');
+  const tie = [{ question_id: 'easy', time_limit_sec: 60 }, { question_id: 'hard', time_limit_sec: 60 }, { question_id: 'medium', time_limit_sec: 60 }];
+  assert.deepEqual(lateJoinSet(tie, 60000, x => ({ easy: 'Easy', hard: 'Hard', medium: 'Medium' })[x.question_id]), ['hard']);
+  assert.deepEqual(lateJoinSet(tie, 59999), []);
+  assert.deepEqual(lateJoinSet(tie, 60000), ['easy'], 'no difficulty: lesson position breaks the tie');
+});
+function selfFixture() {
+  const f = fixture();
+  const q = (id, answer, spr = false) => ({ id, section: 'Math', stem_html: `<p>${id}</p>`, choices: spr ? [] : [{ letter: 'A', content: 'a' }, { letter: 'B', content: 'b', trap: 'TRAP_SECRET' }], answer, explanation_html: 'SECRET_EXPLANATION', spr });
+  Object.assign(f.s, { mode: 'self', status: 'live', phase: 'ANSWERING', startedAt: Date.now(), endsAt: Date.now() + 120000,
+    items: [{ question_id: 'q1', time_limit_sec: 60, notes: 'PRIVATE_NOTE' }, { question_id: 'q2', time_limit_sec: 30, notes: '' }, { question_id: 'q3', time_limit_sec: 30, notes: '' }],
+    questions: { q1: q('q1', 'B'), q2: q('q2', 'A'), q3: q('q3', '3', true) }, difficulty: { q1: 'Hard', q2: 'Easy', q3: 'Medium' },
+    assigned: { alice: ['q1', 'q2', 'q3'], bob: ['q1', 'q2', 'q3'] }, positions: {}, submitted: {}, joinRemaining: {}, joinedAt: {},
+    clock: { alice: { boundary: Date.now(), seq: 0 }, bob: { boundary: Date.now(), seq: 0 } } });
+  return f;
+}
+async function withClock(fn) {
+  const real = Date.now; let now = real();
+  Date.now = () => now;
+  try { return await fn(ms => { now += ms; }, () => now); } finally { Date.now = real; }
+}
+test('self-paced time accumulates across visits: Q1 10s → Q2 5s → Q1 7s = 17s/5s; replay ignored; inflation cut', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.startedAt = Date.now(); f.s.endsAt = Date.now() + 120000; f.s.clock.alice.boundary = Date.now();
+  await room.save(f.s);
+  const { ws } = f.socket('alice');
+  const time = (questionId, deltaMs, seq) => room.webSocketMessage(ws, JSON.stringify({ type: 'time', questionId, deltaMs, seq }));
+  tick(10000); await time('q1', 10000, 1);
+  tick(5000); await time('q2', 5000, 2);
+  tick(7000); await time('q1', 7000, 3);
+  let r = (await room.state()).responses.alice;
+  assert.equal(r.q1.ms, 17000); assert.equal(r.q2.ms, 5000);
+  await time('q1', 7000, 3);
+  assert.equal((await room.state()).responses.alice.q1.ms, 17000, 'replayed seq ignored');
+  tick(2000); await time('q2', 60000, 4);
+  r = (await room.state()).responses.alice;
+  assert.equal(r.q2.ms, 7000, 'delta above elapsed server time is cut to elapsed');
+  assert.equal(room.snapshot(await room.state(), { role: 'student', userId: 'alice' }).timeSeq, 4);
+  assert.equal(f.writes.length, 0, 'no per-event D1 writes');
+}));
+test('self-paced student payload: own set only, no answers/grades/notes/peers; acks omit question bodies', async () => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.assigned.bob = ['q1'];
+  await room.save(f.s);
+  const full = room.snapshot(f.s, { role: 'student', userId: 'bob' });
+  assert.deepEqual(full.assignedQuestionIds, ['q1']); assert.equal(full.total, 1);
+  assert.deepEqual(full.questions.map(q => q.id), ['q1']);
+  const text = JSON.stringify(full);
+  for (const secret of ['PRIVATE_NOTE', 'SECRET_EXPLANATION', 'TRAP_SECRET', 'Alice', '"answer"', '"correct"', 'q2']) assert.equal(text.includes(secret), false, secret);
+  const { ws, sent } = f.socket('bob');
+  await room.webSocketMessage(ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'A' }));
+  assert.deepEqual(sent.at(-1).selections, { q1: 'A' });
+  assert.equal(Object.hasOwn(sent.at(-1), 'questions'), false);
+  await room.webSocketMessage(ws, JSON.stringify({ type: 'select', questionId: 'q2', answer: 'A' }));
+  assert.equal(sent.at(-1).error, 'not in your set');
+  const admin = room.snapshot(await room.state(), { role: 'admin', userId: 'teacher' });
+  assert.deepEqual(admin.grid.bob.q1, ['A', false, 0]); assert.equal(Object.hasOwn(admin.grid.bob, 'q2'), false);
+  assert.deepEqual(admin.cards.q1.groups.find(g => g.label === 'A').users, [admin.students.indexOf('bob')]);
+  assert.equal(JSON.stringify(admin.cards).includes('Bob'), false, 'card groups carry indexes, not repeated names');
+  assert.equal(admin.cards.q1.assigned, 2); assert.equal(admin.cards.q2.assigned, 1); assert.equal(admin.questions.q1.notes, 'PRIVATE_NOTE');
+});
+test('self-paced late join is fitted once to the server clock and never recomputed', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.endsAt = Date.now() + 65000; await room.save(f.s);
+  const call = (join, clientId) => room.fetch(new Request('https://lesson.internal/', { method: 'POST', headers: { 'X-Lesson-Internal': 'room' },
+    body: JSON.stringify({ sessionId: 7, userId: 'carol', role: 'student', join, ws: false, name: 'Carol', clientId }) }));
+  const first = await (await call(true, crypto.randomUUID())).json();
+  assert.deepEqual(first.assignedQuestionIds, ['q1']); assert.equal(first.joinRemainingMs, 65000); assert.equal(first.lateJoin, true);
+  assert.deepEqual(JSON.parse(f.writes.find(([sql]) => sql.includes('session_participants'))[1][2]), ['q1']);
+  assert.equal((await room.state()).positions.carol, 'q1', 'a late joiner is on their first question for the ◆ marker');
+  tick(40000);
+  const rejoin = await (await call(true, crypto.randomUUID())).json();
+  assert.deepEqual(rejoin.assignedQuestionIds, ['q1'], 'explicit re-join keeps the stored set');
+  assert.equal(f.writes.filter(([sql]) => sql.includes('session_participants')).length, 1);
+  const s = await room.state();
+  const reconnect = room.snapshot(s, { role: 'student', userId: 'carol' });
+  assert.deepEqual(reconnect.assignedQuestionIds, ['q1']);
+  tick(30000);
+  const dave = await (await room.fetch(new Request('https://lesson.internal/', { method: 'POST', headers: { 'X-Lesson-Internal': 'room' },
+    body: JSON.stringify({ sessionId: 7, userId: 'dave', role: 'student', join: true, ws: false, name: 'Dave', clientId: crypto.randomUUID() }) }))).json();
+  assert.equal(dave.status, 'review'); assert.deepEqual(dave.assignedQuestionIds, [], 'review-only arrival gets no set');
+}));
+test('self-paced completion: auto at deadline once, early when all submitted, End session twice', async () => {
+  const { GRACE_MS } = await protocol();
+  const { LessonRoom } = await roomModule();
+  let f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.assigned.bob = ['q1', 'q3'];
+  await room.save(f.s);
+  const alice = f.socket('alice'), bob = f.socket('bob');
+  await room.webSocketMessage(alice.ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'B' }));
+  await room.webSocketMessage(alice.ws, JSON.stringify({ type: 'submitAll' }));
+  await room.webSocketMessage(alice.ws, JSON.stringify({ type: 'select', questionId: 'q2', answer: 'A' }));
+  assert.equal(alice.sent.at(-1).error, 'submitted');
+  await room.webSocketMessage(bob.ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'A' }));
+  const s = await room.state(); s.endsAt = Date.now() - GRACE_MS - 1; await room.save(s);
+  await room.alarm();
+  const done = await room.state();
+  assert.equal(done.phase, 'FINISHED'); assert.equal(done.status, 'review');
+  const rows = f.writes.filter(([sql]) => sql.includes('session_responses')).map(([, args]) => args);
+  assert.deepEqual(rows.map(r => [r[1], r[2], r[3], r[4], r[5]]), [
+    ['alice', 'q1', 'B', 1, 1], ['alice', 'q2', null, 0, 1], ['alice', 'q3', null, 0, 1],
+    ['bob', 'q1', 'A', 0, 0], ['bob', 'q3', null, 0, 0]]);
+  assert.equal(f.writes.filter(([sql]) => sql.includes("status='review'")).length, 1);
+  assert.equal(f.writes.filter(([sql]) => sql.includes('finished_at')).map(([, args]) => args[2]).join(), 'alice');
+  const count = f.writes.length;
+  await room.alarm(); assert.equal(f.writes.length, count, 'finalizes once');
+  await room.webSocketMessage(bob.ws, JSON.stringify({ type: 'select', questionId: 'q1', answer: 'B' }));
+  assert.equal(bob.sent.at(-1).error, 'set closed');
+  const teacher = f.socket('teacher', 'admin');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'endSession' }));
+  assert.equal((await room.state()).status, 'ended');
+  assert.equal(f.writes.filter(([sql]) => sql.includes("status='ended'")).length, 1);
+
+  f = selfFixture(); room = new LessonRoom(f.ctx, f.env); await room.save(f.s);
+  const a2 = f.socket('alice'), b2 = f.socket('bob');
+  await room.webSocketMessage(a2.ws, JSON.stringify({ type: 'submitAll' }));
+  assert.equal((await room.state()).phase, 'ANSWERING');
+  await room.webSocketMessage(b2.ws, JSON.stringify({ type: 'submitAll' }));
+  assert.equal((await room.state()).status, 'review', 'set ends early once every joined student submitted');
+
+  f = selfFixture(); room = new LessonRoom(f.ctx, f.env); await room.save(f.s);
+  const t3 = f.socket('teacher', 'admin');
+  await room.webSocketMessage(t3.ws, JSON.stringify({ type: 'addTime', sec: 15 }));
+  assert.equal(t3.sent.at(-1).error, 'invalid phase');
+  await room.webSocketMessage(t3.ws, JSON.stringify({ type: 'endSession' }));
+  assert.equal((await room.state()).status, 'review', 'first End session finishes the set only');
+  assert.equal(f.writes.filter(([sql]) => sql.includes("status='ended'")).length, 0);
+});
+test('self-paced start puts every lobby student on their first question', async () => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { status: 'lobby', phase: 'READY', endsAt: null, startedAt: null });
+  await room.save(f.s);
+  const teacher = f.socket('teacher', 'admin');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'start' }));
+  const s = await room.state();
+  assert.equal(s.status, 'live'); assert.equal(s.endsAt - s.startedAt, 120000);
+  assert.deepEqual(s.positions, { alice: 'q1', bob: 'q1' });
+  assert.equal(f.writes.filter(([sql]) => sql.includes("status='live'")).length, 1);
+});
+test('set results: assigned denominators, blank scorable wrong, unscorable never, zero-assignment excluded; ranking ties by lesson order', async () => {
+  const { setResults, mostMissed } = await protocol();
+  const q = (id, answer, spr = false) => ({ id, answer, spr, choices: spr ? [] : [{ letter: 'A' }, { letter: 'B' }] });
+  const items = ['q1', 'q2', 'q3', 'q4'].map(question_id => ({ question_id, time_limit_sec: 10 }));
+  const questions = { q1: q('q1', 'A'), q2: q('q2', 'B'), q3: q('q3', '1/2', true), q4: q('q4', 'Z') };
+  const assigned = { a: ['q1', 'q2', 'q3', 'q4'], b: ['q1', 'q2', 'q3', 'q4'], late: ['q2'], none: [] };
+  const responses = { a: { q1: { answer: 'A', ms: 1000 }, q2: { answer: 'A' }, q3: { answer: '.5' }, q4: { answer: 'A' } },
+    b: { q1: { answer: 'B', ms: 500 }, q3: {} }, late: { q2: { answer: 'A' } }, none: {} };
+  const r = setResults({ items, questions, assigned, responses });
+  assert.deepEqual(r.questions.map(x => [x.questionId, x.assigned, x.wrong, x.right]), [['q1', 2, 1, 1], ['q2', 3, 3, 0], ['q3', 2, 1, 1], ['q4', 2, 0, 0]]);
+  assert.deepEqual(r.students.a, { assigned: 4, scorable: 3, right: 2, answered: 4, ms: 1000 });
+  assert.equal(r.students.b.right, 0); assert.equal(r.students.b.answered, 1);
+  assert.equal(r.takers, 3, 'zero-assignment student is not a taker'); assert.equal(r.completed, 2);
+  assert.equal(r.mean, (2 / 3 + 0 + 0) / 3); assert.equal(r.median, 0);
+  assert.deepEqual(mostMissed(r).map(x => x.questionId), ['q2', 'q1', 'q3', 'q4'], 'ties keep lesson order');
+  assert.deepEqual(mostMissed(r, ['q2']).map(x => x.questionId), ['q1', 'q3', 'q4'], 'reviewed questions leave the ranking');
+});
+test('poll winner: option 2 must win outright; picks tie on more wrong, then lesson order', async () => {
+  const { pollWinner } = await protocol();
+  const order = ['q1', 'q2', 'q3'], wrong = { q1: 1, q2: 3, q3: 3 };
+  const w = votes => pollWinner({ votes, mostMissed: 'q1', wrong, order });
+  assert.equal(w({}), 'q1', 'no votes → most-missed');
+  assert.equal(w({ a: { option: 1 }, b: { option: 2, questionId: 'q3' } }), 'q1', 'split vote → most-missed');
+  assert.equal(w({ a: { option: 2, questionId: 'q3' } }), 'q3');
+  assert.equal(w({ a: { option: 2, questionId: 'q1' }, b: { option: 2, questionId: 'q2' } }), 'q2', 'pick tie → more students wrong');
+  assert.equal(w({ a: { option: 2, questionId: 'q3' }, b: { option: 2, questionId: 'q2' } }), 'q2', 'then lesson order');
+  assert.equal(w({ a: { option: 2, questionId: 'q3' }, b: { option: 2, questionId: 'q3' }, c: { option: 2, questionId: 'q2' }, d: { option: 1 } }), 'q3');
+});
+function reviewFixture() {
+  const f = selfFixture();
+  Object.assign(f.s, { status: 'review', phase: 'FINISHED', reviewed: [], poll: null, pollResult: null, roster: { alice: 'Alice', bob: 'Bob', carol: 'Carol' },
+    assigned: { alice: ['q1', 'q2', 'q3'], bob: ['q1', 'q2', 'q3'], carol: ['q2'] },
+    responses: { alice: { q1: { answer: 'B' }, q2: { answer: 'B' }, q3: { answer: '3' } }, bob: { q1: { answer: 'A' }, q2: { answer: 'B' } }, carol: { q2: { answer: 'A' } } } });
+  return f;
+}
+test('review poll: option 2 needs a pick, early close when every connected student voted, split → most-missed, 3 s result, review, exclusion', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule(); const f = reviewFixture(), room = new LessonRoom(f.ctx, f.env);
+  await room.save(f.s);
+  const alice = f.socket('alice'), bob = f.socket('bob'), teacher = f.socket('teacher', 'admin');
+  const say = (who, m) => room.webSocketMessage(who.ws, JSON.stringify(m));
+  const overview = room.snapshot(f.s, { role: 'admin', userId: 'teacher' }).overview;
+  assert.deepEqual(overview.ranking, ['q2', 'q1', 'q3']);
+  assert.deepEqual(overview.questions.map(x => [x.assigned, x.wrong]), [[2, 1], [3, 2], [2, 1]]);
+  await say(alice, { type: 'vote', option: 1 });
+  assert.equal(alice.sent.at(-1).error, 'poll closed');
+  await say(teacher, { type: 'startPoll' });
+  let s = await room.state();
+  assert.equal(s.phase, 'POLL'); assert.equal(s.poll.mostMissed, 'q2'); assert.equal(f.storage && (await f.storage.get('alarm')), s.poll.endsAt + 750);
+  const poll = alice.sent.at(-1).poll;
+  assert.deepEqual(poll.mostMissed, { questionId: 'q2', number: 2, missed: 2 });
+  assert.deepEqual(poll.choices.map(c => [c.number, c.mark]), [[1, 'right'], [2, 'wrong'], [3, 'right']]);
+  const text = JSON.stringify(alice.sent.at(-1));
+  for (const secret of ['Bob', 'Carol', 'SECRET_EXPLANATION', 'PRIVATE_NOTE', '"answer"']) assert.equal(text.includes(secret), false, secret);
+  await say(alice, { type: 'vote', option: 2 });
+  assert.match(alice.sent.at(-1).error, /Pick a question/);
+  await say(alice, { type: 'vote', option: 2, questionId: 'nope' });
+  assert.equal(alice.sent.at(-1).error, 'not in this poll');
+  assert.deepEqual((await room.state()).poll.votes, {}, 'option 2 without a valid pick is not counted');
+  await say(alice, { type: 'vote', option: 2, questionId: 'q3' });
+  assert.equal((await room.state()).phase, 'POLL', 'bob has not voted yet');
+  assert.deepEqual(room.snapshot(await room.state(), { role: 'admin', userId: 'teacher' }).poll.picks, { q3: 1 });
+  await say(bob, { type: 'vote', option: 1 });
+  s = await room.state();
+  assert.equal(s.phase, 'POLL_RESULT', 'closes early: every connected student voted (carol is not connected)');
+  assert.deepEqual([s.pollResult.questionId, s.pollResult.winner, s.pollResult.one, s.pollResult.two], ['q2', 1, 1, 1], 'split vote → most-missed');
+  assert.equal(JSON.stringify(bob.sent.at(-1)).includes('Alice'), false);
+  tick(2999); await room.alarm(); assert.equal((await room.state()).phase, 'POLL_RESULT');
+  tick(1); await room.alarm();
+  s = await room.state();
+  assert.equal(s.phase, 'REVEALED'); assert.equal(s.items[s.index].question_id, 'q2'); assert.deepEqual(s.reviewed, ['q2']);
+  const review = alice.sent.at(-1);
+  assert.equal(review.endsAt, null, 'review is untimed: no set clock on screen');
+  assert.equal(review.question.answer, 'A'); assert.equal(review.ownSelection, 'B'); assert.equal(review.notInSet, false);
+  assert.equal(JSON.stringify(review).includes('PRIVATE_NOTE'), false);
+  assert.equal(room.snapshot(s, { role: 'student', userId: 'dave' }).notInSet, true);
+  assert.equal(room.snapshot(s, { role: 'admin', userId: 'teacher' }).notes, '');
+  await say(teacher, { type: 'annotate', questionId: 'q2', op: { type: 'stroke', id: 'm1', points: [[0.1, 0.1]], color: '#ff7676' } });
+  assert.equal(alice.sent.at(-1).type, 'annotate', 'review mode reuses the REVEALED annotation gate');
+  await say(alice, { type: 'select', questionId: 'q2', answer: 'A' });
+  assert.equal(alice.sent.at(-1).error, 'set closed');
+  await say(teacher, { type: 'next' });
+  s = await room.state();
+  assert.equal(s.phase, 'FINISHED');
+  assert.equal(f.writes.filter(([sql]) => sql.includes('session_question_review')).length, 1, 'annotations flushed at Next');
+  await say(teacher, { type: 'startPoll' });
+  s = await room.state();
+  assert.deepEqual(s.poll.choices, ['q1', 'q3'], 'reviewed question leaves the dropdown'); assert.equal(s.poll.mostMissed, 'q1');
+  tick(30749); await room.alarm(); assert.equal((await room.state()).phase, 'POLL');
+  tick(1); await room.alarm();
+  s = await room.state(); assert.equal(s.pollResult.questionId, 'q1', 'deadline with no votes → most-missed');
+  tick(3000); await room.alarm();
+  await say(teacher, { type: 'next' });
+  await say(teacher, { type: 'goto', questionId: 'q3' });
+  s = await room.state();
+  assert.equal(s.phase, 'REVEALED'); assert.deepEqual(s.reviewed, ['q2', 'q1', 'q3']);
+  await say(teacher, { type: 'next' });
+  await say(teacher, { type: 'startPoll' });
+  assert.equal(teacher.sent.at(-1).error, 'Every question has been reviewed');
+  assert.equal(f.writes.filter(([sql]) => sql.includes('session_responses')).length, 0, 'reviews write no responses');
+  assert.deepEqual((await room.state()).responses, reviewFixture().s.responses, 'recorded answers unchanged');
+  await say(teacher, { type: 'endSession' });
+  assert.equal((await room.state()).status, 'ended');
+}));
+test('poll and goto are self-paced review only; instructor-paced students cannot lock through vote or navigate', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  await room.save(f.s);
+  const alice = f.socket('alice'), teacher = f.socket('teacher', 'admin');
+  for (const m of [{ type: 'vote', option: 1 }, { type: 'navigate', questionId: 'q' }, { type: 'submitAll' }]) {
+    await room.webSocketMessage(alice.ws, JSON.stringify(m));
+    assert.equal(alice.sent.at(-1).error, 'invalid action');
+  }
+  assert.equal((await room.state()).responses.alice.q, undefined, 'nothing locked');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'startPoll' }));
+  assert.equal(teacher.sent.at(-1).error, 'invalid phase');
+  const g = selfFixture(), self = new LessonRoom(g.ctx, g.env); await self.save(g.s);
+  const t2 = g.socket('teacher', 'admin');
+  await self.webSocketMessage(t2.ws, JSON.stringify({ type: 'goto', questionId: 'q1' }));
+  assert.equal(t2.sent.at(-1).error, 'invalid phase', 'no review during the set');
+});
+test('review poll closes early when the last connected student who has not voted disconnects', async () => {
+  const { LessonRoom } = await roomModule(); const f = reviewFixture(), room = new LessonRoom(f.ctx, f.env);
+  await room.save(f.s);
+  const alice = f.socket('alice'), bob = f.socket('bob'), teacher = f.socket('teacher', 'admin');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'startPoll' }));
+  await room.webSocketMessage(alice.ws, JSON.stringify({ type: 'vote', option: 1 }));
+  assert.equal((await room.state()).phase, 'POLL', 'bob is connected and has not voted');
+  await room.webSocketClose(bob.ws, 1000, 'bye');
+  const s = await room.state();
+  assert.equal(s.phase, 'POLL_RESULT'); assert.equal(s.pollResult.questionId, 'q2');
+  await room.webSocketClose(teacher.ws, 1000, 'bye');
+  assert.equal((await room.state()).phase, 'POLL_RESULT', 'instructor disconnects change nothing');
 });

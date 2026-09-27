@@ -1,3 +1,6 @@
+# /app and /admin are served only through the Worker (run_worker_first = true), which
+# sends them LESSON_CSP (adds 'unsafe-eval', www.desmos.com and worker-src blob: for the
+# Desmos API). Do not add a second CSP rule here: browsers enforce both policies.
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self' https://cxlzflzdlegosybkklma.supabase.co; frame-src https://www.desmos.com; form-action 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'
   X-Content-Type-Options: nosniff

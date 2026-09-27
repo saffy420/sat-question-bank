@@ -17,8 +17,12 @@ import {
   WifiOff,
   Clock,
   LockKeyhole,
+  Calculator,
 } from "lucide-react";
 import { Stage } from "../lesson-ui/Stage";
+import { DesmosLeader } from "../lesson-ui/Desmos";
+import { SelfGrid, type SelfRoom } from "./SelfLive";
+import { Overview, PollPanel, ResultPanel } from "./Review";
 import type { Snapshot, Laser, Mark } from "../lesson-ui/types";
 import * as Ink from "/shared/annotations.js";
 import { isRight } from "/shared/stats.js";
@@ -168,7 +172,12 @@ export function Live({ id }: { id: string }) {
             offset.current = m.serverNow - m.sentAt - rtt / 2;
           }
         } else if (m.type === "snapshot") {
-          setState(m);
+          // Self-paced roster refreshes leave question bodies out; keep the ones we have.
+          setState((old) =>
+            m.mode === "self" && !m.questions && old?.sessionId === m.sessionId
+              ? { ...m, questions: old!.questions }
+              : m,
+          );
           setError("");
         } else if (m.type === "annotate")
           setState((old) =>
@@ -253,11 +262,16 @@ export function Live({ id }: { id: string }) {
     send(action, { bool });
   };
   const revealed = s.phase === "REVEALED" || s.phase === "ENDED";
-  const rows = Object.entries(s.roster || {}).map(([id, name]) => ({
-    id,
-    name,
-    r: s.responses?.[id]?.[s.questionId],
-  }));
+  const self = s.mode === "self" ? (s as unknown as SelfRoom) : null;
+  // Self-paced review mode (§8.7) reuses the instructor-paced REVEALED layout below.
+  const reviewMode = !!s.reviewMode;
+  const rows = Object.entries(s.roster || {})
+    .filter(([id]) => !reviewMode || s.responses?.[id])
+    .map(([id, name]) => ({
+      id,
+      name,
+      r: s.responses?.[id]?.[s.questionId],
+    }));
   rows.sort(
     (a, b) =>
       (sort === "status"
@@ -268,8 +282,10 @@ export function Live({ id }: { id: string }) {
         : 0) || a.name.localeCompare(b.name),
   );
   const received = rows.filter((x) => x.r?.answer).length;
-  const remaining = s.endsAt
-    ? Math.ceil(Math.max(0, s.endsAt - now - offset.current) / 1000)
+  // A finished self-paced set has no clock left to show.
+  const end = self?.poll ? self.poll.endsAt : self && s.status !== "live" ? null : s.endsAt;
+  const remaining = end
+    ? Math.ceil(Math.max(0, end - now - offset.current) / 1000)
     : null;
   const roster = (
     <div id="live-roster" className="roster">
@@ -295,7 +311,17 @@ export function Live({ id }: { id: string }) {
     <div className="live-view">
       <header className="live-top">
         <div>
-          <Badge tone="green">{s.status === "lobby" ? "LOBBY" : s.phase}</Badge>
+          <Badge tone="green">
+            {s.status === "lobby"
+              ? "LOBBY"
+              : self
+                ? reviewMode
+                  ? "REVIEW"
+                  : self.poll || self.pollResult
+                    ? "REVIEW POLL"
+                    : { live: "SELF-PACED SET", review: "SET FINISHED", ended: "SESSION ENDED" }[s.status] || s.status
+                : s.phase}
+          </Badge>
           <h2>{s.title}</h2>
         </div>
         <div className="live-facts">
@@ -304,9 +330,15 @@ export function Live({ id }: { id: string }) {
             <Users />
             {s.count} joined
           </span>
-          <span>
-            Q {s.index + 1} / {s.total}
-          </span>
+          {self ? (
+            <span id="live-submitted">
+              Submitted {Object.keys(self.submitted).length}
+            </span>
+          ) : (
+            <span>
+              Q {s.index + 1} / {s.total}
+            </span>
+          )}
           <strong
             id="live-timer"
             className={remaining != null && remaining <= 10 ? "urgent" : ""}
@@ -349,6 +381,34 @@ export function Live({ id }: { id: string }) {
             {roster}
           </section>
         </div>
+      ) : self && !reviewMode ? (
+        <>
+          {s.status === "live" ? (
+            <SelfGrid s={self} />
+          ) : self.poll ? (
+            <PollPanel s={self} />
+          ) : self.pollResult ? (
+            <ResultPanel s={self} />
+          ) : (
+            self.overview && <Overview s={self} send={send} />
+          )}
+          <details className="roster-details panel">
+            <summary>Manage students</summary>
+            <label className="toggle">
+              <input
+                id="live-lock"
+                type="checkbox"
+                checked={s.lockedJoin}
+                disabled={s.status === "ended"}
+                onChange={(e) =>
+                  toggle("lockedJoin", "lockJoin", e.target.checked)
+                }
+              />
+              Lock joining
+            </label>
+            {roster}
+          </details>
+        </>
       ) : (
         <div className="live-grid">
           <nav className="question-rail" aria-label="Lesson questions">
@@ -359,7 +419,7 @@ export function Live({ id }: { id: string }) {
                 aria-current={i === s.index ? "step" : undefined}
               >
                 <span>{i + 1}</span>
-                {i < s.index ? (
+                {(self ? self.reviewed?.includes(self.items[i]?.questionId) : i < s.index) ? (
                   <Check aria-label="Done" />
                 ) : (
                   <span className="mini-slide" />
@@ -518,7 +578,7 @@ export function Live({ id }: { id: string }) {
               Start question
             </button>
           )}
-          {s.phase === "ANSWERING" && (
+          {s.phase === "ANSWERING" && !self && (
             <>
               <button
                 data-live="addTime"
@@ -533,7 +593,7 @@ export function Live({ id }: { id: string }) {
               </button>
             </>
           )}
-          {s.phase === "REVEALED" && s.index + 1 < s.total && (
+          {s.phase === "REVEALED" && (reviewMode || s.index + 1 < s.total) && (
             <button
               className="primary"
               data-live="next"
@@ -544,25 +604,29 @@ export function Live({ id }: { id: string }) {
             </button>
           )}
         </div>
-        <span className="response-count">
-          {received} of {rows.length} Responses
-        </span>
+        {!self && (
+          <span className="response-count">
+            {received} of {rows.length} Responses
+          </span>
+        )}
         <span id="live-link">
           {connected ? <Wifi /> : <WifiOff />}
           {connected ? "Connected" : "Reconnecting…"}
         </span>
-        <label className="toggle">
-          <input
-            id="live-class"
-            type="checkbox"
-            checked={!!s.classResults}
-            disabled={s.phase === "ENDED"}
-            onChange={(e) =>
-              toggle("classResults", "classResults", e.target.checked)
-            }
-          />
-          Show class results
-        </label>
+        {(!self || reviewMode) && (
+          <label className="toggle">
+            <input
+              id="live-class"
+              type="checkbox"
+              checked={!!s.classResults}
+              disabled={s.phase === "ENDED"}
+              onChange={(e) =>
+                toggle("classResults", "classResults", e.target.checked)
+              }
+            />
+            Show class results
+          </label>
+        )}
         <button
           data-live="endSession"
           disabled={s.phase === "ENDED"}
@@ -588,6 +652,7 @@ function InstructorStage({
   const [color, setColor] = useState(colors[0]);
   const [clear, setClear] = useState(false);
   const [card, setCard] = useState<HTMLDivElement | null>(null);
+  const [desmos, setDesmos] = useState(!!s.desmos);
   const latest = useRef({ s, send });
   latest.current = { s, send };
   useEffect(() => {
@@ -712,6 +777,16 @@ function InstructorStage({
           <Check />
           Correct: {s.question?.answer || "Unavailable"}
         </Badge>
+        {s.question?.section === "Math" && (
+          <button
+            id="live-desmos-toggle"
+            aria-pressed={desmos}
+            onClick={() => setDesmos(!desmos)}
+          >
+            <Calculator />
+            Desmos
+          </button>
+        )}
       </div>
       {s.phase === "REVEALED" && (
         <div id="live-tools" role="toolbar" aria-label="Annotation tools">
@@ -770,6 +845,16 @@ function InstructorStage({
           <h3>My notes</h3>
           <HTML html={notesHTML(s.notes || "")} />
         </details>
+        {desmos && (
+          <DesmosLeader
+            apiKey={s.desmosKey}
+            initial={s.desmos}
+            live={s.phase === "REVEALED"}
+            send={(state) =>
+              send("desmos", { questionId: s.questionId, state })
+            }
+          />
+        )}
       </div>
       {clear && (
         <Dialog

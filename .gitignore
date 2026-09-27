@@ -2,6 +2,7 @@
 .dev.vars*
 .e2e.*.env
 .opencode/pipeline/*/e2e/
+.omp/pipeline/*/e2e/
 playwright-report/
 test-results/
 .wrangler/

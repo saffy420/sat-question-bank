@@ -53,9 +53,12 @@ CREATE TABLE IF NOT EXISTS attempts (
   picked TEXT,
   changes INTEGER DEFAULT 0,
   answer_history_json TEXT,
+  lesson_session_id INTEGER,
   UNIQUE (user_id, question_id, ts)
 );
 CREATE INDEX IF NOT EXISTS attempts_user_ts ON attempts (user_id, ts);
+-- 0010_lesson_attempts.sql: a self-paced lesson writes one attempt per session/student/question.
+CREATE UNIQUE INDEX IF NOT EXISTS attempts_lesson ON attempts (lesson_session_id, user_id, question_id) WHERE lesson_session_id IS NOT NULL;
 
 -- One JSON blob per account. These settings change shape often and are read as a
 -- whole; a column per toggle would be a migration for every new preference.

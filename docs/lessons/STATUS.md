@@ -232,3 +232,132 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 **Commit authorization — 2026-09-25:** User authorized local commit of task05. No push/deploy or remote data mutation authorized. STOP remains for user validation before task06.
 
 **Next:** User validation on real Chromebook. Task06 (Desmos) not started until user clears task05 STOP.
+
+---
+
+## 2026-09-26 — Task 06: Desmos sync (Claude Code pipeline; review PASS)
+
+**Shipped (BRIEF §7.2):** Instructor Desmos API panel in the live view (math questions). Changes are throttled to 150 ms, de-duplicated, and sent only after the reveal. The LessonRoom DO stores the latest state per question under its own key, relays it to other sockets, drops unchanged states, and writes `session_question_review.desmos_state_json` only at `next`/`endSession`. Students get a read-only, scrollable follower panel that opens on the first instructor state, plus **Try it yourself** / **Back to instructor view**. The API is preloaded in the lobby only for lessons with math. Artifacts: `.omp/pipeline/lessons-06-desmos/` (spec, research, e2e, review, handoff, state). Previous tasks' artifacts remain in `.opencode/pipeline/`.
+
+**E2E:** task 2/2; full suite 21/21. Unit 79/79.
+
+**Measured:** Desmos edit → student render under Slow 3G, 5 samples per run: 243–297 ms isolated (one outlier 384 ms); 265–437 ms during full-suite load. Target ≤ 500 ms met on every sample. Measured through a Slow 3G-shaped TCP relay (ping RTT ≈ 405 ms), because CDP emulation does not delay WebSocket frames in Chromium (37 ms RTT). Desmos API download: 1,050,346 bytes gzipped.
+
+**Deviations:** (1) relay instead of CDP for Slow 3G; (2) `/app` and `/admin` CSP adds `'unsafe-eval'`, `https://www.desmos.com` and `worker-src blob:` (the Desmos API evals its module source and starts a blob worker); `_headers` and all other responses stay strict; (3) the follower is read-only through an input guard rather than `inert`, so it can scroll; (4) BRIEF.md replaced verbatim by the tasks 06–10 brief; the approved G1–G6 amendments moved to `docs/lessons/AMENDMENTS.md` and still apply.
+
+**Manual checks:** Desmos sync on a real Chromebook; set the `DESMOS_API_KEY` secret before deploy (demo key is local-only); approve the CSP scope.
+
+**Known pre-existing issue:** `LessonRoom.webSocketClose` throws on close code 1006 (logged only).
+
+---
+
+## 2026-09-26 — Task 07: Self-paced lessons (Claude Code pipeline; review PASS)
+
+**Shipped (BRIEF §8.1–8.5):**
+- **Shared clock:** Σ question times. Students move freely with Back/Next, a navigator and ⚑ flags, then use a review page and **Submit all** (with the brief's confirmation modal).
+- **Completion:** auto-submit at the shared end (after the 750 ms grace). The set also ends early when every joined student has submitted, or on **End session**. Completion writes every assigned response to D1 once and sets `status=review` (G6); a second **End session** ends the session.
+- **Late joiners:** they get a subset fitted once to the time left, hardest first, stored in `session_participants`. It is never recomputed.
+- **Time on question:** the sum of visits, bounded by server time and replay-safe (G5).
+- **Instructor view:** a graded student × question grid (■ □ ◆ · ░) and per-question cards (answered x/assigned, accuracy, avg time, distribution with names · time).
+- **Secrecy:** students see no correctness, explanation or notes in this task.
+
+**E2E:** task 2/2; full suite 23/23 (twice). Unit 85/85, including the exact §8.2 and §8.5 cases.
+
+**Measured:** 25 students × 20 questions → student full snapshot 21.7 KB (once per join/connect/start), student ack 582 B, instructor refresh 23.1 KB (≤ 4/s; 56.5 KB before review fix B6).
+
+**Deviations:**
+1. End session finishes the set first, then ends the session (G6).
+2. A time delta above server-elapsed time is cut to the elapsed time rather than dropped whole.
+3. Flags are kept on the student's page only.
+4. Instructor-paced time accounting is unchanged (single server-measured segment).
+
+**Manual checks:** self-paced run on real Chromebooks; a late joiner's set and ░ in the grid; accumulated time after revisiting a question.
+
+---
+
+## 2026-09-26 — Task 08: Review polls (Claude Code pipeline; review PASS)
+
+**Shipped (BRIEF §8.6–8.7):**
+- **Post-set overview:**
+  - class summary (average, median, completed);
+  - sortable student table with per-question answers;
+  - most-missed ranked with assigned-only denominators (`Qn — w of a wrong (p%) · skill · difficulty`) that opens the question card.
+- **Launcher:** Start review poll, Review a specific question, End session.
+- **Review polls:** 30 s. Most-missed vs. a question the student picks (✓ / ✗ / "not in your set"); option 2 needs a pick. The poll closes early when every connected student has voted, including when the last non-voter disconnects. Option 2 must win outright; picks tie by more wrong, then lesson order.
+- **After the vote:** the result shows for 3 s, then everyone moves to review mode, which is the instructor-paced REVEALED screen with the student's own answer or "Not in your set", annotations and Desmos, and no clock or notes.
+- **Next** returns to the launcher, and reviewed questions leave later polls.
+- **Reviews change no data:** votes stay in the Durable Object.
+
+**E2E:** task 1/1; full suite 24/24 (twice). Unit 90/90.
+
+**Measured:** 25 students × 20 questions: student poll 2.6 KB, student review 3.2 KB, instructor overview refresh 39.0 KB.
+
+**Deviations:**
+1. `poll`/`pollResult` ride in snapshots.
+2. "Completed" = answered every assigned question.
+3. "End the review" = End session.
+4. Polls and review use lesson numbering.
+5. Instructor-paced students' self-only actions are now rejected instead of locking.
+
+**Manual checks:** poll + review flow in class conditions on real Chromebooks.
+
+---
+
+## 2026-09-26 — Task 09: History and stats (Claude Code pipeline; review PASS)
+
+**Shipped (BRIEF §9, §10; §2 usedInLesson; §3.2 Lessons tab, deferred here by G4):**
+- **Self-paced write-back:**
+  - Set completion writes one attempt per assigned scorable question, tagged `lesson_session_id`, with time, changes and answer history, in the same batch as the responses.
+  - Progress moves through the practice marker rule, shared now between the SPA and the room. Blanks are Red (G3).
+  - Unscorable and unassigned questions write nothing.
+  - Exactly once: migration 0010 adds a unique index, and progress is guarded against replays.
+- **Instructor-paced lessons** write no attempts and no progress.
+- **Usage:** the final end records `question_lesson_usage` for the questions shown. `/api/questions` carries `usedInLesson`.
+- **Bank filter:** **Lesson questions** (Show all / Hide questions from lessons I attended / Hide all lesson questions). The same logic serves the builder, where the middle option reads "lessons I ran". Usage badges appear in Browse and on Mistakes.
+- **My Lessons:** a list of session, title, date, mode and score. It opens a read-only history with the answer, the correct answer, the explanation, the notes as **Breakdown**, the saved highlights and the final Desmos graph. It is available only after the session ends.
+- **Tags and admin:** mistakes show "Lesson 00003", in both the student and admin views. The admin Lessons tab lists sessions with score and "counts toward stats".
+
+**E2E:** task 1/1; full suite 25/25 (three green runs). Unit 97/97.
+
+**Deviations:**
+1. Write-back at set completion (G6).
+2. History uses `/api/lesson-history` and shows the current bank question body.
+3. Builder "Hide questions from lessons I ran".
+4. E2E self-paced specs use a new local account, student 6, so student 1's pinned stats stay fixed; the bank fixture has 7 questions.
+
+**Manual checks:**
+- spot-check stats and the mistake log after a real self-paced lesson, and that an instructor-paced lesson changes nothing;
+- My Lessons on a Chromebook;
+- apply migration 0010 before deploying.
+
+---
+
+## 2026-09-27 — Task 10: E2E regression and screenshot tour (Claude Code pipeline; review PASS)
+
+**Shipped:**
+- **Screenshot tour:** both modes, run as in class. 29 compressed PNGs are in `docs/lessons/tour/`, with an index in its README.
+  - Students at 1366×768; the instructor at 1920×1080.
+  - Every student passes the leak check.
+- **New end-to-end checks for §13 gaps:**
+  - a raw answer change after `endsAt + 750 ms` is refused and the answer is unchanged;
+  - 20 s outages keep the self-paced assigned set, and keep annotations made while the student was offline;
+  - reusing a lesson gets a new session, code and ID, and leaves the first run's results unchanged.
+- **Fix:** below a long passage on a Chromebook, three things were off screen:
+  - the "Answer locked in" notice and the reveal verdict, under the footer;
+  - the class results chart, below the window.
+
+  They now scroll into view when they appear.
+
+**E2E:** task 6/6; full suite **31/31**, twice in a row. Unit 97/97. Desmos under Slow 3G: 253–295 ms, against a 500 ms target.
+
+**§13:** each acceptance check maps to a passing unit or e2e test (`.omp/pipeline/lessons-10-e2e-regression/e2e.md`).
+
+**Deviations:**
+1. Instructor tour shots are at 1920×1080.
+2. The self-paced tour uses students 2–4.
+3. The tour tool uses the `sharp` that wrangler installs.
+
+**Manual checks:**
+- look through the screenshot tour;
+- on a Chromebook, lock and reveal on a long passage;
+- on a 1366-wide instructor screen, typing in Desmos scrolls the short question out of the card (not seen at 1080p).

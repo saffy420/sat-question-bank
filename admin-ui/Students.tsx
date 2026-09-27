@@ -24,12 +24,24 @@ type Mistake = {
   question: BankQuestion;
   marker: string;
   picked: string;
+  lessonSessionId: string | null;
+};
+type Lesson = {
+  sessionId: number;
+  paddedId: string;
+  title: string;
+  mode: string;
+  status: string;
+  date: string;
+  score: { right: number; scorable: number };
+  counted: boolean;
 };
 type Detail = {
   totalHistory: number;
   student: Student;
   directions: Record<string, number>;
   mistakes: Mistake[];
+  lessons: Lesson[];
   stats: {
     tally: { att: number; corr: number; dom: Record<string, Count> };
     lastActive: string | null;
@@ -468,7 +480,41 @@ function Tab({ tab, detail }: { tab: string; detail: Detail }) {
   return (
     <>
       <h2>Lessons</h2>
-      <Empty>Unavailable until task09. No lesson attendance records yet.</Empty>
+      {detail.lessons.length ? (
+        <table id="student-lessons">
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Title</th>
+              <th>Mode</th>
+              <th>Date</th>
+              <th>Score</th>
+              <th>Counts toward stats</th>
+            </tr>
+          </thead>
+          <tbody>
+            {detail.lessons.map((x) => (
+              <tr key={x.sessionId}>
+                <td>{x.paddedId}</td>
+                <td>{x.title}</td>
+                <td>
+                  {x.mode === "self" ? "Self-paced" : "Instructor-paced"}
+                  {x.status !== "ended" && ` · ${x.status}`}
+                </td>
+                <td>{x.date}</td>
+                <td>
+                  {x.score.scorable
+                    ? `${x.score.right} / ${x.score.scorable} (${Math.round((100 * x.score.right) / x.score.scorable)}%)`
+                    : "Unavailable"}
+                </td>
+                <td>{x.counted ? "Yes" : "No"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <Empty>No lessons attended yet.</Empty>
+      )}
     </>
   );
 }
@@ -484,6 +530,7 @@ function History({ id }: { id: string }) {
       correct: boolean;
       picked: string;
       time_taken_ms: number | null;
+      lesson_session_id: number | null;
     }[];
   }>(`/api/admin/students/${encodeURIComponent(id)}/history?page=${page}`);
   if (!data) return <Pending error={error} retry={retry} />;
@@ -497,6 +544,14 @@ function History({ id }: { id: string }) {
             {x.correct ? "Correct" : "Incorrect"}
           </Badge>{" "}
           · picked {x.picked || "blank"} · {time(x.time_taken_ms)}
+          {x.lesson_session_id != null && (
+            <>
+              {" "}
+              <Badge tone="blue">
+                Lesson {String(x.lesson_session_id).padStart(5, "0")}
+              </Badge>
+            </>
+          )}
         </p>
       ))}
       {!data.results.length && <Empty>No practice attempts yet</Empty>}
@@ -568,6 +623,12 @@ function Mistakes({ mistakes }: { mistakes: Mistake[] }) {
               {m.marker}
             </Badge>{" "}
             · {m.question.skill} · {m.question.difficulty}
+            {m.lessonSessionId && (
+              <>
+                {" "}
+                <Badge tone="blue">Lesson {m.lessonSessionId}</Badge>
+              </>
+            )}
           </p>
         ))}
         {!selected.length && <p>No mistakes for these filters.</p>}

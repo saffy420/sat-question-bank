@@ -3,6 +3,7 @@ import { defineConfig } from '@playwright/test';
 const localhost = port => `https://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: 'tests/e2e',
+  globalSetup: './tests/e2e/cdn-cache.js',
   outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || '.opencode/pipeline/lessons-00b-e2e-harness/e2e/results',
   reporter: [['list']],
   workers: 2,
@@ -11,7 +12,9 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     viewport: { width: 1366, height: 768 },
     trace: 'retain-on-failure',
-    screenshot: 'only-on-failure'
+    screenshot: 'only-on-failure',
+    // Sandboxes with a preinstalled browser that does not match this Playwright revision.
+    launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {}
   },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
   webServer: [
