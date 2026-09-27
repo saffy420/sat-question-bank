@@ -44,6 +44,9 @@ function Player({ model, bridge, laser, terminal, followMark }: { model: PlayerM
     const card = document.getElementById('lesson-card');
     if (card && follow && followMark) followStage(card, followMark);
   }, [followMark]);
+  // Below a long passage, a status that just appeared (lock, reveal, class results) is brought on screen.
+  const status = revealed ? (s.classResults && s.distribution ? '.lesson-results' : '.lesson-reveal') : s.locked || model.lockPending ? '.lesson-locked' : '';
+  useLayoutEffect(() => { if (status) document.querySelector(status)?.scrollIntoView({ block: 'nearest' }); }, [status, s.questionId]);
   if (terminal) return <div className="lesson-terminal" role="status"><h2>{terminal}</h2></div>;
   return <>
     <span hidden id="lesson-check-icon"><Check size={20} aria-label="Correct"/></span><span hidden id="lesson-x-icon"><X size={20} aria-label="Incorrect"/></span>
