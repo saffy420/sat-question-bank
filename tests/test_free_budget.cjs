@@ -143,18 +143,23 @@ test('cached admin stats move with a new attempt, wait for its progress row, and
   assert.equal(detail.totalHistory, 3);
   // One answer arrives as two requests. Attempt first, views in between, then its progress row:
   // the views between are not kept, so the view after sees the progress row.
-  f.att.run('s2', 'mc2', '2026-09-08T00:00:00Z', 1, 30000, 'A', 0, null, null);
+  const now = new Date().toISOString();
+  f.att.run('s2', 'mc2', now, 1, 30000, 'A', 0, null, null);
   for (let k = 0; k < 2; k++) {
     assert.deepEqual((({ id, email, name, status, ...r }) => r)(await row('s2')), (await reference(f)).listRow('s2'));
     assert.deepEqual((await (await f.get('/api/admin/students/s2')).json()).stats, (await reference(f)).detail('s2').stats);
   }
-  f.db.prepare("UPDATE progress SET attempts=2, corrects=1, marker='Orange', last_reviewed='2026-09-08T00:00:00Z' WHERE user_id='s2' AND question_id='mc2'").run();
+  f.db.prepare("UPDATE progress SET attempts=2, corrects=1, marker='Orange', last_reviewed=? WHERE user_id='s2' AND question_id='mc2'").run(now);
   assert.deepEqual((({ id, email, name, status, ...r }) => r)(await row('s2')), (await reference(f)).listRow('s2'));
   assert.deepEqual((await (await f.get('/api/admin/students/s2')).json()).stats, (await reference(f)).detail('s2').stats);
-  // Settled again: the next views are served from the cache (no attempt rows read).
+  // A retry appends an attempt and no progress: once two minutes old it is kept, and reused.
+  f.att.run('s2', 'mc2', new Date(Date.now() - 180000).toISOString(), 0, 1000, 'B', 0, null, null);
+  f.db.prepare("UPDATE attempts SET ts=? WHERE user_id='s2' AND ts=?").run(new Date(Date.now() - 600000).toISOString(), now);
+  assert.deepEqual((({ id, email, name, status, ...r }) => r)(await row('s2')), (await reference(f)).listRow('s2'));
   f.log.length = 0;
-  await row('s2'); await f.get('/api/admin/students/s2');
-  assert.ok(!f.log.some(q => /FROM attempts WHERE user_id (IN|=)[^M]*ORDER BY ts/.test(q) && !/MAX\(ts\)/.test(q)), f.log.join('\n'));
+  await row('s2'); await f.get('/api/admin/students/s2'); await f.get('/api/admin/students/s2');
+  assert.equal(f.log.filter(q => /FROM attempts WHERE user_id IN \(\?/.test(q)).length, 0, 'list served from the cache');
+  assert.equal(f.log.filter(q => /answer_history_json, lesson_session_id FROM attempts WHERE user_id = \? ORDER BY ts/.test(q)).length, 1, 'detail computed once, then cached');
   // Nothing a student can read: the stats caches are opened only behind the admin check.
   f.stub.calls.length = 0;
   assert.equal((await f.get('/api/admin/students?page=1', 's1')).status, 403);

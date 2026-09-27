@@ -303,9 +303,9 @@ async function questionsResponse(env) {
 }
 // Admin stats are kept per student in a named cache (admin-only data, read only behind the admin
 // check) under a stamp of the bank and the student's latest attempt time: one index seek each, in one
-// batch. Every graded answer writes its attempt and its progress row with the same time (practice,
-// exams and the lesson write-back all use nextProgress/attemptRow with one `now`), but they arrive
-// as separate requests; an entry computed while progress lags the latest attempt is not kept.
+// batch. A first Check writes its progress row and its attempt as two requests (retried together
+// every 15 s), so an entry computed within two minutes of the student's latest attempt is not kept:
+// its progress row may still be on the way. Retries append attempts without progress, by design.
 const STATS_CACHE = 'https://admin-stats.internal/v1/';
 const statsCache = async () => typeof caches === 'undefined' ? null : caches.open('admin-stats');
 const cachedStats = async (cache, key) => { const r = await cache?.match(STATS_CACHE + key); return r ? r.json() : null; };
@@ -316,7 +316,8 @@ async function statStamps(env, ids) {
   const out = new Map(ids.map((id, i) => [id, bankKey + '|' + (latest[i].results?.[0]?.ts ?? '')]));
   return id => out.get(id);
 }
-const settled = (prog, log) => { const last = log.reduce((a, x) => !a || x.ts > a.ts ? x : a, null); return !last || (prog[last.question_id]?.last_reviewed || '') >= last.ts; };
+const SETTLE_MS = 120000;
+const settled = log => { const last = log.reduce((a, x) => x.ts > a ? x.ts : a, ''); return !last || Date.now() - Date.parse(last) > SETTLE_MS; };
 // §2 usedInLesson: padded session IDs per question, oldest first. With a user, only the
 // questions of sessions they attended (My Lessons refreshes those after a lesson ends).
 // The global map is kept per isolate under the usage table's max rowid: rows are only ever inserted,
@@ -701,7 +702,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
             guessRate: stats.guessing.n ? stats.guessing.changedN / stats.guessing.n : null, lastActive: stats.lastActive };
         });
         if (stale.length) {
-          for (const x of students) if (stale.includes(x.id)) { const { id, email, name, status, ...row } = x; held[id] = { stamp: settled(progs.get(id) || {}, logs.get(id) || []) ? stamp(id) : null, row }; }
+          for (const x of students) if (stale.includes(x.id)) { const { id, email, name, status, ...row } = x; held[id] = { stamp: settled(logs.get(id) || []) ? stamp(id) : null, row }; }
           await keepStats(cache, 'list', held);
         }
         students.sort((a, b) => {
@@ -737,7 +738,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
           for (const x of log) if (!latest.has(x.question_id) || x.ts >= latest.get(x.question_id).ts) latest.set(x.question_id, x);
           const wrong = qs.filter(q => ['Red', 'Orange'].includes(prog[q.id]?.marker)).map(q => ({ question_id: q.id, marker: prog[q.id].marker,
             picked: latest.get(q.id)?.picked || null, lessonSessionId: latest.get(q.id)?.lesson_session_id ? padSessionId(latest.get(q.id).lesson_session_id) : null, ai: q.ai }));
-          held = { stamp: settled(prog, log) ? stamp(id) : null, stats, directions, wrong, totalHistory: log.length };
+          held = { stamp: settled(log) ? stamp(id) : null, stats, directions, wrong, totalHistory: log.length };
           await keepStats(cache, key, held);
         }
         // The stats read lean rows; the Mistakes tab shows whole questions, so only those are read in full.
