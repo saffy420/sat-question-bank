@@ -1,10 +1,10 @@
 ```text
 Task: lessons-10-e2e-regression
 Branch: claude/lessons-10-e2e-regression   Base: claude/lessons-09-history-stats (PR 5 not merged)
-Last completed step: 3 (spec; step 2 research skipped per §12.7)   Commit: see git log
-Next step: Step 4/5 — tests only: write tests/e2e/lessons-10-e2e-regression/{tour,acceptance}.spec.js and tools/tour_compress.cjs, run them and the full suite, write e2e.md.
+Last completed step: 8 (docs)   Commit: see git log
+Next step: Step 9 — push and open PR "lessons-10: e2e-regression" with base claude/lessons-09-history-stats; record the URL here.
 Open blockers: none
-Decisions made this task: tour images palette-quantized with transitive sharp (no new dependency); §13 gaps A1–A3 added as checkpoints
+Decisions made this task: see spec.md "Decisions" 1–3; B1 fixed in repair round 1 (f6db6d7c); review PASS
 PR: pending
 Instructions: docs/lessons/BRIEF.md — re-read §0, §12, §13 + §12.7 task 10 row and checkpoints; AMENDMENTS G1–G6
 ```

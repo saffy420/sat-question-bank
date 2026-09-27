@@ -329,3 +329,35 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 - spot-check stats and the mistake log after a real self-paced lesson, and that an instructor-paced lesson changes nothing;
 - My Lessons on a Chromebook;
 - apply migration 0010 before deploying.
+
+---
+
+## 2026-09-27 — Task 10: E2E regression and screenshot tour (Claude Code pipeline; review PASS)
+
+**Shipped:**
+- **Screenshot tour:** both modes, run as in class. 29 compressed PNGs are in `docs/lessons/tour/`, with an index in its README.
+  - Students at 1366×768; the instructor at 1920×1080.
+  - Every student passes the leak check.
+- **New end-to-end checks for §13 gaps:**
+  - a raw answer change after `endsAt + 750 ms` is refused and the answer is unchanged;
+  - 20 s outages keep the self-paced assigned set, and keep annotations made while the student was offline;
+  - reusing a lesson gets a new session, code and ID, and leaves the first run's results unchanged.
+- **Fix:** below a long passage on a Chromebook, three things were off screen:
+  - the "Answer locked in" notice and the reveal verdict, under the footer;
+  - the class results chart, below the window.
+
+  They now scroll into view when they appear.
+
+**E2E:** task 6/6; full suite **31/31**, twice in a row. Unit 97/97. Desmos under Slow 3G: 253–295 ms, against a 500 ms target.
+
+**§13:** each acceptance check maps to a passing unit or e2e test (`.omp/pipeline/lessons-10-e2e-regression/e2e.md`).
+
+**Deviations:**
+1. Instructor tour shots are at 1920×1080.
+2. The self-paced tour uses students 2–4.
+3. The tour tool uses the `sharp` that wrangler installs.
+
+**Manual checks:**
+- look through the screenshot tour;
+- on a Chromebook, lock and reveal on a long passage;
+- on a 1366-wide instructor screen, typing in Desmos scrolls the short question out of the card (not seen at 1080p).
