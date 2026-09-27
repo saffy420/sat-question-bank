@@ -1,6 +1,6 @@
 {
  "target": "local",
- "at": "2026-09-27T18:15:18.383Z",
+ "at": "2026-09-27T19:03:34.869Z",
  "config": {
   "coreQuestions": 3000,
   "students": 30,
@@ -854,46 +854,938 @@
    ]
   },
   "admin-students": {
-   "ms": 1013,
+   "ms": 1422,
    "invocations": [
     {
      "kind": "worker",
-     "label": "GET /api/admin/students",
-     "queries": 9,
-     "batches": 1,
-     "batchStatements": [
-      30
-     ],
-     "statements": 39,
-     "rowsRead": 24614,
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
      "rowsWritten": 0,
-     "d1Ms": 222,
-     "maxParams": 30,
+     "d1Ms": 693,
+     "maxParams": 1,
      "byBinding": {
       "DB": {
-       "queries": 7,
-       "batches": 1,
-       "statements": 37,
-       "rowsRead": 24213,
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
        "rowsWritten": 0
       },
       "AI_DB": {
-       "queries": 2,
+       "queries": 1,
        "batches": 0,
-       "statements": 2,
-       "rowsRead": 401,
+       "statements": 1,
+       "rowsRead": 331,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 207
-    }
-   ]
-  },
-  "admin-students@warm": {
-   "ms": 824,
-   "invocations": [
+     "wallMs": 373
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 739,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 379
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 752,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 384
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 765,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 392
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 774,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 396
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 783,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 400
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 791,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 404
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 800,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 408
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 811,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1272,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 330,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 415
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 822,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 417
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 824,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1272,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 330,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 419
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 826,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 421
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 830,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1272,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 330,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 423
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 834,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 425
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 838,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 427
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 847,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 432
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 852,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 433
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 854,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 434
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 856,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 436
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 861,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 438
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 864,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 440
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 869,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1272,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 330,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 443
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 875,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 445
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 878,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1272,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 330,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 448
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 886,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1271,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 331,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 451
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 888,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1272,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 330,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 453
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 892,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1270,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 332,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 456
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 895,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1262,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 340,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 458
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1602,
+     "rowsWritten": 0,
+     "d1Ms": 907,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1255,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 347,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 465
+    },
+    {
+     "kind": "worker",
+     "label": "admin-stats chunk",
+     "queries": 4,
+     "batches": 0,
+     "batchStatements": [],
+     "statements": 4,
+     "rowsRead": 1600,
+     "rowsWritten": 0,
+     "d1Ms": 914,
+     "maxParams": 1,
+     "byBinding": {
+      "DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 1245,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 1,
+       "batches": 0,
+       "statements": 1,
+       "rowsRead": 355,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 468
+    },
     {
      "kind": "worker",
      "label": "GET /api/admin/students",
@@ -905,7 +1797,7 @@
      "statements": 35,
      "rowsRead": 96,
      "rowsWritten": 0,
-     "d1Ms": 17,
+     "d1Ms": 16,
      "maxParams": 2,
      "byBinding": {
       "DB": {
@@ -925,45 +1817,83 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 15
+     "wallMs": 614
     }
    ]
   },
-  "admin-student-detail": {
-   "ms": 870,
+  "admin-students@warm": {
+   "ms": 824,
    "invocations": [
     {
      "kind": "worker",
-     "label": "GET /api/admin/students/e2e-budget-01",
-     "queries": 12,
+     "label": "GET /api/admin/students",
+     "queries": 5,
      "batches": 1,
      "batchStatements": [
-      1
+      30
      ],
-     "statements": 13,
-     "rowsRead": 6180,
+     "statements": 35,
+     "rowsRead": 96,
      "rowsWritten": 0,
-     "d1Ms": 39,
-     "maxParams": 50,
+     "d1Ms": 18,
+     "maxParams": 2,
      "byBinding": {
       "DB": {
-       "queries": 10,
+       "queries": 4,
        "batches": 1,
-       "statements": 11,
-       "rowsRead": 6157,
+       "statements": 34,
+       "rowsRead": 95,
        "rowsWritten": 0
       },
       "AI_DB": {
-       "queries": 2,
+       "queries": 1,
        "batches": 0,
-       "statements": 2,
-       "rowsRead": 23,
+       "statements": 1,
+       "rowsRead": 1,
        "rowsWritten": 0
       }
      },
      "errors": [],
      "status": 200,
-     "wallMs": 40
+     "wallMs": 17
+    }
+   ]
+  },
+  "admin-student-detail": {
+   "ms": 905,
+   "invocations": [
+    {
+     "kind": "worker",
+     "label": "GET /api/admin/students/e2e-budget-01",
+     "queries": 14,
+     "batches": 1,
+     "batchStatements": [
+      1
+     ],
+     "statements": 15,
+     "rowsRead": 9580,
+     "rowsWritten": 0,
+     "d1Ms": 143,
+     "maxParams": 50,
+     "byBinding": {
+      "DB": {
+       "queries": 11,
+       "batches": 1,
+       "statements": 12,
+       "rowsRead": 9157,
+       "rowsWritten": 0
+      },
+      "AI_DB": {
+       "queries": 3,
+       "batches": 0,
+       "statements": 3,
+       "rowsRead": 423,
+       "rowsWritten": 0
+      }
+     },
+     "errors": [],
+     "status": 200,
+     "wallMs": 75
     },
     {
      "kind": "worker",
@@ -974,7 +1904,7 @@
      "statements": 5,
      "rowsRead": 430,
      "rowsWritten": 0,
-     "d1Ms": 9,
+     "d1Ms": 10,
      "maxParams": 3,
      "byBinding": {
       "DB": {
@@ -987,12 +1917,12 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 9
+     "wallMs": 10
     }
    ]
   },
   "admin-student-detail@warm": {
-   "ms": 851,
+   "ms": 864,
    "invocations": [
     {
      "kind": "worker",
@@ -1005,7 +1935,7 @@
      "statements": 11,
      "rowsRead": 5478,
      "rowsWritten": 0,
-     "d1Ms": 25,
+     "d1Ms": 36,
      "maxParams": 50,
      "byBinding": {
       "DB": {
@@ -1025,7 +1955,7 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 22
+     "wallMs": 33
     },
     {
      "kind": "worker",
@@ -1036,7 +1966,7 @@
      "statements": 5,
      "rowsRead": 430,
      "rowsWritten": 0,
-     "d1Ms": 8,
+     "d1Ms": 7,
      "maxParams": 3,
      "byBinding": {
       "DB": {
@@ -1049,7 +1979,7 @@
      },
      "errors": [],
      "status": 200,
-     "wallMs": 8
+     "wallMs": 7
     }
    ]
   },

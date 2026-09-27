@@ -1,4 +1,5 @@
 import { handleRequest, withTrace } from './index.js';
+export { adminStats } from './index.js';
 import { traceEnv } from './budget.js';
 export { LessonRoom } from './lesson-room.js';
 import { budgetProbe } from './budget-probe.js';

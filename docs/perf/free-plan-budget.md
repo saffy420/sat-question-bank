@@ -49,8 +49,8 @@ Measured [local] on 2026-09-27 with the seed in `tools/budget_seed.cjs` (3,000 c
 | Student sign-in + first page load | 10 | 0 | 8 (worker GET /api/questions) | — | 10,987 | 1 | 0 | 6 ms (GET /api/notes) [staging] |
 | Question bank load + filter change (builder search, 3 usage options) ★ | 4 | 0 | 9 (worker GET /api/admin/questions) | — | 3,640 | 0 | 0 | 58 ms (GET /api/admin/questions) [staging] |
 | Answer one practice question | 2 | 0 | 6 (worker POST /api/attempts) | 1 | 412 | 7 | 0 | — (not a ★ flow) |
-| Admin students list, 30 students ★ | 1 | 0 | 10 (worker GET /api/admin/students) | 30 | 24,614 | 0 | 0 | 38 ms (GET /api/admin/students) [staging] |
-| Admin student detail, every tab ★ | 2 | 0 | 13 (worker GET /api/admin/students/e2e-budget-01) | 1 | 6,610 | 0 | 0 | 18 ms (GET /api/admin/students/e2e-budget-01) [staging] |
+| Admin students list, 30 students ★ | 31 | 0 | 6 (worker GET /api/admin/students) | 30 | 48,154 | 0 | 0 | 38 ms (GET /api/admin/students) [staging] |
+| Admin student detail, every tab ★ | 2 | 0 | 15 (worker GET /api/admin/students/e2e-budget-01) | 1 | 10,010 | 0 | 0 | 18 ms (GET /api/admin/students/e2e-budget-01) [staging] |
 | Lesson builder search + save | 4 | 0 | 9 (worker GET /api/admin/questions) | 22 | 3,933 | 143 | 0 | — (not a ★ flow) |
 | Instructor-paced lesson, 25 students × 20 questions | 52 | 1,677 (1,580 WS msgs) | 25 (do.fetch upgrade) | 25 | 354 | 1,136 | 2,416 | — (not a ★ flow) |
 | Self-paced, 25 × 20, through end + write-back ★ | 52 | 1,702 (1,651 WS msgs) | 26 (do.webSocketMessage submitAll) | 1526 | 9,425 | 4,542 | 1,731 | — (not a ★ flow) |
@@ -60,7 +60,7 @@ Measured [local] on 2026-09-27 with the seed in `tools/budget_seed.cjs` (3,000 c
 Flow details [local]:
 - Student boot: `/api/questions` reads 3,805 rows when it rebuilds the cached body (full scans of both banks + `question_lesson_usage`) and 4 when served from the cache; `/api/lesson-history` reads 6,470.
 - Practice answer: 7 rows written and 412 read per Check; `POST /api/attempts` counts the student's whole log (`SELECT COUNT(*)`), so its reads grow with history.
-- Admin students list: 10 queries and 24,614 rows read when every student is recomputed; 6 queries and 96 rows from the stats cache (the per-student stamps are one batch).
+- Admin students list: 6 queries and 48,154 rows read when every student is recomputed; 6 queries and 96 rows from the stats cache (the per-student stamps are one batch).
 - Builder: create = batch of 20 + 21 statements; one autosave (PUT) writes 81 rows.
 - Instructor-paced: per question the end-of-question flush writes 25 D1 rows on average; 1,580 WS messages for the lesson; 20 alarms; DO storage: get 5,122, put 1,316, setAlarm 1,040, delete 59, deleteAlarm 1.
 - Self-paced end: the finishing `submitAll` runs 25 separate queries (one progress SELECT per student) + one batch of 1,526 statements, writing 4,487 rows in 945 ms [local]; DO storage: get 5,108, put 1,729, setAlarm 1, delete 1.
@@ -108,18 +108,18 @@ Assumptions [est]:
 | Student boots, bank cache miss | 8 | 160 | 87,896 | 8 | 0 | 0 |
 | Student boots, bank cache hit | 22 | 440 | 158,092 | 22 | 0 | 0 |
 | Practice answers | 1,200 | 3,000 | 495,000 | 8,400 | 0 | 0 |
-| Admin dashboard views (list + detail), recomputed | 10 | 30 | 312,240 | 0 | 0 | 0 |
+| Admin dashboard views (list + detail), recomputed | 10 | 330 | 581,640 | 0 | 0 | 0 |
 | Admin dashboard views (list + detail), cached | 10 | 30 | 60,040 | 0 | 0 | 0 |
 | Lessons built | 1 | 27 | 19,729 | 1,682 | 0 | 0 |
 | Instructor-paced lessons | 1 | 52 | 354 | 1,136 | 1,677 | 2,416 |
 | Self-paced lessons (+ poll/review) | 1 | 52 | 9,428 | 4,585 | 1,760 | 1,772 |
 | My Lessons views | 25 | 50 | 167,850 | 0 | 0 | 0 |
-| **Total** | | **3,841** | **1,310,629** | **15,833** | **3,437** | **4,188** |
+| **Total** | | **4,141** | **1,580,029** | **15,833** | **3,437** | **4,188** |
 
 | Daily cap | Heavy day | % of cap | Basis |
 |---|---|---|---|
-| Worker requests (100,000) | 3,841 | 3.8% | measured-local flows + estimated static assets/crops |
-| D1 rows read (5,000,000) | 1,310,629 | 26.2% | measured-local × model |
+| Worker requests (100,000) | 4,141 | 4.1% | measured-local flows + estimated static assets/crops |
+| D1 rows read (5,000,000) | 1,580,029 | 31.6% | measured-local × model |
 | D1 rows written (100,000) | 15,833 | 15.8% | measured-local × model |
 | DO requests (100,000; WS messages 1:1) | 3,437 | 3.4% | measured-local × model |
 | DO duration (13,000 GB-s) | 1–675 GB-s | 0.0%–5.2% | estimated: event wall time (floor) to object active for the whole lesson (ceiling) |
@@ -151,38 +151,37 @@ What changed (all responses byte-identical to free-01 on the budget seed, cached
 6. **The global usage map** is kept per isolate under the usage table's max rowid (exact: rows are only inserted), and the lean stat bank shares the builder index's key and expiry.
 7. **ID reads bind at most 50 parameters** (half of D1's 100).
 8. **Durable Objects: no change needed.** `LessonRoom` uses the hibernation API (`ctx.acceptWebSocket`, `webSocketMessage`), and its throttles (roster refresh at most 4/s, 250 ms flush timer, Desmos de-duplication) are unchanged; the traces show 1,580 / 1,651 WS messages for a 25 × 20 lesson, 3.4% of the DO request cap on the heavy day [local × model].
+9. **Admin stats recompute fanned out (option A, chosen 2026-09-27).** The students list sends its stale students to the Worker's own `adminStats` named entrypoint through the `ADMIN_STATS` self service binding, split into at most 30 calls (one student per call for a club of up to 30). Each call is its own invocation with its own CPU limit, reads that student's progress and attempts plus only the questions they touched (one JSON-array parameter, joined so D1 bills the array once), and returns the same row the route computed before. The route keeps the roster, the stamps, the cache and the sort. A failed call fails the request (503) rather than showing partial stats, and nothing is cached. Only service bindings reach a named entrypoint; public traffic reaches the default export alone. Without the binding (Node tests, tools) the route computes the same rows inline.
 
 | Measure | free-01 | free-02 | Label |
 |---|---|---|---|
 | CPU `GET /api/questions` | 114 ms | cached: median 2 ms, max 7 ms; rebuild (once per key per location): 172 ms | [staging]; cached [staging, untraced] |
 | CPU `GET /api/admin/questions` (builder, 4 filter variants) | 59–114 ms | median 3–5 ms, p90 5–7 ms, max 10 ms (n = 14–25 each); first request per isolate 33–58 ms | [staging, untraced]; first [staging] |
-| CPU `GET /api/admin/students` | **killed** (235 ms, exceededCpu) | cached: median 4 ms, p90 5 ms, max 7 ms; recompute on staging's small history: 38–46 ms | [staging, untraced]; recompute [staging] |
+| CPU `GET /api/admin/students` | **killed** (235 ms, exceededCpu) | cached: median 4 ms, p90 5 ms, max 7 ms [staging, untraced]. Full recompute (30 × 400 attempts), fanned out: route median 2.5 ms, max 8 ms; each call median 3.3 ms, p90 4.7 ms, max 12 ms [local-node]. Inline, the same recompute is 83–131 ms [local-node] | see cell; staging measurement 2026-09-28 |
 | CPU `GET /api/admin/students/:id` | **killed** | cached: median 4 ms, max 5 ms; recompute: 18–35 ms | [staging, untraced]; recompute [staging] |
 | CPU of recomputing all 30 students at 400 attempts each | — | 95–260 ms (in-memory probe `cpu-list`, same shared stats) | [staging] |
-| D1 queries, admin students list | 65 | 12 recompute / 6 cached | [local] |
+| D1 queries, admin students list | 65 | recompute: route 5 + a batch of 30 stamps, each of the 30 calls 4; cached: 5 + the batch | [local] |
 | Worst D1 queries in any invocation | 65 | 26 (self-paced `submitAll`, unchanged) | [local] |
 | D1 rows read, `/api/questions` | 3,805 | 4 cached | [local] |
 | D1 rows read, builder (4 searches) | 15,228 | 3,640 first / 240 later | [local] |
-| D1 rows read, admin list / detail | 24,523 / 9,809 | 24,614 / 6,610 recompute; 96 / 5,908 cached | [local] |
-| Heavy day, D1 rows read | 34.9% | 26.2% | [local] × model |
+| D1 rows read, admin list / detail | 24,523 / 9,809 | 48,154 (96 route + 30 × 1,602) / 10,010 recompute; 96 / 5,908 cached. Before the fan-out: 24,614 / 6,610 (the detail now builds the lean bank the list used to warm) | [local] |
+| Heavy day, D1 rows read | 34.9% | 31.6% (26.2% before the fan-out) | [local] × model |
 | Heavy day, every other daily cap | ≤ 15.8% | unchanged (≤ 15.8%) | [local] × model |
 | Worst bound parameters | 13 | 50 | [local] |
 
 **Targets (brief §5 free-02):**
-- Daily totals ≤ 50%: **met**, worst 26.2% (D1 rows read).
+- Daily totals ≤ 50%: **met**, worst 31.6% (D1 rows read; the fan-out added 5.4 points: each call reads its own student's touched questions).
 - ≤ 35 D1 queries per invocation: **met**, worst 26.
-- ≤ 7 ms CPU for ★ flows: **met for requests served from the caches and memos** (every ★ route's median and p90 ≤ 7 ms [staging, untraced]; single samples reach 9–10 ms). **Not met for the invocations that rebuild them**: the `/api/questions` rebuild (~170 ms, once per bank/usage change per location, and hourly), the builder index build (33–58 ms, once per isolate per hour), and the admin stats recompute (≈ 1–8 ms per student who practised since the last view; the whole club at 400 attempts each is 95–260 ms, near the 235 ms that was killed). See "Open: rebuild invocations".
+- ≤ 7 ms CPU for ★ flows: **met for requests served from the caches and memos** (every ★ route's median and p90 ≤ 7 ms [staging, untraced]; single samples reach 9–10 ms). **Admin students recompute: met by the fan-out on median and p90 [local-node]** (route 2.5 ms; each call 3.3 ms median, 4.7 ms p90 at 400 attempts; single calls reach 12 ms). Staging confirmation runs on 2026-09-28 with the 400-attempt history loaded. **Still over 7 ms, and not growing with use**: the `/api/questions` rebuild (~170 ms, once per bank/usage change per location, and hourly), the builder index build (33–58 ms, once per isolate per hour), and the student-detail recompute (18–35 ms [staging]; one student over the whole bank, so its cost follows that student's history and the bank size, not the club). See "Rebuild invocations".
 - `batch()` ≤ 10 s: **met locally** (the 1,526-statement self-paced write-back runs in under 1 s [local]); the staging measurement runs on 2026-09-28 (next UTC day, 10% rule).
 
-### Open: rebuild invocations
+### Rebuild invocations
 
-Cloudflare kills an invocation over 10 ms CPU once its burst allowance is used up; the allowance depends on recent use (free-01: probes up to 380 ms passed, while a 235 ms admin request was killed [staging]). A killed rebuild stores nothing, so the next request is the same rebuild again. The admin stats recompute is the one at risk: its cost grows with every student's history, and the whole club's first view after a session recomputes everyone. Options, all outside this task's levers:
+Cloudflare kills an invocation over 10 ms CPU once its burst allowance is used up; the allowance depends on recent use (free-01: probes up to 380 ms passed, while a 235 ms admin request was killed [staging]). A killed rebuild stores nothing, so the next request is the same rebuild again. The admin students recompute was the one at risk: its cost grew with every student's history, and the first view after a session recomputed the whole club in one invocation (95–260 ms at 400 attempts each [staging probe]).
 
-- **A. Fan the recompute out.** The list asks the Worker itself, through a service binding, for stats in chunks of a few students. Each call is its own invocation with its own CPU budget, costing about 6–30 extra Worker requests per recomputed view (< 0.1% of the daily cap). Needs a `[[services]]` self-binding in `wrangler.toml`.
-- **B. Recompute off the request path.** A Durable Object alarm recomputes one student per alarm after they practise. Each alarm is a fresh invocation [staging, free-01]. It adds DO requests (≈ 1 per practice session) and a new DO class.
-- **C. Accept the risk** until histories grow: on staging's history the recompute is 38–46 ms and passes.
+Options put to the owner: **A.** fan the recompute out through a self service binding; **B.** recompute in a Durable Object alarm after each practice session; **C.** accept the risk. **A was chosen** (2026-09-27) and is change 9 above. Cost of A [local] × model: each recomputed list view is 30 extra invocations and about 23,500 extra D1 rows read (every call reads its own student's touched questions, where the inline recompute read the lean bank once); on the heavy day (10 recomputed views) that is +300 Worker requests (+0.3 points) and +5.4 points of D1 rows read. Per call: 4 D1 queries, 1 bound parameter. The route makes at most 30 service-binding calls, within the free plan's 50 subrequests per invocation. A club over 30 students puts ⌈n / 30⌉ students in each call.
 
-The `/api/questions` rebuild (the pre-free-02 cost, now paid once per change instead of on every boot) and the builder index build are the same kind of invocation, but they don't grow with use.
+Not changed, because none of them grows with the club's use: the `/api/questions` rebuild (the pre-free-02 cost, now paid once per change instead of on every boot), the builder index build, and the student-detail recompute (one student; it grows only with that student's own history).
 
 ## Ranked problems (free-01 baseline)
 

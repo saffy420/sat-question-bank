@@ -21,3 +21,22 @@ Brief §6:
 Task items:
 - Targets: daily ≤ 50% met (26.2% worst); ≤ 35 queries met (26); ≤ 7 ms CPU met for cached/memoized requests (median and p90), not for rebuild invocations — reported as open with options (hard stop per brief §3: the fix changes architecture).
 - Every `batch()` ≤ 10 s: met locally; staging self-paced run pending (2026-09-28).
+
+## Round 2 — option A (admin stats fan-out) — verdict: PASS
+Diff: `src/index.js` (`listRows`, `staleRows`, `adminStats` entrypoint, `leanBank(env, ids)`), `src/index.e2e.js` (re-export), `ADMIN_STATS` in `wrangler.toml` (production + staging) and both local e2e configs, `tests/test_free_budget.cjs` (+2), `tests/test_admin.cjs` (AI_DB stub gains `bind`), `tools/budget_bench.cjs` (per-call timing, recompute row), report.
+
+Brief §6:
+- (a) No feature change: list and detail bodies byte-identical to the pre-change code (bench, 15 variants) and fan-out ≡ inline (bench dump diff); unit test pins fan-out rows to the whole-bank reference. Failure mode unchanged: any error → catch-all 503, nothing partial cached.
+- (b) Inert in production: `adminStats` traces through `traceEnv`, a no-op unless `BUDGET_TRACE=1`; no new flags.
+- (c) Cache contents unchanged (same rows, same admin-only named cache, written only by the route after the admin check). The entrypoint is binding-only (named entrypoints get no public traffic) and validates its body.
+- (d) Stat logic moved, not copied: `listRows` holds the only copy of the list-row derivation and calls the shared `breakdown`. No D1 writes.
+- (e) New numbers labelled [local-node], [local], [local] × model; staging confirmation pending and labelled so.
+- (f) No staging usage in this round (deploy + measurement scheduled 2026-09-28 00:10Z).
+- (g) No skips or loosened assertions; the `test_admin.cjs` stub change adds `bind` so the fake matches D1's API.
+
+Checked adversarially:
+- Stamp read before the calls, as before the change: an attempt landing mid-recompute leaves the entry unsettled or stamped older, so the next view recomputes. Same race window as round 1.
+- `json_each` has its own `id` column: the join aliases the array (`value AS wanted`) so `id` binds to `questions`. Rows billed: 569 core + 331 AI for a 300-question student vs 869 + 631 with `IN (SELECT …)` [local, scratch Worker].
+- Subrequests: ≤ 30 binding calls + cache match/put + identity fetch, under Free's 50 per invocation.
+- Club > 30: ⌈n/30⌉ students per call, ≤ 17 for the 500-student ceiling, within the entrypoint's 50-ID check.
+- Student detail not fanned out (one student, whole bank); reported as still over 7 ms and not growing with the club.

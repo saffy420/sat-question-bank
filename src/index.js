@@ -252,15 +252,16 @@ const LEAN = `id, section, domain, difficulty, skill, correct_answer, source,
   CASE WHEN json_valid(choices_json) THEN json_remove(choices_json, ${Array.from({ length: 8 }, (_, i) => `'$[${i}].content'`).join(', ')}) ELSE '[]' END AS choices_json`;
 // Kept per isolate like the builder index (same key and expiry); callers only read the rows.
 let statMemo = null;
-async function statBank(env, key, keep = null) {
+async function statBank(env, key) {
   if (!(statMemo?.key === key && Date.now() - statMemo.at < BANK_TTL * 1000)) statMemo = { key, at: Date.now(), qs: await leanBank(env) };
-  return keep ? statMemo.qs.filter(q => keep.has(q.id)) : statMemo.qs;
+  return statMemo.qs;
 }
-async function leanBank(env) {
-  const [core, ai] = await Promise.all([
-    env.DB.prepare(`SELECT ${LEAN} FROM questions`).all(),
-    env.AI_DB.prepare(`SELECT ${LEAN}, level FROM questions`).all()
-  ]);
+// With `ids`, only those questions: one bound parameter (a JSON array) whatever their number. A join,
+// not `IN (SELECT ...)`: D1 bills json_each's rows either way, and the IN form bills them twice.
+async function leanBank(env, ids = null) {
+  const read = (db, cols) => ids ? db.prepare(`SELECT ${cols} FROM (SELECT value AS wanted FROM json_each(?)) JOIN questions ON id = wanted`).bind(JSON.stringify(ids))
+    : db.prepare(`SELECT ${cols} FROM questions`);
+  const [core, ai] = await Promise.all([read(env.DB, LEAN).all(), read(env.AI_DB, LEAN + ', level').all()]);
   const raw = [...(core.results || []), ...(ai.results || [])], qs = raw.map(normalizeQuestion);
   const blank = qs.flatMap((q, i) => q.spr && !q.answer ? [i] : []);
   for (const ai of [false, true]) {
@@ -323,6 +324,65 @@ async function statStamps(env, ids, bankKey) {
 }
 const SETTLE_MS = 120000;
 const settled = log => { const last = log.reduce((a, x) => x.ts > a ? x.ts : a, ''); return !last || Date.now() - Date.parse(last) > SETTLE_MS; };
+// One students-list row per student, each computed over only the questions that student touched:
+// every field is keyed by their own progress/attempt rows. One read per table for the whole group.
+// Over 50 IDs, `roster` ([subquery, args]) selects the same students without binding each ID.
+async function listRows(env, ids, bankKey, roster = null) {
+  const [who, args] = ids.length <= 50 || !roster ? [ids.map(() => '?').join(','), ids] : roster;
+  const [progress, attempts] = await Promise.all([
+    env.DB.prepare(`SELECT user_id, question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id IN (${who})`).bind(...args).all(),
+    env.DB.prepare(`SELECT user_id, question_id, ts, correct, time_taken_ms, picked, changes FROM attempts WHERE user_id IN (${who}) ORDER BY user_id, ts`).bind(...args).all()
+  ]);
+  const progs = new Map(), logs = new Map(), touchedIds = new Set();
+  for (const { user_id, ...r } of progress.results || []) { (progs.get(user_id) || progs.set(user_id, {}).get(user_id))[r.question_id] = r; touchedIds.add(r.question_id); }
+  for (const { user_id, ...r } of attempts.results || []) { (logs.get(user_id) || logs.set(user_id, []).get(user_id)).push(r); touchedIds.add(r.question_id); }
+  const byId = new Map(touchedIds.size ? (await leanBank(env, [...touchedIds])).map(q => [q.id, q]) : []);
+  return Object.fromEntries(ids.map(id => {
+    const prog = progs.get(id) || {}, log = logs.get(id) || [];
+    const touched = [...new Set([...Object.keys(prog), ...log.map(x => x.question_id)])].map(q => byId.get(q)).filter(Boolean);
+    const stats = breakdown(touched, prog, log);
+    const weak = Object.entries(stats.skills).filter(([, v]) => v.a).sort((a, b) => a[1].c / a[1].a - b[1].c / b[1].a || a[0].localeCompare(b[0]))[0];
+    const n = Object.values(stats.paceSection).reduce((sum, x) => sum + x.n, 0);
+    const ms = Object.values(stats.paceSection).reduce((sum, x) => sum + x.ms, 0);
+    const target = Object.values(stats.paceSection).reduce((sum, x) => sum + x.target, 0);
+    return [id, { settled: settled(log), row: { done: stats.tally.att, accuracy: stats.tally.att ? Math.round(100 * stats.tally.corr / stats.tally.att) : null,
+      weakest: weak?.[0] || null, avgMs: n ? ms / n : null, targetMs: n ? target / n : null,
+      guessRate: stats.guessing.n ? stats.guessing.changedN / stats.guessing.n : null, lastActive: stats.lastActive } }];
+  }));
+}
+// Recomputing a whole club in one invocation grows with every student's history past the free plan's
+// 10 ms CPU limit, and a killed recompute stores nothing. With the ADMIN_STATS self service binding the
+// stale students are split into at most FANOUT calls; each call is its own invocation with its own CPU
+// limit (docs/perf/free-plan-budget.md, "Rebuild invocations"). Without the binding (Node tests and
+// tools) the same rows are computed here.
+const FANOUT = 30, CHUNK_URL = 'https://admin-stats.internal/chunk';
+async function staleRows(env, ids, bankKey, roster) {
+  if (!env.ADMIN_STATS) return listRows(env, ids, bankKey, roster);
+  const size = Math.ceil(ids.length / FANOUT), chunks = [];
+  for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size));
+  const parts = await Promise.all(chunks.map(async part => {
+    const res = await env.ADMIN_STATS.fetch(CHUNK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: part, bank: bankKey }) });
+    if (!res.ok) throw new Error('admin stats chunk ' + res.status);
+    return res.json();
+  }));
+  return Object.assign({}, ...parts);
+}
+// The named entrypoint behind ADMIN_STATS. Only service bindings reach a named entrypoint; public
+// traffic reaches the default export alone. The caller has already checked the admin role.
+export const adminStats = {
+  async fetch(req, env) {
+    const t = traceEnv(env, 'worker', 'admin-stats chunk');
+    let res;
+    try {
+      const { ids, bank } = await req.json();
+      if (!Array.isArray(ids) || !ids.length || ids.length > 50 || !ids.every(id => typeof id === 'string') || typeof bank !== 'string') res = json({ error: 'invalid chunk' }, 400);
+      else res = json(await listRows(t.env, ids, bank));
+    } catch {
+      res = json({ error: 'service unavailable' }, 503);
+    }
+    return withTrace(res, t);
+  }
+};
 // §2 usedInLesson: padded session IDs per question, oldest first. With a user, only the
 // questions of sessions they attended (My Lessons refreshes those after a lesson ends).
 // The global map is kept per isolate under the usage table's max rowid: rows are only ever inserted,
@@ -674,40 +734,16 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         const users = await env.DB.prepare(`SELECT u.id, u.email, u.name, m.status ${where} LIMIT 501`).bind(term, term).all();
         // ponytail: explicit club-size ceiling; use SQL materialized aggregates when >500 members.
         if ((users.results || []).length > 500) return json({ error: 'Student list exceeds supported size' }, 413);
-        // Cached rows are reused while a student's stamp holds. The rest are computed with one read per
-        // table (not two per student), each over only the questions that student touched: every field
-        // below is keyed by their own progress/attempt rows.
+        // Cached rows are reused while a student's stamp holds; the rest come from listRows (staleRows).
         const roster = `SELECT u.id ${where} LIMIT 501`;
         const st = await stamps(env);
         const [stamp, cache] = await Promise.all([statStamps(env, (users.results || []).map(x => x.id), st.bank), statsCache()]);
         const held = (await cachedStats(cache, 'list')) || {};
         const stale = new Set((users.results || []).filter(x => held[x.id]?.stamp !== stamp(x.id)).map(x => x.id));
-        const progs = new Map(), logs = new Map(), touchedIds = new Set();
+        const fresh = stale.size ? await staleRows(env, [...stale], st.bank, [roster, [term, term]]) : {};
+        const students = (users.results || []).map(student => ({ ...student, ...(stale.has(student.id) ? fresh[student.id].row : held[student.id].row) }));
         if (stale.size) {
-          const [who, args] = stale.size <= 50 ? [[...stale].map(() => '?').join(','), [...stale]] : [roster, [term, term]];
-          const [progress, attempts] = await Promise.all([
-            env.DB.prepare(`SELECT user_id, question_id, attempts, corrects, marker, last_reviewed, time_taken_ms FROM progress WHERE user_id IN (${who})`).bind(...args).all(),
-            env.DB.prepare(`SELECT user_id, question_id, ts, correct, time_taken_ms, picked, changes FROM attempts WHERE user_id IN (${who}) ORDER BY user_id, ts`).bind(...args).all()
-          ]);
-          for (const { user_id, ...r } of progress.results || []) { (progs.get(user_id) || progs.set(user_id, {}).get(user_id))[r.question_id] = r; touchedIds.add(r.question_id); }
-          for (const { user_id, ...r } of attempts.results || []) { (logs.get(user_id) || logs.set(user_id, []).get(user_id)).push(r); touchedIds.add(r.question_id); }
-        }
-        const byId = new Map(stale.size ? (await statBank(env, st.bank, touchedIds)).map(q => [q.id, q]) : []);
-        const students = (users.results || []).map(student => {
-          if (!stale.has(student.id)) return { ...student, ...held[student.id].row };
-          const prog = progs.get(student.id) || {}, log = logs.get(student.id) || [];
-          const touched = [...new Set([...Object.keys(prog), ...log.map(x => x.question_id)])].map(id => byId.get(id)).filter(Boolean);
-          const stats = breakdown(touched, prog, log);
-          const weak = Object.entries(stats.skills).filter(([, v]) => v.a).sort((a, b) => a[1].c / a[1].a - b[1].c / b[1].a || a[0].localeCompare(b[0]))[0];
-          const n = Object.values(stats.paceSection).reduce((sum, x) => sum + x.n, 0);
-          const ms = Object.values(stats.paceSection).reduce((sum, x) => sum + x.ms, 0);
-          const target = Object.values(stats.paceSection).reduce((sum, x) => sum + x.target, 0);
-          return { ...student, done: stats.tally.att, accuracy: stats.tally.att ? Math.round(100 * stats.tally.corr / stats.tally.att) : null,
-            weakest: weak?.[0] || null, avgMs: n ? ms / n : null, targetMs: n ? target / n : null,
-            guessRate: stats.guessing.n ? stats.guessing.changedN / stats.guessing.n : null, lastActive: stats.lastActive };
-        });
-        if (stale.size) {
-          for (const x of students) if (stale.has(x.id)) { const { id, email, name, status, ...row } = x; held[id] = { stamp: settled(logs.get(id) || []) ? stamp(id) : null, row }; }
+          for (const id of stale) held[id] = { stamp: fresh[id].settled ? stamp(id) : null, row: fresh[id].row };
           await keepStats(cache, 'list', held);
         }
         students.sort((a, b) => {

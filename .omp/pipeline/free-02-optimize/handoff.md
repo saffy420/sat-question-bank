@@ -18,7 +18,7 @@ Optimizations shipped; review PASS; unit 112/112; e2e 31/31. One target is only 
 - Heavy day D1 rows read 34.9% → 26.2%; worst queries per invocation 65 → 26.
 
 ## Open (hard stop: needs your decision)
-Rebuild invocations exceed 7 ms; the admin stats recompute grows with history and can be killed once histories are long (and a killed rebuild stores nothing, so it repeats). Options A (self service binding fan-out), B (DO alarm recompute), C (accept for now) — numbers in the report, "Open: rebuild invocations".
+Rebuild invocations: the user chose option A (2026-09-27). The admin students recompute is fanned out through the `ADMIN_STATS` self service binding to the `adminStats` named entrypoint (src/index.js `staleRows`/`listRows`), and each call is its own invocation. Its per-call CPU is median 3.3 ms and p90 4.7 ms at 400 attempts [local-node], with staging confirmation on 2026-09-28. The `/api/questions` rebuild, the builder index build and one student's detail recompute stay over 7 ms but don't grow with the club's use (report, "Rebuild invocations"). free-03's budget tests should pin the chunk invocation (4 queries, 1 parameter) and the route (5 queries + a 30-statement batch).
 
 ## Pending
 - 2026-09-28 staging: load history, run self-paced ★ (batch duration) and admin recompute with history; append to the report and this PR.

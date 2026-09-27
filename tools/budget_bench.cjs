@@ -4,6 +4,8 @@
 // separately and subtracted; parsing the result JSON is left in, as it is in the Worker isolate.
 // Numbers are [local-node]: a proxy for ranking changes. Staging is the authority for the 10 ms limit.
 //   node tools/budget_bench.cjs [iterations]   (BENCH_DUMP=<dir> writes each route's first response body)
+// Rows marked (recompute) empty the caches before every run. ADMIN_STATS calls run one at a time and
+// are timed as their own invocations (chunkMaxMs); BENCH_NO_FANOUT=1 computes them in the route instead.
 const { DatabaseSync } = require('node:sqlite');
 const { readdirSync, copyFileSync, mkdtempSync, existsSync, writeFileSync } = require('node:fs');
 const { join, resolve } = require('node:path');
@@ -60,11 +62,22 @@ function cacheStub() {
 async function main() {
   const n = Number(process.argv[2] || 5);
   const dbs = open();
-  const clock = { excluded: 0 };
+  const clock = { excluded: 0, chunks: [] };
   globalThis.caches = cacheStub();
   const env = { DB: d1(dbs.DB, clock), AI_DB: d1(dbs.AI_DB, clock), ADMIN_EMAILS: 'e2e-admin@e2e.test',
     ASSETS: { fetch: async () => new Response('asset') } };
-  const { handleRequest } = await import(join(root, 'src/index.js'));
+  const { handleRequest, adminStats } = await import(join(root, 'src/index.js'));
+  // Self service binding stand-in: one call at a time, so each call's CPU is its own.
+  let queue = Promise.resolve();
+  if (!process.env.BENCH_NO_FANOUT) env.ADMIN_STATS = { fetch: (url, init) => queue = queue.then(async () => {
+    const outer = clock.excluded; clock.excluded = 0;
+    const t = cpu();
+    const res = await adminStats.fetch(new Request(url, init), { DB: env.DB, AI_DB: env.AI_DB });
+    const used = cpu() - t;
+    clock.chunks.push(used - clock.excluded);
+    clock.excluded = outer + used; // not the route's own CPU
+    return res;
+  }) };
   const who = id => async () => ({ id, email: id + '@e2e.test' });
   const origin = 'http://127.0.0.1:8790';
   const routes = [
@@ -77,6 +90,7 @@ async function main() {
     ['GET /api/admin/questions (only-used, rare search)', '/api/admin/questions?page=1&lessonUsage=hide-all&search=bq-0001', 'e2e-admin'],
     ['GET /api/admin/questions (search tag-spanning)', '/api/admin/questions?page=1&search=%3Cp', 'e2e-admin'],
     ['GET /api/admin/students', '/api/admin/students?page=1', 'e2e-admin'],
+    ['GET /api/admin/students (recompute)', '/api/admin/students?page=1', 'e2e-admin', true],
     ['GET /api/admin/students (weakest desc, p2)', '/api/admin/students?page=2&sort=weakest&order=desc', 'e2e-admin'],
     ['GET /api/admin/students (search)', '/api/admin/students?page=1&search=Student+1&sort=guessRate', 'e2e-admin'],
     ['GET /api/admin/students/:id (07)', '/api/admin/students/e2e-budget-07?page=1', 'e2e-admin'],
@@ -85,11 +99,12 @@ async function main() {
     ['GET /api/lesson-history', '/api/lesson-history', 'e2e-budget-01']
   ];
   const out = {};
-  for (const [label, path, user] of routes) {
-    const runs = [];
+  for (const [label, path, user, cold] of routes) {
+    const runs = [], chunkRuns = [];
     let status, bytes, first, stable = true;
     for (let i = 0; i < n + 1; i++) {
-      clock.excluded = 0;
+      if (cold) globalThis.caches.store.clear();
+      clock.excluded = 0; clock.chunks = [];
       const t = cpu();
       const res = await handleRequest(new Request(origin + path), env, who(user));
       // The body is streamed out by the runtime, not by Worker JS, so reading it is not timed.
@@ -99,9 +114,14 @@ async function main() {
       if (!i) first = body; else if (body !== first) stable = false; // cached responses must match the computed one
       if (process.env.BENCH_DUMP && !i) writeFileSync(join(process.env.BENCH_DUMP, label.replace(/[^\w]+/g, '_') + '.json'), body);
       if (i) runs.push(used); // the first run fills any cache; the rest are timed
+      if (i && clock.chunks.length) chunkRuns.push({ n: clock.chunks.length, all: clock.chunks.slice() });
     }
     runs.sort((a, b) => a - b);
     out[label] = { status, bytes, stable, medianMs: +runs[Math.floor(runs.length / 2)].toFixed(1), maxMs: +runs.at(-1).toFixed(1) };
+    if (chunkRuns.length) {
+      const all = chunkRuns.flatMap(c => c.all).sort((a, b) => a - b), at = q => +all[Math.min(all.length - 1, Math.floor(q * all.length))].toFixed(1);
+      Object.assign(out[label], { chunks: chunkRuns[0].n, chunkMedianMs: at(0.5), chunkP90Ms: at(0.9), chunkMaxMs: at(1) });
+    }
   }
   console.table(out);
   if (process.env.BENCH_JSON) console.log(JSON.stringify(out));

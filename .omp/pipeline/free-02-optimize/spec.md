@@ -25,3 +25,10 @@ Brief: docs/perf/FREE-PLAN-BRIEF.md §2, §5 free-02, §6. Base: claude/free-01-
 
 ## Review items
 §6 (a)–(g); plus: stats module unchanged or changed only in shared code used by both client and Worker; cache key cannot collide across bank/usage states; no user-specific data enters the cache.
+
+## Addendum 2026-09-27 — rebuild invocations, option A (owner's decision)
+- `/api/admin/students` sends stale students to the `adminStats` named entrypoint through an `ADMIN_STATS` self service binding (`wrangler.toml` production + staging, both local e2e configs). At most 30 calls per view (`FANOUT`), ⌈stale / 30⌉ students each; each call is its own invocation and CPU budget.
+- A call reads that group's progress and attempts, then only their touched questions (`leanBank(env, ids)`: one JSON-array parameter, `json_each` joined so D1 bills it once), and runs the unchanged `breakdown` via `listRows`. The route keeps roster, stamps, stats cache and sort. No binding (Node tests, tools) → same `listRows` inline.
+- A failed call fails the request (503 via the catch-all); nothing partial is cached. The entrypoint validates its body (≤ 50 string IDs, string bank key) and is unreachable from the internet (named entrypoints are binding-only). Trace: `traceEnv` label `admin-stats chunk`, inert unless `BUDGET_TRACE=1`.
+- Success: list/detail bodies byte-identical (bench vs pre-change code, fan-out vs inline); unit test for fan-out equivalence, per-student calls, no recompute when held, failure → rejection, entrypoint validation; e2e 31/31 with the binding live under `wrangler dev`; per-call CPU median/p90 ≤ 7 ms [local-node], confirmed on staging with the 400-attempt history (2026-09-28 run).
+- Student detail is not fanned out: it is one student over the whole bank, and stays as reported.

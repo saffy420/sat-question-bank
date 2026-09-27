@@ -232,3 +232,33 @@ test('builder usage badges and filters follow a lesson ending (usage memo keyed 
   const hidden = await (await f.get('/api/admin/questions?page=1&lessonUsage=hide-all&search=mc2')).json();
   assert.equal(hidden.total, 0);
 });
+
+// Option A (docs/perf/free-plan-budget.md, "Rebuild invocations"): with the ADMIN_STATS binding the
+// list sends stale students to the adminStats entrypoint in chunks and reads no practice rows itself.
+test('students list fans the recompute out through ADMIN_STATS with the same rows', async t => {
+  const f = await fixture(t, { cache: true });
+  const ref = await reference(f);
+  const { adminStats } = await import('../src/index.js');
+  const calls = [];
+  f.env.ADMIN_STATS = { fetch: async (url, init) => { calls.push(JSON.parse(init.body)); return adminStats.fetch(new Request(url, init), { DB: f.env.DB, AI_DB: f.env.AI_DB }); } };
+  f.log.length = 0;
+  const list = await (await f.get('/api/admin/students?page=1')).json();
+  assert.deepEqual(list.students.map(({ id, email, name, status, ...row }) => [id, row]), ['s1', 's2', 's3'].map(id => [id, ref.listRow(id)]));
+  assert.deepEqual(calls.map(c => c.ids), [['s1'], ['s2'], ['s3']], 'one call per stale student while the club fits in FANOUT');
+  // Every practice-row read came from a chunk: three chunks, one progress and one attempts read each.
+  assert.equal(f.log.filter(q => /FROM attempts WHERE user_id IN/.test(q)).length, 3);
+  calls.length = 0;
+  await f.get('/api/admin/students?page=1');
+  assert.equal(calls.length, 0, 'held rows are not recomputed');
+  f.env.ADMIN_STATS = { fetch: async () => new Response('{}', { status: 503 }) };
+  f.att.run('s2', 'idle', '2026-09-07T00:00:00Z', 1, 5000, 'B', 0, null, null);
+  await assert.rejects(f.get('/api/admin/students?page=1'), /admin stats chunk 503/, 'a failed chunk fails the request rather than showing partial stats');
+});
+
+test('adminStats entrypoint rejects malformed chunks', async () => {
+  const { adminStats } = await import('../src/index.js');
+  const call = body => adminStats.fetch(new Request('https://admin-stats.internal/chunk', { method: 'POST', body }), {});
+  for (const body of ['{}', '{"ids":[],"bank":"1-1"}', '{"ids":[1],"bank":"1-1"}', '{"ids":["a"]}', JSON.stringify({ ids: Array(51).fill('a'), bank: 'x' })])
+    assert.equal((await call(body)).status, 400, body);
+  assert.equal((await call('not json')).status, 503);
+});

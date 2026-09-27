@@ -16,6 +16,13 @@ class_name = "LessonRoom"
 tag = "lesson-room-v1"
 new_sqlite_classes = ["LessonRoom"]
 
+# The students list recomputes stale students through this binding to the Worker itself, a few per
+# call, so each chunk gets its own CPU limit (src/index.js staleRows; docs/perf/free-plan-budget.md).
+[[services]]
+binding = "ADMIN_STATS"
+service = "sat-question-bank-local-e2e"
+entrypoint = "adminStats"
+
 [vars]
 ADMIN_EMAILS = "e2e-admin@e2e.test"
 
