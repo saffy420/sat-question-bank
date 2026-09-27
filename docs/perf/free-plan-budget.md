@@ -1,7 +1,7 @@
 # Free-plan budget: roadto1600.org
 
-Status: **free-01 baseline, before any optimization.** Brief: `docs/perf/FREE-PLAN-BRIEF.md`.
-Labels: **[staging]** measured on the staging Worker; **[local]** measured on local `wrangler dev` (Miniflare D1 `meta`); **[est]** estimated; **[doc]** Cloudflare docs.
+Status: **free-02 optimized** (the generated tables below are post-free-02). The free-01 baseline numbers are kept in "free-02: before and after" and in "Ranked problems (free-01 baseline)". Brief: `docs/perf/FREE-PLAN-BRIEF.md`.
+Labels: **[staging]** measured on the staging Worker; **[staging, untraced]** the same with `BUDGET_TRACE` off (production's code path), sampled with `tools/budget_cpu.cjs`; **[local]** measured on local `wrangler dev` (Miniflare D1 `meta`); **[local-node]** `tools/budget_bench.cjs`, a Node proxy used only to rank changes; **[est]** estimated; **[doc]** Cloudflare docs.
 
 Reproduce: `node tools/budget_measure.cjs local` (fresh state on :8790), then `node tools/budget_measure.cjs staging [flows]`, then `node tools/budget_report.cjs` to regenerate the tables below.
 
@@ -139,7 +139,52 @@ Assumptions [est]:
 | Batch duration (30 s) | 945 ms whole invocation incl. the 1,526-statement write batch [local]; 177–187 ms for a 1,500-statement read batch [staging] | 3.1% |
 <!-- per-invocation:end -->
 
-## Ranked problems
+## free-02: before and after
+
+What changed (all responses byte-identical to free-01 on the budget seed, cached and uncached; `tools/budget_bench.cjs` and `tests/test_free_budget.cjs` check it):
+
+1. **Admin stats read only what the shared stats use.** Taxonomy, answer and each choice's letter and trap; choice HTML is dropped in SQL with `json_remove` (not `json_each`, which D1 bills as one row read per choice: 26,823 vs 3,006 rows for the bank [staging]). The students list computes each student over only the questions they touched (every list field is keyed by their own rows), reads progress and attempts once for the roster instead of twice per student, and the Mistakes tab reads full rows only for its questions.
+2. **Exact fast paths in the shared stats module.** `demoji` returns text with no mojibake lead character unchanged; `normalizeQuestion` skips `JSON.parse` for answers that cannot be JSON (it threw once per question). Normalizing the lean bank: ~30 ms → 4 ms [local-node].
+3. **`/api/questions` is cached whole** in a named Cache API cache after the membership checks. The body is the same for every signed-in user (both banks + global `usedInLesson`). Key: both banks' max rowid + the insert-only usage table's max rowid, so a new question or a lesson ending changes it; an in-place edit shows when the 1-hour entry expires. Clients still get `private, no-store`. The Cache API works on workers.dev (probe: stored and matched) [staging].
+4. **Admin stats are cached per student** (named cache, admin-only, opened only behind the admin check) under a stamp of the bank and the student's latest attempt time: one index seek per student, in one batch. An entry computed within two minutes of the latest attempt is not kept, because a first Check's progress row and attempt arrive as separate requests.
+5. **Builder search** keeps the bank's light rows per isolate, pre-sorted in the builder's order (cbSort is one fixed order, so every filtered subset is already sorted), rebuilt when a bank's max rowid moves, after 1 hour, or when a page row is missing. Receiving those rows from D1 alone costs 5–11 ms CPU (4–5 ms with `raw()`) [staging]. Search first narrows in SQL to rows whose raw text holds every piece of the term (a proven superset, including U+0130/U+212A), then runs the unchanged exact test.
+6. **The global usage map** is kept per isolate under the usage table's max rowid (exact: rows are only inserted), and the lean stat bank shares the builder index's key and expiry.
+7. **ID reads bind at most 50 parameters** (half of D1's 100).
+8. **Durable Objects: no change needed.** `LessonRoom` uses the hibernation API (`ctx.acceptWebSocket`, `webSocketMessage`), and its throttles (roster refresh at most 4/s, 250 ms flush timer, Desmos de-duplication) are unchanged; the traces show 1,580 / 1,651 WS messages for a 25 × 20 lesson, 3.4% of the DO request cap on the heavy day [local × model].
+
+| Measure | free-01 | free-02 | Label |
+|---|---|---|---|
+| CPU `GET /api/questions` | 114 ms | cached: median 2 ms, max 7 ms; rebuild (once per key per location): 172 ms | [staging]; cached [staging, untraced] |
+| CPU `GET /api/admin/questions` (builder, 4 filter variants) | 59–114 ms | median 3–5 ms, p90 5–7 ms, max 10 ms (n = 14–25 each); first request per isolate 33–58 ms | [staging, untraced]; first [staging] |
+| CPU `GET /api/admin/students` | **killed** (235 ms, exceededCpu) | cached: median 4 ms, p90 5 ms, max 7 ms; recompute on staging's small history: 38–46 ms | [staging, untraced]; recompute [staging] |
+| CPU `GET /api/admin/students/:id` | **killed** | cached: median 4 ms, max 5 ms; recompute: 18–35 ms | [staging, untraced]; recompute [staging] |
+| CPU of recomputing all 30 students at 400 attempts each | — | 95–260 ms (in-memory probe `cpu-list`, same shared stats) | [staging] |
+| D1 queries, admin students list | 65 | 12 recompute / 6 cached | [local] |
+| Worst D1 queries in any invocation | 65 | 26 (self-paced `submitAll`, unchanged) | [local] |
+| D1 rows read, `/api/questions` | 3,805 | 4 cached | [local] |
+| D1 rows read, builder (4 searches) | 15,228 | 3,640 first / 240 later | [local] |
+| D1 rows read, admin list / detail | 24,523 / 9,809 | 24,614 / 6,610 recompute; 96 / 5,908 cached | [local] |
+| Heavy day, D1 rows read | 34.9% | 26.2% | [local] × model |
+| Heavy day, every other daily cap | ≤ 15.8% | unchanged (≤ 15.8%) | [local] × model |
+| Worst bound parameters | 13 | 50 | [local] |
+
+**Targets (brief §5 free-02):**
+- Daily totals ≤ 50%: **met**, worst 26.2% (D1 rows read).
+- ≤ 35 D1 queries per invocation: **met**, worst 26.
+- ≤ 7 ms CPU for ★ flows: **met for requests served from the caches and memos** (every ★ route's median and p90 ≤ 7 ms [staging, untraced]; single samples reach 9–10 ms). **Not met for the invocations that rebuild them**: the `/api/questions` rebuild (~170 ms, once per bank/usage change per location, and hourly), the builder index build (33–58 ms, once per isolate per hour), and the admin stats recompute (≈ 1–8 ms per student who practised since the last view; the whole club at 400 attempts each is 95–260 ms, near the 235 ms that was killed). See "Open: rebuild invocations".
+- `batch()` ≤ 10 s: **met locally** (the 1,526-statement self-paced write-back runs in under 1 s [local]); the staging measurement runs on 2026-09-28 (next UTC day, 10% rule).
+
+### Open: rebuild invocations
+
+Cloudflare kills an invocation over 10 ms CPU once its burst allowance is used up; the allowance depends on recent use (free-01: probes up to 380 ms passed, while a 235 ms admin request was killed [staging]). A killed rebuild stores nothing, so the next request is the same rebuild again. The admin stats recompute is the one at risk: its cost grows with every student's history, and the whole club's first view after a session recomputes everyone. Options, all outside this task's levers:
+
+- **A. Fan the recompute out.** The list asks the Worker itself, through a service binding, for stats in chunks of a few students. Each call is its own invocation with its own CPU budget, costing about 6–30 extra Worker requests per recomputed view (< 0.1% of the daily cap). Needs a `[[services]]` self-binding in `wrangler.toml`.
+- **B. Recompute off the request path.** A Durable Object alarm recomputes one student per alarm after they practise. Each alarm is a fresh invocation [staging, free-01]. It adds DO requests (≈ 1 per practice session) and a new DO class.
+- **C. Accept the risk** until histories grow: on staging's history the recompute is 38–46 ms and passes.
+
+The `/api/questions` rebuild (the pre-free-02 cost, now paid once per change instead of on every boot) and the builder index build are the same kind of invocation, but they don't grow with use.
+
+## Ranked problems (free-01 baseline)
 
 Threshold (brief §5): more than 50% of a daily cap on the heavy day, or more than 70% of a per-invocation limit.
 
@@ -174,6 +219,7 @@ Threshold (brief §5): more than 50% of a daily cap on the heavy day, or more th
 
 | Date (UTC) | Rows written | Rows read | Worker requests | What |
 |---|---|---|---|---|
-| 2026-09-27 | 8,097 (seed) + ~5 (flows) | ~70,000 | ~400 | schema + e2e seed (252), AI bank (800), core bank (6,800), accounts (121), live lessons (124); batch/ceiling probes (read-only); ★ bank, boot and admin flows |
+| 2026-09-27 | 8,097 (seed) + ~5 (flows) | ~70,000 | ~400 | free-01: schema + e2e seed (252), AI bank (800), core bank (6,800), accounts (121), live lessons (124); batch/ceiling probes (read-only); ★ bank, boot and admin flows |
+| 2026-09-27 (whole day, Cloudflare analytics) | 8,105 | 415,422 | 776 | free-01 above plus free-02: CPU probes (in-memory), `json_each`/`json_remove` row-count checks, ★ boot/builder/admin flows cold + warm, untraced CPU samples. 8.1% / 8.3% / 0.8% of the caps |
 
 Caps: 10% = 10,000 rows written, 500,000 rows read and 10,000 requests per UTC day.
