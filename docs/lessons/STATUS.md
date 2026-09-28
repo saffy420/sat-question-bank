@@ -361,3 +361,28 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 - look through the screenshot tour;
 - on a Chromebook, lock and reveal on a long passage;
 - on a 1366-wide instructor screen, typing in Desmos scrolls the short question out of the card (not seen at 1080p).
+
+## 2026-09-28 — Task 11a: Live Lessons bug fixes (Tier 2)
+
+**Shipped:**
+- **A1** The instructor's choice eliminations (⊖ / ABC) now reach every student. They also appear:
+  - on reconnect;
+  - in self-paced review mode;
+  - in My Lessons.
+
+  Students' own cross-outs stay private. One gate for lessons-11d: `Room.sharedEliminations`, sent only by `broadcastEliminations` as the `eliminations` message.
+- **A2** Strikethrough shows its own cursor, not the highlighter's.
+- **A3** The laser landed on a word the pointer had only passed over. The room's 25 ms floor dropped the resting frame when Wi-Fi delivered frames in bursts; it now holds and sends it.
+- **A4** Builder filter panels:
+  - the checkbox sits at the left with its label wrapping beside it;
+  - no clipped labels and no sideways scroll;
+  - each panel is at least as wide as its trigger.
+- **A5** End session sends every student to /app, including students who are offline or reconnecting. Answers are saved as before.
+
+**E2E:** new spec 7/7, each failing with its fix reverted. Full suite **40/40**. Unit 144/144, typecheck clean. Screenshots are in `docs/lessons/11a/`.
+
+**Deviations:**
+1. The brief's A3 fix text was a placeholder, so the fix is my own diagnosis.
+2. Eliminations sync in every phase until 11d gates them.
+3. Two seeded questions (`e2e-unused`, `e2e-used-other`) became a passage question and a figure question. Their IDs are unchanged.
+4. Specs 07, 08 and 09 now expect release to /app instead of "Session ended.".
