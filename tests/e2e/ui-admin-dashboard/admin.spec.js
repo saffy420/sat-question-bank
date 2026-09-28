@@ -38,10 +38,10 @@ for (const viewport of [{width:1920,height:1080},{width:1366,height:768}]) {
       await page.locator('#back').click(); await page.locator('[data-id="e2e-student-5"]').click();
       for(const tab of tabs) {await page.getByRole('tab',{name:tab,exact:true}).click();await expect(page.locator('#tab-content .empty')).toHaveCount(1);await expect(page.locator('#tab-content')).toHaveText('No practice attempts yet');await shot(page,`empty-${tab.toLowerCase().replaceAll(' ','-')}`);}
       await page.locator('#back').click(); await page.locator('#search').fill('no-matching-person'); await expect(page.locator('tbody tr')).toHaveCount(0); await shot(page,'students-empty');
-      await page.goto('/admin/questions'); await expect(page.locator('#results [data-preview]')).toHaveCount(7); await shot(page,'question-bank');
+      await page.goto('/admin/questions'); await expect(page.locator('#results [data-preview]')).toHaveCount(8); await shot(page,'question-bank');
       await page.locator('[data-preview="e2e-core-math"]').click(); await expect(page.getByRole('dialog')).toBeVisible(); await shot(page,'bank-preview'); await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
       await page.locator('#f-search').fill('no-such-question');await expect(page.locator('#results')).toContainText('No results.');await shot(page,'bank-empty');
-      await page.goto('/admin/lessons/new');await expect(page.locator('#results [data-add]')).toHaveCount(7);await shot(page,'builder-empty');
+      await page.goto('/admin/lessons/new');await expect(page.locator('#results [data-add]')).toHaveCount(8);await shot(page,'builder-empty');
       await page.locator('[data-add="e2e-core-math"]').click();await expect(page.locator('[data-add="e2e-core-math"]')).toBeDisabled();
       await page.locator('#library-back').click();await expect(page.getByRole('dialog')).toContainText('Save changes before leaving?');await shot(page,'unsaved-exit');await page.getByRole('button',{name:'Cancel',exact:true}).click();
       await page.locator('#lesson-title').fill(`Algebra workshop ${size}`);await page.locator('#save-lesson').click();await expect(page.locator('#save-status')).toHaveText('Saved');
@@ -76,18 +76,18 @@ for (const viewport of [{width:1920,height:1080},{width:1366,height:768}]) {
       const session=await post(admin,`/api/admin/lessons/${lesson.id}/sessions`);
       const page=await admin.newPage();const pupil=await student.newPage();await page.goto(`/admin/live/${session.sessionId}`);await expect(page.locator('#live-link')).toHaveText('Connected');await shot(page,'lobby-empty');
       await pupil.goto(`/app?join=${session.joinCode}`);await expect(page.locator('#live-roster')).toContainText('E2E Student 4');await shot(page,'lobby');
-      await page.locator('[data-live="start"]').click();await expect(page.locator('#live-card')).toHaveAttribute('data-ready','true');await expect(page.locator('#body')).toContainText('ANSWERING');await expect(page.locator('#live-tools')).toHaveCount(0);await shot(page,'live-answering');
-      await pupil.locator('[data-lesson-choice="A"]').click();await expect(page.locator('[data-response="e2e-student-4"]')).toContainText('selected');
-      await page.locator('[data-live="endNow"]').click();await expect(page.locator('.distribution')).toBeVisible();await shot(page,'live-revealed');
-      await page.locator('[data-group="0"]').click();await expect(page.locator('#live-group')).toContainText('E2E Student 4');await shot(page,'distribution-popover');await page.getByRole('button',{name:'Close distribution details'}).click();
+      await page.locator('[data-live="start"]').click();await expect(page.locator('#live-card')).toHaveAttribute('data-ready','true');await expect(page.locator('.live-view')).toHaveAttribute('data-phase','ANSWERING');await expect(page.locator('[data-tool="pen"]')).toBeDisabled();await shot(page,'live-answering');
+      await pupil.locator('[data-lesson-choice="A"]').click();await page.locator('#live-responses').click();await expect(page.locator('[data-response="e2e-student-4"]')).toContainText('selected');
+      await page.locator('[data-live="endNow"]').click();await expect(page.locator('.live-view')).toHaveAttribute('data-phase','REVEALED');await page.locator('#live-responses').click();await expect(page.locator('.distribution')).toBeVisible();await shot(page,'live-revealed');
+      await page.locator('[data-group="0"]').click();await expect(page.locator('#live-group')).toContainText('E2E Student 4');await shot(page,'distribution-popover');await page.getByRole('button',{name:'Close distribution details'}).click();await page.locator('#live-responses').click();
       await page.locator('[data-tool="pen"]').click();await expect(page.locator('[data-tool="pen"]')).toHaveAttribute('aria-pressed','true');await expect(page.locator('#live-card')).toHaveCSS('cursor','crosshair');await page.getByRole('button',{name:'Color #75dbaa',exact:true}).click();await shot(page,'annotation-active');
       await page.keyboard.press('Escape');await expect(page.locator('[data-tool="pen"]')).toHaveAttribute('aria-pressed','false');
-      await page.locator('.instructor-drawer summary').click();await expect(page.locator('.instructor-drawer')).toContainText('Teaching note');await shot(page,'instructor-drawer');await page.locator('.instructor-drawer summary').click();
+      await page.locator('#live-notes').click();await expect(page.locator('#live-notes-drawer')).toBeVisible();await expect(page.locator('#live-notes-drawer')).toContainText('Teaching note');await shot(page,'instructor-drawer');await page.locator('#live-notes').click();await expect(page.locator('#live-notes-drawer')).toBeHidden();
       await page.locator('[data-tool="clear"]').click();await shot(page,'annotation-clear-confirmation');await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
       await page.locator('[data-live="next"]').click();await expect(page.locator('[data-live="startQuestion"]')).toBeVisible();await shot(page,'live-ready');
-      await page.locator('[data-live="startQuestion"]').click();await pupil.locator('#lesson-grid').fill('1/2');await expect(page.locator('[data-response="e2e-student-4"]')).toContainText('1/2');await shot(page,'live-spr-answering');
-      await page.locator('[data-live="endNow"]').click();await expect(page.locator('[data-group="0"]')).toContainText('0.5');await page.locator('[data-group="0"]').click();await shot(page,'live-spr-distribution');
-      await page.locator('[data-live="endSession"]').click();await expect(page.locator('#body')).toContainText('ENDED');await shot(page,'live-ended');
+      await page.locator('[data-live="startQuestion"]').click();await pupil.locator('#lesson-grid').fill('1/2');await page.locator('#live-responses').click();await expect(page.locator('[data-response="e2e-student-4"]')).toContainText('1/2');await shot(page,'live-spr-answering');
+      await page.locator('[data-live="endNow"]').click();await expect(page.locator('.live-view')).toHaveAttribute('data-phase','REVEALED');await page.locator('#live-responses').click();await expect(page.locator('[data-group="0"]')).toContainText('0.5');await page.locator('[data-group="0"]').click();await shot(page,'live-spr-distribution');
+      await page.locator('[data-live="endSession"]').click();await expect(page.locator('#live-timer')).toHaveText('Session ended');await shot(page,'live-ended');
     } finally {await student.close();await admin.close();}
   });
 }

@@ -40,6 +40,8 @@ export type Snapshot = {
   hasMath?: boolean;
   desmosKey?: string | null;
   desmos?: object | null;
+  // Instructor-paced: the instructor went back to an already revealed question (11b navigator).
+  revisit?: boolean;
   // Self-paced (§8): the student's own set only.
   assignedQuestionIds?: string[];
   questions?: Question[];

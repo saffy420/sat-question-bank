@@ -6,13 +6,6 @@ import type { Mark, Question } from './types';
 import { escapeHTML } from './escape';
 export { escapeHTML } from './escape';
 
-// Two-pane split as a fraction of the stage, remembered for the session so the next question opens
-// where the student left the divider. Each pane keeps at least 25% and 300px.
-let splitAt = 0.5;
-const PANE_MIN = 300;
-const bounds = (width: number) => { const min = Math.min(0.5, Math.max(0.25, PANE_MIN / width)); return [min, 1 - min]; };
-const GRIP = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 7-5 5 5 5M15 7l5 5-5 5"/></svg>';
-const EXPAND = (d: string) => `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
 export type StageProps = {
   question: Question;
   number: number;
@@ -59,56 +52,15 @@ export function Stage(props: StageProps) {
       ? { context: Renderer.renderStem({ stem_html: q.stem_html.slice(0, at) }), body: Renderer.renderStem({ stem_html: q.stem_html.slice(at + 15) }) }
       : Renderer.splitContext(Renderer.renderStem(q), document);
     const math = q.section === 'Math';
-    // Passage, or a figure/table split out of the stem (math included), goes in a resizable left pane.
+    // Passage, or a figure/table split out of the stem (math included), goes in the left pane of a fixed
+    // 50/50 split (Bluebook's default).
     const single = !split.context;
     el.className = `lesson-stage ${math ? 'stage-math' : ''} ${single ? 'stage-single' : `stage-split ${math ? 'stage-figure' : 'stage-reading'}`}`;
-    el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div><div class="stage-divider" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize panes" aria-valuemin="25" aria-valuemax="75" aria-valuenow="50"><div class="stage-divider-controls"><button type="button" class="stage-expand" data-expand="left" aria-label="Expand left pane" title="Expand left pane">${EXPAND('M4 4v16M20 12H9m4-4-4 4 4 4')}</button><span class="stage-grip">${GRIP}</span><button type="button" class="stage-expand" data-expand="right" aria-label="Expand right pane" title="Expand right pane">${EXPAND('M20 4v16M4 12h11m-4-4 4 4-4 4')}</button></div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off"><button id="lesson-pick" type="button">Select</button><p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
+    el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off"><button id="lesson-pick" type="button">Select</button><p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
     ready.current = false;
     let alive = true, highlighted = false;
-    // The stage reflows with its container; ink and laser are content-anchored, so just repaint
-    // (after re-clamping the split to the new width).
-    const resize = () => { if (divider) setSplit(splitAt); paint(); };
-    const divider = el.querySelector<HTMLElement>('.stage-divider');
-    const setSplit = (at: number) => {
-      const [lo, hi] = bounds(el.clientWidth || 1);
-      splitAt = Math.min(hi, Math.max(lo, at));
-      el.style.setProperty('--split', `${(splitAt * 100).toFixed(2)}%`);
-      divider?.setAttribute('aria-valuenow', String(Math.round(splitAt * 100)));
-      divider?.querySelectorAll<HTMLElement>('[data-expand]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.expand === 'left' ? splitAt >= hi : splitAt <= lo)));
-    };
-    if (divider) setSplit(splitAt);
-    // The divider owns its pointer gestures so the presenter's pen/highlight handlers on the card never see them.
-    const drag = (event: PointerEvent) => {
-      if ((event.target as Element).closest('.stage-expand')) { event.stopPropagation(); return; }
-      event.preventDefault(); event.stopPropagation();
-      divider!.setPointerCapture(event.pointerId);
-      el.classList.add('stage-resizing');
-    };
-    const dragMove = (event: PointerEvent) => {
-      if (!divider!.hasPointerCapture(event.pointerId)) return;
-      event.stopPropagation();
-      const r = el.getBoundingClientRect();
-      setSplit((event.clientX - r.left) / r.width);
-    };
-    const dragEnd = (event: PointerEvent) => { event.stopPropagation(); el.classList.remove('stage-resizing'); };
-    const divClick = (event: MouseEvent) => {
-      const expand = (event.target as Element).closest<HTMLElement>('[data-expand]');
-      if (!expand) return;
-      const [lo, hi] = bounds(el.clientWidth || 1), left = expand.dataset.expand === 'left';
-      setSplit(left ? (splitAt >= hi ? 0.5 : hi) : (splitAt <= lo ? 0.5 : lo));
-    };
-    const divKey = (event: KeyboardEvent) => {
-      const [lo, hi] = bounds(el.clientWidth || 1);
-      const next = { ArrowLeft: splitAt - 0.05, ArrowRight: splitAt + 0.05, Home: lo, End: hi }[event.key];
-      if (next === undefined || (event.target as Element).closest('.stage-expand')) return;
-      event.preventDefault(); setSplit(next);
-    };
-    if (divider) {
-      divider.addEventListener('pointerdown', drag); divider.addEventListener('pointermove', dragMove);
-      divider.addEventListener('pointerup', dragEnd); divider.addEventListener('pointercancel', dragEnd);
-      divider.addEventListener('click', divClick); divider.addEventListener('keydown', divKey);
-    }
-    const observer = new ResizeObserver(resize);
+    // The stage reflows with its container; ink and laser are content-anchored, so just repaint.
+    const observer = new ResizeObserver(paint);
     observer.observe(wrapper); observer.observe(el);
     props.mathify(el);
     const images = [...el.querySelectorAll('img')].map(image => image.decode().catch(() => undefined));
@@ -116,7 +68,7 @@ export function Stage(props: StageProps) {
       if (!alive) return;
       ready.current = true;
       el.dataset.ready = 'true';
-      resize();
+      paint();
       latest.current.onReady?.(el);
     });
     const click = (event: MouseEvent) => {
@@ -147,7 +99,7 @@ export function Stage(props: StageProps) {
     };
     const pointerdown = () => { highlighted = false; };
     el.addEventListener('click', click); el.addEventListener('input', input); el.addEventListener('pointerup', pointerup); el.addEventListener('pointerdown', pointerdown);
-    resize();
+    paint();
     return () => { alive = false; ready.current = false; observer.disconnect(); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
   }, [props.question.id]);
   useLayoutEffect(() => {

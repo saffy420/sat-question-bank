@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Check,
   X,
@@ -18,6 +18,9 @@ import {
   Clock,
   LockKeyhole,
   Calculator,
+  ChevronLeft,
+  ChevronRight,
+  NotebookText,
 } from "lucide-react";
 import { Stage } from "../lesson-ui/Stage";
 import { DesmosLeader } from "../lesson-ui/Desmos";
@@ -52,6 +55,10 @@ type Room = Omit<Snapshot, "distribution"> & {
   responses: Record<string, Record<string, Response>>;
   notes: string;
   distribution?: Group[];
+  // B3 navigator (instructor-paced): see src/lesson-room.js move().
+  outline?: { questionId: string; snippet: string }[];
+  reached?: number;
+  played?: number;
 };
 type Send = (type: string, fields?: Record<string, unknown>) => void;
 const tools = {
@@ -125,7 +132,13 @@ export function LiveRooms() {
   );
 }
 
-export function Live({ id }: { id: string }) {
+export function Live({
+  id,
+  collapseSidebar,
+}: {
+  id: string;
+  collapseSidebar?: () => void;
+}) {
   const [s, setState] = useState<Room>();
   const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
@@ -135,7 +148,17 @@ export function Live({ id }: { id: string }) {
   const offset = useRef(0);
   const [sort, setSort] = useState("name");
   const [group, setGroup] = useState<number | null>(null);
-  // Cross-out mode is the presenter's own; the crossed-out choices are shared with the class (A1).
+  // Presenter overlays: the Responses popup, the notes drawer and the question navigator drawer.
+  const [popup, setPopup] = useState(false);
+  const [notes, setNotes] = useState(false);
+  const [drawer, setDrawer] = useState(false);
+  const layers = useRef({ group, popup, drawer });
+  layers.current = { group, popup, drawer };
+  const popupAnchor = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const navButton = useRef<HTMLButtonElement>(null);
+  const collapsed = useRef(false);
+  // Cross-out mode is local; crossed-out choices are shared with the class.
   const [strikeMode, setStrikeMode] = useState(false);
   const send: Send = (type, fields = {}) => {
     if (socket.current?.readyState === WebSocket.OPEN)
@@ -170,11 +193,16 @@ export function Live({ id }: { id: string }) {
             offset.current = m.serverNow - m.sentAt - rtt / 2;
           }
         } else if (m.type === "snapshot") {
-          // Self-paced roster refreshes leave question bodies out; keep the ones we have.
+          // Throttled refreshes leave question bodies (self-paced) and the navigator outline
+          // (instructor-paced) out; keep the ones we have.
           setState((old) =>
-            m.mode === "self" && !m.questions && old?.sessionId === m.sessionId
-              ? { ...m, questions: old!.questions }
-              : m,
+            old?.sessionId !== m.sessionId
+              ? m
+              : m.mode === "self" && !m.questions
+                ? { ...m, questions: old!.questions }
+                : m.mode !== "self" && !m.outline
+                  ? { ...m, outline: old!.outline }
+                  : m,
           );
           setError("");
         } else if (m.type === "eliminations")
@@ -241,13 +269,44 @@ export function Live({ id }: { id: string }) {
   useEffect(() => {
     setGroup(null);
   }, [s?.questionId]);
+  // Esc closes the innermost layer: the names popover first, then the popup and drawers.
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setGroup(null);
+      if (e.key !== "Escape") return;
+      if (layers.current.group !== null) setGroup(null);
+      else {
+        setPopup(false);
+        setDrawer(false);
+        setNotes(false);
+      }
     };
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, []);
+  // A click outside closes the Responses popup and the navigator drawer.
+  useEffect(() => {
+    if (!popup && !drawer) return;
+    const down = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (layers.current.popup && !popupAnchor.current?.contains(target))
+        setPopup(false);
+      if (
+        layers.current.drawer &&
+        !drawerRef.current?.contains(target) &&
+        !navButton.current?.contains(target)
+      )
+        setDrawer(false);
+    };
+    document.addEventListener("pointerdown", down);
+    return () => document.removeEventListener("pointerdown", down);
+  }, [popup, drawer]);
+  // Once the session has started the app sidebar collapses; the instructor can expand it again.
+  useEffect(() => {
+    if (s && s.status !== "lobby" && !collapsed.current) {
+      collapsed.current = true;
+      collapseSidebar?.();
+    }
+  }, [s?.status]);
   if (!s)
     return <Pending error={error} retry={() => setVersion((n) => n + 1)} />;
   const toggle = (
@@ -261,7 +320,7 @@ export function Live({ id }: { id: string }) {
   };
   const revealed = s.phase === "REVEALED" || s.phase === "ENDED";
   const self = s.mode === "self" ? (s as unknown as SelfRoom) : null;
-  // Self-paced review mode (§8.7) reuses the instructor-paced REVEALED layout below.
+  // Self-paced review mode (§8.7) reuses the instructor-paced question layout below.
   const reviewMode = !!s.reviewMode;
   const rows = Object.entries(s.roster || {})
     .filter(([id]) => !reviewMode || s.responses?.[id])
@@ -285,6 +344,21 @@ export function Live({ id }: { id: string }) {
   const remaining = end
     ? Math.ceil(Math.max(0, end - now - offset.current) / 1000)
     : null;
+  const clock = (
+    <strong
+      id="live-timer"
+      className={remaining != null && remaining <= 10 ? "urgent" : ""}
+    >
+      <Clock />
+      {remaining == null ? "—" : formatTime(remaining)}
+    </strong>
+  );
+  const connection = (
+    <span id="live-link">
+      {connected ? <Wifi /> : <WifiOff />}
+      {connected ? "Connected" : "Reconnecting…"}
+    </span>
+  );
   const roster = (
     <div id="live-roster" className="roster">
       {rows.map((r) => (
@@ -305,342 +379,481 @@ export function Live({ id }: { id: string }) {
       {!rows.length && <Empty>No students yet.</Empty>}
     </div>
   );
-  return (
-    <div className="live-view">
-      <header className="live-top">
-        <div>
-          <Badge tone="green">
-            {s.status === "lobby"
-              ? "LOBBY"
-              : self
-                ? reviewMode
-                  ? "REVIEW"
-                  : self.poll || self.pollResult
-                    ? "REVIEW POLL"
-                    : { live: "SELF-PACED SET", review: "SET FINISHED", ended: "SESSION ENDED" }[s.status] || s.status
-                : s.phase}
-          </Badge>
-          <h2>{s.title}</h2>
-        </div>
-        <div className="live-facts">
-          <strong>{s.code}</strong>
-          <span>
-            <Users />
-            {s.count} joined
-          </span>
-          {self ? (
+  const lockJoin = (
+    <label className="toggle">
+      <input
+        id="live-lock"
+        type="checkbox"
+        checked={s.lockedJoin}
+        disabled={s.phase === "ENDED" || s.status === "ended"}
+        onChange={(e) => toggle("lockedJoin", "lockJoin", e.target.checked)}
+      />
+      <LockKeyhole />
+      Lock joining
+    </label>
+  );
+  const lobby = (
+    <div className="lobby-grid">
+      <section className="panel lobby">
+        <span className="eyebrow">{self ? "Ready when you are" : s.title}</span>
+        <h2>Let’s bring everyone in.</h2>
+        <p>Enter this code to join the lesson</p>
+        <strong className="join-code">{s.code}</strong>
+        <p>
+          Join URL:{" "}
+          <a href={`${location.origin}/app?join=${s.code}`}>
+            {location.origin}/app?join={s.code}
+          </a>
+        </p>
+        {lockJoin}
+      </section>
+      <section className="panel">
+        <h2>
+          Students <Badge>{s.count}</Badge>
+        </h2>
+        {roster}
+      </section>
+    </div>
+  );
+  const endSession = (
+    <button
+      data-live="endSession"
+      disabled={s.phase === "ENDED"}
+      onClick={() => send("endSession")}
+    >
+      End session
+    </button>
+  );
+  const errorLine = (
+    <p id="live-error" className="error" role="alert">
+      {error}
+    </p>
+  );
+  // Self-paced set, poll and overview screens keep their header and footer.
+  if (self && !reviewMode)
+    return (
+      <div className="live-view">
+        <header className="live-top">
+          <div>
+            <Badge tone="green">
+              {s.status === "lobby"
+                ? "LOBBY"
+                : self.poll || self.pollResult
+                  ? "REVIEW POLL"
+                  : { live: "SELF-PACED SET", review: "SET FINISHED", ended: "SESSION ENDED" }[s.status] || s.status}
+            </Badge>
+            <h2>{s.title}</h2>
+          </div>
+          <div className="live-facts">
+            <strong>{s.code}</strong>
+            <span>
+              <Users />
+              {s.count} joined
+            </span>
             <span id="live-submitted">
               Submitted {Object.keys(self.submitted).length}
             </span>
-          ) : (
-            <span>
-              Q {s.index + 1} / {s.total}
-            </span>
-          )}
-          <strong
-            id="live-timer"
-            className={remaining != null && remaining <= 10 ? "urgent" : ""}
-          >
-            <Clock />
-            {remaining == null ? "—" : formatTime(remaining)}
-          </strong>
-        </div>
-      </header>
-      {s.status === "lobby" ? (
-        <div className="lobby-grid">
-          <section className="panel lobby">
-            <span className="eyebrow">Ready when you are</span>
-            <h2>Let’s bring everyone in.</h2>
-            <p>Enter this code to join the lesson</p>
-            <strong className="join-code">{s.code}</strong>
-            <p>
-              Join URL:{" "}
-              <a href={`${location.origin}/app?join=${s.code}`}>
-                {location.origin}/app?join={s.code}
-              </a>
-            </p>
-            <label className="toggle">
-              <input
-                id="live-lock"
-                type="checkbox"
-                checked={s.lockedJoin}
-                onChange={(e) =>
-                  toggle("lockedJoin", "lockJoin", e.target.checked)
-                }
-              />
-              <LockKeyhole />
-              Lock joining
-            </label>
-          </section>
-          <section className="panel">
-            <h2>
-              Students <Badge>{s.count}</Badge>
-            </h2>
-            {roster}
-          </section>
-        </div>
-      ) : self && !reviewMode ? (
-        <>
-          {s.status === "live" ? (
-            <SelfGrid s={self} />
-          ) : self.poll ? (
-            <PollPanel s={self} />
-          ) : self.pollResult ? (
-            <ResultPanel s={self} />
-          ) : (
-            self.overview && <Overview s={self} send={send} />
-          )}
-          <details className="roster-details panel">
-            <summary>Manage students</summary>
-            <label className="toggle">
-              <input
-                id="live-lock"
-                type="checkbox"
-                checked={s.lockedJoin}
-                disabled={s.status === "ended"}
-                onChange={(e) =>
-                  toggle("lockedJoin", "lockJoin", e.target.checked)
-                }
-              />
-              Lock joining
-            </label>
-            {roster}
-          </details>
-        </>
-      ) : (
-        <div className="live-grid">
-          <nav className="question-rail" aria-label="Lesson questions">
-            {Array.from({ length: s.total }, (_, i) => (
-              <div
-                key={i}
-                className={i === s.index ? "current" : ""}
-                aria-current={i === s.index ? "step" : undefined}
-              >
-                <span>{i + 1}</span>
-                {(self ? self.reviewed?.includes(self.items[i]?.questionId) : i < s.index) ? (
-                  <Check aria-label="Done" />
-                ) : (
-                  <span className="mini-slide" />
-                )}
-              </div>
-            ))}
-          </nav>
-          <section className="stage-panel">
-            {s.question && (
-              <InstructorStage
-                key={s.questionId}
-                s={s}
-                send={send}
-                strikeMode={strikeMode}
-                struck={s.eliminations}
-                onStrikeMode={() => setStrikeMode(!strikeMode)}
-                onStrike={(letter) =>
-                  send("eliminate", {
-                    questionId: s.questionId,
-                    letter,
-                    on: !s.eliminations?.includes(letter),
-                  })
-                }
-              />
+            {clock}
+          </div>
+        </header>
+        {s.status === "lobby" ? (
+          lobby
+        ) : (
+          <>
+            {s.status === "live" ? (
+              <SelfGrid s={self} />
+            ) : self.poll ? (
+              <PollPanel s={self} />
+            ) : self.pollResult ? (
+              <ResultPanel s={self} />
+            ) : (
+              self.overview && <Overview s={self} send={send} />
             )}
-          </section>
-          <aside className="responses panel">
-            <div className="section-head">
-              <h3>
-                Responses · {received}/{rows.length} in
-              </h3>
-              <label>
-                Sort
-                <select
-                  id="live-sort"
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value)}
-                >
-                  <option value="name">Name</option>
-                  <option value="status">Status</option>
-                </select>
-              </label>
-            </div>
-            <div className="response-list">
-              {rows.map(({ id, name, r }) => (
-                <div className="response-row" key={id} data-response={id}>
-                  <span>{name}</span>
-                  <Badge tone={r?.locked ? "green" : r?.answer ? "blue" : ""}>
-                    {r?.locked ? "locked" : r?.answer ? "selected" : "nothing"}
-                  </Badge>
-                  <strong>{r?.answer || "—"}</strong>
-                  {revealed &&
-                    r?.answer &&
-                    s.question &&
-                    (isRight(s.question, r.answer) ? (
-                      <Check className="right-icon" aria-label="Correct" />
-                    ) : (
-                      <X className="wrong-icon" aria-label="Incorrect" />
-                    ))}
-                </div>
-              ))}
-              {!rows.length && <Empty>No students yet.</Empty>}
-            </div>
-            {revealed && s.distribution && (
-              <section className="distribution">
-                <h3>Distribution</h3>
-                {s.distribution.map((g, i) => (
-                  <div className="distribution-row" key={g.label}>
-                    <button
-                      data-group={i}
-                      className={g.correct ? "correct" : ""}
-                      aria-expanded={group === i}
-                      onClick={() => setGroup(group === i ? null : i)}
-                    >
-                      <span className="bar-label">
-                        <span>
-                          {g.label}
-                          {g.correct && <Check aria-label="Correct choice" />}
-                        </span>
-                        <strong>{g.count}</strong>
-                      </span>
-                      <span className="track">
-                        <span
-                          style={{
-                            width: `${rows.length ? (g.count / rows.length) * 100 : 0}%`,
-                            background: [
-                              "#1286a5",
-                              "#1869b6",
-                              "#7771b1",
-                              "#448a3b",
-                              "#8a929f",
-                            ][i % 5],
-                          }}
-                        />
-                      </span>
-                    </button>
-                    {group === i && (
-                      <div
-                        id="live-group"
-                        className="names-popover"
-                        role="status"
-                      >
-                        <button
-                          className="icon-button"
-                          aria-label="Close distribution details"
-                          onClick={() => setGroup(null)}
-                        >
-                          <X />
-                        </button>
-                        <strong>{g.label}</strong>
-                        {g.users.map((u, n) => (
-                          <p key={n}>
-                            {u.name}
-                            <span>{time(u.ms)}</span>
-                          </p>
-                        ))}
-                        {!g.users.length && <p>No students</p>}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </section>
-            )}
-            <details className="roster-details">
+            <details className="roster-details panel">
               <summary>Manage students</summary>
-              <label className="toggle">
-                <input
-                  id="live-lock"
-                  type="checkbox"
-                  checked={s.lockedJoin}
-                  disabled={s.phase === "ENDED"}
-                  onChange={(e) =>
-                    toggle("lockedJoin", "lockJoin", e.target.checked)
-                  }
-                />
-                Lock joining
-              </label>
+              {lockJoin}
               {roster}
             </details>
-          </aside>
+          </>
+        )}
+        {errorLine}
+        <footer className="live-bottom">
+          <div className="actions">
+            {s.status === "lobby" && (
+              <button
+                className="primary"
+                data-live="start"
+                onClick={() => send("start")}
+              >
+                <Play />
+                Start lesson
+              </button>
+            )}
+          </div>
+          {connection}
+          {endSession}
+        </footer>
+      </div>
+    );
+  // B3 navigator. Questions before `played` have been revealed; `reached` is the furthest one opened.
+  // Only played questions and the next unplayed one can be opened, and never while answers are open.
+  const outline = s.outline || [];
+  const played = s.played ?? (revealed ? s.index + 1 : s.index);
+  const reached = s.reached ?? s.index;
+  const movable =
+    !self && s.status === "live" && (s.phase === "READY" || s.phase === "REVEALED");
+  const reachable = (i: number) =>
+    movable && i >= 0 && i < s.total && i !== s.index && i <= played;
+  const go = (i: number) => {
+    if (!reachable(i)) return;
+    // › on the furthest question reached is exactly Next.
+    if (i === s.index + 1 && s.index === reached) send("next");
+    else send("goto", { questionId: outline[i]?.questionId });
+    setDrawer(false);
+  };
+  const answered = (questionId: string) =>
+    Object.values(s.responses || {}).filter((r) => r[questionId]?.answer).length;
+  return (
+    <div className="live-view live-present" data-phase={s.phase}>
+      {s.status === "lobby" ? (
+        lobby
+      ) : (
+        <section className="live-area" aria-label="Question">
+          {s.question && (
+            <InstructorStage
+              key={s.questionId}
+              s={s}
+              send={send}
+              strikeMode={strikeMode}
+              struck={s.eliminations}
+              onStrikeMode={() => setStrikeMode(!strikeMode)}
+              onStrike={(letter) =>
+                send("eliminate", {
+                  questionId: s.questionId,
+                  letter,
+                  on: !s.eliminations?.includes(letter),
+                })
+              }
+            >
+              {!self && (
+                <aside
+                  id="live-nav-drawer"
+                  ref={drawerRef}
+                  className={`live-drawer left${drawer ? " open" : ""}`}
+                  aria-label="Lesson questions"
+                  aria-hidden={!drawer}
+                  inert={!drawer}
+                >
+                  <h3>Questions</h3>
+                  <ol>
+                    {outline.map((q, i) => {
+                      const count = answered(q.questionId);
+                      return (
+                        <li key={q.questionId}>
+                          <button
+                            data-nav-index={i}
+                            aria-current={i === s.index ? "step" : undefined}
+                            disabled={i !== s.index && !reachable(i)}
+                            onClick={() => (i === s.index ? setDrawer(false) : go(i))}
+                          >
+                            <span className="nav-number">{i + 1}</span>
+                            <span className="nav-text">
+                              <span className="nav-snippet">{q.snippet}</span>
+                              <span className="nav-meta">
+                                {q.questionId} · {count}{" "}
+                                {count === 1 ? "response" : "responses"}
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </aside>
+              )}
+              <aside
+                id="live-notes-drawer"
+                className={`live-drawer right${notes ? " open" : ""}`}
+                aria-label="Instructor notes and explanation"
+                aria-hidden={!notes}
+                inert={!notes}
+              >
+                <div className="drawer-head">
+                  <h3>Notes</h3>
+                  <button
+                    className="icon-button"
+                    aria-label="Close notes"
+                    onClick={() => setNotes(false)}
+                  >
+                    <X />
+                  </button>
+                </div>
+                <h4>Official explanation</h4>
+                <HTML
+                  html={
+                    s.question.explanation_html ||
+                    "<p>Explanation unavailable.</p>"
+                  }
+                />
+                <h4>My notes</h4>
+                <HTML html={notesHTML(s.notes || "")} />
+              </aside>
+            </InstructorStage>
+          )}
+        </section>
+      )}
+      {s.status !== "lobby" && (
+        <div id="live-join" className="live-join" aria-label={`Join code ${s.code}`}>
+          <span>Join code</span>
+          <strong>{s.code}</strong>
         </div>
       )}
-      <p id="live-error" className="error" role="alert">
-        {error}
-      </p>
-      <footer className="live-bottom">
-        <div className="actions">
-          {s.status === "lobby" && (
-            <button
-              className="primary"
-              data-live="start"
-              onClick={() => send("start")}
-            >
-              <Play />
-              Start lesson
-            </button>
-          )}
-          {s.status === "live" && s.phase === "READY" && (
-            <button
-              className="primary"
-              data-live="startQuestion"
-              onClick={() => send("startQuestion")}
-            >
-              <Play />
-              Start question
-            </button>
-          )}
-          {s.phase === "ANSWERING" && !self && (
+      {errorLine}
+      <footer className="live-bar">
+        <div className="live-nav">
+          {reviewMode ? (
+            <>
+              <span className="live-nav-label">
+                Question {s.index + 1} of {s.total}
+              </span>
+              {s.phase === "REVEALED" && (
+                <button
+                  className="bar-primary"
+                  data-live="next"
+                  onClick={() => send("next")}
+                >
+                  Next
+                  <SkipForward />
+                </button>
+              )}
+            </>
+          ) : (
             <>
               <button
-                data-live="addTime"
-                onClick={() => send("addTime", { sec: 15 })}
+                id="live-prev"
+                aria-label="Previous question"
+                disabled={!reachable(s.index - 1)}
+                onClick={() => go(s.index - 1)}
               >
-                <Plus />
-                15s
+                <ChevronLeft />
               </button>
-              <button data-live="endNow" onClick={() => send("endNow")}>
-                <Square />
-                End now
+              <button
+                id="live-nav"
+                ref={navButton}
+                aria-expanded={drawer}
+                aria-controls="live-nav-drawer"
+                disabled={s.status === "lobby"}
+                onClick={() => setDrawer(!drawer)}
+              >
+                Question {s.index + 1} of {s.total}
+              </button>
+              <button
+                id="live-next"
+                data-live="next"
+                aria-label="Next question"
+                disabled={!reachable(s.index + 1)}
+                onClick={() => go(s.index + 1)}
+              >
+                <ChevronRight />
               </button>
             </>
           )}
-          {s.phase === "REVEALED" && (reviewMode || s.index + 1 < s.total) && (
-            <button
-              className="primary"
-              data-live="next"
-              onClick={() => send("next")}
+        </div>
+        {!reviewMode && (
+          <div className="live-clock">
+            {s.phase === "ENDED" ? (
+              <strong id="live-timer">Session ended</strong>
+            ) : (
+              clock
+            )}
+            {s.status === "lobby" && (
+              <button
+                className="bar-primary"
+                data-live="start"
+                onClick={() => send("start")}
+              >
+                <Play />
+                Start lesson
+              </button>
+            )}
+            {s.status === "live" && s.phase === "READY" && (
+              <button
+                className="bar-primary"
+                data-live="startQuestion"
+                onClick={() => send("startQuestion")}
+              >
+                <Play />
+                Start question
+              </button>
+            )}
+            {s.phase === "ANSWERING" && (
+              <>
+                <button
+                  data-live="addTime"
+                  onClick={() => send("addTime", { sec: 15 })}
+                >
+                  <Plus />
+                  15s
+                </button>
+                <button data-live="endNow" onClick={() => send("endNow")}>
+                  <Square />
+                  End now
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        <div className="live-pop-anchor" ref={popupAnchor}>
+          <button
+            id="live-responses"
+            aria-expanded={popup}
+            aria-controls="live-responses-popup"
+            onClick={() => setPopup(!popup)}
+          >
+            <Users />
+            {received} of {rows.length} responses
+          </button>
+          {popup && (
+            <div
+              id="live-responses-popup"
+              className="live-popup"
+              role="dialog"
+              aria-label="Responses"
             >
-              Next
-              <SkipForward />
-            </button>
+              <div className="section-head">
+                <h3>Responses</h3>
+                <span className="live-joined">{s.count} joined</span>
+                <label>
+                  Sort
+                  <select
+                    id="live-sort"
+                    value={sort}
+                    onChange={(e) => setSort(e.target.value)}
+                  >
+                    <option value="name">Name</option>
+                    <option value="status">Status</option>
+                  </select>
+                </label>
+                <button
+                  className="icon-button"
+                  aria-label="Close responses"
+                  onClick={() => setPopup(false)}
+                >
+                  <X />
+                </button>
+              </div>
+              <div className="response-list">
+                {rows.map(({ id, name, r }) => (
+                  <div className="response-row" key={id} data-response={id}>
+                    <span>{name}</span>
+                    <Badge tone={r?.locked ? "green" : r?.answer ? "blue" : ""}>
+                      {r?.locked ? "locked" : r?.answer ? "selected" : "nothing"}
+                    </Badge>
+                    <strong>{r?.answer || "—"}</strong>
+                    {revealed &&
+                      r?.answer &&
+                      s.question &&
+                      (isRight(s.question, r.answer) ? (
+                        <Check className="right-icon" aria-label="Correct" />
+                      ) : (
+                        <X className="wrong-icon" aria-label="Incorrect" />
+                      ))}
+                  </div>
+                ))}
+                {!rows.length && <Empty>No students yet.</Empty>}
+              </div>
+              {revealed && s.distribution && (
+                <section className="distribution">
+                  <h3>Distribution</h3>
+                  {s.distribution.map((g, i) => (
+                    <div className="distribution-row" key={g.label}>
+                      <button
+                        data-group={i}
+                        className={g.correct ? "correct" : ""}
+                        aria-expanded={group === i}
+                        onClick={() => setGroup(group === i ? null : i)}
+                      >
+                        <span className="bar-label">
+                          <span>
+                            {g.label}
+                            {g.correct && <Check aria-label="Correct choice" />}
+                          </span>
+                          <strong>{g.count}</strong>
+                        </span>
+                        <span className="track">
+                          <span
+                            style={{
+                              width: `${rows.length ? (g.count / rows.length) * 100 : 0}%`,
+                              background: [
+                                "#1286a5",
+                                "#1869b6",
+                                "#7771b1",
+                                "#448a3b",
+                                "#8a929f",
+                              ][i % 5],
+                            }}
+                          />
+                        </span>
+                      </button>
+                      {group === i && (
+                        <div
+                          id="live-group"
+                          className="names-popover"
+                          role="status"
+                        >
+                          <button
+                            className="icon-button"
+                            aria-label="Close distribution details"
+                            onClick={() => setGroup(null)}
+                          >
+                            <X />
+                          </button>
+                          <strong>{g.label}</strong>
+                          {g.users.map((u, n) => (
+                            <p key={n}>
+                              {u.name}
+                              <span>{time(u.ms)}</span>
+                            </p>
+                          ))}
+                          {!g.users.length && <p>No students</p>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </section>
+              )}
+              <label className="toggle">
+                <input
+                  id="live-class"
+                  type="checkbox"
+                  checked={!!s.classResults}
+                  disabled={s.phase === "ENDED"}
+                  onChange={(e) =>
+                    toggle("classResults", "classResults", e.target.checked)
+                  }
+                />
+                Show class results
+              </label>
+              <details className="roster-details">
+                <summary>Manage students</summary>
+                {lockJoin}
+                {roster}
+              </details>
+            </div>
           )}
         </div>
-        {!self && (
-          <span className="response-count">
-            {received} of {rows.length} Responses
-          </span>
-        )}
-        <span id="live-link">
-          {connected ? <Wifi /> : <WifiOff />}
-          {connected ? "Connected" : "Reconnecting…"}
-        </span>
-        {(!self || reviewMode) && (
-          <label className="toggle">
-            <input
-              id="live-class"
-              type="checkbox"
-              checked={!!s.classResults}
-              disabled={s.phase === "ENDED"}
-              onChange={(e) =>
-                toggle("classResults", "classResults", e.target.checked)
-              }
-            />
-            Show class results
-          </label>
-        )}
         <button
-          data-live="endSession"
-          disabled={s.phase === "ENDED"}
-          onClick={() => send("endSession")}
+          id="live-notes"
+          aria-expanded={notes}
+          aria-controls="live-notes-drawer"
+          disabled={!s.question}
+          onClick={() => setNotes(!notes)}
         >
-          End session
+          <NotebookText />
+          Notes
         </button>
+        {connection}
+        {endSession}
       </footer>
     </div>
   );
@@ -653,6 +866,7 @@ function InstructorStage({
   struck,
   onStrikeMode,
   onStrike,
+  children,
 }: {
   s: Room;
   send: Send;
@@ -660,6 +874,8 @@ function InstructorStage({
   struck?: string[];
   onStrikeMode: () => void;
   onStrike: (letter: string) => void;
+  // Drawers that overlay the question (navigator, notes).
+  children?: ReactNode;
 }) {
   const [tool, setTool] = useState("highlight");
   const [color, setColor] = useState(colors[0]);
@@ -668,6 +884,7 @@ function InstructorStage({
   const [desmos, setDesmos] = useState(!!s.desmos);
   const latest = useRef({ s, send });
   latest.current = { s, send };
+  const annotating = s.phase === "REVEALED";
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setTool("");
@@ -684,7 +901,6 @@ function InstructorStage({
       // words for students whose stage is laid out at a different width.
       anchor: string | undefined,
       toAnchor: ReturnType<typeof Ink.frame> = null;
-    // Each tool shows its own cursor over the stage (lesson.css `.tool-<name>`).
     for (const name of Object.keys(tools))
       card.classList.toggle(`tool-${name}`, tool === name);
     const point = (e: PointerEvent) => {
@@ -837,58 +1053,57 @@ function InstructorStage({
   }, [card, tool, color, s.phase]);
   return (
     <>
-      <div className="stage-heading">
-        <span className="eyebrow">Question {s.index + 1}</span>
-        <span>{s.questionId}</span>
-        <Badge tone="green">
-          <Check />
-          Correct: {s.question?.answer || "Unavailable"}
-        </Badge>
+      {/* Annotation tools are shown in every phase so the row is never empty, but only work once
+          the question is revealed (the room rejects annotations before that). */}
+      <div id="live-tools" role="toolbar" aria-label="Annotation tools">
+        {Object.entries(tools).map(([key, Icon]) => (
+          <button
+            key={key}
+            data-tool={key}
+            title={
+              annotating
+                ? labels[key as keyof typeof labels]
+                : `${labels[key as keyof typeof labels]} (after the reveal)`
+            }
+            aria-label={labels[key as keyof typeof labels]}
+            aria-pressed={annotating && tool === key}
+            disabled={!annotating}
+            onClick={() =>
+              key === "clear"
+                ? setClear(true)
+                : (setTool(tool === key ? "" : key),
+                  setColor(key === "pen" ? "#ff7676" : "#ffe066"))
+            }
+          >
+            <Icon />
+            <span>{labels[key as keyof typeof labels]}</span>
+          </button>
+        ))}
         {s.question?.section === "Math" && (
           <button
             id="live-desmos-toggle"
+            title="Desmos"
             aria-pressed={desmos}
             onClick={() => setDesmos(!desmos)}
           >
             <Calculator />
-            Desmos
+            <span>Desmos</span>
           </button>
         )}
-      </div>
-      {s.phase === "REVEALED" && (
-        <div id="live-tools" role="toolbar" aria-label="Annotation tools">
-          {Object.entries(tools).map(([key, Icon]) => (
+        <div className="swatches">
+          {colors.map((c) => (
             <button
-              key={key}
-              data-tool={key}
-              title={labels[key as keyof typeof labels]}
-              aria-label={labels[key as keyof typeof labels]}
-              aria-pressed={tool === key}
-              onClick={() =>
-                key === "clear"
-                  ? setClear(true)
-                  : (setTool(tool === key ? "" : key),
-                    setColor(key === "pen" ? "#ff7676" : "#ffe066"))
-              }
-            >
-              <Icon />
-              <span>{labels[key as keyof typeof labels]}</span>
-            </button>
+              key={c}
+              style={{ background: c }}
+              aria-label={`Color ${c}`}
+              aria-pressed={color === c}
+              disabled={!annotating}
+              onClick={() => setColor(c)}
+            />
           ))}
-          <div className="swatches">
-            {colors.map((c) => (
-              <button
-                key={c}
-                style={{ background: c }}
-                aria-label={`Color ${c}`}
-                aria-pressed={color === c}
-                onClick={() => setColor(c)}
-              />
-            ))}
-          </div>
         </div>
-      )}
-      <div className="instructor-content">
+      </div>
+      <div className="live-body">
         <div id="live-stage">
           <Stage
             question={s.question!}
@@ -904,17 +1119,6 @@ function InstructorStage({
             onStrike={onStrike}
           />
         </div>
-        <details className="instructor-drawer">
-          <summary>Instructor notes & explanation</summary>
-          <h3>Official explanation</h3>
-          <HTML
-            html={
-              s.question?.explanation_html || "<p>Explanation unavailable.</p>"
-            }
-          />
-          <h3>My notes</h3>
-          <HTML html={notesHTML(s.notes || "")} />
-        </details>
         {desmos && (
           <DesmosLeader
             apiKey={s.desmosKey}
@@ -925,6 +1129,7 @@ function InstructorStage({
             }
           />
         )}
+        {children}
       </div>
       {clear && (
         <Dialog

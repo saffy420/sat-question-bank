@@ -128,7 +128,11 @@ function App() {
               navigate={navigate}
             />
           ) : live ? (
-            <Live key={live[1]} id={live[1]} />
+            <Live
+              key={live[1]}
+              id={live[1]}
+              collapseSidebar={() => setCollapsed(true)}
+            />
           ) : section === "Live" ? (
             <LiveRooms />
           ) : section === "Lessons" ? (

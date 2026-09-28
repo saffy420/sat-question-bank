@@ -118,7 +118,10 @@ test('task03 nav join, live lobby, after-start admission, physical outage recove
     await expect(three.locator('#lesson-content')).toContainText('ANSWERING');
     await expect(three.locator('#lesson-content')).toContainText('Which word best completes');
     await expect(three.locator('#lesson-clock')).not.toHaveText('');
-    await expect(teacher.locator('#live-roster')).toContainText('E2E Student 3');
+    // 11b: after the start the roster lives in the Responses popup.
+    await teacher.locator('#live-responses').click();
+    await expect(teacher.locator('#live-responses-popup #live-roster')).toContainText('E2E Student 3');
+    await teacher.locator('#live-responses').click();
     const clockBeforeDrop = await three.locator('#lesson-clock').textContent();
     expect(clockBeforeDrop).toMatch(/^0:[1-5]\d$/); // 55-second question, still answering before outage.
     await three.screenshot({ path: `${artifacts}/06-after-start.png` });
@@ -159,7 +162,8 @@ test('task03 nav join, live lobby, after-start admission, physical outage recove
     await connected(otherTab);
     await otherTab.screenshot({ path: `${artifacts}/08-second-tab.png` });
 
-    await teacher.locator('.roster-details summary').click();
+    await teacher.locator('#live-responses').click();
+    await teacher.locator('#live-responses-popup .roster-details summary').click();
     await teacher.locator('#live-lock').check();
     await expect(teacher.locator('#live-lock')).toBeChecked();
     await expect.poll(async () => (await (await admin.request.get(`/api/lessons/${room.sessionId}`)).json()).lockedJoin).toBe(true);

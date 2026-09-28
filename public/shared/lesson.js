@@ -151,16 +151,24 @@ export function pollWinner({ votes, mostMissed: missed, wrong, order }) {
   for (const v of two) picks[v.questionId] = (picks[v.questionId] || 0) + 1;
   return Object.keys(picks).sort((a, b) => picks[b] - picks[a] || (wrong[b] || 0) - (wrong[a] || 0) || order.indexOf(a) - order.indexOf(b))[0];
 }
+// 11b instructor navigator: a plain-text lead-in for each question (admin snapshots only).
+export function stemSnippet(html, max = 90) {
+  const text = String(html || '').replace(/<(script|style)\b[\s\S]*?<\/\1>|<h3>\s*Prompt\s*<\/h3>/gi, ' ').replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    .replace(/\\[()[\]]/g, '').replace(/\s+/g, ' ').trim();
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
 export function lessonQuestion(q, reveal = false) {
   return { id: q.id, section: q.section, stem_html: (q.stem_html || '').replace(/<p>\s*(?:<strong>\s*)?Rationale\b[\s\S]*$/i, '').replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, ''),
     choices: (q.choices || []).map(c => ({ letter: c.letter, content: c.content || '', img: c.img || '' })), spr: q.spr,
     ...(reveal ? { answer: q.answer, explanation_html: q.explanation_html || '' } : {}) };
 }
 // §2 usedInLesson: the questions a session actually put in front of students. Instructor-paced
-// shows items 0..index once it leaves the lobby; self-paced shows every assigned set.
+// shows items 0..reached (the furthest opened, 11b; the navigator can be back on an earlier one)
+// once it leaves the lobby; self-paced shows every assigned set.
 export function shownQuestionIds(s) {
   if (s.status === 'lobby' || !s.startedAt) return [];
-  if (s.mode !== 'self') return s.items.slice(0, s.index + 1).map(x => x.question_id);
+  if (s.mode !== 'self') return s.items.slice(0, Math.max(s.reached ?? 0, s.index) + 1).map(x => x.question_id);
   const shown = new Set(Object.values(s.assigned || {}).flat());
   return s.items.map(x => x.question_id).filter(id => shown.has(id));
 }

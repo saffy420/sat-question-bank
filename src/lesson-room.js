@@ -1,5 +1,5 @@
 import { normalizeQuestion, isRight } from '../public/shared/stats.js';
-import { GRACE_MS, POLL_MS, RESULT_MS, MAX_FRAME, MAX_DESMOS_FRAME, validAction, lessonQuestion, responseGroups, lateJoinSet, setResults, mostMissed, pollWinner, shownQuestionIds } from '../public/shared/lesson.js';
+import { GRACE_MS, POLL_MS, RESULT_MS, MAX_FRAME, MAX_DESMOS_FRAME, validAction, lessonQuestion, responseGroups, lateJoinSet, setResults, mostMissed, pollWinner, shownQuestionIds, stemSnippet } from '../public/shared/lesson.js';
 import { lessonWriteBack } from './record.js';
 import { traceDurableObject } from './budget.js';
 import { d1Failure, retryAt, chunkGroups } from './flush.js';
@@ -8,11 +8,14 @@ import { faultInjection } from './fault.js';
 const SCHEDULED = Symbol('flush retry scheduled');
 const sqlTime = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 const review = (s, item) => s.desmos?.questionId === item.question_id ? { desmos: s.desmos.state } : {};
-// Saved review layer for My Lessons: the shared marks plus the instructor's crossed-out choices,
-// kept as `eliminate` marks on the choice so no new column is needed.
-const reviewLayer = (s, id) => {
-  const layer = [...(s.annotations?.[id] || []), ...(s.eliminations?.[id] || []).map(letter => ({ type:'eliminate', id:'eliminate:' + letter, nodeId:'c:' + letter }))];
-  return layer.length ? { annotations: layer } : {};
+// Pending review entries; pending work from before 11b carries one question's layer at the top level.
+const reviewsOf = p => [...(p.reviews || []), ...(p.annotations || p.desmos ? [{ questionId: p.questionId, annotations: p.annotations || null, desmos: p.desmos || null }] : [])];
+// Store shared marks and instructor eliminations in the existing review annotations column.
+const reviewRow = (s, item) => {
+  const id = item.question_id;
+  const annotations = [...(s.annotations?.[id] || []), ...(s.eliminations?.[id] || []).map(letter => ({ type:'eliminate', id:'eliminate:' + letter, nodeId:'c:' + letter }))];
+  const desmos = review(s, item).desmos || null;
+  return annotations.length || desmos ? { questionId: id, annotations: annotations.length ? annotations : null, desmos } : null;
 };
 
 class Room {
@@ -30,9 +33,9 @@ class Room {
     if (s.mode === 'self') return this.selfSnapshot(s, a, full);
     const item = s.items[s.index];
     const r = a.role === 'student' ? Object.hasOwn(s.responses, a.userId) ? s.responses[a.userId]?.[item?.question_id] : null : null;
-    const revealed = s.phase === 'REVEALED' || s.phase === 'ENDED';
+    const revealed = s.phase === 'REVEALED' || s.phase === 'ENDED', { reached, played } = this.frontier(s);
     return { type: 'snapshot', sessionId: s.id, role: a.role, title: s.title, phase: s.phase, status: s.status,
-      questionId: item?.question_id || null, index: s.index, total: s.items.length, endsAt: s.endsAt,
+      questionId: item?.question_id || null, index: s.index, total: s.items.length, endsAt: s.endsAt, revisit: s.index < reached,
       assignedQuestionIds: a.role === 'student' ? s.items.map(x => x.question_id) : undefined,
       question: item ? lessonQuestion(s.questions[item.question_id], revealed || a.role === 'admin') : null,
       ownSelection: r?.answer || null, locked: !!r?.locked, count: Object.keys(s.responses).length,
@@ -43,7 +46,43 @@ class Room {
       ...(revealed && item && (a.role === 'admin' || s.classResults) ? { distribution: responseGroups(s.questions[item.question_id], Object.fromEntries(Object.entries(s.responses).map(([id, answers]) => [id, answers[item.question_id]])))
         .map(g => a.role === 'admin' ? { ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) } : { label: g.label, count: g.count, correct: g.correct }) } : {}),
       ...(a.role === 'admin' ? { code: s.code, lockedJoin: s.lockedJoin, roster: s.roster,
-        responses: s.responses, notes: item?.notes || '' } : {}) };
+        responses: s.responses, notes: item?.notes || '', reached, played,
+        ...(full ? { outline: s.items.map(x => ({ questionId: x.question_id, snippet: stemSnippet(lessonQuestion(s.questions[x.question_id]).stem_html) })) } : {}) } : {}) };
+  }
+  // 11b navigator (instructor-paced). `reached` is the furthest lesson index opened; `played` counts
+  // revealed questions, so items 0..played-1 are done. An index below `reached` is a revisit: it shows
+  // REVEALED from the saved responses, annotations and graph, answers never reopen and no clock runs.
+  // Rooms saved before 11b derive both from the current index and phase.
+  frontier(s) {
+    return { reached: s.reached ?? s.index, played: s.played ?? (s.phase === 'REVEALED' || s.phase === 'ENDED' ? s.index + 1 : s.index) };
+  }
+  // ‹ / › / drawer, and Next (the move to index + 1). Only played questions and the next unplayed one
+  // are reachable, and not while a question is open for answers. Returns an error or null.
+  async move(s, to) {
+    const { reached, played } = this.frontier(s), item = s.items[s.index];
+    if (s.status !== 'live' || (s.phase !== 'READY' && s.phase !== 'REVEALED')) return 'invalid phase';
+    if (!Number.isInteger(to) || to < 0 || to >= s.items.length || to === s.index || to > played) return 'question not reachable';
+    // Leaving a revealed question lands its shared layer, as Next always has.
+    const row = s.phase === 'REVEALED' ? reviewRow(s, item) : null;
+    if (row) await this.queue({ questionId: item.question_id, rows: [], end: false, reviews: [row] });
+    // The graph stays with its question (desmos:<id>) for a revisit; `desmos` holds the current one.
+    if (s.desmos?.questionId === item.question_id) await this.ctx.storage.put(`desmos:${item.question_id}`, s.desmos);
+    s.desmos = await this.ctx.storage.get(`desmos:${s.items[to].question_id}`) || null;
+    if (s.desmos) await this.ctx.storage.put('desmos', s.desmos); else await this.ctx.storage.delete('desmos');
+    s.index = to; s.reached = Math.max(reached, to); s.played = played; s.endsAt = null;
+    s.phase = to < played ? 'REVEALED' : 'READY';
+    return null;
+  }
+  // Review-only work waits behind an in-flight flush in `nextPending`, where entries for different
+  // questions merge instead of replacing each other.
+  async queue(work) {
+    if (!await this.ctx.storage.get('pending')) { await this.ctx.storage.put('pending', work); return; }
+    const held = await this.ctx.storage.get('nextPending');
+    if (held) {
+      const reviews = [...reviewsOf(held).filter(r => !work.reviews?.some(w => w.questionId === r.questionId)), ...(work.reviews || [])];
+      work = { ...held, ...work, end: !!(held.end || work.end), usage: work.usage || held.usage, reviews, annotations: undefined, desmos: undefined };
+    }
+    await this.ctx.storage.put('nextPending', work);
   }
   // Self-paced (§8): a student gets only their own set, selections and position, never
   // answers, grades or notes. Question bodies ride only on full snapshots (join, connect,
@@ -202,6 +241,7 @@ class Room {
     const participants = await this.env.DB.prepare('SELECT p.user_id, p.joined_at, p.assigned_question_ids_json, u.name, u.email FROM session_participants p JOIN users u ON u.id=p.user_id WHERE p.session_id=? AND p.left_at IS NULL').bind(sessionId).all();
     s = { id: row.id, code: row.join_code, title: frozen.title, owner: row.created_by, items: frozen.items, questions,
       status: row.status, phase: 'READY', index: 0, endsAt: null, lockedJoin: false, kicked: [], responses: {}, roster: {}, joinedAt: {} };
+    if (frozen.mode !== 'self') Object.assign(s, { reached: 0, played: 0 });
     if (frozen.mode === 'self') Object.assign(s, { mode: 'self', difficulty, assigned: {}, positions: {}, submitted: {}, clock: {}, joinRemaining: {}, reviewed: [], poll: null, pollResult: null });
     for (const p of participants.results || []) {
       s.responses[p.user_id] = {}; s.roster[p.user_id] = p.name || p.email || p.user_id; s.joinedAt[p.user_id] = Date.parse(p.joined_at + 'Z') || Date.now();
@@ -240,10 +280,11 @@ class Room {
         if (i < chunks.length - 1) { pending.done = [...done, ...chunks.slice(0, i + 1).flat().map(g => g.userId)]; await this.ctx.storage.put('pending', pending); }
       }
       if (!chunks.length && tail.length) await this.env.DB.batch(tail);
-      if (pending.annotations || pending.desmos) await this.env.DB.prepare(`INSERT INTO session_question_review (session_id,question_id,annotations_json,desmos_state_json)
+      // Idempotent upserts, so a retry after a partial run changes nothing.
+      for (const r of reviewsOf(pending)) await this.env.DB.prepare(`INSERT INTO session_question_review (session_id,question_id,annotations_json,desmos_state_json)
         VALUES (?,?,?,?) ON CONFLICT(session_id,question_id) DO UPDATE SET annotations_json=COALESCE(excluded.annotations_json,annotations_json),
         desmos_state_json=COALESCE(excluded.desmos_state_json,desmos_state_json)`)
-        .bind(s.id,pending.questionId,pending.annotations ? JSON.stringify(pending.annotations) : null,pending.desmos ? JSON.stringify(pending.desmos) : null).run();
+        .bind(s.id,r.questionId,r.annotations ? JSON.stringify(r.annotations) : null,r.desmos ? JSON.stringify(r.desmos) : null).run();
       // §2 usedInLesson: every question the session showed, recorded with the end.
       if (pending.end) await this.env.DB.batch([...(pending.usage || []).map(questionId => this.env.DB.prepare('INSERT OR IGNORE INTO question_lesson_usage (question_id,session_id) VALUES (?,?)').bind(questionId, s.id)),
         this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')) WHERE id=? AND status!='ended'").bind(s.id)]);
@@ -291,7 +332,7 @@ class Room {
     if (await this.ctx.storage.get('pending')) throw Error('pending D1 flush');
     for (const r of rows) (s.responses[r.userId][item.question_id] ||= {}).ms = r.ms;
     await this.ctx.storage.put('pending', { questionId: item.question_id, rows, end: false });
-    s.phase = 'REVEALED'; await this.save(s);
+    s.phase = 'REVEALED'; s.reached = s.index; s.played = s.index + 1; await this.save(s);
     await this.flush(s);
     this.broadcast(s);
   }
@@ -506,6 +547,10 @@ class Room {
     } else {
       if (s.phase === 'ENDED') err = 'ended';
       else if (s.mode === 'self' && !['start', 'endSession', 'kick', 'lockJoin', 'startPoll', 'goto', 'next', 'classResults'].includes(m.type)) err = 'invalid phase';
+      else if (s.mode !== 'self' && (m.type === 'next' || m.type === 'goto')) {
+        err = await this.move(s, m.type === 'next' ? s.index + 1 : s.items.findIndex(x => x.question_id === m.questionId));
+        changed = !err;
+      }
       else if (m.type === 'startPoll' || m.type === 'goto') {
         // §8.6 launcher: a poll over the questions not yet reviewed, or straight to one question.
         const open = s.items.map(x => x.question_id).filter(id => !(s.reviewed || []).includes(id));
@@ -549,22 +594,23 @@ class Room {
         s.endsAt += 15000; changed = true;
       } else if (m.type === 'endNow' && s.phase === 'ANSWERING') {
         s.endsAt = Date.now(); changed = true;
-      } else if (m.type === 'next' && s.phase === 'REVEALED' && (this.reviewing(s) || (s.mode !== 'self' && s.index + 1 < s.items.length))) {
-        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: false, ...reviewLayer(s, item.question_id), ...review(s, item) });
-        await this.ctx.storage.delete('desmos'); s.desmos = null;
+      } else if (m.type === 'next' && s.phase === 'REVEALED' && this.reviewing(s)) {
         // Self-paced review: Next brings the poll launcher back.
-        if (s.mode === 'self') s.phase = 'FINISHED';
-        else { s.index++; s.phase = 'READY'; s.endsAt = null; }
+        const row = reviewRow(s, item);
+        if (row) await this.queue({ questionId: item.question_id, rows: [], end: false, reviews: [row] });
+        await this.ctx.storage.delete('desmos'); s.desmos = null;
+        s.phase = 'FINISHED';
         changed = true;
       } else if (m.type === 'endSession') {
-        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true, usage: shownQuestionIds(s), ...(s.phase === 'REVEALED' ? { ...reviewLayer(s, item.question_id), ...review(s, item) } : {}) });
+        const row = s.phase === 'REVEALED' ? reviewRow(s, item) : null;
+        await this.queue({ questionId: item.question_id, rows: [], end: true, usage: shownQuestionIds(s), reviews: row ? [row] : [] });
         s.phase = 'ENDED'; s.status = 'ended'; changed = true;
       } else err = 'invalid phase';
     }
     if (err) { this.send(ws, { type: 'error', error: err }); return; }
     if (changed) {
       await this.save(s);
-      if (m.type === 'next') await this.flush(s).catch(() => {});
+      if (m.type === 'next' || m.type === 'goto') await this.flush(s).catch(() => {});
       if (s.phase === 'ANSWERING') await this.ctx.storage.setAlarm(s.endsAt + GRACE_MS);
       else if (s.phase === 'POLL') await this.ctx.storage.setAlarm(s.poll.endsAt + GRACE_MS);
       else if (s.phase === 'ENDED') { await this.ctx.storage.deleteAlarm(); await this.flush(s).catch(() => {}); }

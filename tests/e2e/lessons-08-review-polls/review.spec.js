@@ -188,8 +188,11 @@ test('task08 overview, review polls and review mode', async ({ browser }) => {
     await expect(one.locator('#lesson-card [data-lesson-choice="A"] .choice')).toHaveClass(/right/);
     await one.locator('.lesson-reveal summary').click();
     await expect(one.locator('.lesson-reveal')).toContainText('E2E_EXPL_MARKER_AI');
-    await expect(teacher.locator('.instructor-drawer')).toContainText('E2E_NOTES_MARKER_REVIEW');
-    await expect(teacher.locator('.response-row')).toHaveCount(4);
+    // 11b: notes are in the Notes drawer and responses in the Responses popup.
+    await expect(teacher.locator('#live-notes-drawer')).toContainText('E2E_NOTES_MARKER_REVIEW');
+    await teacher.locator('#live-responses').click();
+    await expect(teacher.locator('#live-responses-popup .response-row')).toHaveCount(4);
+    await teacher.locator('#live-responses').click();
     await selectText(teacher, 'The team practiced every day');
     for (const page of pages) await expect(page.locator('#lesson-card [data-ann-mark]')).toHaveText('The team practiced every day');
     await screenshot(one, '06-review-annotation');
@@ -221,7 +224,9 @@ test('task08 overview, review polls and review mode', async ({ browser }) => {
     for (const page of pages) await expect(page.locator('#poll, #poll-result')).toHaveCount(0);
     await expect(late.locator('#lesson-not-in-set')).toHaveText('Not in your set');
     await expect(two.locator('.lesson-reveal')).toContainText('Your answer: 4 · Incorrect');
-    await expect(teacher.locator('.response-row')).toHaveCount(3);
+    await teacher.locator('#live-responses').click();
+    await expect(teacher.locator('#live-responses-popup .response-row')).toHaveCount(3);
+    await teacher.locator('#live-responses').click();
     await screenshot(late, '09-review-not-in-set');
     await teacher.locator('[data-live="next"]').click();
     await expect(teacher.locator('#review-summary')).toBeVisible();

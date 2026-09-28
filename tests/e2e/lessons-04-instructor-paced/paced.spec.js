@@ -32,6 +32,12 @@ async function join(page, code) {
 }
 
 async function phase(page, text) { await expect(page.locator('#lesson-content')).toContainText(text); }
+// 11b: the responses panel became a popup over the question, opened from the bottom bar's
+// "n of N responses" button. Reveal and End now are bar clicks, which close it.
+async function responses(teacher) {
+  if (!await teacher.locator('#live-responses-popup').isVisible()) await teacher.locator('#live-responses').click();
+  return teacher.locator('#live-responses-popup');
+}
 async function snapshot(page, name) { await page.screenshot({ path: `${artifacts}/${name}.png` }); }
 
 // One real room; three isolated account sessions. No lesson state or WS frames injected by tests.
@@ -57,14 +63,20 @@ test('task04 full instructor-paced lesson, three students, secrecy and normalize
     await snapshot(teacher, '01-lobby');
     await teacher.locator('[data-live="start"]').click();
     for (const page of pages) { await phase(page, 'ANSWERING'); await expect(page.locator('#lesson-clock')).not.toBeEmpty(); }
-    await expect(teacher.locator('#body')).toContainText('Responses · 0/3 in');
-    await expect(teacher.locator('[data-response="e2e-student-3"]')).toContainText('nothing');
-    await expect(teacher.locator('details').first()).not.toHaveAttribute('open', '');
-    await expect(teacher.locator('details').nth(1)).not.toHaveAttribute('open', '');
-    await expect(teacher.locator('#body')).toContainText('E2E_NOTES_MARKER_LIVE');
+    await expect(teacher.locator('#live-responses')).toHaveText('0 of 3 responses');
+    // Notes and the student list start closed.
+    await expect(teacher.locator('#live-notes')).toHaveAttribute('aria-expanded', 'false');
+    await expect(teacher.locator('#live-notes-drawer')).toBeHidden();
+    const panel = await responses(teacher);
+    await expect(panel.locator('[data-response="e2e-student-3"]')).toContainText('nothing');
+    await expect(panel.locator('details.roster-details')).not.toHaveAttribute('open', '');
+    await teacher.locator('#live-notes').click();
+    await expect(teacher.locator('#live-notes-drawer')).toContainText('E2E_NOTES_MARKER_LIVE');
     expect(await teacher.locator('#body script').count()).toBe(0);
+    await teacher.locator('#live-notes').click();
+    await responses(teacher);
     await one.locator('[data-lesson-choice="B"]').click();
-    await expect(teacher.locator('#body')).toContainText('Responses · 1/3 in');
+    await expect(teacher.locator('#live-responses')).toHaveText('1 of 3 responses');
     await expect(teacher.locator('[data-response="e2e-student-1"]')).toContainText('E2E Student 1selectedB');
     await expect(teacher.locator('[data-response] [aria-label="Incorrect"]')).toHaveCount(0);
     await snapshot(one, '02-selected');
@@ -93,8 +105,9 @@ test('task04 full instructor-paced lesson, three students, secrecy and normalize
     expect(extended).toBeGreaterThan(Date.now() + 15000);
     await expect(teacher.locator('#live-timer')).not.toBeEmpty();
     await teacher.locator('[data-live="endNow"]').click();
-    await expect(teacher.locator('#body')).toContainText('REVEALED');
+    await expect(teacher.locator('.live-view')).toHaveAttribute('data-phase', 'REVEALED');
     for (const page of pages) await phase(page, 'REVEALED');
+    await responses(teacher);
     await expect(one.locator('[data-lesson-choice="A"] .choice')).toHaveClass(/right/);
     await expect(two.locator('[data-lesson-choice="B"] .choice')).toHaveClass(/wrong/);
     await expect(two.locator('[data-lesson-choice="A"] .choice')).toHaveClass(/right/);
@@ -129,12 +142,14 @@ test('task04 full instructor-paced lesson, three students, secrecy and normalize
     await one.locator('#lesson-grid').fill('1/2');
     await two.locator('#lesson-grid').fill('2/4');
     await three.locator('#lesson-grid').fill('.5');
-    await expect(teacher.locator('#body')).toContainText('Responses · 3/3 in');
+    await expect(teacher.locator('#live-responses')).toHaveText('3 of 3 responses');
+    await responses(teacher);
     await expect(teacher.locator('[data-response="e2e-student-3"]')).toContainText('E2E Student 3selected.5');
     await snapshot(three, '07-spr-answering');
     await expect(three.locator('#lesson-clock')).toHaveText('0:00', { timeout: 18000 });
     await expect(three.locator('#lesson-grid')).toBeDisabled();
     await phase(three, 'REVEALED');
+    await responses(teacher);
     await expect(teacher.locator('[data-group="0"]')).toContainText('0.53');
     await expect(teacher.locator('[data-group="0"] .track > span')).toHaveAttribute('style', /width: 100%/);
     await teacher.locator('[data-group="0"]').click();
@@ -150,6 +165,6 @@ test('task04 full instructor-paced lesson, three students, secrecy and normalize
       expect(capture.violations()).toEqual([]);
     }
     await teacher.locator('[data-live="endSession"]').click();
-    await expect(teacher.locator('#body')).toContainText('ENDED');
+    await expect(teacher.locator('#live-timer')).toHaveText('Session ended');
   } finally { for (const context of students.reverse()) await context.close().catch(() => {}); await admin.close().catch(() => {}); }
 });

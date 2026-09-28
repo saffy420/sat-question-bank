@@ -54,6 +54,7 @@ test('Bluebook student island states, private marks, stable body and light theme
     await expect(page.locator('[data-lesson-choice="B"] .choice')).toHaveClass(/wrong/);
     await expect(page.locator('[data-lesson-choice="A"] svg')).toBeVisible();
     await expect(page.locator('#lesson-card [data-ann-mark]')).toHaveText('Which');
+    await teacher.locator('#live-responses').click();
     await teacher.locator('#live-class').check();
     await expect(page.locator('.lesson-results')).toBeVisible();
     await screenshot('06-revealed');

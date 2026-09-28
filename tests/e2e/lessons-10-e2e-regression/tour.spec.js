@@ -107,7 +107,7 @@ test('task10 tour: instructor-paced class — lobby, answering, locked, reveal, 
     await one.locator('[data-lesson-choice="B"]').click();
     await two.locator('[data-lesson-choice="A"]').click();
     await expect(one.locator('[data-lesson-choice="B"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(teacher.locator('#body')).toContainText('Responses · 2/2 in');
+    await expect(teacher.locator('#live-responses')).toHaveText('2 of 2 responses');
     await shot(one, '03-paced-student-answering');
 
     // Locked: the confirmation, then a disabled question and no correctness.
@@ -121,8 +121,11 @@ test('task10 tour: instructor-paced class — lobby, answering, locked, reveal, 
     // A student on a long passage sees the confirmation without scrolling.
     await onScreen(one.locator('.lesson-locked'));
     await shot(one, '05-paced-student-locked');
-    await expect(teacher.locator('[data-response="e2e-student-2"]')).toContainText('lockedB');
+    // 11b: the response list is in the Responses popup.
+    await teacher.locator('#live-responses').click();
+    await expect(teacher.locator('#live-responses-popup [data-response="e2e-student-2"]')).toContainText('lockedB');
     await shot(teacher, '06-paced-instructor-answering');
+    await teacher.locator('#live-responses').click();
 
     // Reveal: correctness, the class chart, the instructor's distribution.
     await teacher.locator('[data-live="endNow"]').click();
@@ -132,6 +135,7 @@ test('task10 tour: instructor-paced class — lobby, answering, locked, reveal, 
     await expect(one.locator('#lesson-content')).toContainText('Correct answer: A');
     await onScreen(one.locator('.lesson-verdict'));
     await shot(one, '07-paced-student-reveal');
+    await teacher.locator('#live-responses').click();
     await teacher.locator('#live-class').check();
     await expect(one.locator('#lesson-content')).toContainText('Class results');
     await expect(one.locator('#lesson-content')).not.toContainText(names[1]);
@@ -139,6 +143,7 @@ test('task10 tour: instructor-paced class — lobby, answering, locked, reveal, 
     await shot(one, '08-paced-student-class-results');
     await shot(teacher, '09-paced-instructor-reveal');
     await teacher.locator('#live-class').uncheck();
+    await teacher.locator('#live-responses').click();
 
     // Annotations: highlight and strike from the instructor land on both students.
     await selectText(teacher, 'Which word best completes');
@@ -161,7 +166,7 @@ test('task10 tour: instructor-paced class — lobby, answering, locked, reveal, 
     for (const page of pages) await expect(page.locator('.lesson-phase')).toHaveText('ANSWERING');
     await one.locator('[data-lesson-choice="C"]').click();
     await two.locator('[data-lesson-choice="D"]').click();
-    await expect(teacher.locator('#body')).toContainText('Responses · 2/2 in');
+    await expect(teacher.locator('#live-responses')).toHaveText('2 of 2 responses');
     await teacher.locator('[data-live="endNow"]').click();
     for (const page of pages) await expect(page.locator('.lesson-phase')).toHaveText('REVEALED');
     await teacher.locator('#live-desmos-toggle').click();
@@ -177,7 +182,7 @@ test('task10 tour: instructor-paced class — lobby, answering, locked, reveal, 
     await shot(teacher, '13-paced-instructor-desmos');
 
     await teacher.locator('[data-live="endSession"]').click();
-    await expect(teacher.locator('#body')).toContainText('ENDED');
+    await expect(teacher.locator('#live-timer')).toHaveText('Session ended');
     await clean(captures);
   } finally { for (const context of contexts) await context.close(); await admin.close(); }
 });
