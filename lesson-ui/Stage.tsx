@@ -31,6 +31,8 @@ export type StageProps = {
   // Private process-of-elimination state; the Stage only renders it.
   strikeMode?: boolean;
   struck?: string[];
+  // Choices the instructor crossed out for the whole class, drawn apart from the student's own.
+  eliminated?: string[];
   onStrikeMode?: () => void;
   onStrike?: (letter: string) => void;
 };
@@ -179,14 +181,16 @@ export function Stage(props: StageProps) {
     el.classList.toggle('strike-on', !!props.strikeMode);
     el.querySelector('.stage-strike-toggle')?.setAttribute('aria-pressed', String(!!props.strikeMode));
     el.querySelectorAll<HTMLElement>('.stage-choice').forEach(row => {
-      const letter = row.dataset.choice!, struck = !!props.struck?.includes(letter);
+      const letter = row.dataset.choice!, struck = !!props.struck?.includes(letter), eliminated = !!props.eliminated?.includes(letter);
       row.classList.toggle('struck', struck);
+      row.classList.toggle('eliminated', eliminated);
+      if (eliminated) row.title = 'Crossed out by your instructor'; else row.removeAttribute('title');
       const button = row.querySelector<HTMLButtonElement>('[data-strike]');
       if (!button) return;
       button.setAttribute('aria-pressed', String(struck));
       button.setAttribute('aria-label', struck ? `Undo cross out of choice ${letter}` : `Cross out choice ${letter}`);
     });
-  }, [props.strikeMode, props.struck]);
+  }, [props.strikeMode, props.struck, props.eliminated]);
   useLayoutEffect(() => { card.current!.classList.toggle('tool-highlight', !!props.annotating); }, [props.annotating]);
   useLayoutEffect(paint, [props.marks, props.privateMarks]);
   return <div className="stage-host" ref={host}><div id={props.id || 'lesson-card'} ref={card} /></div>;

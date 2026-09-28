@@ -240,6 +240,7 @@ test('task08 overview, review polls and review mode', async ({ browser }) => {
     }
     await teacher.locator('[data-live="endSession"]').click();
     await expect(teacher.locator('.live-top')).toContainText('SESSION ENDED');
-    for (const page of pages) await expect(page.locator('#self-status')).toHaveText('Session ended.');
+    // Ending the session sends students back to /app (11a A5).
+    for (const page of pages) await expect(page.locator('#lesson-live')).toBeHidden();
   } finally { for (const context of contexts.reverse()) await context.close().catch(() => {}); await admin.close().catch(() => {}); }
 });

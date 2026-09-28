@@ -219,7 +219,8 @@ test('task07 self-paced run: navigation, flags, review, submit all, auto-submit,
     }
     await teacher.locator('[data-live="endSession"]').click();
     await expect(teacher.locator('.live-top')).toContainText('SESSION ENDED');
-    await expect(one.locator('#self-status')).toHaveText('Session ended.');
+    // Ending the session sends students back to /app (11a A5).
+    await expect(one.locator('#lesson-live')).toBeHidden();
   } finally { for (const context of students.reverse()) await context.close().catch(() => {}); await admin.close().catch(() => {}); }
 });
 

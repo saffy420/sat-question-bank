@@ -236,6 +236,24 @@ test('annotation protocol gates role, shape, sizes and phase; laser never persis
   await room.webSocketMessage(again.ws,'é'.repeat(1100));
   assert.equal(again.ws.code,1008);
 });
+test('laser floor holds a burst\'s newest frame and sends it, so the resting position always arrives', async () => {
+  const { LessonRoom } = await roomModule();
+  const f = fixture(), room = new LessonRoom(f.ctx,f.env), teacher=f.socket('teacher','admin'), student=f.socket('alice');
+  f.s.phase='REVEALED'; await room.save(f.s);
+  const at = x => JSON.stringify({type:'laser',questionId:'q',a:'p:0@12',x,y:2});
+  const dots = () => student.sent.filter(m => m.type === 'laser');
+  // Wi-Fi burst: three frames at once. The first goes out, the middle one is superseded, the last is held.
+  for (const x of [1,2,3]) await room.webSocketMessage(teacher.ws,at(x));
+  assert.deepEqual(dots().map(m => m.x),[1]);
+  await new Promise(r => setTimeout(r,80));
+  assert.deepEqual(dots().map(m => m.x),[1,3]);
+  // A hide goes out at once and cancels a held frame.
+  await room.webSocketMessage(teacher.ws,at(4)); await room.webSocketMessage(teacher.ws,at(5));
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'laser',questionId:'q',hide:true}));
+  await new Promise(r => setTimeout(r,40));
+  assert.deepEqual(dots().map(m => m.hide ? 'hide' : m.x),[1,3,4,'hide']);
+  assert.equal(teacher.sent.filter(m => m.type === 'laser').length,0);
+});
 test('strike, erase and clear persist to DO; review outbox flushes at boundary once and retries', async () => {
   const { LessonRoom } = await roomModule(); const f=fixture(), room=new LessonRoom(f.ctx,f.env), teacher=f.socket('teacher','admin');
   f.s.phase='REVEALED'; f.s.items.push({question_id:'q2',time_limit_sec:60}); await room.save(f.s);

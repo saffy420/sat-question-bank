@@ -8,7 +8,8 @@ export type Question = {
   explanation_html?: string;
 };
 export type Mark = {
-  type: 'stroke' | 'highlight' | 'strike' | 'erase' | 'clear';
+  // `eliminate` marks only appear in a saved review layer (My Lessons): the instructor's crossed-out choices.
+  type: 'stroke' | 'highlight' | 'strike' | 'erase' | 'clear' | 'eliminate';
   id: string;
   color?: string;
   points?: number[][];
@@ -32,6 +33,8 @@ export type Snapshot = {
   locked?: boolean;
   ownSelection?: string;
   annotations?: Mark[];
+  // Choices the instructor crossed out for the class (A1).
+  eliminations?: string[];
   classResults?: boolean;
   distribution?: { label: string; count: number; correct: boolean }[];
   hasMath?: boolean;
