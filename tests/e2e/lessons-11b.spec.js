@@ -140,8 +140,9 @@ for (const viewport of [LAPTOP, CHROMEBOOK]) {
       expect(area.right).toBe(viewport.width);
       expect(bar.bottom).toBe(viewport.height);
       expect(await teacher.locator('#live-tools button:visible').count()).toBeGreaterThanOrEqual(6);
-      // Annotation tools wait for the reveal.
-      await expect(teacher.locator('[data-tool="pen"]')).toBeDisabled();
+      // Annotation tools work before the reveal, privately (11d): the toolbar says so.
+      await expect(teacher.locator('[data-tool="pen"]')).toBeEnabled();
+      await expect(teacher.locator('#live-tools .live-hidden')).toHaveText('Hidden until reveal');
 
       // Correct answer: marked on the instructor's own choices in every phase; never sent before reveal.
       await expect(teacher.locator('#live-card [data-lesson-choice="A"] .choice')).toHaveClass(/right/);

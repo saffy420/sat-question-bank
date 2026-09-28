@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   NotebookText,
+  EyeOff,
 } from "lucide-react";
 import { Stage } from "../lesson-ui/Stage";
 import { DesmosLeader } from "../lesson-ui/Desmos";
@@ -78,6 +79,13 @@ const labels = {
   laser: "Laser",
 };
 const colors = ["#ffe066", "#ff7676", "#75dbaa"];
+// 11d: before the reveal the instructor still annotates, but the room keeps the layer to
+// instructor screens (src/lesson-room.js hidden()) and publishes it all at the reveal.
+const hiddenLayer = (s: Room) =>
+  s.mode !== "self" &&
+  s.status === "live" &&
+  (s.phase === "READY" || s.phase === "ANSWERING");
+const canAnnotate = (s: Room) => s.phase === "REVEALED" || hiddenLayer(s);
 
 export function LiveRooms() {
   const [rooms, setRooms] = useState<Session[]>();
@@ -884,7 +892,10 @@ function InstructorStage({
   const [desmos, setDesmos] = useState(!!s.desmos);
   const latest = useRef({ s, send });
   latest.current = { s, send };
-  const annotating = s.phase === "REVEALED";
+  // Where the laser pointer rests over the stage (null once it leaves), kept across phase changes.
+  const resting = useRef<[number, number] | null>(null);
+  const hidden = hiddenLayer(s);
+  const annotating = canAnnotate(s);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setTool("");
@@ -893,7 +904,7 @@ function InstructorStage({
     return () => window.removeEventListener("keydown", esc);
   }, []);
   useEffect(() => {
-    if (!card || s.phase !== "REVEALED") return;
+    if (!card || !annotating) return;
     let points: number[][] = [],
       drawing = false,
       interval: ReturnType<typeof setInterval> | undefined,
@@ -951,8 +962,8 @@ function InstructorStage({
       frame = 0;
       aim = null;
       dot.hide();
-      // After Next/End the room is no longer REVEALED; students drop the old card's dot anyway.
-      if (sent && latest.current.s.phase === "REVEALED") laserSend({ hide: true });
+      // Only where the room takes a laser; students drop the old card's dot anyway.
+      if (sent && canAnnotate(latest.current.s)) laserSend({ hide: true });
       sent = null;
     };
     const mark = (op: Partial<Mark>) =>
@@ -990,7 +1001,7 @@ function InstructorStage({
         if (points.length >= 32) flush();
       }
       if (tool === "laser") {
-        aim = [e.clientX, e.clientY];
+        aim = resting.current = [e.clientX, e.clientY];
         if (!frame) frame = requestAnimationFrame(pump);
       }
     };
@@ -1037,12 +1048,21 @@ function InstructorStage({
     card.addEventListener("pointermove", move);
     card.addEventListener("pointerup", up);
     card.addEventListener("pointercancel", up);
-    card.addEventListener("pointerleave", laserOff);
+    const leave = () => {
+      resting.current = null;
+      laserOff();
+    };
+    card.addEventListener("pointerleave", leave);
+    // 11d: at the reveal the pointer may already rest on a word; send it again so students get the dot.
+    if (tool === "laser" && resting.current) {
+      aim = resting.current;
+      frame = requestAnimationFrame(pump);
+    }
     return () => {
       clearInterval(interval);
       clearInterval(heartbeat);
       laserOff();
-      card.removeEventListener("pointerleave", laserOff);
+      card.removeEventListener("pointerleave", leave);
       card.removeEventListener("pointerdown", down);
       card.removeEventListener("pointermove", move);
       card.removeEventListener("pointerup", up);
@@ -1050,11 +1070,11 @@ function InstructorStage({
       for (const name of Object.keys(tools))
         card.classList.remove(`tool-${name}`);
     };
-  }, [card, tool, color, s.phase]);
+  }, [card, tool, color, s.phase, annotating]);
   return (
     <>
-      {/* Annotation tools are shown in every phase so the row is never empty, but only work once
-          the question is revealed (the room rejects annotations before that). */}
+      {/* Annotation tools are shown in every phase so the row is never empty. They work on a live
+          question (privately until the reveal) and in review mode, not in the lobby. */}
       <div id="live-tools" role="toolbar" aria-label="Annotation tools">
         {Object.entries(tools).map(([key, Icon]) => (
           <button
@@ -1063,7 +1083,7 @@ function InstructorStage({
             title={
               annotating
                 ? labels[key as keyof typeof labels]
-                : `${labels[key as keyof typeof labels]} (after the reveal)`
+                : `${labels[key as keyof typeof labels]} (once the question is live)`
             }
             aria-label={labels[key as keyof typeof labels]}
             aria-pressed={annotating && tool === key}
@@ -1089,6 +1109,16 @@ function InstructorStage({
             <Calculator />
             <span>Desmos</span>
           </button>
+        )}
+        {hidden && (
+          <span
+            className="live-hidden"
+            role="status"
+            title="Students see your annotations, cross-outs and laser when the question is revealed"
+          >
+            <EyeOff aria-hidden="true" />
+            Hidden until reveal
+          </span>
         )}
         <div className="swatches">
           {colors.map((c) => (

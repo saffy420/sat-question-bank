@@ -141,7 +141,7 @@ function proxy(context) {
   return context.routeWebSocket(roomSocket, ws => { link.server = ws.connectToServer(); }).then(() => link);
 }
 
-test('A1 instructor eliminations reach every student, survive reconnect and reach My Lessons; own cross-outs stay private', async ({ browser }) => {
+test('A1 instructor eliminations reach every student at the reveal, stay live after it, survive reconnect and reach My Lessons; own cross-outs stay private', async ({ browser }) => {
   test.setTimeout(150000);
   mkdirSync(artifacts, { recursive: true });
   const admin = await newUserContext(browser, 'e2e-admin', INSTRUCTOR);
@@ -158,14 +158,11 @@ test('A1 instructor eliminations reach every student, survive reconnect and reac
     await teacher.locator('[data-live="start"]').click();
     for (const page of [one, two]) await expect(page.locator('.lesson-phase')).toHaveText('ANSWERING');
 
-    // The ABC toggle opens the ⊖ buttons; ⊖ B crosses B out for the class.
+    // The ABC toggle opens the ⊖ buttons; ⊖ B crosses B out on the instructor's card. 11d: while students
+    // work it stays there (lessons-11d.spec.js asserts the absence on the wire); the reveal publishes it.
     await teacher.locator('#live-card .stage-strike-toggle').click();
     await teacher.locator('#live-card [data-strike="B"]').click();
     await expect(teacher.locator('#live-card .stage-choice[data-choice="B"]')).toHaveClass(/eliminated|struck/);
-    for (const page of [one, two]) await expect.poll(() => struckFor(page)).toEqual(['B']);
-    await expect(one.locator('#lesson-card .stage-choice[data-choice="B"] .choice')).toHaveCSS('opacity', '0.5');
-    await one.locator('#lesson-card .choices').scrollIntoViewIfNeeded();
-    await one.screenshot({ path: `${artifacts}/A1-student-sees-B-struck.png` });
     await teacher.locator('#live-card .choices').scrollIntoViewIfNeeded();
     await teacher.screenshot({ path: `${artifacts}/A1-instructor-strikes-B-1920.png` });
 
@@ -173,14 +170,24 @@ test('A1 instructor eliminations reach every student, survive reconnect and reac
     await one.locator('#lesson-card .stage-strike-toggle').click();
     await one.locator('#lesson-card [data-strike="C"]').click();
     await expect.poll(() => ownStruck(one)).toEqual(['C']);
-    await expect.poll(() => struckFor(one)).toEqual(['B']);
+    expect(await struckFor(one)).toEqual([]);
     expect(await ownStruck(two)).toEqual([]);
-    expect(await struckFor(two)).toEqual(['B']);
+    expect(await struckFor(two)).toEqual([]);
     await expect(teacher.locator('#live-card .stage-choice[data-choice="C"]')).not.toHaveClass(/struck|eliminated/);
-    // Their own ⊖ B is untouched by the instructor's.
-    await expect(one.locator('#lesson-card [data-strike="B"]')).toHaveAttribute('aria-pressed', 'false');
 
-    // Student two drops off; D is crossed out and B restored while they are away.
+    // Reveal: B reaches every student.
+    await teacher.locator('[data-live="endNow"]').click();
+    for (const page of [one, two]) await expect(page.locator('.lesson-phase')).toHaveText('REVEALED');
+    for (const page of [one, two]) await expect.poll(() => struckFor(page)).toEqual(['B']);
+    await expect(one.locator('#lesson-card .stage-choice[data-choice="B"] .choice')).toHaveCSS('opacity', '0.5');
+    await one.locator('#lesson-card .choices').scrollIntoViewIfNeeded();
+    await one.screenshot({ path: `${artifacts}/A1-student-sees-B-struck.png` });
+    // Their own ⊖ B is untouched by the instructor's, and their own C is still only theirs.
+    await expect(one.locator('#lesson-card [data-strike="B"]')).toHaveAttribute('aria-pressed', 'false');
+    expect(await ownStruck(one)).toEqual(['C']);
+    expect(await ownStruck(two)).toEqual([]);
+
+    // Student two drops off; D is crossed out and B restored while they are away (live after the reveal).
     await link.server.close({ code: 1000, reason: 'wifi off' });
     await twoContext.setOffline(true);
     await expect(two.locator('#lesson-connection')).toHaveAttribute('aria-label', 'Reconnecting…');
@@ -202,10 +209,7 @@ test('A1 instructor eliminations reach every student, survive reconnect and reac
     await expect(teacher.locator('#live-card .stage-choice.struck')).toHaveCount(1);
     await expect(teacher.locator('#live-card .stage-choice.struck')).toHaveAttribute('data-choice', 'D');
 
-    // Reveal: the Strikethrough tool on text inside a choice, dragged with the mouse, reaches students.
-    await teacher.locator('[data-live="endNow"]').click();
-    for (const page of [one, two]) await expect(page.locator('.lesson-phase')).toHaveText('REVEALED');
-    await expect.poll(() => struckFor(one)).toEqual(['D']);
+    // The Strikethrough tool on text inside a choice, dragged with the mouse, reaches students.
     await teacher.locator('[data-tool="strike"]').click();
     const word = await teacher.locator('#live-card [data-ann-node="c:C"]').evaluate(node => {
       node.scrollIntoView({ block: 'center' });

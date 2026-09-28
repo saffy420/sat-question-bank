@@ -451,3 +451,28 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 4. One session, no subagent pipeline.
 
 **Manual checks:** the calculator and Try it yourself on a real Chromebook; both calculator panels open together at 1366×768.
+
+---
+
+## 2026-09-28 — Task 11d: Instructor annotations stay private until reveal (Claude Code; single session)
+
+**Shipped:**
+- **D1:** while students work on an instructor-paced question (READY / ANSWERING), the instructor's pen, highlight, strikethrough, choice eliminations and laser reach instructor screens only. One gate does this: `Room.hidden()` in `src/lesson-room.js`.
+  - The reveal (timer at 0, End now) publishes everything in its snapshot, and from then on the layer is live.
+  - Reconnects before the reveal get nothing; after it, they get the full set.
+  - Revisits show the published layer and stay live.
+  - Self-paced review is unchanged.
+- The annotation tools now work before the reveal. The toolbar shows **Hidden until reveal** while they are private.
+- A laser resting on the stage when the timer hits 0 appears on students at once.
+- The leak helper now flags any instructor annotation, elimination or laser payload that reaches a student socket before the reveal.
+
+**E2E:** new `tests/e2e/lessons-11d.spec.js` (3 tests). Full suite **49/49**. Unit 148/148; typecheck clean.
+
+**Rewritten specs:**
+- Spec 05 is unchanged: it only annotates after the reveal.
+- 11a A1 is rewritten: it asserted that eliminations were live during the question.
+- 11b layout and ui-admin-dashboard now expect the tools enabled, with the indicator.
+
+**Deviations:** no automatic reveal when everyone has submitted. Instructor-paced lessons don't have one, and the gate follows the phase, so any reveal publishes.
+
+**Manual checks:** annotate and cross out mid-question on the 1080p laptop; a Chromebook shows nothing until 0, then everything.
