@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp, Flag, Circle, EllipsisVertical, LogOut, Users, Hourglass, CircleCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, Flag, Circle, EllipsisVertical, LogOut, Users, Hourglass, CircleCheck, Calculator } from 'lucide-react';
+import { useCalculator } from './Calculator';
 import { Stage } from './Stage';
 import type { Bridge, PlayerModel } from './types';
 
@@ -10,6 +11,7 @@ const clock = (ms: number) => { const s = Math.ceil(ms / 1000); return `${Math.f
 export function SelfPlayer({ model, bridge }: { model: PlayerModel; bridge: Bridge }) {
   const { snapshot: s, remaining } = model;
   const self = model.self!;
+  const calc = useCalculator();
   const [flags, setFlags] = useState<string[]>([]);
   const [navigator, setNavigator] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -48,13 +50,14 @@ export function SelfPlayer({ model, bridge }: { model: PlayerModel; bridge: Brid
       <h1>{s.title}{live && !self.review && index >= 0 && <span className="self-count"> · Q {index + 1} / {ids.length}</span>}</h1>
       <div className="lesson-timer"><strong id="lesson-clock" style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: s.phase === 'ANSWERING' && remaining <= 60000 ? '#bd2424' : undefined }}>{s.endsAt && s.status === 'live' ? `${clock(remaining)}` : ''}</strong><span className="self-remaining">{s.endsAt && s.status === 'live' ? 'remaining' : ''}</span>{s.endsAt && s.status === 'live' && <button aria-label={hiddenClock ? 'Show timer' : 'Hide timer'} onClick={() => hideClock(!hiddenClock)}>{hiddenClock ? 'Show' : 'Hide'}</button>}</div>
       <nav className="lesson-tools" aria-label="Lesson tools">
+        {calc.math && <button id="lesson-calc-toggle" aria-pressed={calc.open} onClick={calc.toggle}><Calculator aria-hidden="true"/><span>Calculator</span></button>}
         {live && !self.review && self.position && <button id="self-flag" aria-pressed={flags.includes(self.position)} onClick={() => setFlags(list => list.includes(self.position!) ? list.filter(x => x !== self.position) : [...list, self.position!])}><Flag aria-hidden="true"/><span>{flags.includes(self.position) ? 'Flagged' : 'Flag for review'}</span></button>}
         <details className="lesson-more"><summary><EllipsisVertical aria-hidden="true"/><span>More</span></summary><div><button id="lesson-leave" onClick={bridge.leave}><LogOut aria-hidden="true"/>Leave view</button></div></details>
         <span id="lesson-connection" role="status" aria-label={model.connected ? 'Connected' : 'Reconnecting…'}><Circle fill="currentColor" size={9} aria-hidden="true"/><span className="lesson-sr">{model.connected ? 'Connected' : 'Reconnecting…'}</span></span>
       </nav>
     </header>
     {!model.connected && <div className="lesson-reconnect" role="status">Reconnecting…</div>}
-    <main className="lesson-main self-main">{body}<p id="lesson-error" role="alert">{model.error}</p></main>
+    <main className={`lesson-main self-main${calc.math && calc.open ? ' with-calc' : ''}`}>{body}<p id="lesson-error" role="alert">{model.error}</p></main>
     {live && <footer className="lesson-footer self-footer">
       <button id="self-back" disabled={!self.review && index <= 0} onClick={() => go(self.review ? ids[ids.length - 1] : ids[index - 1])}><ChevronLeft aria-hidden="true"/>Back</button>
       <span className="self-position-wrap">

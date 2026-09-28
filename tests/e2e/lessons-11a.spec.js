@@ -377,7 +377,7 @@ test('A5 End session sends connected and offline students to /app (instructor-pa
     await expect.poll(async () => (await room()).responses['e2e-student-1']?.[RW]?.answer).toBe('A');
     await outage(offContext, off, link);
     await teacher.locator('[data-live="endSession"]').click();
-    await expect(teacher.locator('#body')).toContainText('ENDED');
+    await expect(teacher.locator('#live-timer')).toHaveText('Session ended');
     // Connected: back on /app with the lesson view closed.
     await expect(on.locator('#lesson-live')).toBeHidden();
     expect(new URL(on.url()).pathname).toBe('/app');

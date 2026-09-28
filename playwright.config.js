@@ -6,7 +6,8 @@ export default defineConfig({
   globalSetup: './tests/e2e/cdn-cache.js',
   outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR || '.opencode/pipeline/lessons-00b-e2e-harness/e2e/results',
   reporter: [['list']],
-  workers: 2,
+  // Specs share one isolated E2E database and seeded student IDs; avoid cross-spec write-back races.
+  workers: 1,
   use: {
     baseURL: localhost(8787),
     ignoreHTTPSErrors: true,
