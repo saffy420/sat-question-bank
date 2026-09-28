@@ -209,7 +209,11 @@ test('annotation protocol gates role, shape, sizes and phase; laser never persis
   assert.equal(validAction(msg,'admin'),true); assert.equal(validAction(msg,'student'),false);
   for (const op of [{...mark,html:'<img>'},{...mark,endOffset:20001},{type:'stroke',id:'x',color:'#ffe066',points:Array(33).fill([0,0])},{type:'stroke',id:'x',color:'#ffe066',points:[[Infinity,0]]},{...mark,color:'url(javascript:1)'}]) assert.equal(validAction({...msg,op},'admin'),false);
   await room.save(f.s); await room.webSocketMessage(student.ws,JSON.stringify(msg)); assert.equal(student.sent.at(-1).error,'invalid action');
-  await room.webSocketMessage(teacher.ws,JSON.stringify(msg)); assert.equal(teacher.sent.at(-1).error,'invalid phase');
+  // Lobby: no annotating. A live question before the reveal: accepted, instructor screens only (11d).
+  await room.save({...f.s,status:'lobby',phase:'READY'}); await room.webSocketMessage(teacher.ws,JSON.stringify(msg)); assert.equal(teacher.sent.at(-1).error,'invalid phase');
+  await room.save(f.s); await room.webSocketMessage(teacher.ws,JSON.stringify({...msg,op:{...mark,id:'early'}}));
+  assert.equal(teacher.sent.at(-1).op.id,'early'); assert.equal(student.sent.some(m => JSON.stringify(m).includes('early')),false);
+  await room.webSocketMessage(teacher.ws,JSON.stringify({...msg,op:{type:'erase',id:'early'}}));
   f.s.phase='REVEALED'; await room.save(f.s);
   await room.webSocketMessage(teacher.ws,JSON.stringify({...msg,questionId:'wrong'})); assert.equal(teacher.sent.at(-1).error,'invalid phase');
   await room.webSocketMessage(teacher.ws,JSON.stringify(msg));
@@ -735,3 +739,54 @@ test('review work queued behind an in-flight flush merges by question instead of
   assert.deepEqual([next.end, next.usage], [true, ['q1']]);
   assert.deepEqual((await f.storage.get('pending')).rows, [{ userId: 'alice' }], 'the in-flight work is untouched');
 });
+test('lessons-11d: instructor layer, eliminations and laser stay on instructor sockets until the reveal publishes them at once', async () => withClock(async tick => {
+  const { GRACE_MS } = await protocol();
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.questions.q.choices.push({ letter: 'C', content: 'maybe' }, { letter: 'D', content: 'never' });
+  f.s.items.push({ question_id: 'q2', time_limit_sec: 5 }); f.s.questions.q2 = { ...f.s.questions.q, id: 'q2' };
+  Object.assign(f.s, { reached: 0, played: 0, endsAt: Date.now() + 5000 });
+  await room.save(f.s);
+  const alice = f.socket('alice'), teacher = f.socket('teacher', 'admin');
+  const say = (who, m) => room.webSocketMessage(who.ws, JSON.stringify(m));
+  const mark = { type: 'highlight', id: 'h1', nodeId: 's:0', startOffset: 0, endOffset: 4, color: '#ffe066' };
+  const leaked = () => alice.sent.filter(m => m.type === 'annotate' || m.type === 'laser' || m.type === 'eliminations' || m.annotations?.length || m.eliminations?.length);
+  await say(teacher, { type: 'annotate', questionId: 'q', op: mark });
+  await say(teacher, { type: 'eliminate', questionId: 'q', letter: 'A', on: true });
+  await say(teacher, { type: 'laser', questionId: 'q', x: .5, y: .5 });
+  await say(teacher, { type: 'laser', questionId: 'q', hide: true });
+  await say(alice, { type: 'select', questionId: 'q', answer: 'B' });
+  assert.deepEqual(leaked(), [], 'nothing instructor-drawn reaches a student before the reveal');
+  assert.deepEqual(teacher.sent.filter(m => m.type === 'eliminations').at(-1).letters, ['A'], 'the instructor sees their own cross-out');
+  const early = room.snapshot(await room.state(), { role: 'student', userId: 'alice' });
+  assert.deepEqual([early.annotations, early.eliminations], [[], []], 'a reconnect before the reveal gets nothing');
+  const own = room.snapshot(await room.state(), { role: 'admin', userId: 'teacher' });
+  assert.deepEqual([own.annotations.map(m => m.id), own.eliminations], [['h1'], ['A']], 'the instructor reload keeps the private layer');
+  // The presenter disconnecting before the reveal sends students no laser hide either.
+  await room.webSocketClose(teacher.ws, 1000, 'reload'); f.sockets.push(teacher.ws);
+  assert.deepEqual(leaked(), []);
+  // Timer hits 0: one snapshot publishes the whole layer.
+  tick(5000 + GRACE_MS + 1); await room.alarm();
+  const reveal = alice.sent.at(-1);
+  assert.deepEqual([reveal.type, reveal.phase, reveal.annotations.map(m => m.id), reveal.eliminations], ['snapshot', 'REVEALED', ['h1'], ['A']]);
+  // From then on it is live.
+  await say(teacher, { type: 'eliminate', questionId: 'q', letter: 'C', on: true });
+  assert.deepEqual(alice.sent.at(-1), { type: 'eliminations', questionId: 'q', letters: ['A', 'C'], serverNow: alice.sent.at(-1).serverNow });
+  await say(teacher, { type: 'laser', questionId: 'q', x: .4, y: .4 });
+  assert.equal(alice.sent.at(-1).type, 'laser');
+  // The next question is private again, End now publishes it; a revisit of Q1 shows the published layer live.
+  await say(teacher, { type: 'next' }); await say(teacher, { type: 'startQuestion' });
+  const before = alice.sent.length;
+  await say(teacher, { type: 'eliminate', questionId: 'q2', letter: 'D', on: true });
+  await say(teacher, { type: 'annotate', questionId: 'q2', op: { ...mark, id: 'h2' } });
+  assert.deepEqual(leaked().filter(m => alice.sent.indexOf(m) >= before && (m.questionId === 'q2')), []);
+  await say(teacher, { type: 'endNow' });
+  assert.deepEqual(leaked().filter(m => alice.sent.indexOf(m) >= before && (m.questionId === 'q2')), [], 'End now waits out the grace period');
+  tick(GRACE_MS + 1); await room.alarm();
+  const ended = alice.sent.filter(m => m.type === 'snapshot' && m.phase === 'REVEALED').at(-1);
+  assert.deepEqual([ended.questionId, ended.annotations.map(m => m.id), ended.eliminations], ['q2', ['h2'], ['D']]);
+  await say(teacher, { type: 'goto', questionId: 'q' });
+  const revisit = alice.sent.at(-1);
+  assert.deepEqual([revisit.revisit, revisit.annotations.map(m => m.id), revisit.eliminations], [true, ['h1'], ['A', 'C']]);
+  await say(teacher, { type: 'annotate', questionId: 'q', op: { ...mark, id: 'h3' } });
+  assert.equal(alice.sent.at(-1).op.id, 'h3', 'new marks on a revisit are live');
+}));

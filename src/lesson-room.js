@@ -39,7 +39,7 @@ class Room {
       assignedQuestionIds: a.role === 'student' ? s.items.map(x => x.question_id) : undefined,
       question: item ? lessonQuestion(s.questions[item.question_id], revealed || a.role === 'admin') : null,
       ownSelection: r?.answer || null, locked: !!r?.locked, count: Object.keys(s.responses).length,
-      classResults: !!s.classResults, annotations: revealed && item ? s.annotations?.[item.question_id] || [] : [],
+      classResults: !!s.classResults, annotations: (revealed || a.role === 'admin') && item ? s.annotations?.[item.question_id] || [] : [],
       eliminations: item ? this.sharedEliminations(s, item.question_id, a.role) : [],
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null,
       desmos: revealed && item && s.desmos?.questionId === item.question_id ? s.desmos.state : null,
@@ -62,6 +62,8 @@ class Room {
     const { reached, played } = this.frontier(s), item = s.items[s.index];
     if (s.status !== 'live' || (s.phase !== 'READY' && s.phase !== 'REVEALED')) return 'invalid phase';
     if (!Number.isInteger(to) || to < 0 || to >= s.items.length || to === s.index || to > played) return 'question not reachable';
+    // A laser frame held by the rate floor belongs to the question being left (and may be headed for students).
+    clearTimeout(this.laserHeld); this.laserHeld = null;
     // Leaving a revealed question lands its shared layer, as Next always has.
     const row = s.phase === 'REVEALED' ? reviewRow(s, item) : null;
     if (row) await this.queue({ questionId: item.question_id, rows: [], end: false, reviews: [row] });
@@ -136,12 +138,17 @@ class Room {
       ...(s.phase === 'POLL_RESULT' ? { pollResult: s.pollResult } : {}),
       ...(this.reviewing(s) ? this.reviewPayload(s, a) : {}) };
   }
+  // lessons-11d: while students work on an instructor-paced question (READY / ANSWERING) the
+  // instructor's pen, highlight, strike, eliminations and laser reach admin sockets only. The reveal's
+  // snapshot publishes the whole layer at once; from REVEALED on (revisits too) it is live again.
+  // Self-paced review is REVEALED, so it is unaffected.
+  hidden(s) { return s.mode !== 'self' && (s.phase === 'READY' || s.phase === 'ANSWERING'); }
   // The instructor's crossed-out choices (A1). Every elimination a client receives comes from here:
   // snapshots call sharedEliminations, live changes go out only through broadcastEliminations as one
   // `eliminations` message type. Students' own cross-outs never reach the room.
-  sharedEliminations(s, questionId, role) { return s.eliminations?.[questionId] || []; }
+  sharedEliminations(s, questionId, role) { return role === 'student' && this.hidden(s) ? [] : s.eliminations?.[questionId] || []; }
   broadcastEliminations(s, questionId) {
-    for (const ws of this.sockets()) {
+    for (const ws of this.sockets(this.hidden(s) ? 'admin' : undefined)) {
       try { this.send(ws, { type: 'eliminations', questionId, letters: this.sharedEliminations(s, questionId, ws.deserializeAttachment()?.role) }); } catch { /* disconnected */ }
     }
   }
@@ -490,11 +497,13 @@ class Room {
       return;
     }
     if (m.type === 'annotate' || m.type === 'laser') {
-      if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
+      // Revealed (live), or a live instructor-paced question before the reveal (instructor only, 11d).
+      const open = s.phase === 'REVEALED' || (s.status === 'live' && this.hidden(s)), to = this.hidden(s) ? 'admin' : undefined;
+      if (a.role !== 'admin' || !open || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
       if (m.type === 'laser') {
         // Relay to everyone except the sender (it draws its own dot) and without serverNow.
         const frame = JSON.stringify(m.hide ? { type:'laser', questionId:m.questionId, hide:true } : { type:'laser', questionId:m.questionId, x:m.x, y:m.y, ...(m.a ? { a:m.a } : {}) });
-        const relay = text => { this.lastLaser = Date.now(); for (const peer of this.sockets()) if (peer !== ws) try { peer.send(text); } catch { /* disconnected */ } };
+        const relay = text => { this.lastLaser = Date.now(); for (const peer of this.sockets(to)) if (peer !== ws) try { peer.send(text); } catch { /* disconnected */ } };
         // Presenter sends ~30 Hz, but Wi-Fi delivers frames in bursts. The 25 ms floor holds the newest
         // frame of a burst and sends it when the floor opens, so the position the pointer comes to rest
         // on always arrives (dropping it left students' dots on a word the pointer only passed over).
@@ -523,7 +532,7 @@ class Room {
         (s.annotations ||= {})[m.questionId] = next;
         await this.save(s);
       }
-      for (const peer of this.sockets()) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:m.op }); } catch { /* disconnected */ }
+      for (const peer of this.sockets(to)) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:m.op }); } catch { /* disconnected */ }
       return;
     }
     if (a.role === 'student') {
@@ -687,7 +696,7 @@ class Room {
     if (ws.deserializeAttachment()?.role !== 'admin') return;
     // Presenter gone: take their laser off every student screen.
     const s = await this.state(), item = s?.items[s.index];
-    if (item) for (const peer of this.sockets('student')) try { peer.send(JSON.stringify({ type:'laser', questionId:item.question_id, hide:true })); } catch { /* disconnected */ }
+    if (item && !this.hidden(s)) for (const peer of this.sockets('student')) try { peer.send(JSON.stringify({ type:'laser', questionId:item.question_id, hide:true })); } catch { /* disconnected */ }
   }
   webSocketError(ws) { ws.close(1011, 'Socket error'); }
 }
