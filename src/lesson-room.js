@@ -8,6 +8,12 @@ import { faultInjection } from './fault.js';
 const SCHEDULED = Symbol('flush retry scheduled');
 const sqlTime = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 const review = (s, item) => s.desmos?.questionId === item.question_id ? { desmos: s.desmos.state } : {};
+// Saved review layer for My Lessons: the shared marks plus the instructor's crossed-out choices,
+// kept as `eliminate` marks on the choice so no new column is needed.
+const reviewLayer = (s, id) => {
+  const layer = [...(s.annotations?.[id] || []), ...(s.eliminations?.[id] || []).map(letter => ({ type:'eliminate', id:'eliminate:' + letter, nodeId:'c:' + letter }))];
+  return layer.length ? { annotations: layer } : {};
+};
 
 class Room {
   constructor(ctx, env) {
@@ -31,6 +37,7 @@ class Room {
       question: item ? lessonQuestion(s.questions[item.question_id], revealed || a.role === 'admin') : null,
       ownSelection: r?.answer || null, locked: !!r?.locked, count: Object.keys(s.responses).length,
       classResults: !!s.classResults, annotations: revealed && item ? s.annotations?.[item.question_id] || [] : [],
+      eliminations: item ? this.sharedEliminations(s, item.question_id, a.role) : [],
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null,
       desmos: revealed && item && s.desmos?.questionId === item.question_id ? s.desmos.state : null,
       ...(revealed && item && (a.role === 'admin' || s.classResults) ? { distribution: responseGroups(s.questions[item.question_id], Object.fromEntries(Object.entries(s.responses).map(([id, answers]) => [id, answers[item.question_id]])))
@@ -88,6 +95,15 @@ class Room {
       ...(s.phase === 'POLL_RESULT' ? { pollResult: s.pollResult } : {}),
       ...(this.reviewing(s) ? this.reviewPayload(s, a) : {}) };
   }
+  // The instructor's crossed-out choices (A1). Every elimination a client receives comes from here:
+  // snapshots call sharedEliminations, live changes go out only through broadcastEliminations as one
+  // `eliminations` message type. Students' own cross-outs never reach the room.
+  sharedEliminations(s, questionId, role) { return s.eliminations?.[questionId] || []; }
+  broadcastEliminations(s, questionId) {
+    for (const ws of this.sockets()) {
+      try { this.send(ws, { type: 'eliminations', questionId, letters: this.sharedEliminations(s, questionId, ws.deserializeAttachment()?.role) }); } catch { /* disconnected */ }
+    }
+  }
   // Review mode (§8.7) is instructor-paced REVEALED on one lesson question: s.index points at it.
   reviewing(s) { return s.mode === 'self' && s.status === 'review' && s.phase === 'REVEALED'; }
   reviewPayload(s, a) {
@@ -96,7 +112,7 @@ class Room {
     const groups = s.classResults || a.role === 'admin' ? responseGroups(q, Object.fromEntries(takers.map(userId => [userId, s.responses[userId][id] || {}]))) : null;
     // Review is untimed: the finished set's clock must not keep counting on screen.
     const common = { questionId: id, index: s.index, total: s.items.length, question: lessonQuestion(q, true), reviewMode: true, endsAt: null,
-      annotations: s.annotations?.[id] || [], desmos: s.desmos?.questionId === id ? s.desmos.state : null, classResults: !!s.classResults,
+      annotations: s.annotations?.[id] || [], eliminations: this.sharedEliminations(s, id, a.role), desmos: s.desmos?.questionId === id ? s.desmos.state : null, classResults: !!s.classResults,
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null };
     if (a.role === 'admin') return { ...common, notes: item.notes || '',
       responses: Object.fromEntries(takers.map(userId => [userId, { [id]: { answer: s.responses[userId][id]?.answer, locked: true } }])),
@@ -418,15 +434,32 @@ class Room {
       for (const peer of this.sockets()) if (peer !== ws) try { this.send(peer, { type:'desmos', questionId:m.questionId, state:m.state }); } catch { /* disconnected */ }
       return;
     }
+    if (m.type === 'eliminate') {
+      // Live question (instructor-paced) or the question under review (self-paced).
+      const open = s.mode === 'self' ? this.reviewing(s) : s.status === 'live' && ['READY', 'ANSWERING', 'REVEALED'].includes(s.phase);
+      if (!open || item.question_id !== m.questionId) { this.send(ws, { type:'error', error:'invalid phase' }); return; }
+      if (!s.questions[m.questionId].choices.some(c => c.letter === m.letter)) { this.send(ws, { type:'error', error:'invalid choice' }); return; }
+      const letters = s.eliminations?.[m.questionId] || [];
+      if (letters.includes(m.letter) === m.on) return;
+      (s.eliminations ||= {})[m.questionId] = m.on ? [...letters, m.letter].sort() : letters.filter(x => x !== m.letter);
+      await this.save(s);
+      this.broadcastEliminations(s, m.questionId);
+      return;
+    }
     if (m.type === 'annotate' || m.type === 'laser') {
       if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
       if (m.type === 'laser') {
-        // Presenter sends ~30 Hz; the floor sheds anything faster. A hide is never dropped.
-        if (!m.hide && Date.now() - (this.lastLaser || 0) < 25) return;
-        this.lastLaser = Date.now();
         // Relay to everyone except the sender (it draws its own dot) and without serverNow.
         const frame = JSON.stringify(m.hide ? { type:'laser', questionId:m.questionId, hide:true } : { type:'laser', questionId:m.questionId, x:m.x, y:m.y, ...(m.a ? { a:m.a } : {}) });
-        for (const peer of this.sockets()) if (peer !== ws) try { peer.send(frame); } catch { /* disconnected */ }
+        const relay = text => { this.lastLaser = Date.now(); for (const peer of this.sockets()) if (peer !== ws) try { peer.send(text); } catch { /* disconnected */ } };
+        // Presenter sends ~30 Hz, but Wi-Fi delivers frames in bursts. The 25 ms floor holds the newest
+        // frame of a burst and sends it when the floor opens, so the position the pointer comes to rest
+        // on always arrives (dropping it left students' dots on a word the pointer only passed over).
+        // A hide goes out at once and cancels any held frame.
+        clearTimeout(this.laserHeld); this.laserHeld = null;
+        const wait = m.hide ? 0 : 25 - (Date.now() - (this.lastLaser || 0));
+        if (wait > 0) this.laserHeld = setTimeout(() => { this.laserHeld = null; relay(frame); }, wait);
+        else relay(frame);
         return;
       } else {
         const layer = s.annotations?.[m.questionId] || [];
@@ -517,14 +550,14 @@ class Room {
       } else if (m.type === 'endNow' && s.phase === 'ANSWERING') {
         s.endsAt = Date.now(); changed = true;
       } else if (m.type === 'next' && s.phase === 'REVEALED' && (this.reviewing(s) || (s.mode !== 'self' && s.index + 1 < s.items.length))) {
-        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: false, ...(s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}), ...review(s, item) });
+        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: false, ...reviewLayer(s, item.question_id), ...review(s, item) });
         await this.ctx.storage.delete('desmos'); s.desmos = null;
         // Self-paced review: Next brings the poll launcher back.
         if (s.mode === 'self') s.phase = 'FINISHED';
         else { s.index++; s.phase = 'READY'; s.endsAt = null; }
         changed = true;
       } else if (m.type === 'endSession') {
-        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true, usage: shownQuestionIds(s), ...(s.phase === 'REVEALED' && s.annotations?.[item.question_id] ? { annotations:s.annotations[item.question_id] } : {}), ...(s.phase === 'REVEALED' ? review(s, item) : {}) });
+        await this.ctx.storage.put(await this.ctx.storage.get('pending') ? 'nextPending' : 'pending', { questionId: item.question_id, rows: [], end: true, usage: shownQuestionIds(s), ...(s.phase === 'REVEALED' ? { ...reviewLayer(s, item.question_id), ...review(s, item) } : {}) });
         s.phase = 'ENDED'; s.status = 'ended'; changed = true;
       } else err = 'invalid phase';
     }

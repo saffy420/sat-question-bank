@@ -121,13 +121,12 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     expect((await history(six, self.sessionId)).status()).toBe(404);
     await teacher.locator('[data-live="endSession"]').click();
     await expect(teacher.locator('.live-top')).toContainText('SESSION ENDED');
-    await expect(student.locator('#self-status')).toHaveText('Session ended.');
+    // Ending the session sends the student back to /app (11a A5).
+    await expect(student.locator('#lesson-live')).toBeHidden();
     await leaks.flush();
     expect(leaks.frames.length).toBeGreaterThan(0);
     expect(leaks.violations()).toEqual([]);
-    // Leaving a finished lesson reloads the record, so the mistake shows without a page reload.
-    await student.locator('.lesson-more summary').click();
-    await student.locator('#lesson-leave').click();
+    // Being released from a finished lesson reloads the record, so the mistake shows without a page reload.
     await student.locator('.nav-i[data-tab="mistakes"]').click();
     const card = student.locator(`#mk-list .mk-card[data-id="${RW}"]`);
     // 4. The self-paced mistake is in the mistake log, tagged with its session.

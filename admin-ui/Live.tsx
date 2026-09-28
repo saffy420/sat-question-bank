@@ -135,9 +135,8 @@ export function Live({ id }: { id: string }) {
   const offset = useRef(0);
   const [sort, setSort] = useState("name");
   const [group, setGroup] = useState<number | null>(null);
-  // The presenter's own cross-outs: local only, never sent or shown to students.
+  // Cross-out mode is the presenter's own; the crossed-out choices are shared with the class (A1).
   const [strikeMode, setStrikeMode] = useState(false);
-  const [struck, setStruck] = useState<Record<string, string[]>>({});
   const send: Send = (type, fields = {}) => {
     if (socket.current?.readyState === WebSocket.OPEN)
       socket.current.send(JSON.stringify({ type, ...fields }));
@@ -178,7 +177,13 @@ export function Live({ id }: { id: string }) {
               : m,
           );
           setError("");
-        } else if (m.type === "annotate")
+        } else if (m.type === "eliminations")
+          setState((old) =>
+            !old || old.questionId !== m.questionId
+              ? old
+              : { ...old, eliminations: m.letters },
+          );
+        else if (m.type === "annotate")
           setState((old) =>
             !old || old.questionId !== m.questionId
               ? old
@@ -427,17 +432,13 @@ export function Live({ id }: { id: string }) {
                 s={s}
                 send={send}
                 strikeMode={strikeMode}
-                struck={struck[s.questionId]}
+                struck={s.eliminations}
                 onStrikeMode={() => setStrikeMode(!strikeMode)}
                 onStrike={(letter) =>
-                  setStruck((all) => {
-                    const list = all[s.questionId] || [];
-                    return {
-                      ...all,
-                      [s.questionId]: list.includes(letter)
-                        ? list.filter((x) => x !== letter)
-                        : [...list, letter],
-                    };
+                  send("eliminate", {
+                    questionId: s.questionId,
+                    letter,
+                    on: !s.eliminations?.includes(letter),
                   })
                 }
               />
@@ -683,13 +684,9 @@ function InstructorStage({
       // words for students whose stage is laid out at a different width.
       anchor: string | undefined,
       toAnchor: ReturnType<typeof Ink.frame> = null;
-    card.style.cursor = ["pen", "erase", "laser"].includes(tool)
-      ? "crosshair"
-      : "";
-    card.classList.toggle(
-      "tool-highlight",
-      tool === "highlight" || tool === "strike",
-    );
+    // Each tool shows its own cursor over the stage (lesson.css `.tool-<name>`).
+    for (const name of Object.keys(tools))
+      card.classList.toggle(`tool-${name}`, tool === name);
     const point = (e: PointerEvent) => {
       const [lo, hi] = !anchor ? [0, 1] : anchor.includes("@") ? [-4000, 4000] : [-4, 5];
       return toAnchor!
@@ -834,8 +831,8 @@ function InstructorStage({
       card.removeEventListener("pointermove", move);
       card.removeEventListener("pointerup", up);
       card.removeEventListener("pointercancel", up);
-      card.style.cursor = "";
-      card.classList.remove("tool-highlight");
+      for (const name of Object.keys(tools))
+        card.classList.remove(`tool-${name}`);
     };
   }, [card, tool, color, s.phase]);
   return (

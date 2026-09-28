@@ -1247,6 +1247,8 @@ async function loadProgress() {
   backfillLog();
   if (lost) warnSync('Could not load all of your saved progress. Reload the page — nothing has been lost.');
   refresh();
+  // A student released from an ended lesson may already be on My Lessons while this reload runs.
+  if (TAB === 'lessons') drawLessons();
 }
 
 // The attempt log only started being written on 2026-08-30, and a refused write
@@ -3794,16 +3796,25 @@ const lessonUI = mountLesson(lessonRoot, {
     if (lessonPending) lessonSend(lessonPending);
     lessonSend({ type: 'lock', questionId }); lessonLockPending = true; lessonDraw();
   },
-  leave() {
-    const finished = lessonState && (lessonState.status === 'review' || lessonState.status === 'ended' || lessonState.phase === 'ENDED');
-    lessonId = null; lessonState = null; lessonPending = null; lessonLockPending = false; lessonSelf = null; clearTimeout(lessonSelfDeadline);
-    clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000);
-    lessonUI.reset(); $('lesson-live').classList.add('hide');
-    // §10: a finished self-paced set wrote to this account's record on the server; reload it
-    // (and My Lessons) unless local answers are still waiting to save.
-    if (finished && !Object.values(PENDING).some(q => q.length) && !Object.keys(inflight).length) loadProgress();
-  }
+  leave() { lessonLeave(false); }
 });
+function lessonLeave(ended) {
+  const finished = ended || lessonState && (lessonState.status === 'review' || lessonState.status === 'ended' || lessonState.phase === 'ENDED');
+  lessonId = null; lessonState = null; lessonPending = null; lessonLockPending = false; lessonSelf = null; clearTimeout(lessonSelfDeadline);
+  clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000);
+  lessonUI.reset(); $('lesson-live').classList.add('hide');
+  // §10: a finished self-paced set wrote to this account's record on the server; reload it
+  // (and My Lessons) unless local answers are still waiting to save.
+  if (finished && !Object.values(PENDING).some(q => q.length) && !Object.keys(inflight).length) loadProgress();
+}
+// The instructor ended the session: every student goes back to /app, whether the room told them
+// (ENDED snapshot) or they were offline or reconnecting and the room now answers 410. The room
+// saved their answers when it ended; this only closes the lesson view.
+function lessonEnded() {
+  if (!lessonId) return;
+  lessonLeave(true);
+  if (location.pathname + location.search !== '/app') history.replaceState(null, '', '/app');
+}
 function lessonDraw() {
   if (!lessonState) return;
   lessonUI.update({ snapshot: lessonState,
@@ -3881,6 +3892,8 @@ function lessonConnect() {
     if (data.type === 'pong') {
       const rtt = Date.now() - data.sentAt;
       if (rtt >= 0 && rtt < lessonBestRTT) { lessonBestRTT = rtt; lessonOffset = data.serverNow - (data.sentAt + rtt / 2); }
+    } else if (data.type === 'snapshot' && data.status === 'ended') {
+      lessonEnded();
     } else if (data.type === 'snapshot' && data.mode === 'self') {
       lessonError = ''; selfSnapshot(data); lessonDraw();
     } else if (data.type === 'snapshot') {
@@ -3899,8 +3912,12 @@ function lessonConnect() {
       else layer.push(data.op);
       lessonState.annotations = [...lessonState.annotations];
       lessonDraw(); lessonUI.annotate(data.op);
+    } else if (data.type === 'eliminations' && lessonState?.questionId === data.questionId) {
+      lessonState = { ...lessonState, eliminations: data.letters }; lessonDraw();
     } else if (data.type === 'laser' && lessonState?.questionId === data.questionId) {
       lessonUI.laser(data);
+    } else if (data.type === 'error' && data.error === 'ended') {
+      lessonEnded();
     } else if (data.type === 'error' && lessonSelf) {
       if (data.error === 'set closed' || data.error === 'submitted') { lessonSelf.pending = {}; lessonSelf.submitting = false; }
       lessonError = data.error; lessonDraw();
@@ -3916,8 +3933,9 @@ function lessonConnect() {
     lessonRetry = setTimeout(async () => {
       try {
         const r = await fetch(`/api/lessons/${lessonId}?client=${encodeURIComponent(lessonClientId)}`, { headers: await sbHeaders() });
-        if (r.status === 409 || r.status === 403 || r.status === 410) { lessonId = null; clearInterval(lessonClock); lessonUI.terminal('Lesson access ended or moved to another tab.'); return; }
-        if (r.ok) { const next = await r.json(); if (next.mode === 'self') selfSnapshot(next); else lessonState = next; lessonDraw(); }
+        if (r.status === 410) { lessonEnded(); return; }
+        if (r.status === 409 || r.status === 403) { lessonId = null; clearInterval(lessonClock); lessonUI.terminal('Lesson access ended or moved to another tab.'); return; }
+        if (r.ok) { const next = await r.json(); if (next.status === 'ended') { lessonEnded(); return; } if (next.mode === 'self') selfSnapshot(next); else lessonState = next; lessonDraw(); }
       } catch { /* retry on temporary loss */ }
       if (lessonId) lessonConnect();
     }, 1500);

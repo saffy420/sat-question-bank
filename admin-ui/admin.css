@@ -802,8 +802,10 @@ body {
   left: 0;
   top: calc(100% + 6px);
   width: 290px;
+  min-width: 100%;
+  max-width: calc(100vw - 32px);
   max-height: 320px;
-  overflow: auto;
+  overflow: hidden auto;
   z-index: 12;
   background: #fff;
   border: 1px solid var(--line);
@@ -813,10 +815,18 @@ body {
 }
 :where(#admin-root) .options label {
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
+  gap: 10px;
   font-weight: 400;
   padding: 8px;
   font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+/* `.filter-bar input` stretches inputs to the field width; a checkbox keeps its own size at the left. */
+:where(#admin-root) .options input[type="checkbox"] {
+  width: 17px;
+  margin-top: 0;
 }
 :where(#admin-root) .chips {
   display: flex;

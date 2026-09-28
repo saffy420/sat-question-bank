@@ -33,7 +33,7 @@ export function HistoryView({ history, mathify, close }: { history: LessonHistor
     </nav>
     <main className={`lesson-main${item?.desmos ? ' with-desmos' : ''}`}>
       {!item ? <p className="lesson-terminal">No questions were shown in this lesson.</p> : <>
-        <Stage key={item.question.id} question={item.question} number={item.number} picked={item.inSet ? item.answer || '' : ''} active={false} revealed marks={item.annotations} mathify={mathify}/>
+        <Stage key={item.question.id} question={item.question} number={item.number} picked={item.inSet ? item.answer || '' : ''} active={false} revealed marks={item.annotations} eliminated={item.annotations.filter(m => m.type === 'eliminate').map(m => m.nodeId!.slice(2))} mathify={mathify}/>
         <section className="lesson-reveal" id="history-reveal">
           <p id="history-correct">Correct answer: {item.question.answer}</p>
           {verdict}
