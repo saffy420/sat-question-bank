@@ -11,7 +11,7 @@ test('C4 practice MC and SPR choices persist exact history and admin direction; 
     const directionBefore = (await (await admin.request.get('/api/admin/students/e2e-student-3')).json()).directions;
     const page = await student.newPage();
     await page.goto('/app');
-    await expect(page.locator('#home-stats .v').first()).toHaveText('7');
+    await expect(page.locator('#home-stats .v').first()).toHaveText('8'); // 8 bank questions since the 11b split-layout fixture
     await page.locator('[data-tab="practice"]').click();
     await page.locator('#btn-start').click();
     await expect(page.locator('#view-test')).toBeVisible();

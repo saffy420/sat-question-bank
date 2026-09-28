@@ -445,65 +445,14 @@ body {
   padding: 5px;
   font-size: 12px;
 }
-:where(#admin-root) .live-grid {
-  display: grid;
-  grid-template-columns: 66px minmax(0, 1fr) 320px;
-  gap: 16px;
-  align-items: start;
-}
-:where(#admin-root) .question-rail {
-  display: grid;
-  gap: 10px;
-  max-height: calc(100vh - 270px);
-  overflow: auto;
-}
-:where(#admin-root) .question-rail > div {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 65px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 14px;
-}
-:where(#admin-root) .question-rail .current {
-  background: #eaf0ff;
-  border: 2px solid var(--accent);
-  color: var(--accent);
-  font-weight: 700;
-}
-:where(#admin-root) .mini-slide {
-  width: 20px;
-  height: 24px;
-  border: 1px solid #cdd3e0;
-  border-radius: 3px;
-  background: repeating-linear-gradient(#fff 0 6px, #edf0f6 6px 8px);
-}
-:where(#admin-root) .stage-panel {
-  background: white;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  min-width: 0;
-  overflow: hidden;
-}
-:where(#admin-root) .stage-heading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 15px 18px;
-  font-size: 12px;
-  border-bottom: 1px solid var(--line);
-}
-:where(#admin-root) .stage-heading .badge-ui {
-  margin-left: auto;
-}
 :where(#admin-root) #live-tools {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 3px;
-  padding: 9px;
+  min-height: var(--live-tools-height);
+  /* The join code box sits over the right end of this row. */
+  padding: 6px calc(var(--live-join-width) + 28px) 6px 16px;
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
   background: #fcfcff;
@@ -523,7 +472,7 @@ body {
 :where(#admin-root) .swatches {
   display: flex;
   gap: 7px;
-  margin-left: auto;
+  margin-left: 14px;
 }
 :where(#admin-root) #live-tools .swatches button {
   width: 23px;
@@ -534,82 +483,23 @@ body {
 :where(#admin-root) .swatches button[aria-pressed="true"] {
   outline: 2px solid #414b63;
 }
-:where(#admin-root) .instructor-content {
-  display: flex;
-  align-items: flex-start;
-}
-:where(#admin-root) #live-stage {
-  min-width: 0;
-  flex: 1;
-}
 :where(#admin-root) .live-desmos {
-  position: sticky;
-  top: 0;
   width: 420px;
   flex-shrink: 0;
-  align-self: stretch;
   display: flex;
   flex-direction: column;
-  min-height: 640px;
+  min-height: 0;
   border-left: 1px solid var(--line);
 }
 :where(#admin-root) .live-desmos-calc {
   flex: 1;
-  min-height: 600px;
+  min-height: 0;
 }
 :where(#admin-root) .live-desmos-note {
   margin: 0;
   padding: 8px 12px;
   font-size: 12px;
   color: var(--muted, #555);
-}
-:where(#admin-root) #live-desmos-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-:where(#admin-root) #live-desmos-toggle[aria-pressed="true"] {
-  background: #e1e8fc;
-  color: var(--accent);
-}
-:where(#admin-root) .instructor-drawer {
-  width: 38px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--line);
-  align-self: stretch;
-  padding: 10px;
-  font-size: 14px;
-  background: #fafbff;
-}
-:where(#admin-root) .instructor-drawer > summary {
-  writing-mode: vertical-rl;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-}
-:where(#admin-root) .instructor-drawer[open] {
-  width: 260px;
-  max-height: 650px;
-  overflow: auto;
-  padding: 16px;
-}
-:where(#admin-root) .instructor-drawer[open] > summary {
-  writing-mode: horizontal-tb;
-}
-:where(#admin-root) .responses {
-  padding: 17px;
-}
-:where(#admin-root) .responses .section-head {
-  align-items: flex-start;
-}
-:where(#admin-root) .responses h3 {
-  font-size: 15px;
-}
-:where(#admin-root) .responses .section-head label {
-  font-size: 11px;
-}
-:where(#admin-root) .responses select {
-  font-size: 12px;
-  padding: 3px;
 }
 :where(#admin-root) .response-list {
   max-height: 220px;
@@ -746,6 +636,316 @@ body {
 }
 :where(#admin-root) .live-bottom .toggle {
   font-size: 13px;
+}
+/* Presenter layout (instructor-paced, and self-paced review): the question fills the viewport
+   right of the sidebar down to the bottom bar. Drawers and the Responses popup overlay it. */
+:where(#admin-root) .live-present {
+  --live-bar-height: 76px;
+  --live-tools-height: 68px;
+  --live-join-width: 196px;
+  padding-bottom: calc(var(--live-bar-height) + 16px);
+}
+:where(#admin-root) .live-area {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar);
+  right: 0;
+  bottom: var(--live-bar-height);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+:where(#admin-root) .live-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+/* Each pane gets the student view's outer inset (.lesson-main), never under 24px, so passage
+   text and figures do not sit on the pane edge. */
+:where(#admin-root) #live-stage {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 12px 0 24px;
+}
+:where(#admin-root) #live-card {
+  --pane-inset: clamp(24px, 2.5vw, 48px);
+}
+:where(#admin-root) #live-card.stage-split .stage-passage {
+  padding-left: var(--pane-inset);
+}
+:where(#admin-root) #live-card.stage-split .stage-question {
+  padding-right: var(--pane-inset);
+}
+:where(#admin-root) #live-card.stage-single {
+  padding-inline: var(--pane-inset);
+}
+:where(#admin-root) .live-join {
+  position: fixed;
+  top: calc((var(--live-tools-height) - 58px) / 2);
+  right: 14px;
+  z-index: 16;
+  width: var(--live-join-width);
+  height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.74);
+  color: #fff;
+  pointer-events: none;
+  line-height: 1;
+}
+:where(#admin-root) .live-join span {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+:where(#admin-root) .live-join strong {
+  margin-top: 5px;
+  font: 700 29px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.14em;
+}
+:where(#admin-root) .live-present #live-error {
+  position: fixed;
+  left: calc(var(--sidebar) + 16px);
+  bottom: calc(var(--live-bar-height) + 10px);
+  z-index: 14;
+  margin: 0;
+}
+:where(#admin-root) .live-present #live-error:empty {
+  display: none;
+}
+:where(#admin-root) .live-present #live-error:not(:empty) {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 14px #17223526;
+}
+:where(#admin-root) .live-drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 12;
+  width: min(400px, 85%);
+  overflow: auto;
+  padding: 16px 18px 24px;
+  background: #fff;
+  box-shadow: 0 0 24px #1722352e;
+  visibility: hidden;
+  transition:
+    transform 0.2s ease,
+    visibility 0.2s;
+}
+:where(#admin-root) .live-drawer.left {
+  left: 0;
+  transform: translateX(-100%);
+  border-right: 1px solid var(--line);
+}
+:where(#admin-root) .live-drawer.right {
+  right: 0;
+  transform: translateX(100%);
+  border-left: 1px solid var(--line);
+  font-size: 15px;
+}
+:where(#admin-root) .live-drawer.open {
+  transform: none;
+  visibility: visible;
+}
+:where(#admin-root) .live-drawer h3 {
+  margin: 0 0 12px;
+}
+:where(#admin-root) .live-drawer h4 {
+  margin: 18px 0 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+:where(#admin-root) .drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+:where(#admin-root) #live-nav-drawer ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:where(#admin-root) #live-nav-drawer button {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 10px;
+  text-align: left;
+}
+:where(#admin-root) #live-nav-drawer button[aria-current] {
+  border-color: var(--accent);
+  background: #eaf0ff;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+:where(#admin-root) .nav-number {
+  flex: none;
+  min-width: 26px;
+  font-weight: 700;
+}
+:where(#admin-root) .nav-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+:where(#admin-root) .nav-snippet {
+  font-size: 14px;
+}
+:where(#admin-root) .nav-meta {
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+:where(#admin-root) .live-bar {
+  position: fixed;
+  bottom: 0;
+  left: var(--sidebar);
+  right: 0;
+  z-index: 15;
+  height: var(--live-bar-height);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 18px;
+  background: #293e41;
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 -2px 8px #0001;
+}
+:where(#admin-root) .live-bar > button,
+:where(#admin-root) .live-nav button,
+:where(#admin-root) .live-clock button,
+:where(#admin-root) .live-pop-anchor > button {
+  background: #3c5357;
+  border-color: #6d7d7f;
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+}
+:where(#admin-root) .live-bar .bar-primary {
+  background: #cf4154;
+  border-color: #cf4154;
+}
+:where(#admin-root) .live-nav,
+:where(#admin-root) .live-clock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+:where(#admin-root) .live-nav #live-prev,
+:where(#admin-root) .live-nav #live-next {
+  padding: 9px 8px;
+}
+:where(#admin-root) #live-nav {
+  min-width: 150px;
+  font-weight: 600;
+}
+:where(#admin-root) #live-nav[aria-expanded="true"],
+:where(#admin-root) #live-responses[aria-expanded="true"],
+:where(#admin-root) #live-notes[aria-expanded="true"] {
+  background: #fff;
+  color: #293e41;
+}
+:where(#admin-root) .live-nav-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+:where(#admin-root) .live-clock {
+  margin-left: 8px;
+}
+:where(#admin-root) .live-bar #live-timer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 80px;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+:where(#admin-root) .live-bar #live-timer.urgent {
+  color: #ffb3bd;
+}
+:where(#admin-root) .live-pop-anchor {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+:where(#admin-root) .live-bar #live-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+:where(#admin-root) .live-bar #live-link svg {
+  color: #c9de6b;
+}
+:where(#admin-root) .live-popup {
+  /* The anchor spans the bar's height, so this sits just above the bar. */
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: min(460px, calc(100vw - var(--sidebar) - 32px));
+  max-height: calc(100vh - var(--live-bar-height) - 40px);
+  overflow: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 14px 36px #17223540;
+  font-size: 14px;
+}
+:where(#admin-root) .live-popup .section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+:where(#admin-root) .live-popup .section-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+:where(#admin-root) .live-popup .section-head label {
+  margin-left: auto;
+  font-size: 12px;
+}
+:where(#admin-root) .live-popup select {
+  font-size: 12px;
+  padding: 3px;
+}
+:where(#admin-root) .live-joined {
+  font-size: 12px;
+  color: var(--muted);
+}
+:where(#admin-root) .live-popup .response-list {
+  max-height: 32vh;
+}
+:where(#admin-root) .live-popup > .toggle {
+  margin-top: 14px;
+}
+/* The sync warning would sit under the fixed question area; float it above the bar instead. */
+:where(#admin-root):has(.live-area) .sync-banner {
+  position: fixed;
+  right: 16px;
+  bottom: calc(76px + 10px);
+  z-index: 14;
+  margin: 0;
 }
 :where(#admin-root) .builder {
   display: grid;
@@ -1447,12 +1647,6 @@ body {
   margin: 14px 0;
 }
 @media (min-width: 1700px) {
-  :where(#admin-root) .live-grid {
-    grid-template-columns: 86px minmax(0, 1fr) 370px;
-  }
-  :where(#admin-root) .responses {
-    padding: 22px;
-  }
   :where(#admin-root) .response-row {
     font-size: 14px;
   }
@@ -1473,23 +1667,12 @@ body {
   :where(#admin-root) .brand small {
     font-size: 10px;
   }
-  :where(#admin-root) .live-grid {
-    grid-template-columns: 48px minmax(0, 1fr) 285px;
-    gap: 10px;
-  }
   :where(#admin-root) .live-facts {
     gap: 15px;
-  }
-  :where(#admin-root) .stage-heading {
-    gap: 6px;
-    padding: 12px 10px;
   }
   :where(#admin-root) .live-bottom {
     gap: 10px;
     padding: 12px 18px;
-  }
-  :where(#admin-root) .live-bottom .response-count {
-    font-size: 11px;
   }
   :where(#admin-root) .panel {
     padding: 18px;
@@ -1525,12 +1708,6 @@ body {
   :where(#admin-root) #side .label {
     display: none;
   }
-  :where(#admin-root) .live-grid {
-    grid-template-columns: 45px minmax(0, 1fr);
-  }
-  :where(#admin-root) .responses {
-    grid-column: 2;
-  }
   :where(#admin-root) .live-top {
     align-items: flex-start;
     flex-direction: column;
@@ -1554,11 +1731,6 @@ body {
   }
 }
 
-/* Keep the presenter controls in view while reading long passages. */
-:where(#admin-root) .instructor-content {
-  max-height: calc(100vh - 340px);
-  overflow: auto;
-}
 :where(#admin-root) .live-top {
   position: sticky;
   top: 0;

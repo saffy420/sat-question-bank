@@ -76,7 +76,10 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     await teacher.locator('[data-live="start"]').click();
     await expect(student.locator('.lesson-phase')).toHaveText('ANSWERING');
     await student.locator('[data-lesson-choice="A"]').click();
-    await expect(teacher.locator('[data-response="e2e-student-6"]')).toContainText('A');
+    // 11b: responses live in the Responses popup.
+    await teacher.locator('#live-responses').click();
+    await expect(teacher.locator('#live-responses-popup [data-response="e2e-student-6"]')).toContainText('A');
+    await teacher.locator('#live-responses').click();
     await teacher.locator('[data-live="endNow"]').click();
     await expect(student.locator('.lesson-phase')).toHaveText('REVEALED');
     await selectText(teacher, 'What is');
@@ -90,7 +93,10 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     await teacher.locator('[data-live="startQuestion"]').click();
     await expect(student.locator('.lesson-phase')).toHaveText('ANSWERING');
     await student.locator('[data-lesson-choice="B"]').click();
-    await expect(teacher.locator('[data-response="e2e-student-6"]')).toContainText('B');
+    // 11b: responses live in the Responses popup.
+    await teacher.locator('#live-responses').click();
+    await expect(teacher.locator('#live-responses-popup [data-response="e2e-student-6"]')).toContainText('B');
+    await teacher.locator('#live-responses').click();
     await teacher.locator('[data-live="endNow"]').click();
     await expect(student.locator('.lesson-phase')).toHaveText('REVEALED');
     expect((await history(six, paced.sessionId)).status()).toBe(404);

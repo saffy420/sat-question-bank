@@ -73,7 +73,9 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     await teacher.locator('[data-live="start"]').click();
     await expect(student.locator('#lesson-content')).toContainText('ANSWERING');
     await teacher.locator('[data-live="endNow"]').click();
-    for (const p of [teacher, student, second]) await expect(p.locator(p === teacher ? '#body' : '#lesson-content')).toContainText('REVEALED');
+    // 11b: the instructor's phase badge is gone; the live view carries the phase instead.
+    await expect(teacher.locator('.live-view')).toHaveAttribute('data-phase', 'REVEALED');
+    for (const p of [student, second]) await expect(p.locator('#lesson-content')).toContainText('REVEALED');
     await expect(student.locator('#lesson-follow')).toBeChecked();
     await expect(second.locator('#lesson-follow')).toBeChecked();
     await screenshot(teacher, '01-instructor-1920x1080-before');

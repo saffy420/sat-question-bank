@@ -180,7 +180,9 @@ test('task06 Desmos sync: reveal gate, Slow 3G latency, read-only follower, fork
     await second.keyboard.type('y=6161');
     await expect(studentList(second)).not.toContainText('6161');
     await shot(second, '05-student-back-to-instructor');
-    for (const capture of leaks) { await capture.flush(); expect(capture.frames.some(f => f.body.includes('3131'))).toBe(false); }
+    // Clock fields are left out: a serverNow around 1790559313xxx contains "3131" by itself.
+    const withoutClock = body => JSON.stringify({ ...JSON.parse(body), serverNow: undefined, sentAt: undefined });
+    for (const capture of leaks) { await capture.flush(); expect(capture.frames.some(f => withoutClock(f.body).includes('3131'))).toBe(false); }
     // Still scrollable while following, so rows below the fold stay reachable.
     for (const n of [101, 102, 103, 104, 105]) await typeExpression(teacher, `y=x+${n}`);
     await expect(studentList(student)).toContainText('x+101');

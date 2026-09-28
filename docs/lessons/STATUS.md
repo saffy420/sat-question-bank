@@ -361,3 +361,41 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 - look through the screenshot tour;
 - on a Chromebook, lock and reveal on a long passage;
 - on a 1366-wide instructor screen, typing in Desmos scrolls the short question out of the card (not seen at 1080p).
+
+---
+
+## 2026-09-28 — Task 11b: Instructor screen cleanup and question navigator (Claude Code, Tier 3)
+
+**Shipped:**
+- **Fixed split:** both views use a 50/50 split, Bluebook's default. The pane divider and its three controls are gone.
+- **Instructor layout:** the question fills the screen above a bottom bar.
+  - The header row, question rail, meta strip and Responses panel are gone.
+  - Each pane has the student view's inset, at least 24 px.
+  - The sidebar collapses when the session starts and can be expanded again.
+  - The join code sits in a black box in the top-right corner and covers no control.
+  - Desmos is in the annotation toolbar.
+  - The instructor's own choices mark the correct answer in every phase. Students still never get it before the reveal.
+- **Bottom bar:** the navigator, the timer with +15 s and End now, "n of N responses", Notes, the connection, and End session.
+  - The **Responses popup** holds everything the old panel did and updates live.
+  - **Notes** is a drawer from the right.
+- **Question navigator:**
+  - ‹ and › move between questions. On the furthest question, › is Next.
+  - "Question n of N" opens a drawer with each question's number, snippet, ID and response count.
+  - Only played questions and the next unplayed one can be opened.
+- **Revisits:** everyone sees the question revealed, with their own answer, the annotations and the Desmos graph.
+  - Nothing reopens and no clock runs.
+  - The state model for 11d is in the handoff (`reached`, `played`, `revisit`).
+
+**E2E:** new `tests/e2e/lessons-11b.spec.js` (4 tests); full suite **37/37**, twice in a row. Unit 145/145. Typecheck clean.
+
+**Deviations:**
+1. No navigation while a question is open for answers.
+2. Revisits show no clock.
+3. Annotation tools show disabled before the reveal.
+4. The self-paced grid, poll and overview screens are unchanged.
+5. Spec 04 was rewritten for the popup.
+6. New seed question `e2e-split-rw`; the bank is now 8 questions.
+
+**Manual checks:**
+- Run a lesson on the 1080p laptop and on a 1366-wide screen: go back and forward, and check the join code box, popup and drawers.
+- Check the split on a Chromebook.
