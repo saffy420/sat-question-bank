@@ -145,6 +145,18 @@
 .lesson-desmos-calc { flex:1; min-height:0; }
 .lesson-desmos[data-mode=follow] .lesson-desmos-calc { cursor:default; }
 @media(max-width:750px) { .lesson-main.with-desmos { margin-right:0; } .lesson-desmos { top:auto; left:0; width:auto; height:45vh; border-left:0; border-top:2px solid #cfcfcf; } .lesson-header { grid-template-columns:1fr 80px 1fr; padding:12px; } .lesson-header h1 { font-size:15px; } .lesson-tools { gap:8px; } .lesson-tools span { font-size:10px; } .lesson-main { padding-left:8px; padding-right:8px; } .lesson-footer { padding:16px 12px; font-size:12px; } }
+/* Student calculator (Calculator.tsx): floating window, default at the left edge. While it is open the
+   question shifts right by its default footprint (CALC_LEFT + CALC_WIDTH + gap), Bluebook-style. */
+.lesson-main.with-calc { padding-left:440px; }
+.lesson-calc { position:fixed; z-index:6; display:flex; flex-direction:column; background:#fff; border:1px solid #777; border-radius:8px; box-shadow:0 8px 28px #0003; overflow:hidden; }
+.lesson-calc[hidden] { display:none; }
+.lesson-calc-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 6px 4px 14px; background:#171717; color:#fff; font-size:15px; cursor:move; touch-action:none; -webkit-user-select:none; user-select:none; }
+#lesson-live .lesson-calc-bar button { display:flex; padding:4px; border:0; background:none; color:#fff; }
+.lesson-calc-bar svg { width:20px; height:20px; }
+.lesson-calc-body { flex:1; min-height:0; }
+#lesson-live .lesson-calc-resize { position:absolute; right:0; bottom:0; z-index:2; width:18px; height:18px; padding:0; border:0; border-radius:0; background:linear-gradient(135deg, transparent 0 55%, #777 55% 62%, transparent 62% 72%, #777 72% 79%, transparent 79%); cursor:nwse-resize; touch-action:none; }
+#lesson-live #lesson-calc-replace { border:0; color:#fff; background:#304fc5; border-radius:25px; font-size:17px; padding:10px 32px; }
+@media(max-width:750px) { .lesson-main.with-calc { padding-left:8px; } }
 /* Self-paced (§8.3) */
 .self-count { font-weight:400; color:#444; }
 .self-remaining { font-size:12px; color:#555; line-height:1; }

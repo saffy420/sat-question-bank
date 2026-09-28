@@ -356,6 +356,15 @@ function selfFixture() {
     clock: { alice: { boundary: Date.now(), seq: 0 }, bob: { boundary: Date.now(), seq: 0 } } });
   return f;
 }
+test('self-paced student snapshots carry hasMath and the public Desmos key for the student calculator (lessons-11c)', async () => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  const key = 'dcb31709b452b1cf9dc26972add0fda6';
+  const snap = room.snapshot(f.s, { role: 'student', userId: 'alice', desmosKey: key });
+  assert.equal(snap.mode, 'self'); assert.equal(snap.hasMath, true); assert.equal(snap.desmosKey, key);
+  assert.equal(room.snapshot(f.s, { role: 'student', userId: 'alice' }).desmosKey, null);
+  for (const q of Object.values(f.s.questions)) q.section = 'Reading and Writing';
+  assert.equal(room.snapshot(f.s, { role: 'student', userId: 'alice', desmosKey: key }).hasMath, false);
+});
 async function withClock(fn) {
   const real = Date.now; let now = real();
   Date.now = () => now;

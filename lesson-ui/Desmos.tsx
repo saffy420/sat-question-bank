@@ -25,22 +25,22 @@ function useCalculator(apiKey: string | null | undefined, options: object) {
   return { host, calc, error };
 }
 
-// Student panel: mirrors the instructor until "Try it yourself" forks an editable copy.
-// readOnly (lesson history, §9.1): the instructor's final graph with no editable fork.
-export function DesmosFollower({ apiKey, state, readOnly = false }: { apiKey?: string | null; state: DesmosState; readOnly?: boolean }) {
+// Student panel: always a read-only mirror of the instructor's graph. "Try it yourself" copies the
+// latest instructor state into the student's own calculator (Calculator.tsx) instead of forking here.
+// readOnly (lesson history, §9.1): the instructor's final graph with no copy button.
+export function DesmosFollower({ apiKey, state, readOnly = false, onTry }: { apiKey?: string | null; state: DesmosState; readOnly?: boolean; onTry?: (state: object) => void }) {
   const { host, calc, error } = useCalculator(apiKey, FOLLOW_OPTIONS);
-  const [forked, setForked] = useState(false);
   const applied = useRef('');
   useLayoutEffect(() => {
     const text = serialize(state);
-    if (!calc || forked || !state || text === applied.current) return;
+    if (!calc || !state || text === applied.current) return;
     calc.setState(state, { allowUndo: false });
     applied.current = text;
-  }, [calc, state, forked]);
+  }, [calc, state]);
   // Following is read-only but still scrollable: block every input except the wheel.
   useEffect(() => {
     const el = host.current;
-    if (!el || forked) return;
+    if (!el) return;
     // Touch only stops propagation so touchscreen scrolling still works.
     const block = (e: Event) => { if (e.type !== 'touchstart') e.preventDefault(); e.stopPropagation(); };
     const unfocus = (e: FocusEvent) => { (e.target as HTMLElement).blur?.(); };
@@ -49,20 +49,11 @@ export function DesmosFollower({ apiKey, state, readOnly = false }: { apiKey?: s
     el.addEventListener('focusin', unfocus, { capture: true });
     if (el.contains(document.activeElement)) (document.activeElement as HTMLElement).blur?.();
     return () => { for (const type of types) el.removeEventListener(type, block, { capture: true }); el.removeEventListener('focusin', unfocus, { capture: true }); };
-  }, [calc, forked]);
-  const fork = () => { calc?.updateSettings(EDIT_OPTIONS); setForked(true); };
-  const back = () => {
-    if (!calc) return;
-    calc.updateSettings(FOLLOW_OPTIONS);
-    applied.current = '';
-    setForked(false);
-  };
-  return <aside className="lesson-desmos" id="lesson-desmos" data-mode={forked ? 'fork' : 'follow'} aria-label="Graphing calculator">
+  }, [calc]);
+  return <aside className="lesson-desmos" id="lesson-desmos" data-mode="follow" aria-label="Instructor’s graph">
     <div className="lesson-desmos-bar">
-      <strong>{forked ? 'Your copy' : 'Instructor’s graph'}</strong>
-      {readOnly ? null : forked
-        ? <button id="lesson-desmos-back" onClick={back} disabled={!calc}>Back to instructor view</button>
-        : <button id="lesson-desmos-fork" onClick={fork} disabled={!calc}>Try it yourself</button>}
+      <strong>Instructor’s graph</strong>
+      {readOnly || !onTry ? null : <button id="lesson-desmos-fork" onClick={() => { if (state) onTry(state); }} disabled={!state}>Try it yourself</button>}
     </div>
     {error ? <p role="alert">{error}</p> : null}
     <div className="lesson-desmos-calc" ref={host} data-ready={calc ? 'true' : undefined}/>

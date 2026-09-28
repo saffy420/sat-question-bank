@@ -52,6 +52,8 @@ class Room {
         selections: Object.fromEntries(ids.filter(id => own[id]?.answer).map(id => [id, own[id].answer])),
         submitted: !!s.submitted[a.userId], timeSeq: s.clock[a.userId]?.seq || 0,
         lateJoin: Object.hasOwn(s.joinRemaining, a.userId), joinRemainingMs: s.joinRemaining[a.userId] ?? null, reviewed: (s.reviewed || []).length,
+        // The student's own calculator (lessons-11c) needs the public Desmos key during the set too.
+        hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null,
         ...(full && s.status === 'live' ? { questions: ids.map(id => lessonQuestion(s.questions[id])) } : {}),
         ...(s.phase === 'POLL' ? { poll: this.studentPoll(s, a.userId) } : {}),
         ...(s.phase === 'POLL_RESULT' ? { pollResult: s.pollResult } : {}),

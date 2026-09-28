@@ -1,15 +1,15 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { Check, X, Highlighter, Focus, EllipsisVertical, Circle, LogOut, Eraser, Users, LockKeyhole } from 'lucide-react';
+import { Check, X, Highlighter, Focus, EllipsisVertical, Circle, LogOut, Eraser, Users, LockKeyhole, Calculator } from 'lucide-react';
 import { isRight } from '/shared/stats.js';
 import * as Ink from '/shared/annotations.js';
 import { Stage, followStage } from './Stage';
 import { DesmosFollower } from './Desmos';
+import { CalculatorShell, useCalculator } from './Calculator';
 import { SelfPlayer } from './Self';
 import { PollScreen } from './Poll';
 import { HistoryView } from './History';
-import { loadDesmos } from '/shared/desmos.js';
 import type { Bridge, PlayerModel, Mark, Laser, LessonHistory } from './types';
 import type { StageProps } from './Stage';
 import './lesson.css';
@@ -22,6 +22,7 @@ const NO_LETTERS: string[] = [];
 
 function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; bridge: Bridge; terminal: string; followMark: Mark | null }) {
   const { snapshot: s, picked, remaining } = model;
+  const calc = useCalculator();
   const [hiddenClock, hideClock] = useState(false);
   const [privateOn, setPrivateOn] = useState(false);
   // Private, memory-only marks keyed by question so they survive moving between questions.
@@ -49,8 +50,6 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
   };
   useLayoutEffect(() => { setConfirm(null); }, [s.questionId]);
   useLayoutEffect(() => { if (!active) setConfirm(null); }, [active]);
-  // Fetch the Desmos API during the lobby so slow Wi-Fi is not paying for it at reveal.
-  useLayoutEffect(() => { if (s.hasMath && s.desmosKey) loadDesmos(s.desmosKey).catch(() => {}); }, [s.hasMath, s.desmosKey]);
   useLayoutEffect(() => {
     const card = document.getElementById('lesson-card');
     if (card && s.phase !== 'REVEALED') Ink.laser(card).hide();
@@ -78,6 +77,7 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
       <h1>{s.title}</h1>
       <div className="lesson-timer"><strong id="lesson-clock" style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: s.phase === 'ANSWERING' && remaining <= 5000 ? '#bd2424' : s.phase === 'ANSWERING' && remaining <= 10000 ? '#b56a00' : undefined }}>{s.endsAt ? `${Math.floor(Math.ceil(remaining / 1000) / 60)}:${String(Math.ceil(remaining / 1000) % 60).padStart(2, '0')}` : ''}</strong>{!s.reviewMode && <button aria-label={hiddenClock ? 'Show timer' : 'Hide timer'} onClick={() => hideClock(!hiddenClock)}>{hiddenClock ? 'Show' : 'Hide'}</button>}</div>
       <nav className="lesson-tools" aria-label="Lesson tools">
+        {calc.math && <button id="lesson-calc-toggle" aria-pressed={calc.open} onClick={calc.toggle}><Calculator aria-hidden="true"/><span>Calculator</span></button>}
         <button id="lesson-private" aria-pressed={privateOn} onClick={() => setPrivateOn(!privateOn)}><Highlighter aria-hidden="true"/><span>Annotate</span></button>
         <label className="lesson-follow-tool"><Focus aria-hidden="true"/><span>Follow me</span><input id="lesson-follow" type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /></label>
         <details className="lesson-more"><summary><EllipsisVertical aria-hidden="true"/><span>More</span></summary><div><button id="lesson-private-clear" onClick={() => setPrivateMarks(all => ({ ...all, [s.questionId]: [] }))}><Eraser aria-hidden="true"/>Clear annotations</button><button id="lesson-leave" onClick={bridge.leave}><LogOut aria-hidden="true"/>Leave view</button></div></details>
@@ -86,7 +86,7 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
     </header>
     {!model.connected && <div className="lesson-reconnect" role="status">Reconnecting…</div>}
     <div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.reviewMode ? 'REVIEW' : s.phase}</div>
-    <main className={`lesson-main${revealed && s.desmos ? ' with-desmos' : ''}`}>
+    <main className={`lesson-main${revealed && s.desmos ? ' with-desmos' : ''}${calc.math && calc.open ? ' with-calc' : ''}`}>
       {s.status === 'lobby' ? <section className="lesson-lobby"><Users size={36} aria-hidden="true"/><h2>Waiting for the instructor to start…</h2><p>{s.count} joined</p></section> : s.question && <>
         <Stage key={s.questionId} question={s.question} number={s.index + 1} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={ownMarks} mathify={bridge.mathify} onSelect={select} strikeMode={strikeMode} struck={ownStruck} onStrikeMode={() => setStrikeMode(!strikeMode)} onStrike={strike} annotating={privateOn} onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [s.questionId]: [...(all[s.questionId] || []), mark] })) : undefined}/>
         {!revealed && (s.locked || model.lockPending) && <p className="lesson-locked" role="status"><LockKeyhole size={18} aria-hidden="true"/>Answer locked in. Waiting for time to end…</p>}
@@ -96,10 +96,19 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
       </>}
       <p id="lesson-error" role="alert">{model.error}</p>
     </main>
-    {revealed && s.desmos && <DesmosFollower key={s.questionId} apiKey={s.desmosKey} state={s.desmos}/>}
+    {revealed && s.desmos && <DesmosFollower key={s.questionId} apiKey={s.desmosKey} state={s.desmos} onTry={calc.tryIt}/>}
     <footer className="lesson-footer"><span>{model.name}</span><span className="lesson-position">Question {s.index + 1} of {s.total}</span>{!s.reviewMode && <button id="lesson-lock" className="lesson-submit" disabled={!active} onClick={() => setConfirm(s.questionId)}>Submit</button>}</footer>
     <dialog className="lesson-confirm-dialog" ref={dialog} onCancel={() => setConfirm(null)}><p>Have you double checked your answer and made sure it's right?</p><div><button id="lesson-back" onClick={() => { setConfirm(null); document.getElementById('lesson-lock')?.focus(); }}>Go back</button><button id="lesson-confirm" onClick={() => { const id = confirm; setConfirm(null); if (id && active && id === s.questionId) bridge.lock(id); }}>Yes, submit</button></div></dialog>
   </>;
+}
+
+// A math question is on screen (the Calculator button and window follow it).
+function mathOnScreen({ snapshot: s, self }: PlayerModel) {
+  if (s.mode === 'self' && self && !s.reviewMode) {
+    if (s.poll || s.pollResult || s.status !== 'live' || s.phase !== 'ANSWERING' || s.submitted || self.review) return false;
+    return s.questions?.find(q => q.id === self.position)?.section === 'Math';
+  }
+  return s.status !== 'lobby' && s.question?.section === 'Math';
 }
 
 export function mountLesson(root: HTMLElement, bridge: Bridge) {
@@ -108,7 +117,11 @@ export function mountLesson(root: HTMLElement, bridge: Bridge) {
   let followMark: Mark | null = null;
   let terminal = '';
   let expiry: ReturnType<typeof setTimeout>;
-  const render = () => { if (model) flushSync(() => react.render(terminal ? <div className="lesson-terminal" role="status"><h2>{terminal}</h2></div> : model.snapshot.mode === 'self' && model.self && !model.snapshot.reviewMode ? model.snapshot.poll || model.snapshot.pollResult ? <PollScreen key={model.snapshot.poll?.endsAt ?? 'result'} model={model} bridge={bridge}/> : <SelfPlayer model={model} bridge={bridge}/> : <Player model={model} bridge={bridge} terminal={terminal} followMark={followMark}/>)); };
+  const screen = () => terminal ? <div className="lesson-terminal" role="status"><h2>{terminal}</h2></div> : model.snapshot.mode === 'self' && model.self && !model.snapshot.reviewMode ? model.snapshot.poll || model.snapshot.pollResult ? <PollScreen key={model.snapshot.poll?.endsAt ?? 'result'} model={model} bridge={bridge}/> : <SelfPlayer model={model} bridge={bridge}/> : <Player model={model} bridge={bridge} terminal={terminal} followMark={followMark}/>;
+  // The student's own calculator lives above the screens so it survives questions, polls and review.
+  const render = () => { if (model) flushSync(() => react.render(model.snapshot.hasMath && model.snapshot.desmosKey
+    ? <CalculatorShell apiKey={model.snapshot.desmosKey} math={!terminal && mathOnScreen(model)}>{screen()}</CalculatorShell>
+    : screen())); };
   const dot = () => { const card = document.getElementById('lesson-card'); return card ? Ink.laser(card) : null; };
   return {
     update(next: PlayerModel) { model = next; render(); },

@@ -65,7 +65,7 @@ async function typeExpression(teacher, latex) {
 
 const shot = (page, name) => page.screenshot({ path: `${artifacts}/${name}.png` });
 
-test('task06 Desmos sync: reveal gate, Slow 3G latency, read-only follower, fork, back, reconnect, CSP', async ({ browser }) => {
+test('task06 Desmos sync: reveal gate, Slow 3G latency, read-only follower, Try it yourself into own calculator, reconnect, CSP', async ({ browser }) => {
   test.setTimeout(180000);
   mkdirSync(artifacts, { recursive: true });
   const admin = await newUserContext(browser, 'e2e-admin', { viewport: { width: 1920, height: 1080 } });
@@ -157,29 +157,37 @@ test('task06 Desmos sync: reveal gate, Slow 3G latency, read-only follower, fork
     await expect(teacher.locator('#live-desmos [aria-label="Zoom In"]')).toHaveCount(1);
     await expect(student.locator('#lesson-desmos [aria-label="Zoom In"]')).toHaveCount(0);
 
-    // Try it yourself: an editable copy whose edits stay local.
+    // Try it yourself (lessons-11c): copies the instructor's graph into the student's own calculator.
+    // Student 2's calculator is empty, so it is replaced without asking and opened.
+    const ownList = page => page.locator('#lesson-calc .dcg-expressionlist');
     await second.locator('#lesson-desmos-fork').click();
-    await expect(second.locator('#lesson-desmos')).toHaveAttribute('data-mode', 'fork');
-    await second.locator('#lesson-desmos .dcg-new-expression').click();
+    await expect(second.locator('#lesson-calc-confirm')).toHaveCount(0);
+    await expect(second.locator('#lesson-calc')).toBeVisible();
+    await expect(ownList(second)).toContainText('7777');
+    await expect(ownList(second)).toContainText('9085');
+    // The instructor panel stays a read-only follower: no fork, no Back to instructor view.
+    await expect(second.locator('#lesson-desmos')).toHaveAttribute('data-mode', 'follow');
+    await expect(second.locator('#lesson-desmos-back')).toHaveCount(0);
+    // The student's copy is editable and its edits stay local.
+    await second.locator('#lesson-calc .dcg-new-expression').click();
     await second.keyboard.type('y=3131');
-    await expect(studentList(second)).toContainText('3131');
-    await shot(second, '04-student-fork-editing');
-    // While forked, instructor updates are held back from this panel but reach others.
+    await expect(ownList(second)).toContainText('3131');
+    await shot(second, '04-student-try-it-yourself-own-calculator');
+    // The instructor panel keeps syncing for everyone; the student's copy does not follow.
     await typeExpression(teacher, 'y=2468');
     await expect(studentList(student)).toContainText('2468');
-    await expect(studentList(second)).not.toContainText('2468');
+    await expect(studentList(second)).toContainText('2468');
+    await expect(ownList(second)).not.toContainText('2468');
+    await expect(studentList(second)).not.toContainText('3131');
     await expect(teacherList(teacher)).not.toContainText('3131');
     await expect(studentList(student)).not.toContainText('3131');
-
-    // Back to instructor view resyncs to the latest instructor state and drops the fork.
-    await second.locator('#lesson-desmos-back').click();
-    await expect(second.locator('#lesson-desmos')).toHaveAttribute('data-mode', 'follow');
-    await expect(studentList(second)).toContainText('2468');
-    await expect(studentList(second)).not.toContainText('3131');
+    // Still read-only after Try it yourself.
+    await second.locator('.lesson-header h1').click();
     await second.locator('#lesson-desmos .dcg-new-expression').click();
     await second.keyboard.type('y=6161');
     await expect(studentList(second)).not.toContainText('6161');
-    await shot(second, '05-student-back-to-instructor');
+    await expect(ownList(second)).not.toContainText('6161');
+    await shot(second, '05-student-follower-still-syncing');
     for (const capture of leaks) { await capture.flush(); expect(capture.frames.some(f => f.body.includes('3131'))).toBe(false); }
     // Still scrollable while following, so rows below the fold stay reachable.
     for (const n of [101, 102, 103, 104, 105]) await typeExpression(teacher, `y=x+${n}`);

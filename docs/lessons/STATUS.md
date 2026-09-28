@@ -361,3 +361,30 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 - look through the screenshot tour;
 - on a Chromebook, lock and reveal on a long passage;
 - on a 1366-wide instructor screen, typing in Desmos scrolls the short question out of the card (not seen at 1080p).
+
+---
+
+## 2026-09-28 — Task 11c: Student Desmos calculator + Try it yourself (Claude Code; single session)
+
+**Shipped:**
+- **C1:** a **Calculator** button in the student header, on math questions only, in both modes. It opens the student's own Desmos graphing calculator in a floating window:
+  - drag it by the title bar and resize it from the corner, always inside the viewport;
+  - while it is open, the question shifts right by the window's default footprint, so it isn't covered;
+  - the state is kept for the whole session: across questions, polls and review, and when closed and reopened. It is memory-only;
+  - nothing from the calculator is ever sent.
+
+  Self-paced student snapshots now carry `hasMath` and the public `desmosKey`.
+- **C2:** **Try it yourself** copies the instructor's current graph (expressions + viewport) into the student's calculator and opens it.
+  - An empty calculator is replaced without asking.
+  - A non-empty one asks "This will delete everything in your calculator and replace it with your instructor's graph." [Cancel] [Replace].
+  - The instructor panel stays read-only and keeps syncing. The old fork and **Back to instructor view** are removed.
+
+**E2E:** new `tests/e2e/lessons-11c.spec.js` 2/2. Spec 06 was rewritten for the new flow. Full suite **35/35** on two consecutive runs of the final code. Unit 144/144; typecheck clean. Desmos under Slow 3G: 264–401 ms (target 500).
+
+**Deviations:**
+1. The layout shift is fixed to the default window footprint.
+2. "Empty" ignores viewport-only changes.
+3. The calculator state lasts for one lesson view (not Leave/rejoin or reload), so shared Chromebooks don't carry it between students.
+4. One session, no subagent pipeline.
+
+**Manual checks:** the calculator and Try it yourself on a real Chromebook; both calculator panels open together at 1366×768.
