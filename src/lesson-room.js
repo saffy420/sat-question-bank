@@ -1,11 +1,15 @@
 import { normalizeQuestion, isRight } from '../public/shared/stats.js';
 import { GRACE_MS, POLL_MS, RESULT_MS, MAX_FRAME, MAX_DESMOS_FRAME, validAction, lessonQuestion, responseGroups, lateJoinSet, setResults, mostMissed, pollWinner, shownQuestionIds } from '../public/shared/lesson.js';
 import { lessonWriteBack } from './record.js';
+import { traceDurableObject } from './budget.js';
+import { d1Failure, retryAt, chunkGroups } from './flush.js';
+import { faultInjection } from './fault.js';
 
+const SCHEDULED = Symbol('flush retry scheduled');
 const sqlTime = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 const review = (s, item) => s.desmos?.questionId === item.question_id ? { desmos: s.desmos.state } : {};
 
-export class LessonRoom {
+class Room {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
@@ -190,20 +194,36 @@ export class LessonRoom {
     await this.save(s);
     return s;
   }
-  async flush(s) {
+  // One flush at a time per object: events interleave while D1 answers, and callers that arrive
+  // mid-flush share its outcome instead of racing it over `pending` / `nextPending`.
+  flush(s) {
+    if (!this.flushing) this.flushing = this.flushOnce(s).finally(() => { this.flushing = null; });
+    return this.flushing;
+  }
+  async flushOnce(s) {
     const pending = await this.ctx.storage.get('pending');
     if (!pending) return;
     try {
-      // A finished self-paced set lands as one batch: every assigned response, finish times, status review.
-      const statements = [...pending.rows.map(r => this.env.DB.prepare(`INSERT INTO session_responses
-        (session_id,user_id,question_id,final_answer,is_correct,locked_early,time_spent_ms,answer_changes,answer_history_json)
-        VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,user_id,question_id) DO NOTHING`)
-        .bind(s.id, r.userId, r.questionId || pending.questionId, r.answer, r.correct, r.locked ? 1 : 0, r.ms, r.changes, JSON.stringify(r.history))),
-        ...(pending.finished || []).map(f => this.env.DB.prepare("UPDATE session_participants SET finished_at=? WHERE session_id=? AND user_id=? AND finished_at IS NULL").bind(sqlTime(f.at), s.id, f.userId)),
-        ...(pending.review ? [this.env.DB.prepare("UPDATE lesson_sessions SET status='review' WHERE id=? AND status='live'").bind(s.id)] : []),
-        // §10: self-paced answers reach the practice record in the same batch as the responses.
-        ...(pending.writeBack ? await lessonWriteBack(this.env.DB, s.id, pending.writeBack.at, pending.rows, s.questions) : [])];
-      if (statements.length) await this.env.DB.batch(statements);
+      // Each student's responses, finish time and (self-paced, §10) practice write-back land together,
+      // a few students per batch (src/flush.js). Students in `done` already landed; every statement is
+      // idempotent too, so a batch retried after an unrecorded success changes nothing.
+      const done = new Set(pending.done || []), finished = pending.finished || [];
+      const users = [...new Set([...pending.rows.map(r => r.userId), ...finished.map(f => f.userId)])].filter(u => !done.has(u));
+      const chunks = chunkGroups(users.map(userId => ({ userId,
+        size: pending.rows.filter(r => r.userId === userId).length * (pending.writeBack ? 3 : 1) + finished.filter(f => f.userId === userId).length })));
+      const tail = pending.review ? [this.env.DB.prepare("UPDATE lesson_sessions SET status='review' WHERE id=? AND status='live'").bind(s.id)] : [];
+      for (const [i, chunk] of chunks.entries()) {
+        const ids = new Set(chunk.map(g => g.userId)), rows = pending.rows.filter(r => ids.has(r.userId));
+        await this.env.DB.batch([...rows.map(r => this.env.DB.prepare(`INSERT INTO session_responses
+          (session_id,user_id,question_id,final_answer,is_correct,locked_early,time_spent_ms,answer_changes,answer_history_json)
+          VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,user_id,question_id) DO NOTHING`)
+          .bind(s.id, r.userId, r.questionId || pending.questionId, r.answer, r.correct, r.locked ? 1 : 0, r.ms, r.changes, JSON.stringify(r.history))),
+          ...finished.filter(f => ids.has(f.userId)).map(f => this.env.DB.prepare("UPDATE session_participants SET finished_at=? WHERE session_id=? AND user_id=? AND finished_at IS NULL").bind(sqlTime(f.at), s.id, f.userId)),
+          ...(pending.writeBack ? await lessonWriteBack(this.env.DB, s.id, pending.writeBack.at, rows, s.questions) : []),
+          ...(i === chunks.length - 1 ? tail : [])]);
+        if (i < chunks.length - 1) { pending.done = [...done, ...chunks.slice(0, i + 1).flat().map(g => g.userId)]; await this.ctx.storage.put('pending', pending); }
+      }
+      if (!chunks.length && tail.length) await this.env.DB.batch(tail);
       if (pending.annotations || pending.desmos) await this.env.DB.prepare(`INSERT INTO session_question_review (session_id,question_id,annotations_json,desmos_state_json)
         VALUES (?,?,?,?) ON CONFLICT(session_id,question_id) DO UPDATE SET annotations_json=COALESCE(excluded.annotations_json,annotations_json),
         desmos_state_json=COALESCE(excluded.desmos_state_json,desmos_state_json)`)
@@ -212,12 +232,33 @@ export class LessonRoom {
       if (pending.end) await this.env.DB.batch([...(pending.usage || []).map(questionId => this.env.DB.prepare('INSERT OR IGNORE INTO question_lesson_usage (question_id,session_id) VALUES (?,?)').bind(questionId, s.id)),
         this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')) WHERE id=? AND status!='ended'").bind(s.id)]);
       await this.ctx.storage.delete('pending');
+      if (await this.ctx.storage.get('flushRetry')) { await this.ctx.storage.delete('flushRetry'); await this.syncStatus(s, null); }
       const next = await this.ctx.storage.get('nextPending');
-      if (next) { await this.ctx.storage.put('pending', next); await this.ctx.storage.delete('nextPending'); await this.flush(s); }
+      if (next) { await this.ctx.storage.put('pending', next); await this.ctx.storage.delete('nextPending'); await this.flushOnce(s); }
     } catch (e) {
-      await this.ctx.storage.setAlarm(Date.now() + 5000);
+      if (!e?.[SCHEDULED]) await this.flushFailed(s, e);
       throw e;
     }
+  }
+  // The unflushed work stays in `pending` (DO storage) until D1 takes it. A daily-limit error waits
+  // for the 00:00 UTC reset with backoff probes before it; anything else backs off to 5 minutes
+  // (src/flush.js). While a retry is scheduled, failures from messages leave it alone.
+  async flushFailed(s, e) {
+    const held = await this.ctx.storage.get('flushRetry'), now = Date.now();
+    if (held && !this.retrying && now < held.at) return;
+    const kind = d1Failure(e), failures = (held?.failures || 0) + 1, retry = { kind, failures, since: held?.since || now, at: retryAt(kind, failures, now) };
+    await this.ctx.storage.put('flushRetry', retry);
+    await this.ctx.storage.setAlarm(retry.at);
+    await this.syncStatus(s, retry);
+    if (e && typeof e === 'object') e[SCHEDULED] = true;
+  }
+  // Admin banner (GET /api/admin/lesson-sync) reads the registry, which needs no D1. Best effort.
+  async syncStatus(s, retry) {
+    try {
+      await this.env.LESSON_SYNC?.getByName('all').fetch(new Request('https://lesson.internal/', { method: 'POST',
+        headers: { 'X-Lesson-Internal': 'sync', 'Content-Type': 'application/json' },
+        body: JSON.stringify(retry ? { sessionId: s.id, at: retry.at, kind: retry.kind, since: retry.since } : { sessionId: s.id, clear: true }) }));
+    } catch { /* the banner is informational */ }
   }
   async advance(s) {
     if (s.phase === 'POLL' || s.phase === 'POLL_RESULT') return this.pollAdvance(s);
@@ -263,8 +304,13 @@ export class LessonRoom {
   }
   async alarm() {
     const s = await this.state(); if (!s) return;
+    this.retrying = true;
     try { await this.advance(s); await this.flush(s); }
-    catch { await this.ctx.storage.setAlarm(Date.now() + 5000); return; }
+    catch {
+      const held = await this.ctx.storage.get('flushRetry');
+      await this.ctx.storage.setAlarm(held?.at > Date.now() ? held.at : Date.now() + 5000);
+      return;
+    } finally { this.retrying = false; }
     // A retry alarm can replace a poll deadline; re-arm whichever deadline is still ahead.
     const due = s.phase === 'POLL' ? s.poll.endsAt + GRACE_MS : s.phase === 'POLL_RESULT' ? s.pollResult.endsAt : null;
     if (due) await this.ctx.storage.setAlarm(due);
@@ -564,3 +610,5 @@ export class LessonRoom {
   }
   webSocketError(ws) { ws.close(1011, 'Socket error'); }
 }
+// BUDGET_TRACE=1 only: one D1 trace per object event (src/budget.js); otherwise a pass-through.
+export const LessonRoom = traceDurableObject(faultInjection(Room));

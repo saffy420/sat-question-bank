@@ -18,7 +18,7 @@ async function fixture(t) {
     run: async () => { const stmt = db.prepare(query); if (stmt.columns().length) return { results: stmt.all(...args), meta: { changes: 0 } }; return { results: [], meta: { changes: Number(stmt.run(...args).changes) } }; } });
   const env = { ADMIN_EMAILS: ' ADMIN@e2e.test ,someone@example.test ',
     DB: { prepare: sql, batch: async statements => { db.exec('BEGIN'); try { const out = []; for (const s of statements) out.push(await s.run()); db.exec('COMMIT'); return out; } catch(e) { db.exec('ROLLBACK'); throw e; } } },
-    AI_DB: { prepare: () => ({ all: async () => ({ results: [] }) }) },
+    AI_DB: { prepare: () => ({ bind() { return this; }, all: async () => ({ results: [] }) }) },
     ASSETS: { fetch: async req => new Response(new URL(req.url).pathname) } };
   const { handleRequest } = await import('../src/index.js');
   const id = 'admin-test-' + ++idSeq;

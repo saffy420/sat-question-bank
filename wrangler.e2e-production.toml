@@ -16,6 +16,22 @@ class_name = "LessonRoom"
 tag = "lesson-room-v1"
 new_sqlite_classes = ["LessonRoom"]
 
+# Which lesson rooms hold results D1 refused (daily limit/overload); read by the admin banner.
+[[durable_objects.bindings]]
+name = "LESSON_SYNC"
+class_name = "LessonSync"
+
+[[migrations]]
+tag = "lesson-sync-v1"
+new_sqlite_classes = ["LessonSync"]
+
+# The students list recomputes stale students through this binding to the Worker itself, a few per
+# call, so each chunk gets its own CPU limit (src/index.js staleRows; docs/perf/free-plan-budget.md).
+[[services]]
+binding = "ADMIN_STATS"
+service = "sat-question-bank-local-production-entry"
+entrypoint = "adminStats"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "sat_local_e2e_core"

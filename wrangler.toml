@@ -29,6 +29,22 @@ class_name = "LessonRoom"
 tag = "lesson-room-v1"
 new_sqlite_classes = ["LessonRoom"]
 
+# Which lesson rooms hold results D1 refused (daily limit/overload); read by the admin banner.
+[[durable_objects.bindings]]
+name = "LESSON_SYNC"
+class_name = "LessonSync"
+
+[[migrations]]
+tag = "lesson-sync-v1"
+new_sqlite_classes = ["LessonSync"]
+
+# The students list recomputes stale students through this binding to the Worker itself, a few per
+# call, so each chunk gets its own CPU limit (src/index.js staleRows; docs/perf/free-plan-budget.md).
+[[services]]
+binding = "ADMIN_STATS"
+service = "sat-question-bank"
+entrypoint = "adminStats"
+
 [vars]
 # Publishable key — same pair the browser already ships; used only to call
 # Supabase's /auth/v1/user so the Worker can verify who a request belongs to.
@@ -55,3 +71,68 @@ binding = "AI_DB"
 database_name = "sat_ai_bank"
 database_id = "4c0fe455-4e45-4982-bbe2-46191af9c685"
 migrations_dir = "migrations_ai"
+
+# Free-plan budget staging (docs/perf/FREE-PLAN-BRIEF.md §4). `npx wrangler deploy --env
+# staging` only; `npm run deploy` never touches it. Its own Worker and D1 databases, seeded
+# with test accounts and question tables only. Test sign-in and BUDGET_TRACE run here behind
+# the STAGING_TEST_TOKEN secret (src/index.e2e.js). Delete the Worker when free-03 ends.
+# D1 quota is account-wide: staging usage counts against production's daily caps.
+[env.staging]
+name = "roadto1600-staging"
+main = "src/index.e2e.js"
+workers_dev = true
+routes = []
+
+[env.staging.assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+html_handling = "none"
+
+[[env.staging.durable_objects.bindings]]
+name = "LESSON_ROOM"
+class_name = "LessonRoom"
+
+[[env.staging.durable_objects.bindings]]
+name = "BUDGET_PROBE_DO"
+class_name = "BudgetProbe"
+
+[[env.staging.migrations]]
+tag = "staging-v1"
+new_sqlite_classes = ["LessonRoom", "BudgetProbe"]
+
+[[env.staging.durable_objects.bindings]]
+name = "LESSON_SYNC"
+class_name = "LessonSync"
+
+[[env.staging.migrations]]
+tag = "staging-v2"
+new_sqlite_classes = ["LessonSync"]
+
+# The students list recomputes stale students through this binding to the Worker itself, a few per
+# call, so each chunk gets its own CPU limit (src/index.js staleRows; docs/perf/free-plan-budget.md).
+[[env.staging.services]]
+binding = "ADMIN_STATS"
+service = "roadto1600-staging"
+entrypoint = "adminStats"
+
+[env.staging.vars]
+E2E_TEST_MODE = "1"
+BUDGET_TRACE = "1"
+BUDGET_PROBE = "1"
+ADMIN_EMAILS = "e2e-admin@e2e.test"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "roadto1600-staging"
+database_id = "ddf84754-c66a-4d6b-9f67-2042408556b3"
+
+# Second database because schema.sql and schema_ai.sql both define `questions`.
+[[env.staging.d1_databases]]
+binding = "AI_DB"
+database_name = "roadto1600-staging-ai"
+database_id = "7b006611-ec20-40c5-8c4e-07aba4d3992a"
+migrations_dir = "migrations_ai"
+
+[env.staging.observability]
+enabled = true

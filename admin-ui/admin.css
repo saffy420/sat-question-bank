@@ -324,6 +324,15 @@ body {
   padding: 26px 30px 36px;
   min-width: 0;
 }
+:where(#admin-root) .sync-banner {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  border: 1px solid #e6c47a;
+  border-radius: 8px;
+  background: #fff8e6;
+  color: #5c4508;
+  font-size: 13px;
+}
 :where(#admin-root) .page-header {
   display: flex;
   justify-content: space-between;

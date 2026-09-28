@@ -193,10 +193,12 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     // 2. Badges list the padded session IDs, oldest first.
     const bank = await (await six.request.get('/api/questions')).json();
     const used = Object.fromEntries(bank.map(q => [q.id, q.usedInLesson]));
-    expect(used[RW].slice(-2)).toEqual([pad(paced.sessionId), pad(self.sessionId)]);
+    // Other specs on the parallel worker also end sessions on RW; compare only this spec's two.
+    const own = [pad(paced.sessionId), pad(self.sessionId)];
+    expect(used[RW].filter(id => own.includes(id))).toEqual(own);
     expect(used['e2e-used-mine']).toEqual(['900003']);
     await student.locator('.nav-i[data-tab="browse"]').click();
-    await expect(student.locator(`#browse-body tr[data-id="${RW}"] .t-used`)).toHaveText(`Lesson ${used[RW].join(', ')}`);
+    await expect(student.locator(`#browse-body tr[data-id="${RW}"] .t-used`)).toHaveText(new RegExp(`^Lesson (?:\\d+, )*${own[0]}, (?:\\d+, )*${own[1]}(?:, \\d+)*$`));
     await expect(student.locator('#browse-body tr[data-id="e2e-used-mine"] .t-used')).toHaveText('Lesson 900003');
     await expect(student.locator('#browse-body tr[data-id="e2e-unused"] .t-used')).toHaveCount(0);
     await shot(student, '05-browse-badges');

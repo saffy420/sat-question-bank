@@ -16,6 +16,7 @@ import { Builder, QuestionBrowser, type Guard } from "./Builder";
 import { Library } from "./Library";
 import { Live, LiveRooms } from "./Live";
 import { Students } from "./Students";
+import { api } from "./helpers";
 import lessonStyles from "../lesson-ui/lesson.css?inline";
 import adminStyles from "./admin.css?inline";
 
@@ -107,6 +108,7 @@ function App() {
         </a>
       </aside>
       <main>
+        <SyncBanner path={path} />
         {!live && (
           <header className="page-header">
             <div>
@@ -146,6 +148,31 @@ function App() {
       <span id="lesson-x-icon" hidden>
         <X />
       </span>
+    </div>
+  );
+}
+// A lesson room is holding results D1 refused (daily limit or overload) and will retry
+// (src/lesson-room.js flushFailed). Checked on load, on navigation and every 5 minutes.
+function SyncBanner({ path }: { path: string }) {
+  const [at, setAt] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const check = () =>
+      api<{ pending: { at: number }[] }>("/api/admin/lesson-sync")
+        .then((r) => alive && setAt(r.pending.length ? Math.max(...r.pending.map((x) => x.at)) : null))
+        .catch(() => {});
+    check();
+    const timer = setInterval(check, 300000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [path]);
+  if (at === null) return null;
+  const when = new Date(at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  return (
+    <div className="sync-banner" role="status">
+      Lesson results saved locally, will sync after {when}.
     </div>
   );
 }
