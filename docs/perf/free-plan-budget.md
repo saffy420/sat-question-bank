@@ -42,19 +42,19 @@ Differences from the brief's table (the verified value wins):
 ## Per-flow table
 
 <!-- per-flow:start -->
-Measured [local] on 2026-09-27 with the seed in `tools/budget_seed.cjs` (3,000 core + 400 AI questions, 30 students × 400 attempts, 10 past lessons). CPU column [staging] (2026-09-27T18:00Z; staging history is smaller, see "Staging seed").
+Measured [local] on 2026-09-27 with the seed in `tools/budget_seed.cjs` (3,000 core + 400 AI questions, 30 students × 400 attempts, 10 past lessons). CPU column [staging] (2026-09-28T00:17Z; staging history is smaller, see "Staging seed").
 
 | Flow | Worker invocations | DO invocations | Worst invocation: D1 queries (batch = 1) | Largest batch (statements) | D1 rows read | D1 rows written | DO storage rows written | Max CPU per invocation |
 |---|---|---|---|---|---|---|---|---|
 | Student sign-in + first page load | 10 | 0 | 8 (worker GET /api/questions) | — | 10,987 | 1 | 0 | 6 ms (GET /api/notes) [staging] |
 | Question bank load + filter change (builder search, 3 usage options) ★ | 4 | 0 | 9 (worker GET /api/admin/questions) | — | 3,640 | 0 | 0 | 58 ms (GET /api/admin/questions) [staging] |
 | Answer one practice question | 2 | 0 | 6 (worker POST /api/attempts) | 1 | 412 | 7 | 0 | — (not a ★ flow) |
-| Admin students list, 30 students ★ | 31 | 0 | 6 (worker GET /api/admin/students) | 30 | 48,154 | 0 | 0 | 38 ms (GET /api/admin/students) [staging] |
-| Admin student detail, every tab ★ | 2 | 0 | 15 (worker GET /api/admin/students/e2e-budget-01) | 1 | 10,010 | 0 | 0 | 18 ms (GET /api/admin/students/e2e-budget-01) [staging] |
+| Admin students list, 30 students ★ | 31 | 0 | 6 (worker GET /api/admin/students) | 30 | 48,154 | 0 | 0 | 17 ms (GET /api/admin/students) [staging] |
+| Admin student detail, every tab ★ | 2 | 0 | 15 (worker GET /api/admin/students/e2e-budget-01) | 1 | 10,010 | 0 | 0 | 49 ms (GET /api/admin/students/e2e-budget-01) [staging] |
 | Lesson builder search + save | 4 | 0 | 9 (worker GET /api/admin/questions) | 22 | 3,933 | 143 | 0 | — (not a ★ flow) |
 | Instructor-paced lesson, 25 students × 20 questions | 52 | 1,677 (1,580 WS msgs) | 25 (do.fetch upgrade) | 25 | 354 | 1,136 | 2,416 | — (not a ★ flow) |
-| Self-paced, 25 × 20, through end + write-back ★ | 52 | 1,702 (1,651 WS msgs) | 26 (do.webSocketMessage submitAll) | 1526 | 9,425 | 4,542 | 1,731 | — (not a ★ flow) |
-| Poll + review (after the self-paced set) | 0 | 58 (31 WS msgs) | 1 (do.webSocketMessage next) | 21 | 3 | 43 | 41 | — (not a ★ flow) |
+| Self-paced, 25 × 20, through end + write-back ★ | 52 | 1,702 (1,651 WS msgs) | 26 (do.webSocketMessage submitAll) | 1526 | 9,425 | 4,542 | 1,731 | 10 ms (POST /api/admin/lessons/910002/sessions) [staging] |
+| Poll + review (after the self-paced set) | 0 | 58 (31 WS msgs) | 1 (do.webSocketMessage next) | 21 | 3 | 43 | 41 | 10 ms (next) [staging] |
 | My Lessons list + one session | 2 | 0 | 25 (worker GET /api/lesson-history/920010) | — | 6,714 | 0 | 0 | — (not a ★ flow) |
 
 Flow details [local]:
@@ -157,8 +157,8 @@ What changed (all responses byte-identical to free-01 on the budget seed, cached
 |---|---|---|---|
 | CPU `GET /api/questions` | 114 ms | cached: median 2 ms, max 7 ms; rebuild (once per key per location): 172 ms | [staging]; cached [staging, untraced] |
 | CPU `GET /api/admin/questions` (builder, 4 filter variants) | 59–114 ms | median 3–5 ms, p90 5–7 ms, max 10 ms (n = 14–25 each); first request per isolate 33–58 ms | [staging, untraced]; first [staging] |
-| CPU `GET /api/admin/students` | **killed** (235 ms, exceededCpu) | cached: median 4 ms, p90 5 ms, max 7 ms [staging, untraced]. Full recompute (30 × 400 attempts), fanned out: route median 2.5 ms, max 8 ms; each call median 3.3 ms, p90 4.7 ms, max 12 ms [local-node]. Inline, the same recompute is 83–131 ms [local-node] | see cell; staging measurement 2026-09-28 |
-| CPU `GET /api/admin/students/:id` | **killed** | cached: median 4 ms, max 5 ms; recompute: 18–35 ms | [staging, untraced]; recompute [staging] |
+| CPU `GET /api/admin/students` | **killed** (235 ms, exceededCpu) | cached: median 4 ms, p90 5 ms, max 7 ms [staging, untraced]. Full recompute (30 × 400 attempts), fanned out: route median 2.5 ms, max 8 ms; each call median 3.3 ms, p90 4.7 ms, max 12 ms [local-node]. Inline, the same recompute is 83–131 ms [local-node]. On staging (2026-09-28, traced, 25 stale students with the 30-attempt staging history): route 17 ms, each call median 2 ms, p90 5 ms, max 8 ms (n = 25). Per call at 400 attempts (probe `cpu-list` − `cpu-gen`, one student, bank the size of the touched set, n = 20): median 3.5 ms, p90 7 ms, max 9 ms [staging] | see cell |
+| CPU `GET /api/admin/students/:id` | **killed** | cached: median 4 ms, max 5 ms; recompute: 18–49 ms | [staging, untraced]; recompute [staging] |
 | CPU of recomputing all 30 students at 400 attempts each | — | 95–260 ms (in-memory probe `cpu-list`, same shared stats) | [staging] |
 | D1 queries, admin students list | 65 | recompute: route 5 + a batch of 30 stamps, each of the 30 calls 4; cached: 5 + the batch | [local] |
 | Worst D1 queries in any invocation | 65 | 26 (self-paced `submitAll`, unchanged) | [local] |
@@ -172,8 +172,8 @@ What changed (all responses byte-identical to free-01 on the budget seed, cached
 **Targets (brief §5 free-02):**
 - Daily totals ≤ 50%: **met**, worst 31.6% (D1 rows read; the fan-out added 5.4 points: each call reads its own student's touched questions).
 - ≤ 35 D1 queries per invocation: **met**, worst 26.
-- ≤ 7 ms CPU for ★ flows: **met for requests served from the caches and memos** (every ★ route's median and p90 ≤ 7 ms [staging, untraced]; single samples reach 9–10 ms). **Admin students recompute: met by the fan-out on median and p90 [local-node]** (route 2.5 ms; each call 3.3 ms median, 4.7 ms p90 at 400 attempts; single calls reach 12 ms). Staging confirmation runs on 2026-09-28 with the 400-attempt history loaded. **Still over 7 ms, and not growing with use**: the `/api/questions` rebuild (~170 ms, once per bank/usage change per location, and hourly), the builder index build (33–58 ms, once per isolate per hour), and the student-detail recompute (18–35 ms [staging]; one student over the whole bank, so its cost follows that student's history and the bank size, not the club). See "Rebuild invocations".
-- `batch()` ≤ 10 s: **met locally** (the 1,526-statement self-paced write-back runs in under 1 s [local]); the staging measurement runs on 2026-09-28 (next UTC day, 10% rule).
+- ≤ 7 ms CPU for ★ flows: **met for requests served from the caches and memos** (every ★ route's median and p90 ≤ 7 ms [staging, untraced]; single samples reach 9–10 ms). **Admin students recompute: met by the fan-out on median and p90 [local-node]** (route 2.5 ms; each call 3.3 ms median, 4.7 ms p90 at 400 attempts; single calls reach 12 ms). **Confirmed on staging 2026-09-28**: each call median 2 ms, p90 5 ms, max 8 ms (traced, 30-attempt staging history); at 400 attempts the probe gives median 3.5 ms, p90 7 ms, max 9 ms per call, net of generating the rows [staging]. The p90 at 400 attempts is at the target, not under it: a student with a much longer history pushes their own call past 7 ms (the call still gets its own burst allowance and grows with that one student only). The full 400-attempt history was not loaded on staging (≈ 36,000 rows written, over the 10% rule); the probe stands in for it. **Still over 7 ms, and not growing with use**: the `/api/questions` rebuild (~170 ms, once per bank/usage change per location, and hourly), the builder index build (33–58 ms, once per isolate per hour), and the student-detail recompute (18–49 ms [staging]; one student over the whole bank, so its cost follows that student's history and the bank size, not the club). See "Rebuild invocations".
+- `batch()` ≤ 10 s: **met** (the 1,526-statement self-paced write-back runs in under 1 s [local]). On staging (2026-09-28) the write-back landed whole (500 `session_responses`, session ended), and D1 analytics put its statements' summed SQL time at about 0.1 s, each statement ≤ 0.3 ms at p99 [staging, D1 analytics, sampled]. The flush invocation's own wall time was not captured: `wrangler tail` sampled out that event (see "Staging seed and runs").
 
 ### Rebuild invocations
 
@@ -207,12 +207,13 @@ Threshold (brief §5): more than 50% of a daily cap on the heavy day, or more th
    - builder autosave: 81 rows per PUT, because it deletes and re-inserts every item.
 5. Per-invocation D1 queries, 6.5% of 1,000. Worst: the admin students list at 65, which is 2 per student and reaches 1,000 at about 490 students. Next come the My Lessons session view at 28 (one lookup per item) and the self-paced end at 26 (one progress SELECT per student). All three exceed the brief's assumed 50-query budget only in the students-list case.
 6. DO requests (3.4%), DO duration (≤ 5.2% even if both lesson objects stay awake all lesson), and DO storage writes (4.2%). The instructor-paced room calls `setAlarm` on every student select/lock (1,040 of its 2,416 storage writes). Harmless at this size.
-7. Batch duration: the self-paced invocation takes 1.3 s [local]. The staging write-latency measurement is pending (next UTC day).
+7. Batch duration: the self-paced invocation takes 1.3 s [local]. (Staging, 2026-09-28: see free-02 targets.)
 
 ## Staging seed and runs
 
 - Staging Worker `roadto1600-staging` (workers.dev), with D1 `roadto1600-staging` and `roadto1600-staging-ai`. Seeded with `schema.sql` / `schema_ai.sql`, the e2e seed, and `tools/budget_seed.cjs --staging`: the same 3,000 + 400 question bank as local, 30 test students, and a smaller practice history (30 attempts / 20 progress rows each) so the writes fit the 10% rule. No production data was read.
 - The self-paced ★ run needs about 4,600 rows written. It runs after the 00:00 UTC reset, because day 1 had already spent about 8,100 rows on the bank seed.
+- 2026-09-28 (free-02 day 2): redeployed staging with the `ADMIN_STATS` binding (listed as `roadto1600-staging#adminStats` in the deploy output), loaded the staging practice history (1,501 rows), then `budget_measure.cjs staging self-paced-end,poll-review,admin-students,admin-student-detail --warm`. `wrangler tail` sampled that run: it kept 150 of 500 `navigate` and 171 of 625 `select` events, none of the 25 `submitAll` events, and none of the first `admin-students` run. The flows' responses and D1 contents are complete (the `X-Budget-Trace` headers and a 500-row check). `admin-students` was run again after the write-back (25 students stale), and tail kept all 26 invocations; the table's CPU column comes from that run. The 400-attempt per-call CPU comes from the in-memory probe, 20 samples each of `cpu-list` and `cpu-gen`. With the whole 3,400-question bank in the probe, the difference is median 14 ms, p90 19 ms. That is an upper bound: it includes parsing the 1.1 MB bank JSON, which a real call never reads.
 
 ## Staging usage log
 
@@ -220,5 +221,6 @@ Threshold (brief §5): more than 50% of a daily cap on the heavy day, or more th
 |---|---|---|---|---|
 | 2026-09-27 | 8,097 (seed) + ~5 (flows) | ~70,000 | ~400 | free-01: schema + e2e seed (252), AI bank (800), core bank (6,800), accounts (121), live lessons (124); batch/ceiling probes (read-only); ★ bank, boot and admin flows |
 | 2026-09-27 (whole day, Cloudflare analytics) | 8,105 | 415,422 | 776 | free-01 above plus free-02: CPU probes (in-memory), `json_each`/`json_remove` row-count checks, ★ boot/builder/admin flows cold + warm, untraced CPU samples. 8.1% / 8.3% / 0.8% of the caps |
+| 2026-09-28 (Cloudflare analytics at 00:20Z) | 8,532 | 16,700 (+ ~5,400 from the admin-students rerun, not yet in analytics [est]) | 228 Worker + 1,760 DO (+ ~70 [est]) | free-02 day 2: practice history (3,909 rows written), self-paced 25 × 20 write-back, poll + review, admin list ×3 and detail ×2, 80 CPU probe calls. 8.5% / ≤ 0.5% / ≤ 2.1% of the caps; free-03 used no staging quota |
 
 Caps: 10% = 10,000 rows written, 500,000 rows read and 10,000 requests per UTC day.
