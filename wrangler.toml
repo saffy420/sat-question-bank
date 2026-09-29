@@ -52,7 +52,7 @@ SUPABASE_URL = "https://cxlzflzdlegosybkklma.supabase.co"
 SUPABASE_ANON_KEY = "sb_publishable_M0q3BurnPJpEHlrrZAOdaQ_SpgvOPC1"
 # Comma-separated validated Google email allowlist; blank means nobody promoted.
 # Role syncs on /api/auth/session only. DB role stays authoritative between syncs.
-ADMIN_EMAILS = "chakrabortyleon@gmail.com"
+ADMIN_EMAILS = "chakrabortyleon@gmail.com,Leon.chakraborty@ccs.us"
 # DESMOS_API_KEY (live-lesson calculators) is a secret, not a var:
 #   npx wrangler secret put DESMOS_API_KEY   (key from desmos.com/my-api)
 # Without it, deployed lesson panels say "Desmos unavailable"; only
