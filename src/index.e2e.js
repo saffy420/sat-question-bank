@@ -70,7 +70,7 @@ function identity(req, env) {
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (!allowed(req, env)) return reply({ error: 'not found' }, 404);
     if (url.pathname === '/api/e2e/budget-probe') return budgetProbe(req, env);
@@ -122,7 +122,7 @@ export default {
     }
     const t = traceEnv(env, 'worker', req.method + ' ' + url.pathname);
     let res;
-    try { res = await handleRequest(req, t.env, identity); }
+    try { res = await handleRequest(req, t.env, identity, ctx); }
     catch { res = reply({ error: 'service unavailable' }, 503); }
     return withTrace(res, t);
   }

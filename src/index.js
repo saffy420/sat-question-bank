@@ -4,6 +4,7 @@ import { padSessionId, progressStatement, attemptStatement, attendedSessions, le
 export { LessonRoom } from './lesson-room.js';
 export { LessonSync } from './lesson-sync.js';
 import { traceEnv } from './budget.js';
+import { submitReport, submitSuggestion, adminReportRoute, MAX_REPORT_BODY } from './reports.js';
 
 export const validLessonUpgrade = (req, url) => req.method === 'GET' &&
   req.headers.get('Upgrade')?.toLowerCase() === 'websocket' &&
@@ -291,10 +292,12 @@ async function byIds(db, cols, ids) {
 const BANK_CACHE = 'https://bank-cache.internal/v1/', BANK_TTL = 3600;
 // Both banks' max rowid and the usage table's, one query per database. Each route reads them once
 // and hands them to the caches and memos below.
+// An approved question fix edits a row in place, so the count of applied fixes (src/reports.js) is part of the
+// bank key too: without it the cached body would keep serving the broken question for up to BANK_TTL.
 const stamps = env => Promise.all([
-  env.DB.prepare('SELECT (SELECT MAX(rowid) FROM questions) AS q, (SELECT MAX(rowid) FROM question_lesson_usage) AS u').all(),
+  env.DB.prepare("SELECT (SELECT MAX(rowid) FROM questions) AS q, (SELECT MAX(rowid) FROM question_lesson_usage) AS u, (SELECT COUNT(*) FROM question_triage WHERE status='applied') AS f").all(),
   env.AI_DB.prepare('SELECT MAX(rowid) AS q FROM questions').all()
-]).then(([core, ai]) => ({ bank: `${core.results?.[0]?.q ?? ''}-${ai.results?.[0]?.q ?? ''}`, usage: core.results?.[0]?.u ?? '' }));
+]).then(([core, ai]) => ({ bank: `${core.results?.[0]?.q ?? ''}-${ai.results?.[0]?.q ?? ''}-${core.results?.[0]?.f ?? 0}`, usage: core.results?.[0]?.u ?? '' }));
 async function questionsResponse(env) {
   const st = await stamps(env);
   const key = BANK_CACHE + st.bank + '-' + st.usage;
@@ -588,11 +591,11 @@ async function saveLesson(env, u, b, id = null) {
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const t = traceEnv(env, 'worker', req.method + ' ' + new URL(req.url).pathname);
     let res;
     try {
-      res = await handleRequest(req, t.env);
+      res = await handleRequest(req, t.env, undefined, ctx);
     } catch {
       res = json({ error: 'service unavailable' }, 503);
     }
@@ -609,7 +612,7 @@ export function withTrace(res, t) {
   return out;
 }
 
-export async function handleRequest(req, env, resolveIdentity = whoami) {
+export async function handleRequest(req, env, resolveIdentity = whoami, ctx = null) {
     const url = new URL(req.url);
     const p = url.pathname;
 
@@ -643,7 +646,8 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
     const apiMethods = {
       '/api/auth/session': ['POST'], '/api/questions': ['GET'], '/api/account': ['GET'],
       '/api/progress': ['GET', 'POST'], '/api/attempts': ['GET', 'POST'],
-      '/api/notes': ['GET', 'POST'], '/api/settings': ['GET', 'POST'], '/api/sessions': ['GET', 'POST']
+      '/api/notes': ['GET', 'POST'], '/api/settings': ['GET', 'POST'], '/api/sessions': ['GET', 'POST'],
+      '/api/reports': ['POST'], '/api/suggestions': ['POST']
     };
     const isAPI = p === '/api' || p.startsWith('/api/');
     const knownAPI = apiMethods[p]?.includes(req.method) ||
@@ -701,6 +705,16 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
         return detail ? json({ ...detail, desmosKey: desmosApiKey(env, url) }) : json({ error: 'not found' }, 404);
       } catch { return json({ error: 'history unavailable' }, 503); }
     }
+    // Reports and suggestions: the reply is "Thanks" at once; the Claude triage runs after it (ctx.waitUntil).
+    if (p === '/api/reports' || p === '/api/suggestions') {
+      if (Number(req.headers.get('Content-Length') || 0) > MAX_REPORT_BODY) return json({ error: 'too large' }, 413);
+      try {
+        const text = await req.text();
+        const r = p === '/api/reports' ? await submitReport(env, u, text) : await submitSuggestion(env, u, text);
+        if (r.done) { if (ctx?.waitUntil) ctx.waitUntil(r.done); else await r.done; }
+        return json(r.body, r.status);
+      } catch { return json({ error: 'service unavailable' }, 503); }
+    }
     if (adminPath(p) || adminAPI(p) || p === '/admin.js') {
       let role;
       try { role = await env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(u.id).first(); }
@@ -718,6 +732,12 @@ export async function handleRequest(req, env, resolveIdentity = whoami) {
       if (p === '/api/admin/questions' || p === '/api/admin/lessons' || p.startsWith('/api/admin/lessons/')) {
         try { return await lessonRoutes(req, env, url, p, u); }
         catch { return json({ error: 'service unavailable' }, 503); }
+      }
+      if (p === '/api/admin/reports' || p.startsWith('/api/admin/reports/') || p === '/api/admin/suggestions' || p.startsWith('/api/admin/suggestions/')) {
+        try {
+          const r = await adminReportRoute(env, req, p, url);
+          return r ? json(r.body, r.status) : json({ error: 'not found' }, 404);
+        } catch { return json({ error: 'service unavailable' }, 503); }
       }
       if (req.method !== 'GET') return json({ error: 'not found' }, 404);
       if (p === '/api/admin/students') {
