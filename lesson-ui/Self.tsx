@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp, Flag, Circle, EllipsisVertical, LogOut, Users, Hourglass, CircleCheck, Calculator } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, Flag, Circle, EllipsisVertical, LogOut, Users, Hourglass, CircleCheck, Calculator, Lightbulb } from 'lucide-react';
 import { useCalculator } from './Calculator';
 import { Stage } from './Stage';
 import type { Bridge, PlayerModel } from './types';
@@ -43,7 +43,7 @@ export function SelfPlayer({ model, bridge }: { model: PlayerModel; bridge: Brid
     {grid(go)}
     <button id="self-submit" className="lesson-submit" disabled={!running} onClick={() => setConfirm(true)}>Submit all</button>
   </section>;
-  else if (question) body = <Stage key={question.id} question={question} number={index + 1} picked={self.selections[question.id] || ''} active={running} revealed={false} mathify={bridge.mathify} onSelect={answer => bridge.select(question.id, answer)}/>;
+  else if (question) body = <Stage key={question.id} question={question} number={index + 1} onReport={card => bridge.report({ questionId: question.id, element: card })} picked={self.selections[question.id] || ''} active={running} revealed={false} mathify={bridge.mathify} onSelect={answer => bridge.select(question.id, answer)}/>;
   const live = s.status === 'live' && s.phase === 'ANSWERING' && ids.length > 0 && !s.submitted;
   return <>
     <header className="lesson-header">
@@ -52,7 +52,7 @@ export function SelfPlayer({ model, bridge }: { model: PlayerModel; bridge: Brid
       <nav className="lesson-tools" aria-label="Lesson tools">
         {calc.math && <button id="lesson-calc-toggle" aria-pressed={calc.open} onClick={calc.toggle}><Calculator aria-hidden="true"/><span>Calculator</span></button>}
         {live && !self.review && self.position && <button id="self-flag" aria-pressed={flags.includes(self.position)} onClick={() => setFlags(list => list.includes(self.position!) ? list.filter(x => x !== self.position) : [...list, self.position!])}><Flag aria-hidden="true"/><span>{flags.includes(self.position) ? 'Flagged' : 'Flag for review'}</span></button>}
-        <details className="lesson-more"><summary><EllipsisVertical aria-hidden="true"/><span>More</span></summary><div><button id="lesson-leave" onClick={bridge.leave}><LogOut aria-hidden="true"/>Leave view</button></div></details>
+        <details className="lesson-more"><summary><EllipsisVertical aria-hidden="true"/><span>More</span></summary><div><button id="lesson-suggest" onClick={bridge.suggest}><Lightbulb aria-hidden="true"/>Suggest a feature</button><button id="lesson-leave" onClick={bridge.leave}><LogOut aria-hidden="true"/>Leave view</button></div></details>
         <span id="lesson-connection" role="status" aria-label={model.connected ? 'Connected' : 'Reconnecting…'}><Circle fill="currentColor" size={9} aria-hidden="true"/><span className="lesson-sr">{model.connected ? 'Connected' : 'Reconnecting…'}</span></span>
       </nav>
     </header>

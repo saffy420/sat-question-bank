@@ -61,6 +61,16 @@ async function free(port) {
         { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
       if (upgrade.status !== 0) throw new Error('0010 isolated E2E upgrade failed');
     }
+    const reports = spawnSync(process.execPath, [...base, '--command', "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('question_reports','question_triage','feature_suggestions')", '--json'],
+      { cwd: root, encoding: 'utf8', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+    if (reports.status !== 0) throw new Error('Cannot inspect report tables: ' + reports.stderr);
+    const reportTables = JSON.parse(reports.stdout)[0]?.results?.length || 0;
+    if (reportTables !== 0 && reportTables !== 3) throw new Error('Partial 0011 schema; inspect isolated E2E state before reseeding');
+    if (!reportTables) {
+      const upgrade = spawnSync(process.execPath, [...base, '--file', 'migrations/0011_reports.sql'],
+        { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+      if (upgrade.status !== 0) throw new Error('0011 isolated E2E upgrade failed');
+    }
   }
   for (const [binding, file] of [['DB', 'schema.sql'], ['AI_DB', 'schema_ai.sql'], ['DB', 'tools/e2e_core.sql'], ['AI_DB', 'tools/e2e_ai.sql']]) {
     if (hasUsers && file === 'schema.sql') continue; // Snapshot has non-idempotent lesson DDL; upgrades ran above.

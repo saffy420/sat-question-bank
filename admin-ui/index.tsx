@@ -5,7 +5,9 @@ import {
   Check,
   CircleHelp,
   ExternalLink,
+  Flag,
   LibraryBig,
+  Lightbulb,
   PanelLeftClose,
   PanelLeftOpen,
   Radio,
@@ -16,6 +18,8 @@ import { Builder, QuestionBrowser, type Guard } from "./Builder";
 import { Library } from "./Library";
 import { Live, LiveRooms } from "./Live";
 import { Students } from "./Students";
+import { Reports } from "./Reports";
+import { Suggestions } from "./Suggestions";
 import { api } from "./helpers";
 import lessonStyles from "../lesson-ui/lesson.css?inline";
 import adminStyles from "./admin.css?inline";
@@ -48,7 +52,11 @@ function App() {
       ? "Live"
       : path.includes("/questions")
         ? "Question Bank"
-        : "Students";
+        : path.includes("/reports")
+          ? "Reports"
+          : path.includes("/suggestions")
+            ? "Suggestions"
+            : "Students";
   useEffect(() => {
     document.title = `${section} · SAT Club`;
   }, [section]);
@@ -77,6 +85,8 @@ function App() {
             ["Lessons", "/admin/lessons", LibraryBig],
             ["Live", "/admin/live", Radio],
             ["Question Bank", "/admin/questions", CircleHelp],
+            ["Reports", "/admin/reports", Flag],
+            ["Suggestions", "/admin/suggestions", Lightbulb],
           ].map(([name, url, Icon]) => {
             const I = Icon as typeof Users;
             return (
@@ -141,6 +151,10 @@ function App() {
             <div className="bank">
               <QuestionBrowser />
             </div>
+          ) : section === "Reports" ? (
+            <Reports />
+          ) : section === "Suggestions" ? (
+            <Suggestions />
           ) : (
             <Students />
           )}

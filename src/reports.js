@@ -133,17 +133,10 @@ function firstJson(text) {
   }
   return null;
 }
-// Local runs only: the e2e config points ANTHROPIC_API_URL at a mock on loopback. With E2E_TEST_MODE set,
-// nothing but loopback is ever called, so a test can not reach the real API.
-export function apiTarget(env) {
-  if (env.E2E_TEST_MODE !== '1') return API_URL;
-  const url = env.ANTHROPIC_API_URL;
-  try { const h = new URL(url).hostname; if (['127.0.0.1', 'localhost', '[::1]'].includes(h)) return url; } catch { /* refused */ }
-  return null;
-}
+// deps.apiUrl exists for the local e2e entry (src/index.e2e.js), which always supplies a loopback address, so a
+// test can never reach the real API. Production passes nothing and calls API_URL.
 async function askClaude(env, deps, cfg, question, reports) {
-  const url = apiTarget(env);
-  if (!url) return { error: 'the triage API address is not allowed in test mode' };
+  const url = deps.apiUrl || API_URL;
   if (!env.ANTHROPIC_API_KEY) return { error: 'ANTHROPIC_API_KEY is not configured' };
   const source = Object.fromEntries(['id', 'section', 'stem_html', 'choices_json', 'correct_answer', 'explanation_html'].map(k => [k, question[k] ?? '']));
   const message = `<question>\n${JSON.stringify(source)}\n</question>\n` +

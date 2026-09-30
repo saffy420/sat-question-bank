@@ -143,17 +143,20 @@ test('wrong-answer reports never call Claude and escalate at once', async t => {
   assert.deepEqual(rows.map(r => ({ ...r })), [{ kind: 'escalation', called: 0, status: 'pending' }], 'one pending escalation per question');
   assert.equal(db.prepare("SELECT COUNT(*) n FROM question_reports WHERE status='open'").get().n, 2);
 });
-test('test mode refuses any API address but loopback, so a test can never reach the real API', async t => {
-  const { apiTarget } = await reports();
-  assert.equal(apiTarget({}), 'https://api.anthropic.com/v1/messages');
-  assert.equal(apiTarget({ E2E_TEST_MODE: '1' }), null);
-  assert.equal(apiTarget({ E2E_TEST_MODE: '1', ANTHROPIC_API_URL: 'https://api.anthropic.com/v1/messages' }), null);
-  assert.equal(apiTarget({ E2E_TEST_MODE: '1', ANTHROPIC_API_URL: 'http://127.0.0.1:8790/v1/messages' }), 'http://127.0.0.1:8790/v1/messages');
-  const { db, env } = world(t, { E2E_TEST_MODE: '1' });
-  const f = spy(reply(FIX));
-  await submit(env, 'alice', body(), { fetch: f });
-  assert.equal(f.calls.length, 0);
-  assert.match(db.prepare('SELECT reason FROM question_triage').get().reason, /not allowed in test mode/);
+test('the e2e entry only ever points the triage at a loopback mock, so a test can never reach the real API', async t => {
+  const { claudeTarget } = await import('../src/index.e2e.js');
+  const dead = 'http://127.0.0.1:9/v1/messages';
+  assert.equal(claudeTarget({}), dead);
+  assert.equal(claudeTarget({ ANTHROPIC_API_URL: 'https://api.anthropic.com/v1/messages' }), dead);
+  assert.equal(claudeTarget({ ANTHROPIC_API_URL: 'https://127.0.0.1.evil.example/v1/messages' }), dead);
+  assert.equal(claudeTarget({ ANTHROPIC_API_URL: 'not a url' }), dead);
+  assert.equal(claudeTarget({ ANTHROPIC_API_URL: 'http://127.0.0.1:8790/v1/messages' }), 'http://127.0.0.1:8790/v1/messages');
+  // The address reaches the call; without one, production talks to Anthropic.
+  const { env } = world(t);
+  const f = spy(reply({ action: 'escalate', reason: 'r' }));
+  await submit(env, 'alice', body(), { fetch: f, apiUrl: 'http://127.0.0.1:8790/v1/messages' });
+  await submit(env, 'bob', body({ question_id: 'other' }), { fetch: f });
+  assert.deepEqual(f.calls.map(c => c.url), ['http://127.0.0.1:8790/v1/messages', 'https://api.anthropic.com/v1/messages']);
 });
 
 // ---------------------------------------------------------------- limits

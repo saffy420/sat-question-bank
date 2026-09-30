@@ -1056,6 +1056,7 @@ mark.hl-b { background: #bfe3ff; }
 <script type="module">
 import * as Stats from '/shared/stats.js';
 import * as SharedRenderer from '/shared/renderer.js';
+import * as Report from '/shared/report.js';
 import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
 import { mountLesson, mountHistory } from '/lesson-ui/lesson.js';
 (function(){
@@ -2659,6 +2660,7 @@ function renderPanes(q) {
     <span class="qnum">${S.i+1}</span>
     ${q.ai ? `<span class="chip-ai">AI &middot; Level ${q.level}</span>` : ''}
     <button class="flag-btn ${S.flags[q.id]?'on':''}" id="btn-flag"><span class="fi">⚑</span> Mark for Review</button>
+    <button class="flag-btn report-btn" id="btn-report" type="button"><span class="fi">⚐</span> Report</button>
   </div>`;
 
   $('panes').classList.toggle('solo', !context);
@@ -2677,6 +2679,7 @@ function renderPanes(q) {
     $('btn-flag').classList.toggle('on', !!S.flags[q.id]);
     touchExam();
   };
+  $('btn-report').onclick = () => Report.openReport({ questionId: q.id, seenIn: 'bank', element: $('panes'), send: postJSON });
 }
 
 function renderAnswerArea(q) {
@@ -3155,14 +3158,23 @@ $('btn-more').onclick = (e) => {
   m.innerHTML = `
     <button id="mm-clear-ko">Clear eliminations</button>` + (S.exam ? '' : `
     <button id="mm-explanation">Show explanation</button>
-    <button id="mm-export">⧉ Copy for AI</button>`);
+    <button id="mm-export">⧉ Copy for AI</button>`) + `
+    <button id="mm-suggest">Suggest a feature</button>`;
   $('overlay-root').appendChild(m);
   $('mm-clear-ko').onclick = () => { S.ko[curQ().id] = []; loadQuestion(); closeMenus(); };
   if ($('mm-explanation')) $('mm-explanation').onclick = () => { openExplanation(); closeMenus(); };
   // Left open on purpose - exportQuestion writes "Copied" back into the button
   // that was pressed, and the next click anywhere else closes the menu.
   if ($('mm-export')) $('mm-export').onclick = (ev) => exportQuestion(ev.currentTarget);
+  $('mm-suggest').onclick = () => { closeMenus(); Report.openSuggest({ send: postJSON }); };
 };
+// Reports and suggestions: same auth headers as every other write. The Worker answers at once; the AI triage runs after it.
+async function postJSON(path, data) {
+  try {
+    const r = await fetch(path, { method: 'POST', headers: { ...(await sbHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    return { status: r.status };
+  } catch (e) { return { status: 0 }; }
+}
 $('btn-dash').onclick = () => {
   if (S && S.exam) return confirmModal('Save and quit? ' + (authToken ? 'The exam is kept in History and resumes where you left it.' : 'You are not signed in, so this exam cannot be resumed later.'), saveQuit);
   if (S && S.review) { const EX = S.review; stopTimer(); S = null; closeExpl(); closeDesmos(); return drawExamResults(EX); }
@@ -3654,7 +3666,7 @@ async function openLessonHistory(id) {
     $('lesson-content').classList.add('hide'); $('lesson-live').classList.remove('hide');
     closeHistory = mountHistory($('lesson-history'), history, mathify, () => {
       closeHistory?.(); closeHistory = null; $('lesson-live').classList.add('hide'); $('lesson-content').classList.remove('hide');
-    });
+    }, ({ questionId, element }) => Report.openReport({ questionId, seenIn: 'history', sessionId: history.sessionId, element, send: postJSON }));
   } catch (e) { $('lessons-error').textContent = e.message; }
 }
 
@@ -3796,7 +3808,9 @@ const lessonUI = mountLesson(lessonRoot, {
     if (lessonPending) lessonSend(lessonPending);
     lessonSend({ type: 'lock', questionId }); lessonLockPending = true; lessonDraw();
   },
-  leave() { lessonLeave(false); }
+  leave() { lessonLeave(false); },
+  report({ questionId, element }) { Report.openReport({ questionId, seenIn: 'lesson', sessionId: lessonId, element, send: postJSON }); },
+  suggest() { document.querySelector('.lesson-more')?.removeAttribute('open'); Report.openSuggest({ send: postJSON }); }
 });
 function lessonLeave(ended) {
   const finished = ended || lessonState && (lessonState.status === 'review' || lessonState.status === 'ended' || lessonState.phase === 'ENDED');

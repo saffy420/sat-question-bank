@@ -83,6 +83,9 @@ export type Bridge = {
   vote?: (option: 1 | 2, questionId?: string) => void;
   leave: () => void;
   mathify: (element: HTMLElement) => void;
+  // Student report / feature suggestion dialogs live in /shared/report.js; the page supplies the auth.
+  report: (r: { questionId: string; element: HTMLElement }) => void;
+  suggest: () => void;
 };
 // §9.1 one ended session from /api/lesson-history/:id.
 export type LessonHistory = {

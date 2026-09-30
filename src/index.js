@@ -612,7 +612,7 @@ export function withTrace(res, t) {
   return out;
 }
 
-export async function handleRequest(req, env, resolveIdentity = whoami, ctx = null) {
+export async function handleRequest(req, env, resolveIdentity = whoami, ctx = null, deps = {}) {
     const url = new URL(req.url);
     const p = url.pathname;
 
@@ -634,7 +634,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
     if (['GET', 'HEAD'].includes(req.method)) {
       if (Object.hasOwn(aliases, p) && !adminPath(p)) return redirect(aliases[p]);
       if (Object.hasOwn(pages, p)) return asset(env, new Request(new URL(pages[p], url), req));
-      if (['/lesson-ui/lesson.js', '/lesson-ui/lesson.css', '/site.css', '/site.js', '/auth.js', '/shared/stats.js', '/shared/renderer.js', '/shared/lesson.js', '/shared/annotations.js', '/shared/desmos.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
+      if (['/lesson-ui/lesson.js', '/lesson-ui/lesson.css', '/site.css', '/site.js', '/auth.js', '/shared/stats.js', '/shared/renderer.js', '/shared/lesson.js', '/shared/annotations.js', '/shared/desmos.js', '/shared/report.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
     }
     if (p === '/api/auth/logout' && req.method === 'POST') {
       const res = json({ ok: true });
@@ -710,7 +710,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
       if (Number(req.headers.get('Content-Length') || 0) > MAX_REPORT_BODY) return json({ error: 'too large' }, 413);
       try {
         const text = await req.text();
-        const r = p === '/api/reports' ? await submitReport(env, u, text) : await submitSuggestion(env, u, text);
+        const r = p === '/api/reports' ? await submitReport(env, u, text, deps) : await submitSuggestion(env, u, text, deps);
         if (r.done) { if (ctx?.waitUntil) ctx.waitUntil(r.done); else await r.done; }
         return json(r.body, r.status);
       } catch { return json({ error: 'service unavailable' }, 503); }

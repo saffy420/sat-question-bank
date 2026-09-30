@@ -56,6 +56,8 @@
 .lesson-stage .stage-strip>span { display:inline-block; min-width:34px; padding:0 7px; color:#fff; background:#161616; text-align:center; }
 .lesson-stage .stage-strip .stage-strike-toggle, #lesson-live .lesson-stage .stage-strip .stage-strike-toggle { margin:0 6px 0 auto; padding:0 6px; height:26px; border:1.5px solid #171717; border-radius:5px; background:#fff; color:#171717; font:700 12px/1 'Lesson Sans',sans-serif; letter-spacing:.02em; cursor:pointer; -webkit-user-select:none; user-select:none; }
 .lesson-stage .stage-strike-toggle s { text-decoration-thickness:2px; }
+.lesson-stage .stage-strip .stage-report, #lesson-live .lesson-stage .stage-strip .stage-report { margin:0 0 0 10px; padding:0 8px; height:26px; border:1.5px solid #171717; border-radius:5px; background:#fff; color:#171717; font:700 12px/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.lesson-stage .stage-strip .stage-report:hover { background:#f0f0f0; }
 .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true], #lesson-live .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true] { background:#304fc5; border-color:#304fc5; color:#fff; }
 .lesson-stage p { margin:0 0 18px; }
 .lesson-stage .passage { margin:0; padding:0; border:0; background:none; font:inherit; max-height:none; overflow:visible; }
