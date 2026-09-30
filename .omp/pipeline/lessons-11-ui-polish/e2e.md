@@ -97,7 +97,7 @@ Choice rows stopped at 680 px (legacy `public/index.html:448 .choices{max-width:
 S=/tmp/claude-0/-home-user-sat-question-bank/5c89574d-bee1-51d1-80ea-8c6a3f495be9/scratchpad
 $S/pw.sh tests/e2e/lessons-05-annotations tests/e2e/lessons-11c.spec.js tests/e2e/lessons-06-desmos     # baseline: 3 failing (expected fallout), then 5 pass after the edits
 $S/pw.sh tests/e2e/lessons-11-ui-polish/<spec>                                                          # each new spec, repeatedly
-PW_TIMEOUT=2400 $S/pw.sh                                                                                # full suite: 71 pass, 1 fail
+PW_TIMEOUT=2400 $S/pw.sh                                                                                # full suite: 72 pass (71 pass, 1 fail before commit 83a172f)
 npm test                                                                                                # 150 pass, 2 known failures
 $S/pw.sh tests/e2e/lessons-11-ui-polish tests/e2e/lessons-05-annotations tests/e2e/lessons-11c.spec.js tests/e2e/lessons-06-desmos   # final run: 27 pass, 1 fail
 node $S/compress.cjs      # palette-compress the screenshots into docs/lessons/11-ui-polish/ (sharp; tools/e2e_tour_compress.cjs is hard-wired to the lesson-10 tour)

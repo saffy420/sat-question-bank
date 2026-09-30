@@ -44,6 +44,7 @@
 .lesson-follow-tool { position:relative; }
 .lesson-follow-tool:has(input:checked) { color:#2345be; border-bottom-color:#2345be; }
 /* The checkbox is invisible and covers the tool, so a click anywhere on it toggles Follow me; the underline shows the state. */
+.lesson-follow-tool:has(input:focus-visible) { outline:3px solid #156fd1; outline-offset:2px; }
 .lesson-follow-tool input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
 .lesson-more { position:relative; }
 .lesson-more summary { list-style:none; }
@@ -200,7 +201,7 @@
 .self-grid { list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(44px,1fr)); gap:10px; padding:0; margin:0 0 14px; }
 #lesson-live .self-grid button { position:relative; width:44px; height:44px; padding:0; border:0; border-bottom:3px solid #999; border-radius:0; background:none; font-weight:500; color:#555; }
 #lesson-live .self-grid button[data-state=answered] { background:none; color:#304fc5; border-bottom-color:#304fc5; font-weight:700; }
-#lesson-live .self-grid button[aria-current=step] { outline:0; text-decoration:underline; text-underline-offset:5px; text-decoration-thickness:2px; color:#171717; }
+#lesson-live .self-grid button[aria-current=step] { text-decoration:underline; text-underline-offset:5px; text-decoration-thickness:2px; color:#171717; }
 .self-grid button svg { position:absolute; top:-8px; right:-8px; width:17px; height:17px; color:#bd2424; fill:#bd2424; }
 #lesson-live #self-flag[aria-pressed=true] svg { color:#bd2424; fill:#bd2424; }
 .self-review { width:min(100%, var(--column)); margin:0 auto; }
@@ -228,3 +229,5 @@
 .history-breakdown>div { font:19px/1.5 'Lesson Serif',serif; }
 #lesson-live .lesson-footer #history-prev, #lesson-live .lesson-footer #history-next { display:flex; align-items:center; gap:6px; }
 #lesson-live .lesson-footer #history-prev { justify-self:start; }
+
+#lesson-live .self-grid button:hover, #lesson-live .history-nav button:hover, #lesson-live .lesson-calc-resize:hover { background:none; }

@@ -1037,7 +1037,8 @@ function InstructorStage({
       drawing = true;
       const start = Ink.locate(card, e.clientX, e.clientY);
       anchor = "a" in start ? start.a : undefined;
-      glyphMode = !!anchor && /[@~]/.test(anchor);
+      // Only a stroke that started on a figure keeps one anchor; anywhere else it may pick up a glyph anchor.
+      glyphMode = !anchor?.startsWith("i:");
       raw = [[e.clientX, e.clientY]];
       interval = setInterval(() => {
         if (raw.length > 1) flush();

@@ -14,7 +14,11 @@ type Calculator = {
 // its right, so it never covers the question. Only its width is adjustable, from the handle on its right edge; the
 // CSS default is clamp(300px, 28vw, 440px), and the column keeps at least MIN_COLUMN px.
 const MIN_W = 280, MIN_COLUMN = 480, GUTTERS = 48;
-const maxWidth = () => Math.max(MIN_W, innerWidth - MIN_COLUMN - GUTTERS);
+// The instructor's graph dock (right) takes its share too, so both docks together never squeeze the column.
+const maxWidth = () => {
+  const follower = document.querySelector<HTMLElement>('.lesson-desmos')?.getBoundingClientRect().width || 0;
+  return Math.max(MIN_W, innerWidth - MIN_COLUMN - GUTTERS - (follower ? follower + 24 : 0));
+};
 const clampWidth = (w: number) => Math.round(Math.min(maxWidth(), Math.max(MIN_W, w)));
 
 // Empty = no expression, text, table, folder or image with content (the fresh single blank row).

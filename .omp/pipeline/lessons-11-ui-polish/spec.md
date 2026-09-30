@@ -63,8 +63,8 @@ Wire format otherwise unchanged (`stroke {points, a}`, `laser {x,y,a}`); normali
 only, wrapped in try/catch), read on mount, so it survives close/reopen, next question and reload. Default 420. No protocol change.
 
 ## Unit tests
-`tests/test_annotations.cjs` (new): em anchor round-trip across two font sizes; legacy `@` still valid; canvas size rounding;
-`validMark` accepts `~`, rejects malformed. `tests/test_lesson_room.cjs` keeps passing.
+`tests/test_annotation_anchors.cjs` (new): `validMark`/laser validation of `~` and `@` anchors and malformed ones. The em round-trip across two type sizes and the canvas
+rounding need a DOM, so they are asserted in `tests/e2e/lessons-11-ui-polish/ink.spec.js` (px anchors would fail it) rather than as unit tests. `tests/test_lesson_room.cjs` keeps passing.
 
 ## E2E checkpoints (each becomes a spec under tests/e2e/lessons-11-ui-polish/)
 1. Student view at 1366×768, 1536×864, 1920×1080 and zoom 90/110/125 % (screenshots saved beside A in docs/lessons/11-ui-polish/):
