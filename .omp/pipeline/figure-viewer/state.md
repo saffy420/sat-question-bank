@@ -3,7 +3,7 @@ Task: figure-viewer
 Tier: 2
 Branch: claude/awesome-sagan-hevd96   Base: main (c25143b)
 Last completed step: 9 (docs, review PASS, full suite 74/74). Pushed.
-Next step: none (no PR requested); manual checks in handoff.md.
+Next step: none; manual checks in handoff.md / PR body.
 Open blockers: none
 Decisions made this task:
 - The figure keeps its authored place in the question column (above the text in 180, between intro and question in 141);
@@ -15,7 +15,7 @@ Decisions made this task:
   loaded element (no re-request).
 - Figure ink follows each client's zoom (same i:<n> anchor read through the transform), clipped to the frame.
   i:<n> lists framed and pane images first, keeping the old numbering.
-PR: not requested
+PR: https://github.com/saffy420/sat-question-bank/pull/19
 Instructions: docs/lessons/BRIEF.md — re-read §0, §12, §13 + .omp/pipeline/figure-viewer/spec.md
 Preflight: a fresh container needs `npm run e2e:seed`. The baseline on main was 71/72: banner.spec "students: no banner
 request" timed out on networkidle in this sandbox, and passed on later runs.
