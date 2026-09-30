@@ -247,6 +247,15 @@ test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, t
     expect(requests, 'zoom, pan, Reset and full screen make no requests').toEqual([]);
     expect(hits.length).toBe(before);
 
+    // Authored inline SVG graphs (AI questions) get the same frame, in place, without throwing (found by the audit).
+    const svg = await page.evaluate(async () => {
+      const R = await import('/shared/renderer.js');
+      const out = R.mathStem('<p>Intro</p><svg viewBox="0 0 300 220" role="img" width="100%" style="max-width:300px"><title>Graph</title><rect width="300" height="220"/></svg><p>Question</p>', document);
+      const d = document.createElement('div'); d.innerHTML = out.body;
+      return { order: [...d.children].map(n => n.tagName === 'P' ? n.textContent : n.className), inFrame: !!d.querySelector('.fv .fv-content > svg[role="img"]'), context: out.context };
+    });
+    expect(svg).toEqual({ order: ['Intro', 'fv', 'Question'], inFrame: true, context: '' });
+
     // The old free-zoom lightbox never opens on a math figure.
     await page.locator(`${scope} .fv-view`).click();
     await expect(page.locator('.lb')).toHaveCount(0);
