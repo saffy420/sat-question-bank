@@ -40,6 +40,8 @@ tools/*
 # The authored AI questions are the only copy of themselves - the local D1 they
 # are imported into is not tracked, so this directory is the source of record.
 !tools/aiq/
+# Practice-test position -> bank ID map: generated from tracked inputs, IDs only.
+!tools/ptmap/
 !tools/restore_bluebook.cjs
 !tools/bluebook_explanations.json
 !tools/bluebook_stem_fixes.json
