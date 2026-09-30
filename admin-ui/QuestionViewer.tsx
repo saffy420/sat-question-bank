@@ -14,7 +14,9 @@ function questionHTML(q: BankQuestion) {
           context: Renderer.renderStem({ stem_html: raw.slice(0, at) }),
           body: Renderer.renderStem({ stem_html: raw.slice(at + 15) }),
         }
-      : Renderer.splitContext(Renderer.renderStem(q), document);
+      : q.section === "Math"
+        ? Renderer.mathStem(Renderer.renderStem(q), document)
+        : Renderer.splitContext(Renderer.renderStem(q), document);
   return `${stem.context ? `<div class="passage">${stem.context}</div>` : ""}<div class="qv-stem">${stem.body}</div>${
     q.spr
       ? '<p class="qv-spr">Student-produced response</p>'

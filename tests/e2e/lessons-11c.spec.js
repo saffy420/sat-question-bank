@@ -128,7 +128,7 @@ test('lessons-11c C1+C2 instructor-paced: own calculator, drag/resize, layout sh
     await expect(student.locator('.lesson-lobby')).toBeVisible();
     await expect(student.locator('#lesson-calc-toggle')).toHaveCount(0);
 
-    // Q1 (math): Calculator button in the header tools; the window opens at its default position.
+    // Q1 (math): Calculator button in the header tools; the calculator opens docked on the left (lessons-11).
     await teacher.locator('[data-live="start"]').click();
     await expect(student.locator('#lesson-content')).toContainText('ANSWERING');
     await expect(student.locator('.lesson-header .lesson-tools #lesson-calc-toggle')).toBeVisible();
@@ -139,48 +139,55 @@ test('lessons-11c C1+C2 instructor-paced: own calculator, drag/resize, layout sh
     await insideViewport(student);
     await questionClear(student);
     const home = await box(own(student));
-    // The window sits between the header (with its phase label) and the footer.
-    expect(home.y).toBeGreaterThanOrEqual(await student.locator('.lesson-phase').evaluate(el => el.getBoundingClientRect().bottom));
-    expect(home.bottom).toBeLessThanOrEqual(await student.locator('.lesson-footer').evaluate(el => el.getBoundingClientRect().top));
+    const headerBottom = await student.locator('.lesson-header').evaluate(el => el.getBoundingClientRect().bottom);
+    const footerTop = await student.locator('.lesson-footer').evaluate(el => el.getBoundingClientRect().top);
+    // Docked left, between the header (with its phase label) and the footer, and the question column reflowed to its right.
+    expect(home.x, 'docked at the left edge').toBeLessThanOrEqual(24);
+    expect(home.y).toBeGreaterThanOrEqual(headerBottom);
+    expect(home.y - headerBottom, 'directly under the header').toBeLessThanOrEqual(24);
+    expect(home.bottom).toBeLessThanOrEqual(footerTop);
+    expect(footerTop - home.bottom, 'directly above the footer').toBeLessThanOrEqual(24);
+    expect(await student.locator('#lesson-calc').evaluate(el => getComputedStyle(el).position)).toBe('fixed');
+    const columnOf = () => box(student.locator('#lesson-card .stage-question'));
+    expect((await columnOf()).x, 'the question column starts right of the dock').toBeGreaterThanOrEqual(home.right);
     await typeOwn(student, 'y=1111x');
-    // The student can still answer with the window open.
+    // The student can still answer with the calculator open.
     await student.locator('[data-lesson-choice="C"]').click();
     await expect(student.locator('[data-lesson-choice="C"]')).toHaveAttribute('aria-pressed', 'true');
-    await shot(student, '01-student-calculator-default-1366');
+    await shot(student, '01-student-calculator-docked-1366');
 
-    // Drag by the title bar: moves by the pointer delta.
+    // No title-bar dragging any more: dragging the bar moves nothing.
     await drag(student, student.locator('#lesson-calc .lesson-calc-bar'), 300, 40);
-    const moved = await box(own(student));
-    expect(Math.round(moved.x - home.x)).toBe(300);
-    expect(Math.round(moved.y - home.y)).toBe(40);
-    expect(moved.w).toBe(home.w);
-    // Resize from the corner: grows by the pointer delta, top-left fixed.
+    expect(await box(own(student))).toEqual(home);
+    // Resizable only by the handle on its right edge: horizontal pointer movement changes the width by the delta, the
+    // dock keeps its top and bottom (header to footer) and left edge, and vertical movement does nothing.
     await drag(student, student.locator('#lesson-calc-resize'), 120, -100);
     const sized = await box(own(student));
-    expect(Math.round(sized.w - moved.w)).toBe(120);
-    expect(Math.round(sized.h - moved.h)).toBe(-100);
-    expect([sized.x, sized.y]).toEqual([moved.x, moved.y]);
+    expect(Math.round(sized.w - home.w)).toBe(120);
+    expect([sized.x, sized.y, sized.h]).toEqual([home.x, home.y, home.h]);
     await expect(ownList(student)).toContainText('1111');
-    await shot(student, '02-student-calculator-dragged-resized');
-    // Stays inside the viewport however far it is dragged or resized.
-    await drag(student, student.locator('#lesson-calc .lesson-calc-bar'), 3000, 2000);
-    await insideViewport(student);
-    const corner = await box(own(student));
+    await questionClear(student);
+    expect((await columnOf()).x, 'the column follows the dock edge').toBeGreaterThanOrEqual(sized.right);
+    expect(await student.evaluate(() => document.documentElement.scrollWidth)).toBe((await viewport(student)).w);
+    await shot(student, '02-student-calculator-resized');
+    await drag(student, student.locator('#lesson-calc-resize'), -60, 0);
+    expect(Math.round((await box(own(student))).w - sized.w)).toBe(-60);
+    // Width is clamped to [280, window width - 528] however far the handle is dragged; the question keeps its room.
     const vp = await viewport(student);
-    expect(Math.round(corner.right)).toBe(vp.w);
-    expect(Math.round(corner.bottom)).toBe(vp.h);
-    await drag(student, student.locator('#lesson-calc .lesson-calc-bar'), -4000, -4000);
-    await insideViewport(student);
-    expect(await box(own(student))).toMatchObject({ x: 0, y: 0 });
     await drag(student, student.locator('#lesson-calc-resize'), 4000, 4000);
     await insideViewport(student);
-    const full = await box(own(student));
-    expect([Math.round(full.w), Math.round(full.h)]).toEqual([vp.w, vp.h]);
+    const widest = await box(own(student));
+    expect(Math.round(widest.w)).toBe(vp.w - 528);
+    expect([widest.x, widest.y, widest.h]).toEqual([home.x, home.y, home.h]);
+    await questionClear(student);
+    expect((await columnOf()).x).toBeGreaterThanOrEqual(widest.right);
+    expect(await student.evaluate(() => document.documentElement.scrollWidth)).toBe(vp.w);
     await drag(student, student.locator('#lesson-calc-resize'), -4000, -4000);
     await insideViewport(student);
     const small = await box(own(student));
-    expect(small.w).toBeGreaterThanOrEqual(300);
-    expect(small.h).toBeGreaterThanOrEqual(260);
+    expect(Math.round(small.w)).toBe(280);
+    expect([small.x, small.y, small.h]).toEqual([home.x, home.y, home.h]);
+    await questionClear(student);
 
     // Close and reopen: the expressions are still there.
     await student.locator('#lesson-calc-close').click();
@@ -213,10 +220,11 @@ test('lessons-11c C1+C2 instructor-paced: own calculator, drag/resize, layout sh
     await expect(own(student)).toBeVisible();
     await expect(ownList(student)).toContainText('1111');
     expect(await box(own(student))).toEqual(small);
-    // Back at the default position: the question stays clear of the window.
-    await drag(student, student.locator('#lesson-calc .lesson-calc-bar'), home.x - small.x, home.y - small.y);
-    await drag(student, student.locator('#lesson-calc-resize'), home.w - small.w, home.h - small.h);
-    expect(await box(own(student))).toEqual(home);
+    // Back at the default width: the question stays clear of the dock.
+    await drag(student, student.locator('#lesson-calc-resize'), home.w - small.w, 0);
+    const restored = await box(own(student));
+    expect(Math.abs(restored.w - home.w)).toBeLessThanOrEqual(1);
+    expect([restored.x, restored.y, restored.h]).toEqual([home.x, home.y, home.h]);
     await questionClear(student);
     await shot(student, '04-student-calculator-kept-next-question');
 
@@ -281,7 +289,9 @@ test('lessons-11c C1+C2 instructor-paced: own calculator, drag/resize, layout sh
     const before = await followerList(student).textContent();
     // Focus leaves the student's own calculator first, so keystrokes can only reach the follower.
     await student.locator('.lesson-header h1').click();
-    await student.locator('#lesson-desmos .dcg-new-expression').click();
+    // Docked between header and footer, the follower can have Desmos's own "Trial Key" badge over the middle of the
+    // new-expression row: click its left edge instead.
+    await student.locator('#lesson-desmos .dcg-new-expression').click({ position: { x: 6, y: 8 } });
     await student.keyboard.type('y=6161');
     await expect(followerList(student)).toHaveText(before);
     await expect(ownList(student)).not.toContainText('6161');

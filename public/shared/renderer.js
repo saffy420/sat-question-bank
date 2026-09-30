@@ -1,11 +1,27 @@
 // Same stem/choice markup used by practice, Browse and read-only admin previews.
 import { isRight } from './stats.js';
+import * as Figure from './figure.js';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const H3_LABEL = /<h3>\s*(?:Passage|Prompt|Question)\s*<\/h3>/gi;
 export function splitContext(html, document) {
   const d = document.createElement('div'); d.innerHTML = html;
   const ctx = document.createElement('div');
   d.querySelectorAll('.qfig, .qtable, .qimg').forEach(n => ctx.appendChild(n));
+  return { context: ctx.innerHTML.trim(), body: d.innerHTML.trim() };
+}
+// Math: figures stay where they are authored in the question column, each in its own viewer frame;
+// only tables and legacy .qimg blocks go to the context pane.
+export function mathStem(html, document) {
+  const d = document.createElement('div'); d.innerHTML = html;
+  const ctx = document.createElement('div');
+  d.querySelectorAll('.qtable, .qimg').forEach(n => ctx.appendChild(n));
+  Figure.install(document);
+  Figure.wrapFigures(d);
+  // A figure authored after all the text (2 of the bank's 323) would sit below the question: put it above
+  // the last text block instead.
+  const blocks = [...d.children], trailing = [];
+  for (let k = blocks.length - 1; k >= 0 && blocks[k].classList.contains('fv'); k--) trailing.unshift(blocks[k]);
+  if (trailing.length && trailing.length < blocks.length) blocks[blocks.length - trailing.length - 1].before(...trailing);
   return { context: ctx.innerHTML.trim(), body: d.innerHTML.trim() };
 }
 export function renderStem(q) {
@@ -16,7 +32,7 @@ export function previewHTML(q, document, picked) {
   const raw = q.stem_html || '';
   const at = q.section !== 'Math' ? raw.indexOf('<h3>Prompt</h3>') : -1;
   const stem = at >= 0 ? { context: renderStem({ stem_html: raw.slice(0, at) }), body: renderStem({ stem_html: raw.slice(at + 15) }) }
-    : q.section === 'Math' ? splitContext(renderStem(q), document) : { context: '', body: renderStem(q) };
+    : q.section === 'Math' ? mathStem(renderStem(q), document) : { context: '', body: renderStem(q) };
   return `<div class="cb" style="max-height:56vh;overflow-y:auto;">${stem.context ? `<div class="passage">${stem.context}</div>` : ''}
     ${stem.body}<div class="choices" style="margin-top:16px;">${q.choices.map(c => choiceHTML(q, c, null, true)).join('')}</div>
     ${q.spr ? picked === undefined ? `<div class="ans-line" style="margin-top:14px;">Answer: ${esc(q.answer) || '(see image)'}</div>`

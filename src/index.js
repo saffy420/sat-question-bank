@@ -634,7 +634,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
     if (['GET', 'HEAD'].includes(req.method)) {
       if (Object.hasOwn(aliases, p) && !adminPath(p)) return redirect(aliases[p]);
       if (Object.hasOwn(pages, p)) return asset(env, new Request(new URL(pages[p], url), req));
-      if (['/lesson-ui/lesson.js', '/lesson-ui/lesson.css', '/site.css', '/site.js', '/auth.js', '/shared/stats.js', '/shared/renderer.js', '/shared/lesson.js', '/shared/annotations.js', '/shared/desmos.js', '/shared/report.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
+      if (['/lesson-ui/lesson.js', '/lesson-ui/lesson.css', '/site.css', '/site.js', '/auth.js', '/shared/stats.js', '/shared/renderer.js', '/shared/lesson.js', '/shared/annotations.js', '/shared/desmos.js', '/shared/figure.js', '/shared/report.js', '/favicon.svg', '/robots.txt'].includes(p)) return asset(env, req);
     }
     if (p === '/api/auth/logout' && req.method === 'POST') {
       const res = json({ ok: true });

@@ -493,3 +493,66 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 **Deviations:** in lessons the Report button sits after the question number in the stem strip (there is no Mark for Review there). A report inside the 24 h window waits for the next call for its question. A running live lesson keeps its frozen question copy.
 
 **Manual checks:** apply `migrations/0011_reports.sql` to the remote DB before deploying; `wrangler secret put ANTHROPIC_API_KEY`; send one real report and look at the Reports tab; check the dialog over the lesson view on a Chromebook. Nothing was run against the real API.
+
+---
+
+## 2026-09-30 — Task 11-ui-polish: Bluebook proportions, fluid scale, pen/laser tracking, resizable Desmos (Claude Code, Tier 3)
+
+**Shipped:**
+- **Student view:** header, question column, choice rows, footer and type are sized from two `clamp()` tokens, so the column is **46 % of the window at every size** (was 800 px: 59 % at 1366, 73 % at 125 % zoom). Header 102 → 69 px and footer 80 → 54 px at 1366×768; the phase row is folded into the header. No horizontal scroll at 1366×768, 1536×864, 1920×1080 or at 90/110/125 % zoom.
+- **Buttons:** no outline box and no circle. Plain text buttons; only Next/Submit and the question pill are solid pills. Choice rows and inputs stay rounded.
+- **Calculator:** docks left and the question reflows (the floating drag/resize window is gone); the instructor's graph docks right; nothing overlaps.
+- **Pen and laser:** glyph anchors are now in em of the text's font size (new anchor form `node~offset`; old px marks still work), each pen chunk re-anchors to the word under it, and the canvas is sized exactly and repaints on zoom. The instructor's own pen/laser was already under the pointer at 80–150 % in emulation; the drift was between screens with different type sizes.
+- **Instructor Desmos:** drag handle; width kept in `localStorage` across close/reopen, next question and reload; clamped so the question stays readable.
+
+**E2E:** new specs 23; updated 05, 06, 11c. Full suite 72/72 (see `.omp/pipeline/lessons-11-ui-polish/e2e.md`). Unit: 150/152, the 2 failures pre-date the task (`test_grade.cjs` needs `git.exe`; `test_lesson_flush.cjs` "daily limit" is time-of-day). Review: PASS after one repair round (`review.md`).
+
+**Deviations:** subagent Test Developer and Reviewer as the task asked (BRIEF §12.1 says main session only); browser zoom is emulated (viewport + deviceScaleFactor); em round-trip and canvas rounding are covered by e2e, not unit tests.
+
+**Manual checks:** real Ctrl+/− zoom on a Chromebook (100/110/125 %) against Bluebook; instructor stroke at 125 % watched on a 100 % and a 110 % student; laser at 80 % and 150 %; Desmos handle + reload. Screenshots: `docs/lessons/11-ui-polish/`.
+
+---
+
+## 2026-09-30 — Task figure-viewer: one Bluebook-style viewer for every math figure (Claude Code; single session)
+
+**Shipped:**
+- `public/shared/figure.js`: one viewer for math figures.
+  - The toolbar: zoom in, zoom out, %, Reset, divider, Full Screen.
+  - **[DEFAULT]** 25 % steps from 100 % to 300 %, keeping the frame's centre fixed.
+  - Mouse, touch and arrow-key pan, clamped so no gap opens.
+  - The full screen is a modal overlay: Esc or X closes it, and the same zoom and pan apply.
+  - Every control is focusable; `+` and `-` zoom while the frame has focus.
+  - No new requests: full screen moves the loaded image.
+- Math figures stay in the question column, in their own centred frame, at their authored place. The 2 figures
+  authored after all the text move above it. This replaces the left-pane split and the inline fallback.
+- It is used in:
+  - bank practice and Browse/admin previews;
+  - the admin question viewer;
+  - every lesson Stage: student, instructor, self-paced and history/review.
+- At 100 % the figure is capped at `clamp(150px, 28vh, 440px)`. `fitFigures` shrinks it for a long stem, never below
+  140 px, so the first choice stays on screen at 1366×768.
+- Lessons: zoom, pan and full screen are never sent. Instructor strokes keep the same `i:<n>` figure anchor. Each
+  client reads the figure box through its own zoom, so a zoomed student sees the stroke on the same graph points,
+  clipped to the frame. At 100 % nothing changes.
+
+**Audit** (`.omp/pipeline/figure-viewer/audit.md`): 326 math figure questions, in the bank player and the lesson
+student view.
+- 0 structural problems after two fixes: the 3 AI inline-SVG graphs crashed the render, and long stems pushed the
+  choices off-screen.
+- 8 bank / 21 lesson questions still overflow even with the figure at its floor.
+- About 25 extraction defects are listed: garbled rotated axis titles, detached labels, table slivers in crops, and
+  `b544a348`, whose figure appears to show the worked solution.
+
+**E2E:** new `tests/e2e/figure-viewer/viewer.spec.js` (2 tests). Seed `e2e-fig-math`: the bank is now 9 questions, and
+the count and ID-list assertions in 5 specs are updated. Full suite: see `.omp/pipeline/figure-viewer/e2e.md`.
+Unit: 154/156, with the same 2 failures as on main.
+
+**Deviations:**
+- The overlay's 100 % is half the window fit, so 200 % looks like Bluebook D.
+- The frame's minimum width is 280 px, to fit the toolbar.
+- Reading & Writing figures keep the old lightbox.
+
+**Manual checks:**
+- Touch pan, `+`/`-` and Esc on a real Chromebook.
+- Draw on a figure while one Chromebook is zoomed to 200 % and another is at 100 %.
+- Check `b544a348` against the PDF.
