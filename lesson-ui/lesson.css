@@ -1,100 +1,116 @@
-:where(#lesson-live, #admin-root) { --text:#171717; --dim:#555; --bg:#fff; --bg2:#f4f4f4; --border:#777; --accent:#304fc5;
+:where(#lesson-live, #admin-root) { --u:clamp(12.5px, calc(9.9px + .3vw), 17px); --fs:clamp(16px, calc(13.1px + .32vw), 21px); --gutter:clamp(24px, 2.8vw, 56px); --column:clamp(440px, 46vw, 960px); --text:#171717; --dim:#555; --bg:#fff; --bg2:#f4f4f4; --border:#777; --accent:#304fc5;
   /* Bluebook divider: black dashes with yellow/cyan accents. Header, footer and question bar share it. */
   --lesson-dashes:repeating-linear-gradient(90deg,#636363 0 20px,transparent 20px 24px,#636363 24px 44px,transparent 44px 48px,#636363 48px 68px,transparent 68px 72px,#f4d92e 72px 92px,transparent 92px 96px,#28a4ba 96px 116px,transparent 116px 120px,#636363 120px 140px,transparent 140px 144px); }
 @font-face { font-family:'Lesson Serif'; font-style:normal; font-weight:400; font-display:block; src:url('../node_modules/@fontsource/source-serif-4/files/source-serif-4-latin-400-normal.woff2') format('woff2'); }
 @font-face { font-family:'Lesson Sans'; font-style:normal; font-weight:400; font-display:block; src:url('../node_modules/@fontsource/roboto/files/roboto-latin-400-normal.woff2') format('woff2'); }
 
-#lesson-live { color-scheme:light; position:fixed; inset:0; z-index:100; overflow:auto; scroll-padding:102px 0 80px; background:#fff; color:#171717; padding:0; font:16px/1.5 'Lesson Sans',sans-serif;  }
+
+/* ---- Fluid scale ------------------------------------------------------------------------------
+   Everything below is sized from two clamp()ed lengths so the layout keeps Bluebook's proportions
+   (screenshot A: 2000 px window, 20 px question type, 46 % column) from 1093 px (a 1366 Chromebook at
+   125 % zoom) up to full HD: --u drives chrome (1u = 16 px at A), --fs the question type (20 px at A).
+   Heights come from vh so a short Chromebook viewport is not eaten by the header and footer. */
+#lesson-live { --head:clamp(60px, 9vh, 108px); --foot:clamp(52px, 7vh, 85px);
+  --dock-gap:12px; --calc-w:clamp(300px, 28vw, 440px); --follow-w:clamp(280px, 28vw, 440px); --dock-l:0px; --dock-r:0px; }
+#lesson-live { color-scheme:light; position:fixed; inset:0; z-index:100; overflow:auto; overflow-x:hidden; scroll-padding:calc(var(--head) + 16px) 0 calc(var(--foot) + 16px); background:#fff; color:#171717; padding:0; font:calc(var(--u) * 1.1)/1.5 'Lesson Sans',sans-serif; }
 #lesson-content { margin:0; padding:0; max-width:none; min-height:100%; border:0; border-radius:0; background:#fff; box-shadow:none; }
 #lesson-live *, .lesson-stage *, .stage-host { box-sizing:border-box; }
-#lesson-live button, #lesson-live input, #lesson-live summary { font-family:'Lesson Sans',sans-serif; color:inherit; }
-#lesson-live button { cursor:pointer; background:#fff; border:1px solid #555; border-radius:6px; padding:8px 16px; }
+#lesson-live button, #lesson-live input, #lesson-live summary, #lesson-live select { font-family:'Lesson Sans',sans-serif; color:inherit; }
+/* Every control is a pill (buttons) or a rounded row (choices, inputs, selects): Bluebook has no square corners. */
+#lesson-live button { cursor:pointer; background:#fff; border:1px solid #555; border-radius:999px; padding:.4em 1.1em; font-size:inherit; }
 #lesson-live button:disabled { cursor:default; opacity:.6; }
-#lesson-live button:focus-visible, #lesson-live summary:focus-visible, #lesson-live input:focus-visible { outline:3px solid #156fd1; outline-offset:4px; }
-.lesson-header { position:sticky; top:0; z-index:5; display:grid; grid-template-columns:1fr 150px 1fr; min-height:102px; padding:15px 28px 12px; background:#fff; align-items:center; }
+#lesson-live button:focus-visible, #lesson-live summary:focus-visible, #lesson-live input:focus-visible, #lesson-live select:focus-visible { outline:3px solid #156fd1; outline-offset:4px; }
+#lesson-live select { border:1px solid #555; border-radius:12px; background:#fff; }
+.lesson-header { position:sticky; top:0; z-index:5; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:var(--gutter); height:var(--head); padding:0 var(--gutter); background:#fff; align-items:center; }
 .lesson-header::after, .lesson-footer::before { content:''; height:2px; position:absolute; left:0; right:0; bottom:0; background:var(--lesson-dashes); }
-.lesson-header h1 { margin:0; font-size:20px; line-height:1.3; font-weight:500; }
-.lesson-timer { display:flex; flex-direction:column; align-items:center; gap:1px; min-height:67px; }
-#lesson-clock { font-size:28px; line-height:1.25; font-weight:500; font-variant-numeric:tabular-nums; min-height:35px; }
-#lesson-live .lesson-timer button { padding:0 15px; border-radius:16px; font-size:13px; line-height:22px; }
-.lesson-tools { display:flex; align-items:center; justify-content:flex-end; gap:23px; -webkit-user-select:none; user-select:none; }
-#lesson-live .lesson-tools>button, .lesson-follow-tool, .lesson-more>summary { display:flex; flex-direction:column; align-items:center; gap:5px; background:none; border:0; padding:4px; font-size:13px; cursor:pointer; }
-.lesson-tools svg { width:21px; height:21px; stroke-width:1.8; }
-#lesson-live .lesson-tools button[aria-pressed=true] { background:#e8edff; color:#2345be; }
+.lesson-title { min-width:0; display:flex; flex-direction:column; justify-content:center; gap:2px; }
+.lesson-header h1 { margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:calc(var(--u) * 1.6); line-height:1.25; font-weight:500; }
+.lesson-phase { min-height:1.2em; color:#606060; font-size:calc(var(--u) * .78); line-height:1.2; letter-spacing:.06em; }
+.lesson-timer { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:calc(var(--u) * .2); }
+#lesson-clock { font-size:calc(var(--u) * 1.9); line-height:1.15; font-weight:500; font-variant-numeric:tabular-nums; min-height:1.15em; }
+#lesson-live .lesson-timer button { padding:0 calc(var(--u) * 1.1); font-size:calc(var(--u) * .9); line-height:calc(var(--u) * 1.5); }
+.lesson-tools { display:flex; align-items:center; justify-content:flex-end; gap:calc(var(--u) * 1.7); -webkit-user-select:none; user-select:none; }
+/* Icon over label, no box and no fill; the active tool turns accent blue with a thin rule under its label. */
+#lesson-live .lesson-tools>button, .lesson-follow-tool, .lesson-more>summary { display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * .3); background:none; border:0; border-bottom:2px solid transparent; border-radius:0; padding:calc(var(--u) * .25) calc(var(--u) * .2) calc(var(--u) * .15); font-size:calc(var(--u) * .9); line-height:1.2; cursor:pointer; white-space:nowrap; }
+.lesson-tools svg { width:calc(var(--u) * 1.6); height:calc(var(--u) * 1.6); stroke-width:1.7; }
+#lesson-live .lesson-tools button[aria-pressed=true] { background:none; color:#2345be; border-bottom-color:#2345be; }
 .lesson-follow-tool { position:relative; }
-.lesson-follow-tool input { position:absolute; top:0; right:-9px; width:13px; height:13px; accent-color:#304fc5; }
+.lesson-follow-tool:has(input:checked) { color:#2345be; border-bottom-color:#2345be; }
+/* The checkbox is invisible and covers the tool, so a click anywhere on it toggles Follow me; the underline shows the state. */
+.lesson-follow-tool input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
 .lesson-more { position:relative; }
 .lesson-more summary { list-style:none; }
 .lesson-more summary::-webkit-details-marker { display:none; }
 /* Above the header's ::after dashed divider, which paints later in the same stacking context. */
-.lesson-more>div { position:absolute; z-index:10; top:65px; right:0; width:260px; border:1px solid #bbb; border-radius:8px; background:#fff; padding:8px; box-shadow:0 8px 22px #0002; }
-#lesson-live .lesson-more button { display:flex; gap:12px; width:100%; text-align:left; border:0; padding:12px; }
+.lesson-more>div { position:absolute; z-index:10; top:calc(100% + 8px); right:0; width:min(260px, 80vw); border:1px solid #bbb; border-radius:14px; background:#fff; padding:8px; box-shadow:0 8px 22px #0002; }
+#lesson-live .lesson-more button { display:flex; gap:12px; width:100%; text-align:left; border:0; border-radius:10px; padding:12px; }
 #lesson-connection { color:#26793b; display:flex; }
 #lesson-connection svg { width:9px; height:9px; }
 .lesson-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-.lesson-reconnect { position:sticky; top:102px; z-index:4; text-align:center; padding:4px; background:#fff0bd; font-size:14px; }
-.lesson-phase { padding:3px 28px; height:26px; color:#606060; font-size:11px; letter-spacing:.05em; }
-.lesson-main { padding:12px clamp(16px, 2.5vw, 48px) 105px; }
-/* Fluid stage: fills its container at any zoom; panes keep a readable measure instead of the
-   whole layout shrinking. Container queries so the presenter's narrower panel stacks too. */
+.lesson-reconnect { position:sticky; top:var(--head); z-index:4; text-align:center; padding:4px; background:#fff0bd; font-size:14px; }
+/* Content sits between the docked Desmos panels; the column keeps A's 46 % measure and reflows when a dock opens. */
+.lesson-main { padding:clamp(20px, 7vh, 88px) calc(var(--gutter) + var(--dock-r)) calc(var(--foot) + 32px) calc(var(--gutter) + var(--dock-l)); }
 .stage-host { position:relative; width:100%; container-type:inline-size; }
-.lesson-stage { position:relative; width:100%; background:#fff; color:#171717; font:20px/1.5 'Lesson Serif',serif; border:0; padding:0; text-align:left; color-scheme:light; }
-/* Fixed 50/50 split, Bluebook's default; a plain rule separates the panes. */
+.lesson-stage { position:relative; width:100%; background:#fff; color:#171717; font:var(--fs)/1.6 'Lesson Serif',serif; border:0; padding:0; text-align:left; color-scheme:light; }
+/* Fixed 50/50 split for a passage or figure (Bluebook's default); a plain rule separates the panes. */
 .lesson-stage.stage-split { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); }
 .lesson-stage.stage-split .stage-question { border-left:2px solid #cfcfcf; }
-.lesson-stage .stage-passage { padding:24px clamp(20px, 3vw, 56px) 35px 0; }
+.lesson-stage .stage-passage { padding:0 clamp(20px, 3vw, 56px) 35px 0; }
 .lesson-stage.stage-figure .stage-passage img { display:block; margin-inline:auto; }
-.lesson-stage .stage-question { padding:24px 0 35px clamp(20px, 3vw, 56px); }
-.lesson-stage.stage-single .stage-question { width:min(100%, 40em); margin:0 auto; padding:24px 0 35px; }
+.lesson-stage .stage-question { padding:0 0 35px clamp(20px, 3vw, 56px); }
+.lesson-stage.stage-single .stage-question { width:min(100%, var(--column)); margin:0 auto; padding:0 0 35px; }
 @container (max-width: 720px) {
   .lesson-stage.stage-split { grid-template-columns:minmax(0,1fr); }
-  .lesson-stage .stage-passage { padding:16px 0 24px; border-bottom:2px solid #cfcfcf; }
+  .lesson-stage .stage-passage { padding:0 0 24px; border-bottom:2px solid #cfcfcf; }
   .lesson-stage .stage-question, .lesson-stage.stage-split .stage-question { padding:24px 0 35px; border-left:0; }
 }
-.lesson-stage .stage-strip { position:relative; display:flex; align-items:center; height:36px; margin-bottom:30px; background:#f0f0f0; font:20px/36px 'Lesson Sans',sans-serif; }
+.lesson-stage .stage-strip { position:relative; display:flex; align-items:center; height:calc(var(--u) * 2.8); margin-bottom:calc(var(--u) * 2.6); background:#f0f0f0; font:calc(var(--u) * 1.25)/calc(var(--u) * 2.8) 'Lesson Sans',sans-serif; }
 .lesson-stage .stage-strip::after { content:''; position:absolute; left:0; right:0; bottom:-8px; height:2px; background:var(--lesson-dashes); }
-.lesson-stage .stage-strip>span { display:inline-block; min-width:34px; padding:0 7px; color:#fff; background:#161616; text-align:center; }
-.lesson-stage .stage-strip .stage-strike-toggle, #lesson-live .lesson-stage .stage-strip .stage-strike-toggle { margin:0 6px 0 auto; padding:0 6px; height:26px; border:1.5px solid #171717; border-radius:5px; background:#fff; color:#171717; font:700 12px/1 'Lesson Sans',sans-serif; letter-spacing:.02em; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.lesson-stage .stage-strip>span { display:inline-block; min-width:calc(var(--u) * 2.3); padding:0 7px; color:#fff; background:#161616; text-align:center; }
+.lesson-stage .stage-strip .stage-strike-toggle, #lesson-live .lesson-stage .stage-strip .stage-strike-toggle { margin:0 calc(var(--u) * .5) 0 auto; padding:0 calc(var(--u) * .7); height:calc(var(--u) * 1.7); border:1.5px solid #171717; border-radius:999px; background:#fff; color:#171717; font:700 calc(var(--u) * .75)/1 'Lesson Sans',sans-serif; letter-spacing:.02em; cursor:pointer; -webkit-user-select:none; user-select:none; }
 .lesson-stage .stage-strike-toggle s { text-decoration-thickness:2px; }
 .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true], #lesson-live .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true] { background:#304fc5; border-color:#304fc5; color:#fff; }
-.lesson-stage p { margin:0 0 18px; }
+.lesson-stage p { margin:0 0 calc(var(--fs) * .9); }
 .lesson-stage .passage { margin:0; padding:0; border:0; background:none; font:inherit; max-height:none; overflow:visible; }
 /* Readable measure inside each pane (after .passage's margin reset so it can centre). */
 .lesson-stage .stage-passage>*, .lesson-stage.stage-split .stage-question>* { max-width:44em; margin-inline:auto; }
 .lesson-stage .lesson-stem { font:inherit; }
-.lesson-stage .choices { display:flex; flex-direction:column; gap:16px; margin-top:22px; }
-.lesson-stage .choices button, #lesson-live .lesson-stage .choices button { display:block; width:100%; text-align:left; padding:0; margin:0; background:none; border:0; font:inherit; color:#171717; border-radius:10px; opacity:1; }
-.lesson-stage .stage-choice { display:flex; align-items:center; gap:12px; }
+.lesson-stage .choices { display:flex; flex-direction:column; gap:calc(var(--u) * 1.4); margin-top:calc(var(--u) * 2.2); }
+.lesson-stage .choices button, #lesson-live .lesson-stage .choices button { display:block; width:100%; text-align:left; padding:0; margin:0; background:none; border:0; font:inherit; color:#171717; border-radius:calc(var(--u) * .8); opacity:1; }
+.lesson-stage .stage-choice { display:flex; align-items:center; gap:calc(var(--u) * .8); }
 .lesson-stage .stage-choice>[data-lesson-choice] { position:relative; flex:1; min-width:0; }
 .lesson-stage .stage-choice.struck .choice, .lesson-stage .stage-choice.eliminated .choice { opacity:.5; }
 .lesson-stage .stage-choice.struck>[data-lesson-choice]::after, .lesson-stage .stage-choice.eliminated>[data-lesson-choice]::after { content:''; position:absolute; left:-6px; right:-6px; top:50%; height:2px; background:#171717; pointer-events:none; }
-.lesson-stage .choices .stage-strike, #lesson-live .lesson-stage .choices .stage-strike { display:none; flex:none; align-items:center; justify-content:center; width:52px; height:36px; margin:0; padding:0; border:0; background:none; color:#171717; font:15px/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
-.lesson-stage.strike-on .choices .stage-strike, #lesson-live .lesson-stage.strike-on .choices .stage-strike { display:inline-flex; }
-.lesson-stage .stage-strike-letter { position:relative; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border:1.5px solid #171717; border-radius:50%; font-size:13px; }
+/* The cross-out control sits outside the row, on the right, as in Bluebook. Its space is always reserved
+   so switching the tool on never reflows the text (and never moves ink). */
+.lesson-stage .choices .stage-strike, #lesson-live .lesson-stage .choices .stage-strike { display:inline-flex; visibility:hidden; flex:none; align-items:center; justify-content:center; width:calc(var(--u) * 2.4); height:calc(var(--u) * 2.4); margin:0; padding:0; border:0; background:none; color:#171717; font:calc(var(--u) * .95)/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.lesson-stage.strike-on .choices .stage-strike, #lesson-live .lesson-stage.strike-on .choices .stage-strike { visibility:visible; }
+.lesson-stage .stage-strike-letter { position:relative; display:inline-flex; align-items:center; justify-content:center; width:calc(var(--u) * 1.9); height:calc(var(--u) * 1.9); border:1.5px solid #171717; border-radius:50%; font-size:calc(var(--u) * .85); }
 .lesson-stage .stage-strike-letter::after { content:''; position:absolute; left:-5px; right:-5px; top:50%; height:1.5px; background:#171717; }
-.lesson-stage .stage-strike-undo { display:none; font-weight:700; text-decoration:underline; }
+.lesson-stage .stage-strike-undo { display:none; font-weight:700; text-decoration:underline; font-size:calc(var(--u) * .8); }
 .lesson-stage .stage-strike[aria-pressed=true] .stage-strike-letter { display:none; }
 .lesson-stage .stage-strike[aria-pressed=true] .stage-strike-undo { display:inline; }
 .lesson-stage .choice-row { display:block; margin:0; border:0; padding:0; gap:0; background:none; }
-.lesson-stage .choice { display:flex; align-items:center; gap:15px; min-height:58px; border:1px solid #555; border-radius:10px; padding:11px 14px; background:#fff; color:#171717; font:inherit; box-shadow:none; margin:0; }
+.lesson-stage .choice { display:flex; align-items:center; gap:calc(var(--u) * 1.3); min-height:calc(var(--u) * 4.4); border:1px solid #555; border-radius:calc(var(--u) * .8); padding:calc(var(--u) * .6) calc(var(--u) * 1.1); background:#fff; color:#171717; font:inherit; box-shadow:none; margin:0; }
 /* Choice text is selectable (inside a button) so it can be highlighted; the letter badge is not. */
 .lesson-stage .choice>span:last-child { -webkit-user-select:text; user-select:text; }
-.lesson-stage .choice .badge { -webkit-user-select:none; user-select:none; display:inline-flex; flex:none; align-items:center; justify-content:center; width:27px; height:27px; margin:0; border:1px solid #444; border-radius:50%; background:#fff; color:#171717; font:17px/1 'Lesson Sans',sans-serif; font-weight:400; }
+.lesson-stage .choice .badge { -webkit-user-select:none; user-select:none; display:inline-flex; flex:none; align-items:center; justify-content:center; width:calc(var(--u) * 2.1); height:calc(var(--u) * 2.1); margin:0; border:1px solid #444; border-radius:50%; background:#fff; color:#171717; font:calc(var(--u) * 1.05)/1 'Lesson Sans',sans-serif; font-weight:400; }
 .lesson-stage .badge { position:relative; }
 .lesson-stage .stage-verdict { display:inline-flex; flex:none; align-items:center; }
 .lesson-stage .choice.right .stage-verdict { color:#26783d; }
 .lesson-stage .choice.wrong .stage-verdict { color:#bd2424; }
-.lesson-stage .choice.sel { border:3px solid #304fc5; padding:9px 12px; }
+.lesson-stage .choice.sel { border:3px solid #304fc5; padding:calc(var(--u) * .6 - 2px) calc(var(--u) * 1.1 - 2px); }
 .lesson-stage .choice.sel .badge { background:#304fc5; color:#fff; border-color:#304fc5; }
-.lesson-stage .choice.right { border:3px solid #26783d; padding:9px 12px; background:#edf8ee; }
-.lesson-stage .choice.wrong { border:3px solid #bd2424; padding:9px 12px; background:#fff0ef; }
+.lesson-stage .choice.right { border:3px solid #26783d; padding:calc(var(--u) * .6 - 2px) calc(var(--u) * 1.1 - 2px); background:#edf8ee; }
+.lesson-stage .choice.wrong { border:3px solid #bd2424; padding:calc(var(--u) * .6 - 2px) calc(var(--u) * 1.1 - 2px); background:#fff0ef; }
 .lesson-stage button:not(:disabled):hover .choice { background:#f3f6ff; }
 .lesson-stage .katex { font-size:1em; }
 .lesson-stage img { max-width:100%; height:auto; filter:none!important; }
-.lesson-stage .gridin-wrap { margin-top:25px; display:grid; grid-template-columns:200px 90px; gap:12px; align-items:center; }
+.lesson-stage .gridin-wrap { margin-top:calc(var(--u) * 2); display:grid; grid-template-columns:minmax(0, calc(var(--u) * 13)) auto; gap:calc(var(--u) * .8); align-items:center; }
 .lesson-stage .gridin-wrap label { grid-column:1/-1; }
-.lesson-stage .gridin { width:200px; height:52px; border:2px solid #555; border-radius:4px; background:#fff; color:#171717; font:24px 'Lesson Serif',serif; padding:6px 12px; }
-.lesson-stage .spr-preview { grid-column:1/-1; font-size:17px; min-height:30px; }
+.lesson-stage .gridin { width:100%; height:calc(var(--u) * 3.6); border:2px solid #555; border-radius:calc(var(--u) * .8); background:#fff; color:#171717; font:calc(var(--u) * 1.5) 'Lesson Serif',serif; padding:0 calc(var(--u) * .9); }
+#lesson-live .lesson-stage .gridin-wrap button { justify-self:start; height:calc(var(--u) * 2.2); padding:0 calc(var(--u) * 1.4); font-size:calc(var(--u) * .95); }
+.lesson-stage .spr-preview { grid-column:1/-1; font-size:calc(var(--fs) * .85); min-height:1.5em; }
 .lesson-stage .lesson-ink { max-width:none; }
 /* Highlighter tool: pen cursor over the stage, a larger I-beam over annotatable text, pointer on the
    choice letter (which still selects and is never highlighted). Hotspots: pen tip, I-beam centre. */
@@ -113,49 +129,53 @@
 .lesson-stage.tool-pen, .lesson-stage.tool-erase, .lesson-stage.tool-laser { cursor:crosshair; }
 .lesson-stage .lesson-laser { position:absolute; left:0; top:0; z-index:3; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:#e32020; box-shadow:0 0 0 3px rgba(227,32,32,.25), 0 0 14px 5px rgba(227,32,32,.35); pointer-events:none; will-change:transform; }
 .lesson-stage .lesson-laser[hidden] { display:none; }
-.lesson-footer { position:fixed; left:0; bottom:0; right:0; z-index:5; display:grid; grid-template-columns:1fr 1fr 1fr; align-items:center; padding:18px 28px; height:80px; background:#fff; }
+.lesson-footer { position:fixed; left:0; bottom:0; right:0; z-index:5; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:var(--gutter); align-items:center; padding:0 var(--gutter); height:var(--foot); background:#fff; font-size:calc(var(--u) * 1.35); }
+.lesson-footer>span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lesson-footer::before { top:0; bottom:auto; }
-.lesson-position { justify-self:center; color:#fff; background:#171717; padding:7px 18px; border-radius:8px; font-weight:500; }
-#lesson-live .lesson-submit, #lesson-live #lesson-confirm { border:0; color:#fff; background:#304fc5; border-radius:25px; font-size:17px; padding:10px 32px; justify-self:end; }
-.lesson-lobby { padding:120px 20px; text-align:center; }
+.lesson-position { justify-self:center; color:#fff; background:#171717; padding:calc(var(--u) * .5) calc(var(--u) * 1.6); border-radius:999px; font-size:calc(var(--u) * 1.05); font-weight:500; white-space:nowrap; }
+#lesson-live .lesson-submit, #lesson-live #lesson-confirm { border:0; color:#fff; background:#304fc5; border-radius:999px; font-size:calc(var(--u) * 1.1); padding:calc(var(--u) * .6) calc(var(--u) * 2.2); justify-self:end; }
+.lesson-lobby { padding:calc(var(--u) * 7) 20px; text-align:center; }
 .lesson-lobby svg { color:#4057af; }
-.lesson-lobby h2 { font-size:24px; font-weight:500; margin:24px 0 12px; }
+.lesson-lobby h2 { font-size:calc(var(--u) * 1.5); font-weight:500; margin:24px 0 12px; }
 .lesson-lobby p { color:#555; }
 .lesson-locked { display:flex; justify-content:center; align-items:center; gap:9px; padding:20px; }
-.lesson-reveal { width:min(100%, 44rem); margin:24px auto; }
+.lesson-reveal { width:min(100%, var(--column)); margin:24px auto; }
 .lesson-verdict { display:flex; align-items:center; gap:8px; margin-bottom:18px; }
 .lesson-verdict svg { display:block; }
 .lesson-reveal details { padding:16px 0; border-top:1px solid #bbb; }
 .lesson-reveal summary { cursor:pointer; font-weight:500; }
-.lesson-reveal details>div { padding-top:20px; font:19px/1.5 'Lesson Serif',serif; }
+.lesson-reveal details>div { padding-top:20px; font:calc(var(--fs) * .95)/1.6 'Lesson Serif',serif; }
 .lesson-reveal .katex { font-size:1em; }
 .lesson-result { display:grid; grid-template-columns:50px 1fr 35px 22px; align-items:center; gap:12px; margin:16px 0; }
-.lesson-result-track { height:28px; border-radius:5px; background:#e0e4eb; overflow:hidden; }
+.lesson-result-track { height:28px; border-radius:14px; background:#e0e4eb; overflow:hidden; }
 .lesson-result-track i { display:block; height:100%; border-radius:20px; }
-.lesson-confirm-dialog { color-scheme:light; color:#171717; background:#fff; border:1px solid #aaa; border-radius:14px; width:520px; padding:32px; font:20px/1.5 'Lesson Sans',sans-serif; }
+.lesson-confirm-dialog { color-scheme:light; color:#171717; background:#fff; border:1px solid #aaa; border-radius:20px; width:min(520px, 92vw); padding:32px; font:calc(var(--u) * 1.25)/1.5 'Lesson Sans',sans-serif; }
 .lesson-confirm-dialog::backdrop { background:#0006; }
 .lesson-confirm-dialog>div { display:flex; justify-content:flex-end; gap:16px; margin-top:30px; }
 .lesson-terminal { padding:100px 30px; text-align:center; }
 #lesson-error:empty { display:none; }
-.lesson-main.with-desmos { margin-right:430px; }
-.lesson-desmos { position:fixed; top:102px; right:0; bottom:80px; z-index:4; width:430px; display:flex; flex-direction:column; background:#fff; border-left:2px solid #cfcfcf; }
-.lesson-desmos-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 12px; font-size:15px; border-bottom:1px solid #cfcfcf; }
-#lesson-live .lesson-desmos-bar button { padding:4px 12px; font-size:14px; }
+/* Instructor's graph (student follower): docked right, and the question column reflows to make room. */
+.lesson-main.with-desmos { --dock-r:calc(var(--follow-w) + var(--dock-gap) * 2); }
+.lesson-desmos { position:fixed; top:calc(var(--head) + var(--dock-gap)); right:var(--dock-gap); bottom:calc(var(--foot) + var(--dock-gap)); z-index:4; width:var(--follow-w); display:flex; flex-direction:column; overflow:hidden; background:#fff; border:1px solid #777; border-radius:16px; }
+.lesson-desmos-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 12px 8px 16px; font-size:calc(var(--u) * .95); border-bottom:1px solid #cfcfcf; }
+#lesson-live .lesson-desmos-bar button { padding:4px 14px; font-size:calc(var(--u) * .9); }
 .lesson-desmos-calc { flex:1; min-height:0; }
 .lesson-desmos[data-mode=follow] .lesson-desmos-calc { cursor:default; }
-@media(max-width:750px) { .lesson-main.with-desmos { margin-right:0; } .lesson-desmos { top:auto; left:0; width:auto; height:45vh; border-left:0; border-top:2px solid #cfcfcf; } .lesson-header { grid-template-columns:1fr 80px 1fr; padding:12px; } .lesson-header h1 { font-size:15px; } .lesson-tools { gap:8px; } .lesson-tools span { font-size:10px; } .lesson-main { padding-left:8px; padding-right:8px; } .lesson-footer { padding:16px 12px; font-size:12px; } }
-/* Student calculator (Calculator.tsx): floating window, default at the left edge. While it is open the
-   question shifts right by its default footprint (CALC_LEFT + CALC_WIDTH + gap), Bluebook-style. */
-.lesson-main.with-calc { padding-left:440px; }
-.lesson-calc { position:fixed; z-index:6; display:flex; flex-direction:column; background:#fff; border:1px solid #777; border-radius:8px; box-shadow:0 8px 28px #0003; overflow:hidden; }
+@media(max-width:750px) { .lesson-main.with-desmos { --dock-r:0px; } .lesson-desmos { top:auto; left:var(--dock-gap); width:auto; height:45vh; } .lesson-header { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:8px; padding:0 12px; } .lesson-header h1 { font-size:15px; } .lesson-tools { gap:8px; } .lesson-tools span { font-size:10px; } .lesson-main { padding-left:12px; padding-right:12px; } .lesson-footer { padding:0 12px; gap:8px; font-size:12px; } }
+/* Student calculator (Calculator.tsx): docked on the left between header and footer. While it is open the
+   question column reflows to the right of it (--dock-l), so nothing is ever covered. Its width is set by
+   the drag handle on its right edge (--calc-w on #lesson-live). */
+.lesson-main.with-calc { --dock-l:calc(var(--calc-w) + var(--dock-gap) * 2); }
+.lesson-calc { position:fixed; z-index:6; left:var(--dock-gap); top:calc(var(--head) + var(--dock-gap)); bottom:calc(var(--foot) + var(--dock-gap)); width:var(--calc-w); display:flex; flex-direction:column; background:#fff; border:1px solid #777; border-radius:16px; box-shadow:0 6px 22px #0002; overflow:hidden; }
 .lesson-calc[hidden] { display:none; }
-.lesson-calc-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 6px 4px 14px; background:#171717; color:#fff; font-size:15px; cursor:move; touch-action:none; -webkit-user-select:none; user-select:none; }
+.lesson-calc-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 8px 4px 16px; background:#171717; color:#fff; font-size:calc(var(--u) * .95); -webkit-user-select:none; user-select:none; }
 #lesson-live .lesson-calc-bar button { display:flex; padding:4px; border:0; background:none; color:#fff; }
 .lesson-calc-bar svg { width:20px; height:20px; }
 .lesson-calc-body { flex:1; min-height:0; }
-#lesson-live .lesson-calc-resize { position:absolute; right:0; bottom:0; z-index:2; width:18px; height:18px; padding:0; border:0; border-radius:0; background:linear-gradient(135deg, transparent 0 55%, #777 55% 62%, transparent 62% 72%, #777 72% 79%, transparent 79%); cursor:nwse-resize; touch-action:none; }
-#lesson-live #lesson-calc-replace { border:0; color:#fff; background:#304fc5; border-radius:25px; font-size:17px; padding:10px 32px; }
-@media(max-width:750px) { .lesson-main.with-calc { padding-left:8px; } }
+#lesson-live .lesson-calc-resize { position:absolute; top:0; right:0; bottom:0; z-index:2; width:10px; padding:0; border:0; border-radius:0; background:transparent; cursor:ew-resize; touch-action:none; }
+#lesson-live .lesson-calc-resize::after { content:''; position:absolute; top:50%; right:3px; width:4px; height:44px; margin-top:-22px; border-radius:2px; background:#8a8a8a; }
+#lesson-live #lesson-calc-replace { border:0; color:#fff; background:#304fc5; border-radius:999px; font-size:calc(var(--u) * 1.1); padding:calc(var(--u) * .6) calc(var(--u) * 2.2); }
+@media(max-width:750px) { .lesson-main.with-calc { --dock-l:0px; } .lesson-calc { right:var(--dock-gap); width:auto; } .lesson-calc-resize { display:none; } }
 /* Self-paced (§8.3) */
 .self-count { font-weight:400; color:#444; }
 .self-remaining { font-size:12px; color:#555; line-height:1; }
@@ -164,36 +184,36 @@
 .self-position-wrap { position:relative; justify-self:center; }
 #lesson-live .self-position-wrap .lesson-position { display:flex; align-items:center; gap:8px; border:0; color:#fff; background:#171717; }
 .self-position-wrap .lesson-position svg { width:18px; height:18px; }
-.self-navigator { position:absolute; bottom:56px; left:50%; transform:translateX(-50%); width:min(560px,92vw); padding:18px; background:#fff; border:1px solid #999; border-radius:10px; box-shadow:0 10px 30px #0003; }
+.self-navigator { position:absolute; bottom:56px; left:50%; transform:translateX(-50%); width:min(560px,92vw); padding:18px; background:#fff; border:1px solid #999; border-radius:18px; box-shadow:0 10px 30px #0003; }
 .self-legend { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:14px; color:#444; margin:0 0 12px; }
 .self-legend svg { width:15px; height:15px; color:#bd2424; }
-.self-key { display:inline-block; width:14px; height:14px; border:1px dashed #555; border-radius:3px; }
+.self-key { display:inline-block; width:14px; height:14px; border:1px dashed #555; border-radius:5px; }
 .self-key.answered { background:#304fc5; border:1px solid #304fc5; }
 .self-grid { list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(44px,1fr)); gap:10px; padding:0; margin:0 0 14px; }
-#lesson-live .self-grid button { position:relative; width:44px; height:44px; padding:0; border:1px dashed #555; border-radius:6px; background:#fff; font-weight:500; color:#304fc5; }
+#lesson-live .self-grid button { position:relative; width:44px; height:44px; padding:0; border:1px dashed #555; border-radius:12px; background:#fff; font-weight:500; color:#304fc5; }
 #lesson-live .self-grid button[data-state=answered] { background:#304fc5; color:#fff; border:1px solid #304fc5; }
 #lesson-live .self-grid button[aria-current=step] { outline:3px solid #171717; outline-offset:2px; }
 .self-grid button svg { position:absolute; top:-8px; right:-8px; width:17px; height:17px; color:#bd2424; fill:#bd2424; }
 #lesson-live #self-flag[aria-pressed=true] svg { color:#bd2424; fill:#bd2424; }
-.self-review { max-width:760px; margin:24px auto; }
+.self-review { width:min(100%, var(--column)); margin:0 auto; }
 .self-review h2 { font-size:26px; font-weight:500; margin:0 0 8px; }
 #lesson-live .self-review #self-submit { display:block; margin:24px 0 0 auto; }
-#lesson-live #self-confirm { border:0; color:#fff; background:#304fc5; border-radius:25px; font-size:17px; padding:10px 32px; }
+#lesson-live #self-confirm { border:0; color:#fff; background:#304fc5; border-radius:999px; font-size:calc(var(--u) * 1.1); padding:calc(var(--u) * .6) calc(var(--u) * 2.2); }
 /* Review poll (§8.7) */
-.lesson-poll { max-width:640px; margin:40px auto; padding:0 16px; }
+.lesson-poll { width:min(100%, 640px); margin:0 auto; padding:0 16px; }
 .lesson-poll h2 { font-size:26px; font-weight:500; margin:0 0 20px; }
-.poll-option { display:flex; gap:12px; align-items:center; padding:14px 16px; border:1px solid var(--border); border-radius:8px; margin:0 0 12px; font-size:18px; cursor:pointer; }
+.poll-option { display:flex; gap:12px; align-items:center; padding:14px 16px; border:1px solid var(--border); border-radius:14px; margin:0 0 12px; font-size:18px; cursor:pointer; }
 .poll-option input { width:20px; height:20px; accent-color:var(--accent); }
 .poll-pick { display:flex; flex-direction:column; gap:6px; margin:0 0 16px 48px; font-size:15px; color:var(--dim); }
-.poll-pick select { font-size:17px; padding:8px; max-width:320px; }
+.poll-pick select { font-size:17px; padding:8px 12px; max-width:320px; border-radius:12px; }
 #lesson-live .lesson-poll #poll-vote { display:block; margin:8px 0 0 auto; }
 #lesson-live .lesson-poll #poll-vote:disabled { opacity:.5; }
 #poll-status { min-height:1.4em; color:var(--dim); text-align:right; }
 #lesson-not-in-set { font-weight:500; }
 /* §9.1 My Lessons history */
 .history-score { justify-self:center; font-size:16px; color:#444; }
-.history-nav { display:flex; flex-wrap:wrap; gap:8px; padding:8px 28px; }
-#lesson-live .history-nav button { min-width:40px; padding:4px 10px; }
+.history-nav { display:flex; flex-wrap:wrap; gap:8px; padding:8px var(--gutter); }
+#lesson-live .history-nav button { min-width:40px; padding:4px 12px; }
 #lesson-live .history-nav button[aria-current=true] { background:#171717; color:#fff; border-color:#171717; }
 .history-breakdown { padding:16px 0; border-top:1px solid #bbb; }
 .history-breakdown h2 { font-size:17px; font-weight:500; margin:0 0 12px; }

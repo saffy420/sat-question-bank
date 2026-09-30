@@ -62,6 +62,13 @@ export function Stage(props: StageProps) {
     // The stage reflows with its container; ink and laser are content-anchored, so just repaint.
     const observer = new ResizeObserver(paint);
     observer.observe(wrapper); observer.observe(el);
+    // Browser zoom changes the CSS size (ResizeObserver) and always the pixel ratio; a ratio change with an
+    // unchanged box (or a stale canvas after a reflow that landed between observations) still needs a repaint.
+    let ratio: MediaQueryList | null = null;
+    const onRatio = () => { paint(); watchRatio(); };
+    const watchRatio = () => { ratio?.removeEventListener('change', onRatio); ratio = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`); ratio.addEventListener('change', onRatio); };
+    watchRatio();
+    window.addEventListener('resize', paint);
     props.mathify(el);
     const images = [...el.querySelectorAll('img')].map(image => image.decode().catch(() => undefined));
     Promise.all([document.fonts.ready, ...images]).then(() => {
@@ -100,7 +107,7 @@ export function Stage(props: StageProps) {
     const pointerdown = () => { highlighted = false; };
     el.addEventListener('click', click); el.addEventListener('input', input); el.addEventListener('pointerup', pointerup); el.addEventListener('pointerdown', pointerdown);
     paint();
-    return () => { alive = false; ready.current = false; observer.disconnect(); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
+    return () => { alive = false; ready.current = false; observer.disconnect(); ratio?.removeEventListener('change', onRatio); window.removeEventListener('resize', paint); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
   }, [props.question.id]);
   useLayoutEffect(() => {
     const el = card.current!;

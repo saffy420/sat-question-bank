@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { loadDesmos, syncOut, serialize, FOLLOW_OPTIONS, EDIT_OPTIONS } from '/shared/desmos.js';
 
 type Calculator = {
@@ -60,8 +60,10 @@ export function DesmosFollower({ apiKey, state, readOnly = false, onTry }: { api
   </aside>;
 }
 
-// Instructor panel: editable; changes go out throttled and de-duplicated while `live`.
-export function DesmosLeader({ apiKey, initial, live, send }: { apiKey?: string | null; initial: DesmosState; live: boolean; send: (state: object) => void }) {
+// Instructor panel: editable; changes go out throttled and de-duplicated while `live`. `resize` (admin only) adds a
+// drag handle on the panel's left edge: it reports the wanted width in px and the parent clamps and stores it.
+export type PanelResize = { width: number; min: number; max: number; onChange: (width: number) => void };
+export function DesmosLeader({ apiKey, initial, live, send, resize }: { apiKey?: string | null; initial: DesmosState; live: boolean; send: (state: object) => void; resize?: PanelResize }) {
   const { host, calc, error } = useCalculator(apiKey, EDIT_OPTIONS);
   const liveRef = useRef(live);
   liveRef.current = live;
@@ -83,7 +85,30 @@ export function DesmosLeader({ apiKey, initial, live, send }: { apiKey?: string 
   }, [calc]);
   // Work done before the reveal goes out once the question is revealed.
   useEffect(() => { if (live && dirty.current) sync.current?.flush(); }, [live]);
-  return <aside className="live-desmos" id="live-desmos" aria-label="Desmos graphing calculator">
+  // Desmos only re-measures itself on window resize, so tell it when the panel's own width changes.
+  useLayoutEffect(() => { (calc as unknown as { resize?: () => void } | null)?.resize?.(); }, [calc, resize?.width]);
+  const drag = (down: ReactPointerEvent<HTMLElement>) => {
+    if (!resize || down.button !== 0) return;
+    down.preventDefault();
+    const el = down.currentTarget, start = resize.width, x0 = down.clientX;
+    el.setPointerCapture(down.pointerId);
+    // The handle is on the left edge: dragging left widens the panel.
+    const move = (e: PointerEvent) => resize.onChange(start + x0 - e.clientX);
+    const end = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', end); el.removeEventListener('pointercancel', end); };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  };
+  const key = (e: ReactKeyboardEvent<HTMLElement>) => {
+    if (!resize) return;
+    const step = e.shiftKey ? 60 : 20;
+    if (e.key === 'ArrowLeft') resize.onChange(resize.width + step);
+    else if (e.key === 'ArrowRight') resize.onChange(resize.width - step);
+    else if (e.key === 'Home') resize.onChange(resize.min);
+    else if (e.key === 'End') resize.onChange(resize.max);
+    else return;
+    e.preventDefault();
+  };
+  return <aside className="live-desmos" id="live-desmos" aria-label="Desmos graphing calculator" style={resize ? { width: resize.width } : undefined}>
+    {resize && <div className="live-desmos-handle" id="live-desmos-handle" role="separator" aria-orientation="vertical" aria-label="Resize Desmos panel" aria-valuemin={resize.min} aria-valuemax={resize.max} aria-valuenow={resize.width} tabIndex={0} title="Drag to resize" onPointerDown={drag} onKeyDown={key}/>}
     {error ? <p role="alert">{error}</p> : null}
     {!live && !error ? <p className="live-desmos-note">Students see your graph after the reveal.</p> : null}
     <div className="live-desmos-calc" ref={host} data-ready={calc ? 'true' : undefined}/>

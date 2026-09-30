@@ -501,12 +501,38 @@ body {
   outline: 2px solid #414b63;
 }
 :where(#admin-root) .live-desmos {
+  position: relative;
   width: 420px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
   border-left: 1px solid var(--line);
+}
+:where(#admin-root) .live-desmos-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  z-index: 3;
+  width: 10px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+:where(#admin-root) .live-desmos-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 4px;
+  height: 48px;
+  margin-top: -24px;
+  border-radius: 2px;
+  background: #9aa3b5;
+}
+:where(#admin-root) .live-desmos-handle:hover::after,
+:where(#admin-root) .live-desmos-handle:focus-visible::after {
+  background: #4a63d8;
 }
 :where(#admin-root) .live-desmos-calc {
   flex: 1;
@@ -689,7 +715,7 @@ body {
   padding: 12px 0 24px;
 }
 :where(#admin-root) #live-card {
-  --pane-inset: clamp(24px, 2.5vw, 48px);
+  --pane-inset: clamp(24px, 2.8vw, 56px);
 }
 :where(#admin-root) #live-card.stage-split .stage-passage {
   padding-left: var(--pane-inset);

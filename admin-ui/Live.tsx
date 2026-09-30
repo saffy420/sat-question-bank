@@ -867,6 +867,18 @@ export function Live({
   );
 }
 
+// Instructor Desmos panel width (px): remembered on this browser only, across close/reopen, questions and reloads.
+const DESMOS_KEY = "lessons.desmosWidth";
+const DESMOS_DEFAULT = 420, DESMOS_MIN = 280, DESMOS_MAX = 720, DESMOS_READABLE = 360;
+const storedDesmosWidth = () => {
+  try {
+    const n = Number(localStorage.getItem(DESMOS_KEY));
+    return Number.isFinite(n) && n >= DESMOS_MIN ? n : DESMOS_DEFAULT;
+  } catch {
+    return DESMOS_DEFAULT;
+  }
+};
+
 function InstructorStage({
   s,
   send,
@@ -890,6 +902,29 @@ function InstructorStage({
   const [clear, setClear] = useState(false);
   const [card, setCard] = useState<HTMLDivElement | null>(null);
   const [desmos, setDesmos] = useState(!!s.desmos);
+  // Chosen width is kept as asked; what is drawn is clamped so the question keeps DESMOS_READABLE px.
+  const [desmosWidth, setDesmosWidth] = useState(storedDesmosWidth);
+  const [bodyWidth, setBodyWidth] = useState(0);
+  const body = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = body.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setBodyWidth(el.clientWidth));
+    observer.observe(el);
+    setBodyWidth(el.clientWidth);
+    return () => observer.disconnect();
+  }, []);
+  const desmosMax = Math.max(DESMOS_MIN, Math.min(DESMOS_MAX, (bodyWidth || 1e4) - DESMOS_READABLE));
+  const desmosShown = Math.round(Math.min(desmosMax, Math.max(DESMOS_MIN, desmosWidth)));
+  const chooseDesmosWidth = (width: number) => {
+    const next = Math.round(Math.min(desmosMax, Math.max(DESMOS_MIN, width)));
+    setDesmosWidth(next);
+    try {
+      localStorage.setItem(DESMOS_KEY, String(next));
+    } catch {
+      /* private mode: the width just lasts for this page */
+    }
+  };
   const latest = useRef({ s, send });
   latest.current = { s, send };
   // Where the laser pointer rests over the stage (null once it leaves), kept across phase changes.
@@ -905,20 +940,30 @@ function InstructorStage({
   }, []);
   useEffect(() => {
     if (!card || !annotating) return;
-    let points: number[][] = [],
+    // Pen points are kept in client px and converted per chunk: each ~50 ms chunk anchors to the glyph
+    // under its first point (em units, see Ink.locateGlyph), so a stroke that wraps over two lines here
+    // still lands on the same words where the line breaks differ. A stroke that started on a figure
+    // (or anywhere else without text) keeps that one anchor for the whole gesture.
+    let raw: [number, number][] = [],
       drawing = false,
       interval: ReturnType<typeof setInterval> | undefined,
-      // One content anchor per pen gesture (see Ink.locate), so strokes land on the same
-      // words for students whose stage is laid out at a different width.
       anchor: string | undefined,
-      toAnchor: ReturnType<typeof Ink.frame> = null;
+      glyphMode = false;
     for (const name of Object.keys(tools))
       card.classList.toggle(`tool-${name}`, tool === name);
-    const point = (e: PointerEvent) => {
-      const [lo, hi] = !anchor ? [0, 1] : anchor.includes("@") ? [-4000, 4000] : [-4, 5];
-      return toAnchor!
-        .fromClient(e.clientX, e.clientY)
-        .map((v) => Math.max(lo, Math.min(hi, v)));
+    const limits = (a: string | undefined) =>
+      !a ? [0, 1] : /[@~]/.test(a) ? [-400, 400] : [-4, 5];
+    const convert = (chunk: [number, number][]) => {
+      if (glyphMode) {
+        const g = Ink.locateGlyph(card, chunk[0][0], chunk[0][1]);
+        if (g) anchor = g.a;
+      }
+      const f = Ink.frame(card, anchor);
+      if (!f) return null;
+      const [lo, hi] = limits(anchor);
+      return chunk.map(([x, y]) =>
+        f.fromClient(x, y).map((v: number) => Math.max(lo, Math.min(hi, v))),
+      );
     };
     // Laser: coalesce pointermoves into at most one send per animation frame and
     // ~30 Hz, skip unchanged positions, heartbeat while idle, hide explicitly.
@@ -972,15 +1017,18 @@ function InstructorStage({
         op,
       });
     const flush = () => {
-      if (!points.length) return;
-      mark({
-        type: "stroke",
-        id: crypto.randomUUID(),
-        points: points.slice(0, 32),
-        color,
-        ...(anchor ? { a: anchor } : {}),
-      });
-      points = drawing ? points.slice(-1) : [];
+      if (!raw.length) return;
+      const chunk = raw.slice(0, 32);
+      const points = convert(chunk);
+      if (points)
+        mark({
+          type: "stroke",
+          id: crypto.randomUUID(),
+          points,
+          color,
+          ...(anchor ? { a: anchor } : {}),
+        });
+      raw = drawing ? [chunk[chunk.length - 1]] : [];
     };
     const down = (e: PointerEvent) => {
       if (tool !== "pen") return;
@@ -988,17 +1036,17 @@ function InstructorStage({
       card.setPointerCapture(e.pointerId);
       drawing = true;
       const start = Ink.locate(card, e.clientX, e.clientY);
-      anchor = start.a;
-      toAnchor = Ink.frame(card, anchor);
-      points = [[start.x, start.y]];
+      anchor = "a" in start ? start.a : undefined;
+      glyphMode = !!anchor && /[@~]/.test(anchor);
+      raw = [[e.clientX, e.clientY]];
       interval = setInterval(() => {
-        if (points.length > 1) flush();
+        if (raw.length > 1) flush();
       }, 50);
     };
     const move = (e: PointerEvent) => {
       if (tool === "pen" && card.hasPointerCapture(e.pointerId)) {
-        points.push(point(e));
-        if (points.length >= 32) flush();
+        raw.push([e.clientX, e.clientY]);
+        if (raw.length >= 32) flush();
       }
       if (tool === "laser") {
         aim = resting.current = [e.clientX, e.clientY];
@@ -1009,12 +1057,12 @@ function InstructorStage({
       if (interval) {
         clearInterval(interval);
         interval = undefined;
-        if (points.length) {
-          points.push(point(e));
+        if (raw.length) {
+          raw.push([e.clientX, e.clientY]);
           drawing = false;
           flush();
         }
-        points = [];
+        raw = [];
       }
       if (
         (tool === "highlight" || tool === "strike") &&
@@ -1030,7 +1078,7 @@ function InstructorStage({
         if (id) mark({ type: "erase", id });
         else {
           const r = card.getBoundingClientRect(),
-            scale = r.width / card.offsetWidth || 1,
+            scale = Ink.scaleOf(card, r),
             x = (e.clientX - r.left) / scale,
             y = (e.clientY - r.top) / scale;
           const stroke = latest.current.s.annotations?.find(
@@ -1133,7 +1181,7 @@ function InstructorStage({
           ))}
         </div>
       </div>
-      <div className="live-body">
+      <div className="live-body" ref={body}>
         <div id="live-stage">
           <Stage
             question={s.question!}
@@ -1157,6 +1205,12 @@ function InstructorStage({
             send={(state) =>
               send("desmos", { questionId: s.questionId, state })
             }
+            resize={{
+              width: desmosShown,
+              min: DESMOS_MIN,
+              max: desmosMax,
+              onChange: chooseDesmosWidth,
+            }}
           />
         )}
         {children}
