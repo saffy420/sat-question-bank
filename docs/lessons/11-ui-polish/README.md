@@ -1,6 +1,6 @@
 # lessons-11-ui-polish screenshots
 
-Palette-compressed PNGs from `tests/e2e/lessons-11-ui-polish/` (local E2E stack, seeded questions only). The uncompressed
+Palette-compressed PNGs (regenerated after commit 83a172f: buttons have no box or circle) from `tests/e2e/lessons-11-ui-polish/` (local E2E stack, seeded questions only). The uncompressed
 originals are written by the specs to `.omp/pipeline/lessons-11-ui-polish/e2e/` (gitignored). "z125" etc. means browser zoom on a
 1366x768 screen (CSS viewport 1366/z x 768/z, device scale factor z), as in `tests/e2e/lessons-11c.spec.js`.
 

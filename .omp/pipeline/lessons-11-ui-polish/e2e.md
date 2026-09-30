@@ -3,16 +3,27 @@
 Written by the Test Developer subagent from `spec.md` and the task text, not from the diff. No application code was changed.
 Nothing was committed or pushed.
 
-## Result
+## Result (after commit 83a172f: no boxes or circles on buttons)
 
 | Run | Result |
 | --- | --- |
-| New specs (`tests/e2e/lessons-11-ui-polish/`, 23 tests), last run | 22 pass, 1 fail (APP BUG 1) |
-| Updated existing specs (annotations, 11c, 06 desmos: 5 tests), last run | 5 pass |
-| Full Playwright suite (72 tests, 12.2 min) | 71 pass, 1 fail (the same APP BUG 1) |
+| New specs (`tests/e2e/lessons-11-ui-polish/`, 23 tests) | 23 pass |
+| Updated existing specs (annotations, 11c, 06 desmos: 5 tests) | 5 pass |
+| Full Playwright suite (72 tests, 12.4 min) | 72 pass |
 | `npm test` (152 cases) | 150 pass, 2 fail: `tests/test_grade.cjs` (needs git.exe) and the time-of-day `daily limit` case in `tests/test_lesson_flush.cjs`; both pre-existing on main, ignored as instructed |
 
-The new specs were run twice in full (once inside the full suite, once alone) with identical results, so no flakiness was seen.
+Before 83a172f the same specs gave 71 of 72 (APP BUG 1, now fixed). No flakiness seen over three full runs of the new specs.
+
+## New user requirement: "no box around the buttons, not circles not boxes"
+
+`helpers.noBoxReport` is applied on every screen `shapes.spec.js` sweeps (about 25 screens, pointer parked on empty header space so no hover tint) and on the answering screen of every size in `layout.spec.js`.
+For every visible `button` in `#lesson-live` (Desmos internals and the choice-row buttons `[data-lesson-choice]`, whose box is the inner `.choice` row, excluded):
+border width 0 on all four sides, except a bottom underline of at most 3 px on a header tool, the ABC toggle, a navigator/history number cell (`.lesson-tools`, `.stage-strike-toggle`, `.self-grid`, `.history-nav`);
+no background fill except the solid pills (`#lesson-lock, #self-next, #history-next, #poll-vote, #self-submit, #lesson-confirm, #self-confirm, #lesson-calc-replace, .lesson-position`); no circle button;
+the cross-out control (`.stage-strike`, `.stage-strike-letter`) has no border and no filled circle. Solid pills are asserted separately (filled, radius >= half height, no border); Hide, ABC, Back, Go back/Cancel, history Back, tools are asserted plain (no fill, no box).
+The positive control injects a bordered square, a bordered rounded, a bordered circle and a filled probe button: all four must be flagged and nothing else.
+Old assertions that expected the outlined Hide pill and pill-shaped ABC/Back/dialog buttons were replaced by the plain-button assertions above (the row, input, select, dialog and popup roundness checks are unchanged).
+Note: the unanswered number cells keep a grey (#999) underline, so "transparent or accent colour" is not enforced for the underline colour; thickness and side are.
 
 ## Checkpoint map
 
@@ -20,13 +31,13 @@ The new specs were run twice in full (once inside the full suite, once alone) wi
 | --- | --- | --- |
 | Student view at 1366x768, metrics, structure, pills, strike control, no sideways scroll, screenshot | `layout.spec.js`: layout at 1366x768 | pass |
 | Same at 1536x864 | `layout.spec.js`: layout at 1536x864 | pass |
-| Same at 1920x1080 | `layout.spec.js`: layout at 1920x1080 | **fail: APP BUG 1** (choice rows 71 % of the column). Every other assertion of that test passes (soft assertion) |
+| Same at 1920x1080 | `layout.spec.js`: layout at 1920x1080 | pass (was failing on APP BUG 1 before 83a172f; the width assertion is hard again) |
 | Same at zoom 90 %, 110 %, 125 % (CSS viewports 1518x853, 1242x698, 1093x614, DSF 0.9/1.1/1.25) | `layout.spec.js`: layout at z90 / z110 / z125 | pass |
 | Column has a max width | `layout.spec.js`: the column has a maximum width on a very wide window (2560 px: column <= 960, > 700, centred) | pass |
-| Item 1 numbers: `scrollWidth == innerWidth`, `#lesson-live` overflow, column 40-52 % of window and centred, header <= 12 % and footer <= 9 % of height, type ~17.5 px at 1366 / ~19 px at 1920 / >= 16 px at z125 | inside each layout test | pass (1920: see bug 1 for the rows only) |
-| Header: title left, phase label under it, timer + Hide pill centred, four tools right (Calculator, Annotate, Follow me, More) icon over label, transparent background, no border box (also while active), invisible Follow me checkbox | inside each layout test | pass |
+| Item 1 numbers: `scrollWidth == innerWidth`, `#lesson-live` overflow, column 40-52 % of window and centred, header <= 12 % and footer <= 9 % of height, type ~17.5 px at 1366 / ~19 px at 1920 / >= 16 px at z125 | inside each layout test | pass |
+| Header: title left, phase label under it, timer + Hide (plain underlined text) centred, four tools right (Calculator, Annotate, Follow me, More) icon over label, transparent background, no border box (also while active), invisible Follow me checkbox | inside each layout test | pass |
 | Footer: name left, dark question pill centred, blue Submit pill right, radius >= half height, fixed at the bottom | inside each layout test | pass |
-| Choice rows: rounded (>= 10 px), letter in a circle, rows do not overlap, strike control right of the row, outside it, inside the column, level with the row, no overlap | inside each layout test | pass at 5 sizes; row width fails at 1920 (bug 1) |
+| Choice rows: rounded (>= 10 px), letter in a circle, rows do not overlap, strike control right of the row, outside it, inside the column, level with the row, no overlap | inside each layout test | pass |
 | Long-passage (split) and grid-in screens: no sideways scroll, rounded grid-in | inside each layout test | pass |
 | Shape rule, instructor-paced lesson: lobby, answering, Annotate + cross-out mode + picked choice, crossed-out choice, More menu open, own calculator open, lock-in confirm dialog, locked, reveal with calculator + instructor graph, Try it yourself confirm dialog, explanation open, grid-in answering/answered/revealed, My Lessons history. Pills for Hide, question pill, Submit, ABC toggle, dialog buttons, history Back/Next. Positive control (a 3 px probe button is flagged; rounded and circle probes are not) | `shapes.spec.js`: shape rule on every screen of an instructor-paced lesson | pass |
 | Shape rule, self-paced lesson: lobby, answering, picked + flagged, calculator open, navigator open, More menu, reading and grid-in questions, review page, submit-all modal, submitted notice, poll, poll dropdown, poll result, review mode. Pills for Hide, Back, question pill, Next, Submit all, modal buttons, Vote | `shapes.spec.js`: shape rule on every screen of a self-paced lesson | pass |
@@ -62,22 +73,15 @@ All assertions about state, Try it yourself and payload leaks are unchanged; non
 - `next` does not exist on the last question (shapes spec); the wrong text was expected for the self-paced submitted notice; `devicePixelRatio` 0.9 reads back as 0.8999999761581421.
 - A too tight `getBoundingClientRect` line test in the phrase search (buckets) was replaced by a spread test.
 
-## APP BUG 1 (minor, visual): choice rows stop at 680 px, so at 1920x1080 they fill only 71 % of the column
+## APP BUG 1: fixed by commit 83a172f
 
-- Failing spec: `tests/e2e/lessons-11-ui-polish/layout.spec.js` "layout at 1920x1080 ..." (`choice A..D full width of the column`).
-- Repro: student at 1920x1080, instructor-paced or self-paced math/R&W multiple-choice question, cross-out mode on or off.
-  `#lesson-card .stage-question` is 883 px wide (46 %), `#lesson-card .choices` computes `max-width: 680px` (width 680), so each `.choice` row is 629.9 px (71 % of the column),
-  the strike control sits at x = 1160 and 203 px of the column to its right stay empty.
-- Cause: the legacy Practice-tab rule `public/index.html:448  .choices { display:flex; flex-direction:column; gap:14px; max-width:680px; }` is unscoped and also matches the lesson stage's `.choices`.
-  `lesson.css` never resets it. At 1536x864 the same cap trims 26 px (rows 89 % of the column, still above the test's 85 %); at 1366 and below the column is under 680 px, so nothing shows.
-- Expected (task text, screenshot A): rounded full-width choice rows, strike control outside the row on the right, inside the column (A: 922 px column, rows fill it less the strike gutter).
-- Actual: rows 630 px in an 883 px column at 1920. Not fixed here (application code). A `.lesson-stage .choices { max-width: none }` in lesson.css would remove it.
+Choice rows stopped at 680 px (legacy `public/index.html:448 .choices{max-width:680px}` leaking into the lesson stage), so at 1920x1080 they filled 71 % of the column. `.lesson-stage .choices{max-width:none}` fixes it; `layout.spec.js` at 1920x1080 now passes with the original hard assertion. No new app bugs found.
 
 ## Notes for the reviewer (no failing spec)
 
 - spec.md is inconsistent about choice-row radius: "radius >= 12" in the Column bullet but "rounded rows (>= 10 px)" in the shapes bullet, and screenshot A has 10. The CSS gives
   0.8 x `--u` = about 10.5 px (z125) to 12.5 px (1920), so it is below 12 at 1366 (11.2 px). The test asserts >= 10, the task text's figure; nothing asserts 12.
-- The shape sweep treats one case as allowed: a header tool whose only border is the 2 px bottom underline (the spec's active state). Anything with a border on any other side and a
+- The shape sweep treats one case as allowed: a header tool, the ABC toggle or a number cell whose only border is a bottom underline (the active or answered state). Anything with a border on any other side and a
   radius under 8 px (not a circle) fails. Third-party Desmos widgets (`.lesson-calc-body`, `.lesson-desmos-calc`) are outside the sweep. Visibility checks leave out elements with `opacity < 0.05`
   (the invisible Follow me checkbox) and `visibility: hidden` (the strike controls while the tool is off).
 - Pen strokes are paced at one pointer move per ~16 ms (a hand-speed cadence; Playwright's default burst puts a whole stroke into one 50 ms chunk and hides the per-chunk re-anchoring

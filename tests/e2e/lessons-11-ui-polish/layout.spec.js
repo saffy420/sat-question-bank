@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
-import { INSTRUCTOR, SIZES, MATH, SPR, LONG, lesson, join, openLive, shot, box, shapeReport } from './helpers.js';
+import { INSTRUCTOR, SIZES, MATH, SPR, LONG, lesson, join, openLive, shot, box, shapeReport, noBoxReport } from './helpers.js';
 
 // lessons-11-ui-polish, items 1-3: the student lesson view keeps Bluebook's proportions (screenshot A) at every
 // size and zoom of the task text. Zoom is emulated as tests/e2e/lessons-11c.spec.js does.
@@ -23,7 +23,7 @@ const measure = page => page.evaluate(() => {
     liveOverflow: live.scrollWidth - live.clientWidth,
     header: rect(q('.lesson-header')), footer: rect(q('.lesson-footer')), footerPosition: getComputedStyle(q('.lesson-footer')).position,
     title: rect(q('.lesson-header h1')), phase: rect(q('.lesson-phase')), phaseText: q('.lesson-phase').textContent,
-    clock: rect(q('#lesson-clock')), hide: rect(q('.lesson-timer button')), hideStyle: style(q('.lesson-timer button'), 'borderTopLeftRadius', 'borderBottomRightRadius'),
+    clock: rect(q('#lesson-clock')), hide: rect(q('.lesson-timer button')), hideStyle: { backgroundColor: getComputedStyle(q('.lesson-timer button')).backgroundColor, borders: ['Top', 'Right', 'Bottom', 'Left'].map(s => getComputedStyle(q('.lesson-timer button'))[`border${s}Width`]) },
     tools: [q('#lesson-calc-toggle'), q('#lesson-private'), q('.lesson-follow-tool'), q('.lesson-more summary')].map(tool),
     followInput: q('#lesson-follow') && style(q('#lesson-follow'), 'opacity'),
     name: rect(q('.lesson-footer>span:first-child')), nameText: q('.lesson-footer>span:first-child').textContent,
@@ -89,8 +89,9 @@ test.describe('student view proportions', () => {
         expect(m.phase.bottom, `${where} phase label inside the header`).toBeLessThanOrEqual(m.header.bottom + 1);
         for (const part of [m.clock, m.hide]) expect(Math.abs(part.cx - m.vw / 2), `${where} timer group centred`).toBeLessThanOrEqual(0.04 * m.vw);
         expect(m.hide.y, `${where} Hide under the clock`).toBeGreaterThanOrEqual(m.clock.y);
-        expect(radiusPx(m.hideStyle.borderTopLeftRadius), `${where} Hide is a pill`).toBeGreaterThanOrEqual(m.hide.h / 2 - 0.5);
-        expect(radiusPx(m.hideStyle.borderBottomRightRadius), `${where} Hide is a pill`).toBeGreaterThanOrEqual(m.hide.h / 2 - 0.5);
+        // Hide is plain text: no box, no fill, no circle.
+        expect(m.hideStyle.backgroundColor, `${where} Hide has no fill`).toBe('rgba(0, 0, 0, 0)');
+        expect(m.hideStyle.borders, `${where} Hide has no border`).toEqual(['0px', '0px', '0px', '0px']);
 
         expect(m.tools.map(t => t.text), where).toEqual(['Calculator', 'Annotate', 'Follow me', 'More']);
         for (const [i, t] of m.tools.entries()) {
@@ -140,10 +141,16 @@ test.describe('student view proportions', () => {
           return { letter: row.dataset.choice, choice: r(choice), badge: r(badge), strike: r(strike), radius: parseFloat(getComputedStyle(choice).borderTopLeftRadius), badgeRadius: parseFloat(getComputedStyle(badge).borderTopLeftRadius), strikeVisible: getComputedStyle(strike).visibility };
         }));
         expect(rows.map(x => x.letter), where).toEqual(['A', 'B', 'C', 'D']);
+        // The cross-out control has no bordered circle or box, and no button of the screen is boxed, filled or round (pills aside).
+        const strikeStyle = await page.locator('#lesson-card .stage-strike-letter').first().evaluate(el => { const cs = getComputedStyle(el); return { borders: ['Top', 'Right', 'Bottom', 'Left'].map(s => cs[`border${s}Width`]), bg: cs.backgroundColor }; });
+        expect(strikeStyle.borders, `${where} cross-out letter has no circle`).toEqual(['0px', '0px', '0px', '0px']);
+        expect(strikeStyle.bg, where).toBe('rgba(0, 0, 0, 0)');
+        await page.mouse.move(2, 2);
+        expect((await noBoxReport(page)).problems, `${where} boxed, filled or circular buttons`).toEqual([]);
         for (const [i, row] of rows.entries()) {
           const id = `${where} choice ${row.letter}`;
           expect(row.radius, `${id} rounded row`).toBeGreaterThanOrEqual(10);
-          expect.soft(row.choice.w, `${id} full width of the column`).toBeGreaterThanOrEqual(0.85 * m.column.w);
+          expect(row.choice.w, `${id} full width of the column`).toBeGreaterThanOrEqual(0.85 * m.column.w);
           expect(row.choice.x, `${id} inside the column`).toBeGreaterThanOrEqual(m.column.x - 1);
           expect(Math.abs(row.badge.w - row.badge.h), `${id} letter badge is round`).toBeLessThanOrEqual(1);
           expect(row.badgeRadius, `${id} letter circle`).toBeGreaterThanOrEqual(row.badge.w / 2 - 0.5);

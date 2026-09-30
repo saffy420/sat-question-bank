@@ -1,24 +1,40 @@
 import { test, expect } from '@playwright/test';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
-import { INSTRUCTOR, MATH, RW, SPR, lesson, join, openLive, shot, shapeReport } from './helpers.js';
+import { INSTRUCTOR, MATH, RW, SPR, lesson, join, openLive, shot, shapeReport, noBoxReport } from './helpers.js';
 
 // lessons-11-ui-polish, item 2: every control of every student screen uses Bluebook shapes. helpers.shapeReport
 // flags any visible button/input/select/summary (and the row, popup and dialog boxes around them) with a visible
 // border, a corner radius under 8 px and no circle. Each screen is swept while it is on screen.
 
 async function sweep(page, label, min = 1) {
+  // Park the pointer on empty header space so no button shows its hover tint.
+  await page.mouse.move(2, 2);
   const report = await shapeReport(page);
   expect(report.checked, `${label}: the sweep examined controls`).toBeGreaterThanOrEqual(min);
   expect(report.violations, `${label}: square-cornered bordered boxes`).toEqual([]);
+  // lessons-11 (user requirement): no box around the buttons, no circles.
+  const boxes = await noBoxReport(page);
+  expect(boxes.problems, `${label}: boxed, filled or circular buttons`).toEqual([]);
   return report;
 }
 
-// Bluebook pills: the corner radius is at least half the control's height (fully rounded ends).
+// Solid pills: only the primary action and the question pill are filled, with fully rounded ends.
 async function pills(page, label, selectors) {
   for (const selector of selectors) {
-    const m = await page.locator(selector).evaluate(el => { const r = el.getBoundingClientRect(); return { h: r.height, w: r.width, radius: parseFloat(getComputedStyle(el).borderTopLeftRadius) }; });
+    const m = await page.locator(selector).evaluate(el => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return { h: r.height, radius: parseFloat(cs.borderTopLeftRadius), bg: cs.backgroundColor, border: cs.borderTopWidth + cs.borderBottomWidth + cs.borderLeftWidth + cs.borderRightWidth }; });
     expect(m.h, `${label}: ${selector} is on screen`).toBeGreaterThan(10);
     expect(m.radius, `${label}: ${selector} is a pill`).toBeGreaterThanOrEqual(m.h / 2 - 0.5);
+    expect(m.bg, `${label}: ${selector} is a solid pill`).not.toBe('rgba(0, 0, 0, 0)');
+    expect(m.border, `${label}: ${selector} has no border`).toBe('0px0px0px0px');
+  }
+}
+// Everything else is plain: no box, no fill.
+async function plain(page, label, selectors) {
+  for (const selector of selectors) {
+    const m = await page.locator(selector).evaluate(el => { const cs = getComputedStyle(el); return { bg: cs.backgroundColor, sides: ['Top', 'Right', 'Left'].map(s => cs[`border${s}Width`]).join(' '), h: el.getBoundingClientRect().height }; });
+    expect(m.h, `${label}: ${selector} is on screen`).toBeGreaterThan(5);
+    expect(m.bg, `${label}: ${selector} has no fill`).toBe('rgba(0, 0, 0, 0)');
+    expect(m.sides, `${label}: ${selector} has no box`).toBe('0px 0px 0px');
   }
 }
 
@@ -53,12 +69,18 @@ test('shape rule on every screen of an instructor-paced lesson: lobby, answering
     const control = await shapeReport(page);
     expect(control.violations.length, 'only the square probe is flagged').toBe(1);
     expect(control.violations[0]).toContain('probe-square');
-    await page.evaluate(() => document.querySelectorAll('#probe-square, #probe-rounded, #probe-circle').forEach(el => el.remove()));
+    // The no-box sweep flags all three bordered probes (any border on a button is a box) and a filled one, and nothing else.
+    await page.evaluate(() => { const b = document.createElement('button'); b.id = 'probe-filled'; b.textContent = 'x'; b.style.cssText = 'border:0;background:#ddd'; document.getElementById('lesson-content').append(b); });
+    const noBox = await noBoxReport(page);
+    for (const id of ['probe-square', 'probe-rounded', 'probe-circle', 'probe-filled']) expect(noBox.problems.some(p => p.includes(`#${id}`)), `${id} is flagged`).toBe(true);
+    expect(noBox.problems.filter(p => !p.includes('#probe-')), 'nothing else is flagged').toEqual([]);
+    await page.evaluate(() => document.querySelectorAll('#probe-square, #probe-rounded, #probe-circle, #probe-filled').forEach(el => el.remove()));
 
     await teacher.locator('[data-live="start"]').click();
     await expect(page.locator('#lesson-card[data-ready="true"]')).toBeVisible();
     await check(page, 'answering (math)', 12);
-    await pills(page, 'answering', ['.lesson-timer button', '.lesson-position', '#lesson-lock', '#lesson-card .stage-strike-toggle']);
+    await pills(page, 'answering', ['.lesson-position', '#lesson-lock']);
+    await plain(page, 'answering', ['.lesson-timer button', '#lesson-card .stage-strike-toggle', '#lesson-private']);
 
     // Tools on: Annotate active, cross-out mode on, a choice picked.
     await page.locator('#lesson-private').click();
@@ -89,7 +111,8 @@ test('shape rule on every screen of an instructor-paced lesson: lobby, answering
     await page.locator('#lesson-lock').click();
     await expect(page.locator('.lesson-confirm-dialog')).toBeVisible();
     await check(page, 'lock-in confirm dialog', 3);
-    await pills(page, 'lock-in confirm dialog', ['#lesson-back', '#lesson-confirm']);
+    await pills(page, 'lock-in confirm dialog', ['#lesson-confirm']);
+    await plain(page, 'lock-in confirm dialog', ['#lesson-back']);
     await shot(page, 'shapes-lock-confirm');
     await page.locator('#lesson-confirm').click();
     await expect(page.locator('.lesson-locked')).toBeVisible();
@@ -136,7 +159,8 @@ test('shape rule on every screen of an instructor-paced lesson: lobby, answering
     await expect(page.locator('#lesson-card[data-ready]')).toBeVisible();
     await expect(page.locator('#history-reveal')).toBeVisible();
     await check(page, 'My Lessons history', 8);
-    await pills(page, 'My Lessons', ['#history-prev', '#history-next', '.lesson-position']);
+    await pills(page, 'My Lessons', ['#history-next', '.lesson-position']);
+    await plain(page, 'My Lessons', ['#history-prev', '#history-close']);
     await shot(page, 'shapes-history');
     console.log('shape sweep (elements examined per screen):', JSON.stringify(counts));
   } finally { await admin.close(); await context.close(); }
@@ -158,7 +182,8 @@ test('shape rule on every screen of a self-paced lesson: answering, navigator, r
     await expect(page.locator('#self-nav')).toHaveText('Question 1 of 3');
     await expect(page.locator('#lesson-card[data-ready="true"]')).toBeVisible();
     await check(page, 'self-paced answering', 10);
-    await pills(page, 'self-paced answering', ['.lesson-timer button', '#self-back', '#self-nav', '#self-next']);
+    await pills(page, 'self-paced answering', ['#self-nav', '#self-next']);
+    await plain(page, 'self-paced answering', ['.lesson-timer button', '#self-back']);
 
     // A wrong answer (the key is C), a flag, the navigator and the calculator.
     await page.locator('[data-lesson-choice="A"]').click();
@@ -191,12 +216,14 @@ test('shape rule on every screen of a self-paced lesson: answering, navigator, r
     await page.locator('#self-next').click();
     await expect(page.locator('#self-review')).toBeVisible();
     await check(page, 'review page', 10);
-    await pills(page, 'review page', ['#self-back', '#self-nav', '#self-submit']);
+    await pills(page, 'review page', ['#self-nav', '#self-submit']);
+    await plain(page, 'review page', ['#self-back']);
     await shot(page, 'shapes-review-page');
     await page.locator('#self-submit').click();
     await expect(page.locator('#self-confirm')).toBeVisible();
     await check(page, 'submit-all modal', 3);
-    await pills(page, 'submit-all modal', ['#self-cancel', '#self-confirm']);
+    await pills(page, 'submit-all modal', ['#self-confirm']);
+    await plain(page, 'submit-all modal', ['#self-cancel']);
     await shot(page, 'shapes-submit-modal');
     await page.locator('#self-confirm').click();
     await expect(page.locator('#self-status')).toContainText('Your answers were submitted');

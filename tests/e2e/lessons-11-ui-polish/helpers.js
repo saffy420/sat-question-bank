@@ -101,7 +101,7 @@ export function shapeReport(page) {
       const radius = Math.min(...['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map(c => corner(cs[`border${c}Radius`])));
       const round = radius >= 8 || radius >= Math.min(r.width, r.height) / 2 - 0.5;
       const label = `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''} "${(el.textContent || '').trim().slice(0, 24)}" radius ${radius}px sides ${sides.join('+')}`;
-      if (sides.length === 1 && sides[0] === 'Bottom' && el.closest('.lesson-tools')) { underlined.push(label); continue; }
+      if (sides.length === 1 && sides[0] === 'Bottom' && el.closest('.lesson-tools, .stage-strike-toggle, .self-grid, .history-nav')) { underlined.push(label); continue; }
       if (!round) violations.push(label);
     }
     return { checked, violations, underlined };
@@ -182,3 +182,50 @@ export const inkProbe = (page, cardSelector, spec) => page.locator(cardSelector)
     canvas: { w: c.width, h: c.height, cssW: r.width, cssH: r.height }
   };
 }, spec);
+
+// Solid filled pills: the one primary action of a screen and the question pill.
+export const SOLID_PILLS = '#lesson-lock, #self-next, #history-next, #poll-vote, #self-submit, #lesson-confirm, #self-confirm, #lesson-calc-replace, .lesson-position';
+
+// "No box around the buttons, not circles, not boxes": every visible button of the student view has no border on any side
+// (except a bottom underline of at most 3 px on a tool, a toggle or a number cell, the active-state indicator), no fill (except
+// the solid pills above), and is not a bordered circle. The cross-out control has no bordered circle either. Choice-row buttons
+// ([data-lesson-choice]) draw their box on the inner .choice row, and Desmos internals are third-party.
+export function noBoxReport(page) {
+  return page.evaluate(solid => {
+    const root = document.getElementById('lesson-live');
+    const alpha = c => { const m = /rgba?\(([^)]+)\)/.exec(c); if (!m) return 0; const p = m[1].split(/[ ,/]+/).filter(Boolean); return p.length > 3 ? Number(p[3]) : 1; };
+    const problems = [];
+    let checked = 0;
+    const buttons = [...root.querySelectorAll('button'), ...document.querySelectorAll('dialog.lesson-confirm-dialog button')];
+    for (const el of new Set(buttons)) {
+      if (el.closest('.lesson-calc-body, .lesson-desmos-calc') || el.matches('[data-lesson-choice]')) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      let faded = false;
+      for (let n = el; n && n !== document.documentElement; n = n.parentElement) if (Number(getComputedStyle(n).opacity) < 0.05) faded = true;
+      if (faded) continue;
+      checked++;
+      const name = `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).join('.') : ''} "${(el.textContent || '').trim().slice(0, 20)}"`;
+      const width = side => parseFloat(cs[`border${side}Width`]) * (cs[`border${side}Style`] === 'none' || cs[`border${side}Style`] === 'hidden' ? 0 : 1);
+      for (const side of ['Top', 'Left', 'Right']) if (width(side) > 0) problems.push(`${name}: border-${side.toLowerCase()} ${width(side)}px`);
+      const bottom = width('Bottom');
+      if (bottom > 0) {
+        if (bottom > 3) problems.push(`${name}: border-bottom ${bottom}px is thicker than an underline`);
+        else if (!el.closest('.lesson-tools, .stage-strike-toggle, .self-grid, .history-nav') && !el.matches('.stage-strike-toggle')) problems.push(`${name}: border-bottom on something that is not a tool, toggle or number cell`);
+      }
+      if (alpha(cs.backgroundColor) > 0.02 && !el.matches(solid)) problems.push(`${name}: filled background ${cs.backgroundColor}`);
+      const radius = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map(c => cs[`border${c}Radius`].split(' ')[0]);
+      const circle = radius.every(v => v.endsWith('%') ? parseFloat(v) >= 50 : parseFloat(v) >= Math.min(r.width, r.height) / 2 - 0.5) && Math.abs(r.width - r.height) < 2;
+      if (circle && (bottom > 0 || alpha(cs.backgroundColor) > 0.02) && !el.matches(solid)) problems.push(`${name}: a circle`);
+    }
+    // The cross-out control: no bordered circle, no box.
+    for (const el of root.querySelectorAll('.stage-strike, .stage-strike-letter')) {
+      const cs = getComputedStyle(el);
+      for (const side of ['Top', 'Right', 'Bottom', 'Left']) if (parseFloat(cs[`border${side}Width`]) > 0 && cs[`border${side}Style`] !== 'none') problems.push(`.${el.className.trim().split(/\s+/)[0]}: border-${side.toLowerCase()}`);
+      if (/50%/.test(cs.borderTopLeftRadius) && alpha(cs.backgroundColor) > 0.02) problems.push(`.${el.className.trim().split(/\s+/)[0]}: filled circle`);
+    }
+    return { checked, problems };
+  }, SOLID_PILLS);
+}
