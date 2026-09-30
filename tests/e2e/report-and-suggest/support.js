@@ -26,10 +26,10 @@ export async function openInPlayer(page, id) {
   await page.goto('/app');
   await page.locator('[data-tab="practice"]').click();
   await page.locator('#btn-start').click();
-  await expect(page.locator('#view-test')).toBeVisible();
+  await expect(page.locator('#bank-live')).toBeVisible();
   for (let i = 0; i < 12; i++) {
     if (await page.evaluate(() => window.__qa().S?.items[window.__qa().S.i]?.id) === id) return;
-    await page.locator('#btn-next').click();
+    await page.locator('#bank-primary').click();
   }
   throw new Error('question not reached: ' + id);
 }

@@ -23,9 +23,9 @@ test('R1 report from the bank: button next to Mark for Review, modal, payload, T
     const page = await student.newPage();
     await openInPlayer(page, FIXTURE);
     // The button sits in the question bar, directly after Mark for Review.
-    const bar = page.locator('#pane-a .qhead');
-    await expect(bar.locator('#btn-flag + #btn-report')).toHaveText(/Report/);
-    await page.locator('#btn-report').click();
+    const bar = page.locator('#bank-card .stage-strip');
+    await expect(bar.locator('#stage-flag + #stage-report')).toHaveText(/Report/);
+    await page.locator('#stage-report').click();
     const dialog = page.locator('#rpt-dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.locator('input[name="rpt-category"]')).toHaveCount(4);
@@ -120,9 +120,9 @@ test('R3 a valid mocked fix waits in Reports, is approved, and the student then 
   try {
     const page = await student.newPage();
     await openInPlayer(page, FIXTURE);
-    await expect(page.locator('#pane-a .stem')).toContainText('$3 + 4$');
-    await expect(page.locator('#pane-a .stem .katex')).toHaveCount(0);
-    await page.locator('#btn-report').click();
+    await expect(page.locator('#bank-card .lesson-stem')).toContainText('$3 + 4$');
+    await expect(page.locator('#bank-card .lesson-stem .katex')).toHaveCount(0);
+    await page.locator('#stage-report').click();
     await reportFromDialog(page, { note: 'Math is not rendering' });
     await expect(page.locator('.rpt-thanks')).toBeVisible();
     const g = await group(admin, FIXTURE);
@@ -150,10 +150,10 @@ test('R3 a valid mocked fix waits in Reports, is approved, and the student then 
     // The student sees the fix straight away: the bank feed and the player.
     expect(await bankStem()).toContain('\\(3 + 4\\)');
     await openInPlayer(page, FIXTURE);
-    await expect(page.locator('#pane-a .stem .katex').first()).toBeVisible();
-    await expect(page.locator('#pane-a .stem')).not.toContainText('$3 + 4$');
+    await expect(page.locator('#bank-card .lesson-stem .katex').first()).toBeVisible();
+    await expect(page.locator('#bank-card .lesson-stem')).not.toContainText('$3 + 4$');
     // The report is closed, so the student may report this question again.
-    await page.locator('#btn-report').click();
+    await page.locator('#stage-report').click();
     await reportFromDialog(page, { note: 'second look' });
     await expect(page.locator('.rpt-thanks')).toBeVisible();
     // Answer key untouched.
@@ -174,11 +174,11 @@ test('R4 a mocked fix that changes the answer or the choice order is rejected an
     const before = await (await student.request.get('/api/questions')).json();
     const page = await student.newPage();
     await openInPlayer(page, FIXTURE);
-    await page.locator('#btn-report').click();
+    await page.locator('#stage-report').click();
     await reportFromDialog(page, { category: 'formatting' });
     await expect(page.locator('.rpt-thanks')).toBeVisible();
     await openInPlayer(page, MATH);
-    await page.locator('#btn-report').click();
+    await page.locator('#stage-report').click();
     await reportFromDialog(page, { category: 'formatting' });
     await expect(page.locator('.rpt-thanks')).toBeVisible();
     const key = await group(admin, FIXTURE);
@@ -217,11 +217,11 @@ test('R5 limits: one open report per question, one Claude call per question per 
     // One open report per user per question, shown to the student.
     const page = await three.newPage();
     await openInPlayer(page, FIXTURE);
-    await page.locator('#btn-report').click();
+    await page.locator('#stage-report').click();
     await reportFromDialog(page);
     await expect(page.locator('.rpt-thanks')).toBeVisible();
     await page.locator('#rpt-done').click();
-    await page.locator('#btn-report').click();
+    await page.locator('#stage-report').click();
     await reportFromDialog(page);
     await expect(page.locator('#rpt-dialog .rpt-status')).toContainText('already have an open report');
     await shot(page, 'R5-duplicate');
@@ -243,7 +243,7 @@ test('R5 limits: one open report per question, one Claude call per question per 
     const eleventh = await report(three, RW);
     expect([eleventh.status(), await eleventh.json()]).toEqual([429, { error: 'daily report limit reached' }]);
     await openInPlayer(page, RW);
-    await page.locator('#btn-report').click();
+    await page.locator('#stage-report').click();
     await reportFromDialog(page);
     await expect(page.locator('#rpt-dialog .rpt-status')).toContainText('limit for reports');
     await shot(page, 'R5-daily-limit');
@@ -266,8 +266,8 @@ test('R6 suggestion round trip: bank and lesson menus, newest first, done and di
   try {
     const page = await student.newPage();
     await openInPlayer(page, MATH);
-    await page.locator('#btn-more').click();
-    await page.locator('#mm-suggest').click();
+    await page.locator('#bank-live .lesson-more summary').click();
+    await page.locator('#bank-suggest').click();
     await expect(page.locator('#sug-dialog')).toBeVisible();
     await expect(page.locator('#sug-send')).toBeDisabled();
     await expect(page.locator('#sug-area option')).toHaveText(['Not sure', 'Question bank', 'Lessons', 'Study plan', 'Other']);
