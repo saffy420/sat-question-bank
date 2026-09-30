@@ -19,6 +19,10 @@ Tracked configuration uses placeholders. Guest local use needs initialized D1 ba
 5. Replace both matching custom-domain routes in `wrangler.toml`. Your domain must be an active Cloudflare zone on the same account. Alternatively remove both custom-domain routes and configure your chosen workers.dev origin and Supabase callback consistently; do not deploy placeholder routes. See [original public values](history/original-config.md) only for historical reference.
 6. Run `npm run dev -- --local`. For a fresh placeholder configuration, expect AI-only data after bootstrap; fixed core exams and absent figure crops are not restored by setup. Run `npm test`; guest answers stay in memory and are not merged into an account. Test your own sign-in separately before launch.
 
+## Reports and feature suggestions (optional)
+
+Students can report a problem on any question and suggest features; the admin app has Reports and Suggestions tabs. Before deploying code that contains them, apply the migration to the remote core database once: `npx wrangler d1 execute DB --remote --file migrations/0011_reports.sql`. To let Claude triage reports, set the Worker secret `npx wrangler secret put ANTHROPIC_API_KEY`; without it reports are stored and shown as escalations. The model, the monthly call cap and the per-user limits are constants at the top of `src/reports.js`. Fixes are never applied automatically.
+
 ## Existing recovered working copy
 
 Changing D1 IDs does not erase old SQLite files, but creates a different local binding identity. Stop every dev server before imports or direct SQLite writes. Back up existing state before changing IDs, and never delete files merely to make the importer accept duplicate candidates. The cleanup probes use an ignored `backup/cleanup-local.toml` containing the original **local** IDs with placeholder authentication and explicit `--persist-to .wrangler/state`. Run from repository root:

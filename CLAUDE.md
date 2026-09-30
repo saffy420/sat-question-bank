@@ -79,6 +79,9 @@ and `.env.example`'s `CANONICAL_HOST` / `WWW_HOST` checklist entries.
 - `tools/predeploy.cjs` rejects missing crops, symlinks/junctions, and directories with fewer than 4,000 entries. That threshold is a guard, not a measured asset count or proof of completeness.
 - Deploy only with a real crop directory; Wrangler's asset walker can omit junction contents even when ordinary file listing sees them. Verify the uploaded manifest and actual image responses.
 
+- Question reports and suggestions live in `src/reports.js` (model string, call caps and `AUTO_APPLY_FORMATTING_FIXES` are constants there). Identity is the token's, never the body's; the Claude triage runs after the reply (`ctx.waitUntil`). A fix must pass `checkPatch` (markup, math, tables, figure references only; visible text and the answer key unchanged) and waits in the admin Reports tab: never auto-apply it. Reports, rendered HTML and notes are untrusted text. Production source must not name E2E flags: the local entry supplies the mock API address.
+- An approved fix edits a row in place, so the bank-cache key includes the applied-fix count (`stamps()` reads `question_triage`). Apply `migrations/0011_reports.sql` to the remote DB before deploying code that contains it, and set the secret `ANTHROPIC_API_KEY`; without it reports are stored and escalated.
+
 ## Client state, grading and rendering
 
 - Derive grid-in from empty parsed choices: `q.spr = !q.choices.length`, never a type/qtype column. Invalid choices JSON also becomes empty choices, so investigate extraction failures masquerading as grid-ins.
