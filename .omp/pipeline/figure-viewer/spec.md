@@ -10,8 +10,9 @@ ink is painted. No wire-format change. Main session only (BRIEF §12.1); no suba
 ## Baseline (measured, not assumed)
 - Recovered bank (`https://helpmeaceit.page/api/questions`, 4,170 rows, read only): 2,025 Math, **323 with a figure**
   (330 `<div class="qfig"><img></div>`, 7 questions with two), 3 AI questions with an inline `<svg role="img">`,
-  104 math tables, 220 math questions with picture choices. Every math `.qfig` sits between the intro text and the
-  question sentence (323 of 323); none is first or last.
+  104 math tables, 220 math questions with picture choices. Figure position in the stem: above all text in 180,
+  between intro and question in 141, after all text in 2. (Corrected during the audit: the first count treated a
+  half-stripped `<div class="` as text and reported 323 of 323 in the middle.)
 - Crops: 330 WebP, width p10/p50/p90 = 364/731/807 px (max 1,743), height 269/611/801 px (max 930).
 - Current rendering: `splitContext` pulls every `.qfig/.qtable/.qimg` out of the stem into a left pane (bank practice,
   lesson Stage, admin viewer, Browse preview); the bank drops back to inline when Desmos is open. The click opens
@@ -20,7 +21,7 @@ ink is painted. No wire-format change. Main session only (BRIEF §12.1); no suba
 ## Scope
 ### The component — `public/shared/figure.js` (new)
 - `wrapFigures(root)`: replace each `.qfig` holding an image, and each top-level `svg[role=img]`, in a **math stem** with
-  one viewer, in place. `install(document)`: delegated listeners + the stylesheet, once per document (flag on
+  one viewer, in place. A figure authored after all the text moves above the last text block ("above the question stem"). `install(document)`: delegated listeners + the stylesheet, once per document (flag on
   `<html>`, so two module copies never double-bind).
 - Markup: `.fv` > `.fv-bar[role=toolbar]` (Zoom in, Zoom out, `NNN%`, Reset, divider, Full Screen) + `.fv-view[tabindex=0]`
   > `.fv-content` > the original `<img>`/`<svg>` (moved, not re-created — no new request).
