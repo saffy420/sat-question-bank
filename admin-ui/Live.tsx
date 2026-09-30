@@ -1031,7 +1031,8 @@ function InstructorStage({
       raw = drawing ? [chunk[chunk.length - 1]] : [];
     };
     const down = (e: PointerEvent) => {
-      if (tool !== "pen") return;
+      // The figure toolbar keeps working while the pen is out (capturing here would swallow its clicks).
+      if (tool !== "pen" || (e.target as Element).closest(".fv-bar")) return;
       e.preventDefault();
       card.setPointerCapture(e.pointerId);
       drawing = true;

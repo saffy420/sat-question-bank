@@ -1056,6 +1056,7 @@ mark.hl-b { background: #bfe3ff; }
 <script type="module">
 import * as Stats from '/shared/stats.js';
 import * as SharedRenderer from '/shared/renderer.js';
+import * as Figure from '/shared/figure.js';
 import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
 import { mountLesson, mountHistory } from '/lesson-ui/lesson.js';
 (function(){
@@ -2554,10 +2555,6 @@ function mathify(root) {
   } catch (e) { /* a malformed run should never blank the question */ }
 }
 
-// Graphs, tables and figures are context: they belong beside the question the
-// way a Reading passage does, not stacked above the answer choices.
-const splitContext = html => SharedRenderer.splitContext(html, document);
-
 let lbScale = 1, lbX = 0, lbY = 0;
 function openLightbox(src) {
   lbScale = 1; lbX = 0; lbY = 0;
@@ -2598,8 +2595,8 @@ function openLightbox(src) {
 
 document.addEventListener('click', e => {
   const img = e.target.closest('.qfig img, .qimg img');
-  // a figure that IS a choice must not hijack the click that answers with it
-  if (img && !img.closest('.choice')) openLightbox(img.getAttribute('src'));
+  // a figure that IS a choice must not hijack the click that answers with it; a math figure has its own viewer
+  if (img && !img.closest('.choice, .fv')) openLightbox(img.getAttribute('src'));
 });
 
 const H3_LABEL = /<h3>\s*(?:Passage|Prompt|Question)\s*<\/h3>/gi;
@@ -2647,7 +2644,8 @@ function renderPanes(q) {
       body = renderStem(q);
     }
   } else {
-    const s = splitContext(renderStem(q));
+    // Figures stay in the question column in their own viewer frame; tables still go beside it.
+    const s = SharedRenderer.mathStem(renderStem(q), document);
     context = s.context;
     body = s.body;
   }
@@ -2671,6 +2669,11 @@ function renderPanes(q) {
   $('pane-a').innerHTML = `${qhead}<div class="stem cb">${body}</div><div id="answer-area"></div>`;
   renderAnswerArea(q);
   mathify();
+  // Once its images are in, a math figure is shrunk (never below Figure.FIT_MIN) rather than push the
+  // first choice out of the question pane.
+  const figStem = $('pane-a').querySelector('.stem');
+  if (figStem.querySelector('.fv')) Promise.all([...figStem.querySelectorAll('.fv img')].map(i => i.decode().catch(() => {}))).then(() =>
+    Figure.fitFigures(figStem, () => $('pane-a').querySelector('#choices .choice, #gi'), () => $('pane-a').getBoundingClientRect().bottom));
 
   $('btn-flag').onclick = () => {
     S.flags[q.id] = !S.flags[q.id];

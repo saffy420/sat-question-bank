@@ -38,10 +38,10 @@ for (const viewport of [{width:1920,height:1080},{width:1366,height:768}]) {
       await page.locator('#back').click(); await page.locator('[data-id="e2e-student-5"]').click();
       for(const tab of tabs) {await page.getByRole('tab',{name:tab,exact:true}).click();await expect(page.locator('#tab-content .empty')).toHaveCount(1);await expect(page.locator('#tab-content')).toHaveText('No practice attempts yet');await shot(page,`empty-${tab.toLowerCase().replaceAll(' ','-')}`);}
       await page.locator('#back').click(); await page.locator('#search').fill('no-matching-person'); await expect(page.locator('tbody tr')).toHaveCount(0); await shot(page,'students-empty');
-      await page.goto('/admin/questions'); await expect(page.locator('#results [data-preview]')).toHaveCount(8); await shot(page,'question-bank');
+      await page.goto('/admin/questions'); await expect(page.locator('#results [data-preview]')).toHaveCount(9); await shot(page,'question-bank');
       await page.locator('[data-preview="e2e-core-math"]').click(); await expect(page.getByRole('dialog')).toBeVisible(); await shot(page,'bank-preview'); await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
       await page.locator('#f-search').fill('no-such-question');await expect(page.locator('#results')).toContainText('No results.');await shot(page,'bank-empty');
-      await page.goto('/admin/lessons/new');await expect(page.locator('#results [data-add]')).toHaveCount(8);await shot(page,'builder-empty');
+      await page.goto('/admin/lessons/new');await expect(page.locator('#results [data-add]')).toHaveCount(9);await shot(page,'builder-empty');
       await page.locator('[data-add="e2e-core-math"]').click();await expect(page.locator('[data-add="e2e-core-math"]')).toBeDisabled();
       await page.locator('#library-back').click();await expect(page.getByRole('dialog')).toContainText('Save changes before leaving?');await shot(page,'unsaved-exit');await page.getByRole('button',{name:'Cancel',exact:true}).click();
       await page.locator('#lesson-title').fill(`Algebra workshop ${size}`);await page.locator('#save-lesson').click();await expect(page.locator('#save-status')).toHaveText('Saved');
