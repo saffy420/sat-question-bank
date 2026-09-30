@@ -49,11 +49,48 @@ export function wrapFigures(root) {
   for (const figure of figures) {
     const box = shell(false);
     const content = box.querySelector('.fv-content');
-    if (figure.matches('svg')) content.append(figure); else content.append(...figure.childNodes);
-    figure.replaceWith(box);
+    // Place the frame first: an inline SVG is itself the figure and moves into it.
+    figure.before(box);
+    if (figure.matches('svg')) content.append(figure); else { content.append(...figure.childNodes); figure.remove(); }
   }
   return figures.length;
 }
+
+// ---- fit: the figure never pushes the first choice off-screen ----
+// 100 % is capped by --fv-h (a share of the window height). When the stem's text plus its figures would
+// still push the first answer control (its first FIT_LINE px) below `bottom()`, the frames of that stem get a smaller cap, down
+// to FIT_MIN px; below that the question scrolls as before. Re-run on window resize.
+export const FIT_MIN = 140;
+export const FIT_LINE = 80;
+const fits = new Map();
+export function fitFigures(stem, first, bottom) {
+  const run = () => {
+    const frames = [...stem.querySelectorAll('.fv')];
+    const control = first();
+    if (!frames.length || !control || !stem.isConnected) return;
+    frames.forEach(f => f.style.removeProperty('--fv-h'));
+    for (let pass = 0; pass < 3; pass++) {
+      // The control's first line (a picture choice can be taller than the screen on its own).
+      const r = control.getBoundingClientRect(), over = Math.min(r.bottom, r.top + FIT_LINE) - bottom();
+      if (over <= 0.5) break;
+      const tallest = Math.max(...frames.map(f => f.querySelector('.fv-content > *')?.getBoundingClientRect().height || 0));
+      const cap = Math.max(FIT_MIN, Math.floor(tallest - over / frames.length));
+      if (cap >= tallest) break;
+      frames.forEach(f => f.style.setProperty('--fv-h', `${cap}px`));
+    }
+    frames.forEach(apply);
+  };
+  fits.set(stem, run);
+  run();
+}
+let fitQueued = 0;
+const refit = () => {
+  if (fitQueued) return;
+  fitQueued = requestAnimationFrame(() => {
+    fitQueued = 0;
+    for (const [stem, run] of fits) stem.isConnected ? run() : fits.delete(stem);
+  });
+};
 
 // ---- behaviour: delegated, once per document ----
 const states = new WeakMap();
@@ -187,6 +224,7 @@ export function install(doc = document) {
     };
     view.addEventListener('pointermove', move); view.addEventListener('pointerup', up); view.addEventListener('pointercancel', up);
   });
+  doc.defaultView?.addEventListener('resize', refit);
   doc.addEventListener('dragstart', e => { if (e.target.closest?.('.fv-content')) e.preventDefault(); });
 }
 

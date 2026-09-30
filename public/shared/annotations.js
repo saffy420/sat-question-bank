@@ -58,10 +58,17 @@ const caretAt = (x, y) => {
   if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(x, y); return p && { node:p.offsetNode, offset:p.offset }; }
   const r = document.caretRangeFromPoint?.(x, y); return r && { node:r.startContainer, offset:r.startOffset };
 };
+// 'i:<n>' numbers figures before other images. Math figures used to sit in the left pane, ahead of the
+// stem's notation crops; now they sit in the stem in a viewer frame. Listing framed and pane images first
+// keeps every saved 'i:<n>' on the figure it was drawn on.
+const images = card => {
+  const all = [...card.querySelectorAll('img')], lead = all.filter(i => i.closest('.fv-content, .stage-passage'));
+  return lead.concat(all.filter(i => !lead.includes(i)));
+};
 function anchorElement(card, id) {
   if (id === 'P') return card.querySelector('.stage-passage');
   if (id === 'Q') return card.querySelector('.stage-question');
-  if (id.startsWith('i:')) return card.querySelectorAll('img')[Number(id.slice(2))] || null;
+  if (id.startsWith('i:')) return images(card)[Number(id.slice(2))] || null;
   return [...card.querySelectorAll('[data-ann-node]')].find(n => n.dataset.annNode === id) || null;
 }
 function glyph(block, offset) {

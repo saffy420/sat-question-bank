@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import * as Renderer from '/shared/renderer.js';
 import * as Ink from '/shared/annotations.js';
+import * as Figure from '/shared/figure.js';
 import type { Mark, Question } from './types';
 
 import { escapeHTML } from './escape';
@@ -85,6 +86,10 @@ export function Stage(props: StageProps) {
     const images = [...el.querySelectorAll('img')].map(image => image.decode().catch(() => undefined));
     Promise.all([document.fonts.ready, ...images]).then(() => {
       if (!alive) return;
+      // Student screens (a lesson footer below): the figure must not push the first choice under it.
+      const stem = el.querySelector<HTMLElement>('.lesson-stem'), footer = el.closest('#lesson-live')?.querySelector('.lesson-footer');
+      if (stem && footer && stem.querySelector('.fv'))
+        Figure.fitFigures(stem, () => el.querySelector('[data-lesson-choice], #lesson-grid'), () => footer.getBoundingClientRect().top);
       ready.current = true;
       el.dataset.ready = 'true';
       paint();

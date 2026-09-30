@@ -17,6 +17,11 @@ export function mathStem(html, document) {
   d.querySelectorAll('.qtable, .qimg').forEach(n => ctx.appendChild(n));
   Figure.install(document);
   Figure.wrapFigures(d);
+  // A figure authored after all the text (2 of the bank's 323) would sit below the question: put it above
+  // the last text block instead.
+  const blocks = [...d.children], trailing = [];
+  for (let k = blocks.length - 1; k >= 0 && blocks[k].classList.contains('fv'); k--) trailing.unshift(blocks[k]);
+  if (trailing.length && trailing.length < blocks.length) blocks[blocks.length - trailing.length - 1].before(...trailing);
   return { context: ctx.innerHTML.trim(), body: d.innerHTML.trim() };
 }
 export function renderStem(q) {
