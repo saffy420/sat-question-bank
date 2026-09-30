@@ -2,8 +2,8 @@
 Task: figure-viewer
 Tier: 2
 Branch: claude/awesome-sagan-hevd96   Base: main (c25143b)
-Last completed step: 8 (docs; review PASS after repair round 1). Final full-suite run in progress.
-Next step: record the full-suite result in e2e.md, commit, push. No PR requested.
+Last completed step: 9 (docs, review PASS, full suite 74/74). Pushed.
+Next step: none (no PR requested); manual checks in handoff.md.
 Open blockers: none
 Decisions made this task:
 - The figure keeps its authored place in the question column (above the text in 180, between intro and question in 141);
