@@ -434,7 +434,7 @@ img.minl { mix-blend-mode: multiply; }
 .qtable table th, .cb table th { background: var(--bg2); font-weight: 600; }
 
 /* full-screen viewer: wheel or the buttons to magnify, drag to pan */
-.lb { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.lb { position: fixed; inset: 0; z-index: 130; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .lb img { max-width: 92vw; max-height: 88vh; border-radius: 6px; background: #fff; transform-origin: center; cursor: grab; transition: transform .08s linear; }
 .lb img.drag { cursor: grabbing; transition: none; }
 .lb-bar { position: fixed; top: 16px; right: 16px; display: flex; gap: 8px; }
@@ -482,12 +482,14 @@ mark.hl-p { background: #ffc2e0; }
 mark.hl-b { background: #bfe3ff; }
 /* Unsaved answers. Fixed to the bottom because it must be visible on the test
    player as well as on the home screens, and it sits above the phone tab bar. */
-#sync-bar { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 90; margin: 0 auto; max-width: 520px;
+#sync-bar { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 110; margin: 0 auto; max-width: 520px;
   padding: 10px 14px; border-radius: 10px; font-size: 13.5px; font-weight: 500; text-align: center;
   background: var(--red-bg); color: var(--red); border: 1px solid var(--red); box-shadow: 0 8px 24px rgba(0,0,0,.2);
   display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; }
 #sync-bar button { flex: 0 0 auto; background: transparent; border: 0; color: inherit; font-size: 15px; line-height: 1; padding: 4px 6px; cursor: pointer; }
 @media (max-width: 760px) { #sync-bar { bottom: 76px; } }
+/* The practice screen has its own footer: keep the warning above it. */
+body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) + 12px); }
 #hl-bar { position: fixed; z-index: 80; display: flex; align-items: center; gap: 6px; padding: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
 #hl-bar button { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
 #hl-bar .hl-y { background: #fff3a3; } #hl-bar .hl-p { background: #ffc2e0; } #hl-bar .hl-b { background: #bfe3ff; }
@@ -510,7 +512,7 @@ mark.hl-b { background: #bfe3ff; }
 #btn-export { display: inline-flex; align-items: center; gap: 6px; min-width: 132px; justify-content: center; }
 
 /* question map modal */
-.modal-bg { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; z-index: 60; }
+.modal-bg { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: flex; align-items: center; justify-content: center; z-index: 120; }
 .modal { background: var(--panel); border-radius: 16px; padding: 22px; width: min(560px, 92vw); max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
 .modal h3 { margin: 0 0 14px; font-size: 16px; }
 .join-modal { width: min(460px, 92vw); padding: 28px 28px 24px; }
@@ -1050,6 +1052,7 @@ mark.hl-b { background: #bfe3ff; }
 
 <link rel="stylesheet" href="/lesson-ui/lesson.css">
 <div id="lesson-live" class="hide"><div id="lesson-content"></div><div id="lesson-history"></div></div>
+<div id="bank-live" class="hide"><div id="bank-content"></div></div>
 <div id="modal-root"></div>
 <div id="overlay-root"></div>
 
@@ -1059,7 +1062,7 @@ import * as SharedRenderer from '/shared/renderer.js';
 import * as Report from '/shared/report.js';
 import * as Figure from '/shared/figure.js';
 import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
-import { mountLesson, mountHistory } from '/lesson-ui/lesson.js';
+import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1084,7 +1087,7 @@ let TAB = 'dash';
 // ---------------- settings ----------------
 // One object, one storage key. These change shape often; a column per toggle is
 // churn for nothing. Guests keep them in localStorage, accounts on the server.
-const SET_DEFAULTS = { theme: 'system', retry: false, rand: false, count: 0, ai: '', noteOnWrong: true };
+const SET_DEFAULTS = { theme: 'system', rand: false, count: 0, ai: '', noteOnWrong: true };
 let SET = Object.assign({}, SET_DEFAULTS, LS.get('settings', {}));
 
 // The theme used to live under its own key. Carry a stored one over once, so a
@@ -1102,6 +1105,7 @@ function applyTheme() {
   const t = resolvedTheme();
   document.documentElement.dataset.theme = t;
   document.querySelectorAll('[data-theme-toggle]').forEach(b => b.textContent = t === 'dark' ? '☀️' : '🌙');
+  if (S && S.bank) bankDraw();
 }
 
 async function saveSettings() {
@@ -1679,7 +1683,6 @@ function drawSettings() {
       `<button class="btn-p" id="set-auth">${uid ? 'Sign out' : 'Sign in'}</button>`) +
     row('theme', 'Appearance', 'System follows your device setting.',
       `<select data-set="theme">${['system','light','dark'].map(v => opt(v, v[0].toUpperCase()+v.slice(1), SET.theme)).join('')}</select>`) +
-    row('retry', 'Retry mode', 'A wrong answer marks only the choice you picked and leaves the question open. The correct answer is never revealed for you.', sw('retry')) +
     row('noteOnWrong', 'Note on a miss',
       'Open the explanation and a note box beside the question when you get one wrong, so you can log why.', sw('noteOnWrong')) +
     row('rand', 'Random order', 'Shuffle a practice set instead of taking it in bank order.', sw('rand')) +
@@ -2453,7 +2456,9 @@ function start(items, opts) {
   S = {
     items, i: 0,
     ans: {}, checked: {}, flags: {}, ko: {},
-     sel: {}, miss: {}, tried: {}, noted: {}, changes: {}, history: {},
+     sel: {}, miss: {}, tried: {}, noted: {}, changes: {}, history: {}, first: {}, shown: {},
+    // Practice sessions play on the React bank screen; exams and exam review keep the old player.
+    bank: !o.exam && !o.review,
     started: Date.now(), ended: null,
     qStart: Date.now(),
     paused: false, timerHidden: false,
@@ -2489,7 +2494,8 @@ function start(items, opts) {
   $('view-home').classList.add('hide');
   $('view-results').classList.add('hide');
   $('view-exam-res').classList.add('hide');
-  $('view-test').classList.remove('hide');
+  $('view-test').classList.toggle('hide', S.bank);
+  $('bank-live').classList.toggle('hide', !S.bank);
   loadQuestion();
   startTimer();
 }
@@ -2513,7 +2519,7 @@ function renderQTimer() {
     // recorded, not punished, unless auto-advance was asked for.
     const left = targetOf(q) * S.mult - (Date.now() - S.qStart);
     over = left < 0; s = Math.round(Math.abs(left) / 1000);
-    if (over && S.auto && !S.checked[q.id]) { $('btn-next').click(); return; }
+    if (over && S.auto && !S.checked[q.id]) { S.bank ? bankNext() : $('btn-next').click(); return; }
   } else if (S.timing === 'set' && S.setEnds) {
     const left = S.setEnds - Date.now();
     if (S.exam && left <= 0) { endModule(); return; }
@@ -2524,7 +2530,9 @@ function renderQTimer() {
     s = Math.round((Date.now() - S.qStart) / 1000);
   }
   const m = Math.floor(s/60), sec = s%60;
-  el.textContent = `${over ? '+' : ''}${m}:${String(sec).padStart(2,'0')}`;
+  const text = `${over ? '+' : ''}${m}:${String(sec).padStart(2,'0')}`;
+  if (S.bank) { bankUI.clock(text, over); return; }
+  el.textContent = text;
   el.classList.toggle('over', over);
 }
 
@@ -2605,6 +2613,7 @@ const renderStem = SharedRenderer.renderStem;
 const choiceHTML = (q, c, picked, staticMode) => SharedRenderer.choiceHTML(q, c, picked, staticMode, S, PROG);
 
 function loadQuestion() {
+  if (S.bank) { S.qStart = Date.now(); renderQTimer(); bankDraw(); return; }
   closeExpl();
   const np = $('note-panel');
   if (np && np.dataset.qid) { clearTimeout(noteT); saveNote(np.dataset.qid, $('np-ta').value); }
@@ -2685,22 +2694,22 @@ function renderPanes(q) {
   $('btn-report').onclick = () => Report.openReport({ questionId: q.id, seenIn: 'bank', element: $('panes'), send: postJSON });
 }
 
+// The answer area of the old player. Practice plays on the React bank screen (lesson-ui/Bank.tsx); this one serves practice
+// exams (answers are saved as you go, nothing is graded) and exam review (everything revealed).
 function renderAnswerArea(q) {
   const target = $('answer-area');
-  // Before grading this is the pre-Check selection; after it, the answer given.
-  const picked = S.exam || S.checked[q.id] ? S.ans[q.id] : S.sel[q.id];
+  const picked = S.ans[q.id];
   const checked = S.checked[q.id];
   let html = '';
   if (q.spr) {
     html += `<div class="gridin-wrap">
       <input class="gridin" id="gi" type="text" placeholder="Enter your answer" value="${esc(picked&&picked!=='TIMEOUT'?picked:'')}" ${checked?'disabled':''}>
-      ${!checked && !S.exam ? '<button class="btn-p" id="gi-submit" style="margin-top:12px;">Submit</button>' : ''}
       <div id="spr-verdict"></div>
     </div>`;
   } else {
     html += `<div class="choices" id="choices">${q.choices.map(c => choiceHTML(q, c, picked, false)).join('')}</div>`;
-    if (!checked) html += `<div style="margin-top:14px; color:var(--dim2); font-size:13px;">${S.exam ? 'Choose one answer \u00b7 saved as you go' : 'Choose one answer'}</div>`;
-    else if (isRight(q, picked) === null) html += `<div class="verdict" style="color:var(--dim);">Not auto-scored \u2014 this question is missing the choice recorded as correct. See the explanation.</div>`;
+    if (!checked) html += `<div style="margin-top:14px; color:var(--dim2); font-size:13px;">Choose one answer · saved as you go</div>`;
+    else if (isRight(q, picked) === null) html += `<div class="verdict" style="color:var(--dim);">Not auto-scored — this question is missing the choice recorded as correct. See the explanation.</div>`;
   }
   target.innerHTML = html;
   mathify(target);
@@ -2713,29 +2722,13 @@ function renderAnswerArea(q) {
     return;
   }
   if (q.spr) {
-    const gi = $('gi');
-    if (!checked) {
-      // A committed grid value, not every intermediate keystroke ("0" while typing "0.5").
-      gi.onchange = () => rememberAnswer(q, gi.value.trim());
-      const submit = () => {
-        S.ans[q.id] = gi.value.trim();
-        rememberAnswer(q, S.ans[q.id]);
-        grade(q);
-      };
-      $('gi-submit').onclick = submit;
-      gi.onkeydown = (e) => { if (e.key === 'Enter') submit(); };
-      // Retry mode leaves the box open on a wrong entry, so the verdict has to be
-      // printed here - the branch below only runs once the question is closed.
-      if (S.tried[q.id]) $('spr-verdict').innerHTML = '<div class="verdict bad">✗ Not right — try again.</div>';
-    } else {
-      const ok = isRight(q, picked);
-      const v = $('spr-verdict');
-      if (v) v.innerHTML = ok === null
-        ? '<div class="verdict" style="color:var(--dim);">Not auto-scored — this question has no stored answer. See the explanation.</div>'
-        : ok
-        ? '<div class="verdict ok">✓ Correct</div>'
-        : `<div class="verdict bad">✗ Incorrect — correct answer: ${esc(q.answer)}</div>`;
-    }
+    const ok = isRight(q, picked);
+    const v = $('spr-verdict');
+    if (v) v.innerHTML = ok === null
+      ? '<div class="verdict" style="color:var(--dim);">Not auto-scored — this question has no stored answer. See the explanation.</div>'
+      : ok
+      ? '<div class="verdict ok">✓ Correct</div>'
+      : `<div class="verdict bad">✗ Incorrect — correct answer: ${esc(q.answer)}</div>`;
   } else {
     target.querySelectorAll('.choice').forEach(el => {
       const letter = el.dataset.letter;
@@ -2755,100 +2748,27 @@ function renderAnswerArea(q) {
           target.querySelectorAll('.choice').forEach(x => x.classList.toggle('sel', x === el));
           touchExam();
         };
-        return;
       }
-      if (S.checked[q.id]) return;
-      // Selecting must not re-render: a re-render throws away any highlight the
-      // student has made inside a choice. Move the classes and the button by hand.
-      const bindCheck = (b) => b.onclick = (ev) => { ev.stopPropagation(); S.ans[q.id] = letter; grade(q); };
-      el.onclick = (e) => {
-        if (e.target.closest('.ko-btn, .chk-btn, mark')) return;
-        // Switches, not first picks: choosing for the first time is not a second
-        // guess. Read back by the dashboard's Second-guessing panel.
-        if (S.sel[q.id] && S.sel[q.id] !== letter) S.changes[q.id] = (S.changes[q.id] || 0) + 1;
-        S.sel[q.id] = letter;
-        rememberAnswer(q, letter);
-        target.querySelectorAll('.choice').forEach(x => {
-          if (x !== el) x.classList.remove('sel');
-          const b = x.querySelector('.chk-btn');
-          if (b && x !== el) b.remove();
-        });
-        el.classList.add('sel');
-        if (el.querySelector('.chk-btn')) return;
-        const chk = document.createElement('button');
-        chk.className = 'chk-btn';
-        chk.textContent = 'Check';
-        bindCheck(chk);
-        el.appendChild(chk);
-      };
-      const pre = el.querySelector('.chk-btn');
-      if (pre) bindCheck(pre);
     });
   }
 }
 
+// --- bank check
+// Practice answers are checked by the record path in lesson-ui/record.ts (first Check records, a wrong Check leaves the
+// question open, later tries only extend the answer history). This is the page side: which record, which session, which
+// screens to redraw.
 const isRight = Stats.isRight;
-function rememberAnswer(q, answer) {
-  if (!S.history || !answer || answer.length > 32) return;
-  const h = (S.history[q.id] ||= []);
-  if (h.at(-1)?.answer === answer) return;
-  if (q.spr && h.length && !S.exam) S.changes[q.id] = (S.changes[q.id] || 0) + 1;
-  const event = { answer, atMs: Math.min(86400000, Math.max(0, Date.now() - (S.started || Date.now()))) };
-  // ponytail: keep first and most recent 127 edits; raise bound only if real usage needs more.
-  if (h.length >= 128) h[h.length - 1] = event; else h.push(event);
-}
+const REC = createRecorder({ stats: Stats, prog: () => PROG, log: () => LOG, saveProgress, saveLog });
 
-// --- grade
-// Shared by the practice grader and the exam scorer: the record moves once per
-// question, the log takes every answer.
-function recordProgress(q, ok, now, ms) {
-  const p = Stats.nextProgress(PROG[q.id], q.id, ok, now, ms);
-  PROG[q.id] = p;
-  saveProgress([p]);
-}
-function recordAttempt(q, ok, now, ms, picked, changes) {
-  const ev = Stats.attemptRow(q.id, ok, now, ms, picked, changes, S.history?.[q.id]);
-  LOG.push(ev);
-  saveLog([ev]);
-}
+function afterCheck(q, res) {
+  if (res.ok !== null && S.session) saveSession(reviewState);
 
-function grade(q) {
-  const ok = isRight(q, S.ans[q.id]);
-  if (S.history) rememberAnswer(q, S.ans[q.id]);
-  const first = !S.tried[q.id];
-  S.tried[q.id] = true;
-
-  // Retry mode: a wrong answer marks only the choice that was picked and leaves
-  // the question open. Nothing turns green that the student did not choose.
-  const keepOpen = SET.retry && ok === false;
-  if (keepOpen) {
-    S.miss[q.id] = S.miss[q.id] || [];
-    if (!S.miss[q.id].includes(S.ans[q.id])) S.miss[q.id].push(S.ans[q.id]);
-    S.sel[q.id] = null;
-  } else {
-    S.checked[q.id] = true;
-  }
-
-  if (ok === null) { renderAnswerArea(q); return; }  // no stored answer: scoring it would be a guess
-
-  const now = new Date().toISOString();
-  const ms = Math.round(Date.now() - S.qStart);
-
-  // Only the first Check on a question moves the record. Otherwise a student
-  // walks any question to Green by clicking every option in turn.
-  if (first) recordProgress(q, ok, now, ms);
-  // The attempt log is the history, and a retry is work that was really done.
-  recordAttempt(q, ok, now, ms, S.ans[q.id], S.changes[q.id]);
-  if (S.history) S.history[q.id] = []; // next retry is a separate scored attempt
-  S.changes[q.id] = 0;
-  if (S.session) saveSession(reviewState);
-
-  // The ladder. Two straight correct answers raise the target level, any miss
-  // lowers it, and what is left of the set is reordered so the next question is the
-  // one nearest that target.
-  if (S.focus && ok !== null) {
-    S.streak = ok === true ? S.streak + 1 : 0;
-    S.lvl = nextLevel(S.lvl, S.streak, ok === true);
+  // The ladder moves on the first Check only, like the record: two straight first-try correct answers raise the target
+  // level, any first-try miss lowers it, and what is left of the set is reordered so the next question is the one nearest
+  // that target.
+  if (S.focus && res.recorded) {
+    S.streak = res.ok === true ? S.streak + 1 : 0;
+    S.lvl = nextLevel(S.lvl, S.streak, res.ok === true);
     if (S.streak >= 2) S.streak = 0;    // one promotion per two, not per answer
     const rest = S.items.slice(S.i + 1);
     if (rest.length > 1) {
@@ -2857,24 +2777,66 @@ function grade(q) {
     }
   }
 
-  // The home screens are behind the player, and nothing redrew them until the
-  // session ended - so a question missed at 09:00 was absent from the mistake log
-  // until you left practice. They read PROG and LOG, which have just moved, so
+  // The home screens are behind the player, and nothing redrew them until the session ended - so a question missed at
+  // 09:00 was absent from the mistake log until you left practice. They read PROG and LOG, which have just moved, so
   // they are redrawn here rather than on the way out.
-  refresh();
-
-  renderAnswerArea(q);
-
-  // One rule for both modes: the panel opens when a question CLOSES and it was
-  // missed at least once. Normal mode, a wrong Check closes it. Retry mode, the
-  // eventual right answer closes it - and nothing opens while a retry question is
-  // still live, so the answer is never revealed early. Right first try, never.
-  if (SET.noteOnWrong && !keepOpen && (ok === false || (S.miss[q.id] || []).length)) {
-    S.noted[q.id] = true;
-    openExplanation();
-  }
+  if (res.recorded) refresh();
+  bankDraw();
 }
-// --- end grade ---
+// --- end bank check ---
+
+function bankNext() {
+  if (S.i < S.items.length - 1) { S.i++; loadQuestion(); }
+  else finish();
+}
+const BANK_STATE = { none: 'none', correct: 'correct', corrected: 'corrected', wrong: 'wrong', unscored: 'unscored' };
+function bankDraw() {
+  if (!S || !S.bank) return;
+  const q = curQ();
+  const closed = !!S.checked[q.id];
+  bankUI.update({
+    title: S.session ? S.session.name : S.focus ? 'Focus practice' : 'Practice',
+    name: $('user-name').textContent || '',
+    question: q, index: S.i, total: S.items.length,
+    picked: (closed ? S.ans[q.id] : S.sel[q.id]) || '',
+    missed: S.miss[q.id] || [],
+    closed, unscored: closed && isRight(q, S.ans[q.id]) === null, shown: !!S.shown[q.id],
+    flagged: !!S.flags[q.id],
+    cells: S.items.map(x => ({ id: x.id, state: BANK_STATE[outcome(S, x, PROG[x.id] && PROG[x.id].marker, isRight)], flagged: !!S.flags[x.id] })),
+    paused: S.paused, note: NOTES[q.id] || '', noteOnMiss: !!SET.noteOnWrong,
+    dark: resolvedTheme() === 'dark', signedIn: !!authToken
+  });
+}
+const bankBridge = {
+  mathify,
+  pick(letter) { const q = curQ(); if (S && !S.checked[q.id]) { pickAnswer(S, q, letter); bankDraw(); } },
+  commit(value) { const q = curQ(); if (S && q.spr && !S.checked[q.id]) { commitAnswer(S, q, value); bankDraw(); } },
+  check(value) {
+    const q = curQ();
+    if (!S || S.checked[q.id]) return;
+    if (q.spr) commitAnswer(S, q, value || '');
+    const res = REC.check(S, q);
+    if (res) afterCheck(q, res);
+  },
+  showAnswer() {
+    if (!S || !REC.showAnswer(S, curQ())) return;
+    if (S.session) saveSession(reviewState);
+    bankDraw();
+  },
+  next: () => { if (S) bankNext(); },
+  back() { if (S && S.i > 0) { S.i--; loadQuestion(); } },
+  goto(i) { if (S && i >= 0 && i < S.items.length) { S.i = i; loadQuestion(); } },
+  flag() { const q = curQ(); S.flags[q.id] = !S.flags[q.id]; bankDraw(); },
+  pause() { S.paused = !S.paused; bankDraw(); },
+  exit() { stopTimer(); S = null; showHome(); },
+  theme() { setSetting('theme', resolvedTheme() === 'dark' ? 'light' : 'dark'); },
+  // Called from inside React effects, so the redraw waits for them to finish.
+  saveNote(id, body) { saveNote(id, body); queueMicrotask(bankDraw); },
+  exportText: () => exportPrompt(curQ()),
+  report({ questionId, element }) { Report.openReport({ questionId, seenIn: 'bank', element, send: postJSON }); },
+  suggest() { Report.openSuggest({ send: postJSON }); }
+};
+const bankUI = mountBank($('bank-content'), bankBridge);
 
 // ---------------- highlighter ----------------
 // Session-only: a re-render of the question drops the marks with it, which is
@@ -3068,14 +3030,6 @@ function renderNoteChip(q) {
 // ---------------- navigation ----------------
 $('btn-next').onclick = () => {
   if (!S) return;
-  // Retry mode lets you walk away from a question you never solved. That is a
-  // miss too, so it gets the same prompt once; a second Next moves on.
-  const q = curQ();
-  if (SET.noteOnWrong && q && !S.checked[q.id] && !S.noted[q.id] && (S.miss[q.id] || []).length) {
-    S.noted[q.id] = true;
-    openExplanation();
-    return;
-  }
   if (S.i < S.items.length-1) { S.i++; loadQuestion(); }
   else if (S.exam) confirmModal('Finish this module? You cannot come back to it.', endModule);
   else if (S.review) { const EX = S.review; stopTimer(); S = null; closeExpl(); closeDesmos(); drawExamResults(EX); }
@@ -3088,14 +3042,11 @@ document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.key === 'ArrowRight') $('btn-next').click();
   else if (e.key === 'ArrowLeft') $('btn-back').click();
-  else if (/^[1-4]$/.test(e.key)) {
+  else if (/^[1-4]$/.test(e.key) && S.exam) {
     const q = curQ();
     if (q.choices && q.choices.length && !S.checked[q.id]) {
       const c = q.choices[parseInt(e.key)-1];
-      if (c) { if (S.exam) { S.ans[q.id] = c.letter; touchExam(); } else {
-        if (S.sel[q.id] && S.sel[q.id] !== c.letter) S.changes[q.id] = (S.changes[q.id] || 0) + 1;
-        S.sel[q.id] = c.letter; rememberAnswer(q, c.letter); renderAnswerArea(q);
-      } }
+      if (c) { S.ans[q.id] = c.letter; touchExam(); }
     }
   }
 });
@@ -3325,19 +3276,20 @@ function finish() {
   stopTimer();
   S.ended = Date.now();
   if (S.session) { S.session.finished = Date.now(); saveSession(reviewState, true); }
+  // Accuracy is first try: a question missed and then solved on a retry still counts as missed, like the record.
   let done = 0, right = 0;
   S.items.forEach(q => {
-    if (!S.checked[q.id]) return;
-    const ok = isRight(q, S.ans[q.id]);
-    if (ok === null) return;
-    done++; if (ok === true) right++;
+    const v = firstTry(S, q, isRight);
+    if (v === undefined) return;
+    done++; if (v === true) right++;
   });
   const secs = Math.round((S.ended - S.started)/1000);
   S.results = { done, right, secs };
-  S.wrongIds = S.items.filter(q => S.checked[q.id] && isRight(q, S.ans[q.id]) !== true).map(q=>q.id);
-  S.untriedIds = S.items.filter(q => !S.checked[q.id]).map(q=>q.id);
+  S.wrongIds = S.items.filter(q => firstTry(S, q, isRight) === false || (S.checked[q.id] && isRight(q, S.ans[q.id]) === null)).map(q=>q.id);
+  S.untriedIds = S.items.filter(q => !S.tried[q.id]).map(q=>q.id);
 
   $('view-test').classList.add('hide');
+  $('bank-live').classList.add('hide');
   $('view-results').classList.remove('hide');
   $('res-sub').textContent = `${S.items.length} questions`;
   $('res-done').textContent = done;
@@ -3345,19 +3297,15 @@ function finish() {
   $('res-acc').textContent = done ? Math.round(right/done*100)+'%' : '—';
   $('res-time').textContent = `${Math.floor(secs/60)}m ${secs%60}s`;
   $('res-list').innerHTML = S.items.map((q, idx) => {
-    const checked = S.checked[q.id];
-    const verdict = checked ? isRight(q, S.ans[q.id]) : null;
-    const ok = verdict === true;
     const prog = PROG[q.id];
-    const wasWrong = prog && prog.marker === 'Orange';
+    const o = outcome(S, q, prog && prog.marker, isRight);
+    // Missed on the first Check and solved on a retry: corrected in this session (the record stays first-try).
+    const retried = o === 'wrong' && S.checked[q.id] && !S.shown[q.id] && isRight(q, S.ans[q.id]) === true;
     let status = 'gray', ico = '<span style="color:var(--dim2)">—</span>', pillText = 'Skipped';
-    if (checked && verdict === null) { pillText = 'Not scored'; }
-    else if (checked) {
-      if (ok) {
-        if (wasWrong) { status = 'orange'; ico = '<span style="color:var(--orange)">✓</span>'; pillText = 'Corrected'; }
-        else { status = 'green'; ico = '<span style="color:var(--green)">✓</span>'; pillText = 'Correct'; }
-      } else { status = 'red'; ico = '<span style="color:var(--red)">✗</span>'; pillText = 'Wrong'; }
-    }
+    if (o === 'unscored') { pillText = 'Not scored'; }
+    else if (o === 'correct') { status = 'green'; ico = '<span style="color:var(--green)">✓</span>'; pillText = 'Correct'; }
+    else if (o === 'corrected' || retried) { status = 'orange'; ico = '<span style="color:var(--orange)">✓</span>'; pillText = 'Corrected'; }
+    else if (o === 'wrong') { status = 'red'; ico = '<span style="color:var(--red)">✗</span>'; pillText = 'Wrong'; }
     return `<div class="res-item" data-idx="${idx}">
       <div class="res-ico">${ico}</div>
       <div style="flex:1; min-width:0;">
@@ -3370,7 +3318,7 @@ function finish() {
   $('res-list').querySelectorAll('.res-item').forEach(el => el.onclick = () => {
     S.i = parseInt(el.dataset.idx);
     $('view-results').classList.add('hide');
-    $('view-test').classList.remove('hide');
+    (S.bank ? $('bank-live') : $('view-test')).classList.remove('hide');
     loadQuestion();
   });
 }
@@ -3385,6 +3333,8 @@ function showHome() {
   stopTimer();
   S = null;
   $('view-test').classList.add('hide');
+  $('bank-live').classList.add('hide');
+  bankUI.reset();
   $('view-results').classList.add('hide');
   $('view-exam-res').classList.add('hide');
   $('view-home').classList.remove('hide');
@@ -3546,7 +3496,7 @@ function finishExam(EX) {
       D.a++; K.a++; if (ok === true) { D.c++; K.c++; }
       // Only an answered question reaches the record: a blank is a miss on the
       // score, not a mistake to drill.
-      if (ok !== null && m.ans[id]) { recordProgress(q, ok, now, 0); recordAttempt(q, ok, now, 0, m.ans[id], 0); }
+      if (ok !== null && m.ans[id]) { REC.recordProgress(q, ok, now, 0); REC.recordAttempt(q, ok, now, 0, m.ans[id], 0); }
     });
     score.mods.push({ raw, n: m.ids.length, ms: m.elapsed });
   });
@@ -3637,6 +3587,10 @@ function practiceMissed(EX, sess) {
   start(items, { timing: 'off', session });
   S.ans = session.ans; S.checked = session.checked; S.tried = session.tried;
   S.history = session.history || (session.history = {});
+  // What the first-try rule and the retry screen keep per question (sessions saved earlier simply lack them).
+  S.first = session.first || (session.first = {});
+  S.miss = session.miss || (session.miss = {});
+  S.shown = session.shown || (session.shown = {});
   S.i = Math.min(session.i || 0, items.length - 1);
   loadQuestion();
   if (!sess) saveSession(reviewState, true);
@@ -3741,16 +3695,18 @@ function exportPrompt(q) {
   else
     out.push('', '(Student-produced response \u2014 the answer is typed in, not chosen.)');
 
-  out.push('', 'CORRECT ANSWER: ' + (q.answer || '(not recorded for this question)'));
-  if (answered)
+  // Like the screen, the export holds no answer and no explanation until the question is closed.
+  if (answered) {
+    out.push('', 'CORRECT ANSWER: ' + (q.answer || '(not recorded for this question)'));
     out.push('MY ANSWER: ' + (mine || '(blank)') + ' \u2014 ' +
       (ok === true ? 'correct' : ok === false ? 'wrong' : 'not auto-scored'));
-
-  const ex = toText(q.explanation_html);
-  if (ex) out.push('', 'OFFICIAL EXPLANATION', ex);
+    const ex = toText(q.explanation_html);
+    if (ex) out.push('', 'OFFICIAL EXPLANATION', ex);
+  }
 
   out.push('',
-    'Explain why the correct answer is right, and where my reasoning likely went wrong.',
+    answered ? 'Explain why the correct answer is right, and where my reasoning likely went wrong.'
+      : 'Help me work towards the answer step by step without giving it away.',
     'Maths notation is LaTeX between \\( and \\). Any [image: ...] link is a figure or diagram belonging to the question.');
   return out.join('\n');
 }

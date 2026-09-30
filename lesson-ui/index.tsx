@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { Check, X, Highlighter, Focus, EllipsisVertical, Circle, LogOut, Eraser, Users, LockKeyhole, Calculator, Lightbulb } from 'lucide-react';
+import { Check, X, Highlighter, Focus, Circle, LogOut, Eraser, Users, LockKeyhole, Calculator, Lightbulb } from 'lucide-react';
 import { isRight } from '/shared/stats.js';
 import * as Ink from '/shared/annotations.js';
 import { Stage, followStage } from './Stage';
+import { HideButton, More } from './Chrome';
 import { DesmosFollower } from './Desmos';
 import { CalculatorShell, useCalculator } from './Calculator';
 import { SelfPlayer } from './Self';
@@ -75,12 +76,12 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
     <span hidden id="lesson-check-icon"><Check size={20} aria-label="Correct"/></span><span hidden id="lesson-x-icon"><X size={20} aria-label="Incorrect"/></span>
     <header className="lesson-header">
       <div className="lesson-title"><h1>{s.title}</h1><div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.reviewMode ? 'REVIEW' : s.phase}</div></div>
-      <div className="lesson-timer"><strong id="lesson-clock" style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: s.phase === 'ANSWERING' && remaining <= 5000 ? '#bd2424' : s.phase === 'ANSWERING' && remaining <= 10000 ? '#b56a00' : undefined }}>{s.endsAt ? `${Math.floor(Math.ceil(remaining / 1000) / 60)}:${String(Math.ceil(remaining / 1000) % 60).padStart(2, '0')}` : ''}</strong>{!s.reviewMode && <button aria-label={hiddenClock ? 'Show timer' : 'Hide timer'} onClick={() => hideClock(!hiddenClock)}>{hiddenClock ? 'Show' : 'Hide'}</button>}</div>
+      <div className="lesson-timer"><strong id="lesson-clock" style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: s.phase === 'ANSWERING' && remaining <= 5000 ? '#bd2424' : s.phase === 'ANSWERING' && remaining <= 10000 ? '#b56a00' : undefined }}>{s.endsAt ? `${Math.floor(Math.ceil(remaining / 1000) / 60)}:${String(Math.ceil(remaining / 1000) % 60).padStart(2, '0')}` : ''}</strong>{!s.reviewMode && <HideButton hidden={hiddenClock} onToggle={() => hideClock(!hiddenClock)}/>}</div>
       <nav className="lesson-tools" aria-label="Lesson tools">
         {calc.math && <button id="lesson-calc-toggle" aria-pressed={calc.open} onClick={calc.toggle}><Calculator aria-hidden="true"/><span>Calculator</span></button>}
         <button id="lesson-private" aria-pressed={privateOn} onClick={() => setPrivateOn(!privateOn)}><Highlighter aria-hidden="true"/><span>Annotate</span></button>
         <label className="lesson-follow-tool"><Focus aria-hidden="true"/><span>Follow me</span><input id="lesson-follow" type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /></label>
-        <details className="lesson-more"><summary><EllipsisVertical aria-hidden="true"/><span>More</span></summary><div><button id="lesson-private-clear" onClick={() => setPrivateMarks(all => ({ ...all, [s.questionId]: [] }))}><Eraser aria-hidden="true"/>Clear annotations</button><button id="lesson-suggest" onClick={bridge.suggest}><Lightbulb aria-hidden="true"/>Suggest a feature</button><button id="lesson-leave" onClick={bridge.leave}><LogOut aria-hidden="true"/>Leave view</button></div></details>
+        <More><button id="lesson-private-clear" onClick={() => setPrivateMarks(all => ({ ...all, [s.questionId]: [] }))}><Eraser aria-hidden="true"/>Clear annotations</button><button id="lesson-suggest" onClick={bridge.suggest}><Lightbulb aria-hidden="true"/>Suggest a feature</button><button id="lesson-leave" onClick={bridge.leave}><LogOut aria-hidden="true"/>Leave view</button></More>
         <span id="lesson-connection" role="status" aria-label={model.connected ? 'Connected' : 'Reconnecting…'}><Circle fill="currentColor" size={9} aria-hidden="true"/><span className="lesson-sr">{model.connected ? 'Connected' : 'Reconnecting…'}</span></span>
       </nav>
     </header>
@@ -151,3 +152,6 @@ export function mountHistory(root: HTMLElement, history: LessonHistory, mathify:
   flushSync(() => react.render(<HistoryView history={history} mathify={mathify} close={close} report={report}/>));
   return () => react.unmount();
 }
+
+export { mountBank } from './Bank';
+export { createRecorder, pick, commit, remember, firstTry, outcome, SHOW_ANSWER_AFTER } from './record';

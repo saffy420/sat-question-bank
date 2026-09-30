@@ -236,7 +236,7 @@ export function follow(card, op) {
   const y = op.type === 'stroke' ? strokePoints(card, op).at(-1)?.[1] : null;
   const rect = target?.getBoundingClientRect();
   const top = rect?.top ?? (y == null ? null : card.getBoundingClientRect().top + y * scaleOf(card, card.getBoundingClientRect()));
-  const scroller = card.closest('#lesson-live') || window;
+  const scroller = card.closest('#lesson-live, #bank-live') || window;
   const viewport = scroller === window ? { top:0,bottom:innerHeight,height:innerHeight } : scroller.getBoundingClientRect();
   if (top != null && (top < viewport.top || top > viewport.bottom)) scroller.scrollBy({ top:top - viewport.top - viewport.height/2,behavior:'smooth' });
 }

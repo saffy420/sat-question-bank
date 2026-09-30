@@ -71,8 +71,11 @@ test('nextProgress is the marker rule: Red wrong, Orange right after Red, Green 
   assert.deepEqual(attemptRow('q', null, 'T', 5, null, 0, []), { question_id: 'q', ts: 'T', correct: 0, time_taken_ms: 5, picked: '', changes: 0 });
   assert.equal(attemptRow('q', true, 'T', 5, 'B', 1, [{ answer: 'B', atMs: 1 }]).answer_history_json, '[{"answer":"B","atMs":1}]');
   const page = readFileSync(__dirname + '/../public/index.html', 'utf8');
-  assert.match(page, /function recordProgress\(q, ok, now, ms\) \{\r?\n  const p = Stats\.nextProgress\(/);
-  assert.match(page, /const ev = Stats\.attemptRow\(/);
+  // The client record path moved into lesson-ui/record.ts; it is handed the page's Stats, so there is still one copy of both rules.
+  const record = readFileSync(__dirname + '/../lesson-ui/record.ts', 'utf8');
+  assert.match(record, /env\.stats\.nextProgress\(/);
+  assert.match(record, /env\.stats\.attemptRow\(/);
+  assert.match(page, /createRecorder\(\{ stats: Stats,/);
 });
 
 test('usage filter, lesson score and shown questions', async () => {

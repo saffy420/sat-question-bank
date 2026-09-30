@@ -32,7 +32,10 @@ export const useCalculator = () => useContext(CalcContext);
 
 // Mounted for one lesson view (mountLesson.reset unmounts it on Leave or a new join), so a shared
 // Chromebook never hands one student's calculator to the next.
-export function CalculatorShell({ apiKey, math, children }: { apiKey?: string | null; math: boolean; children: ReactNode }) {
+// `embed` is the practice bank's College Board iframe (Graphing / Scientific, no API key); lessons use the Desmos API.
+export const EMBED_SRC = { graphing: 'https://www.desmos.com/testing/collegeboard/graphing', scientific: 'https://www.desmos.com/testing/collegeboard/scientific' };
+export function CalculatorShell({ apiKey, math, embed, children }: { apiKey?: string | null; math: boolean; embed?: boolean; children: ReactNode }) {
+  const [kind, setKind] = useState<keyof typeof EMBED_SRC>('graphing');
   const [open, setOpen] = useState(false);
   // Created on first open and then kept alive (hidden when closed or off a math question).
   const [made, setMade] = useState(false);
@@ -46,9 +49,9 @@ export function CalculatorShell({ apiKey, math, children }: { apiKey?: string | 
   const dialog = useRef<HTMLDialogElement>(null);
   const shown = open && math;
   // Fetch the Desmos API during the lobby so slow Wi-Fi is not paying for it at the first question.
-  useEffect(() => { loadDesmos(apiKey).catch(() => {}); }, [apiKey]);
+  useEffect(() => { if (!embed) loadDesmos(apiKey).catch(() => {}); }, [apiKey, embed]);
   useEffect(() => {
-    if (!made) return;
+    if (!made || embed) return;
     let alive = true;
     loadDesmos(apiKey).then((Desmos: { GraphingCalculator: (el: HTMLElement, o: object) => Calculator }) => {
       if (!alive || !host.current) return;
@@ -59,10 +62,10 @@ export function CalculatorShell({ apiKey, math, children }: { apiKey?: string | 
       host.current.dataset.ready = 'true';
     }).catch((e: Error) => { if (alive) setError(e.message); });
     return () => { alive = false; calc.current?.destroy(); calc.current = null; };
-  }, [made, apiKey]);
+  }, [made, apiKey, embed]);
   // The dock width drives the question's left padding too, so it lives on the lesson root as --calc-w.
   useLayoutEffect(() => {
-    const root = document.getElementById('lesson-live');
+    const root = document.querySelector<HTMLElement>(':is(#lesson-live, #bank-live):not(.hide)');
     if (!root || width == null) return;
     root.style.setProperty('--calc-w', `${width}px`);
     return () => { root.style.removeProperty('--calc-w'); };
@@ -114,7 +117,12 @@ export function CalculatorShell({ apiKey, math, children }: { apiKey?: string | 
         <button id="lesson-calc-close" aria-label="Close calculator" onClick={() => setOpen(false)}><X aria-hidden="true"/></button>
       </div>
       {error ? <p role="alert">{error}</p> : null}
-      <div className="lesson-calc-body" ref={host}/>
+      {embed
+        ? <div className="lesson-calc-embed">
+            <div className="lesson-calc-tabs" role="tablist">{(Object.keys(EMBED_SRC) as (keyof typeof EMBED_SRC)[]).map(k => <button key={k} role="tab" aria-selected={kind === k} id={`bank-calc-${k}`} onClick={() => setKind(k)}>{k === 'graphing' ? 'Graphing' : 'Scientific'}</button>)}</div>
+            <div className="lesson-calc-frame"><iframe key={kind} title={`${kind} calculator`} src={EMBED_SRC[kind]} allow="fullscreen"/></div>
+          </div>
+        : <div className="lesson-calc-body" ref={host}/>}
       <button className="lesson-calc-resize" id="lesson-calc-resize" aria-label="Resize calculator" title="Drag to resize" onPointerDown={size} onKeyDown={nudge}/>
     </section>}
     {confirm && <dialog className="lesson-confirm-dialog" id="lesson-calc-confirm" ref={dialog} onCancel={() => setConfirm(null)}>
