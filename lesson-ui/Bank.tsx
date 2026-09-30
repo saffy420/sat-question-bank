@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { Check, X, Highlighter, House, Calculator, NotebookPen, Moon, Sun, Copy, Eraser, Lightbulb, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
@@ -42,8 +42,7 @@ function Notes({ qid, value, onSave, onClose }: { qid: string; value: string; on
   const [saved, setSaved] = useState(!!value);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const latest = useRef({ qid, text, dirty: false });
-  latest.current.qid = qid;
-  // Next/Back saves what was typed and loads the next question's note.
+  // Next/Back saves what was typed (under the question it was typed on) and loads the next question's note.
   useLayoutEffect(() => {
     setText(value); setSaved(!!value); latest.current = { qid, text: value, dirty: false };
     return () => { clearTimeout(timer.current); const l = latest.current; if (l.dirty) onSave(l.qid, l.text); };
@@ -149,6 +148,8 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   const over = time.over ? '#bd2424' : undefined;
   const info: [string, string | undefined][] = [['Domain', q.domain], ['Skill', q.skill], ['Difficulty', q.difficulty], ['Source', q.source || 'CollegeBoard'], ['ID', q.id]];
   const missedNote = model.missed.length > 0;
+  // The clock re-renders this screen every second; the navigator cells (one per question in the set) only when the model changes.
+  const gridItems = useMemo(() => model.cells.map((c, n) => ({ id: c.id, state: c.state, flagged: c.flagged, current: n === model.index, label: STATE_LABEL[c.state] })), [model.cells, model.index]);
 
   return <>
     <span hidden id="lesson-check-icon"><Check size={20} aria-label="Correct"/></span><span hidden id="lesson-x-icon"><X size={20} aria-label="Incorrect"/></span>
@@ -179,11 +180,11 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
     </header>
     <main className={`lesson-main bank-main${notesOpen ? ' with-desmos' : ''}${calc.math && calc.open ? ' with-calc' : ''}${model.paused ? ' paused' : ''}`}>
       {model.paused && <p className="bank-paused" role="status">Paused. Press Resume to continue.</p>}
-      <div className="bank-stage" onBlur={e => { const t = e.target as HTMLInputElement; if (t.id === 'lesson-grid' && t.value.trim()) bridge.commit(t.value.trim()); }}>
+      <div className="bank-stage">
         <Stage key={q.id} id="bank-card" question={q} number={model.index + 1} picked={q.spr ? draft : model.picked} active={active}
           revealed={model.closed && !model.unscored} missed={q.spr ? NO_LETTERS : model.missed} mathify={bridge.mathify}
           onReport={card => bridge.report({ questionId: q.id, element: card })} flagged={model.flagged} onFlag={bridge.flag}
-          onSelect={select} onDraft={q.spr ? setDraft : undefined} onEnter={() => { if (canCheck) primary(); }} noPick
+          onSelect={select} onDraft={q.spr ? setDraft : undefined} onCommit={q.spr && active ? v => { if (v) bridge.commit(v); } : undefined} onEnter={() => { if (canCheck) primary(); }} noPick
           strikeMode={strikeMode} struck={ownStruck} onStrikeMode={() => setStrikeMode(!strikeMode)} onStrike={strike}
           privateMarks={ownMarks} annotating={privateOn}
           onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [q.id]: [...(all[q.id] || []), mark] })) : undefined}/>
@@ -207,7 +208,7 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
       <PositionPill id="bank-nav" panelId="bank-navigator" label={`Question ${model.index + 1} of ${model.total}`} open={navOpen} onToggle={() => setNavOpen(!navOpen)}>
         <p className="self-legend"><span className="self-key correct"/>Correct <span className="self-key wrong"/>Wrong <span className="self-key corrected"/>Corrected <Flag aria-hidden="true"/>Marked</p>
         <QuestionGrid attr="data-bank-q" onPick={id => { setNavOpen(false); bridge.goto(model.cells.findIndex(c => c.id === id)); }}
-          items={model.cells.map((c, n) => ({ id: c.id, state: c.state, flagged: c.flagged, current: n === model.index, label: STATE_LABEL[c.state] }))}/>
+          items={gridItems}/>
       </PositionPill>
       <span className="bank-actions">
         <button id="bank-back" disabled={model.index === 0} onClick={bridge.back}><ChevronLeft aria-hidden="true"/>Back</button>

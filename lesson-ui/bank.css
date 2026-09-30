@@ -36,7 +36,8 @@
 #bank-live .bank-actions button { display:flex; align-items:center; gap:4px; }
 #bank-live .bank-actions .lesson-submit { justify-self:auto; }
 .bank-actions svg { width:calc(var(--u) * 1.3); height:calc(var(--u) * 1.3); }
-#bank-live .bank-footer .self-position-wrap .lesson-position { display:flex; align-items:center; gap:8px; }
+/* The pill is a button here (it opens the navigator): keep the lesson pill's size, not the button reset's. */
+#bank-live .bank-footer .self-position-wrap .lesson-position { display:flex; align-items:center; gap:8px; padding:calc(var(--u) * .5) calc(var(--u) * 1.6); font-size:calc(var(--u) * 1.05); line-height:1.5; }
 
 /* Question-bar "Mark for Review" (Stage strip): bookmark and label, no box; accent blue once marked. */
 .lesson-stage .stage-strip .stage-flag, :is(#lesson-live, #bank-live) .lesson-stage .stage-strip .stage-flag { display:inline-flex; align-items:center; gap:6px; margin:0 0 0 calc(var(--u) * .9); padding:0; height:calc(var(--u) * 1.8); border:0; border-radius:0; background:none; color:#171717; font:500 calc(var(--u) * 1.05)/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
@@ -76,10 +77,12 @@
    pure black). The filter goes on the parts, never on #bank-live: a filter would make it the containing block of the fixed
    header, footer and docks and they would scroll away with the page. Pictures are turned back the right way up and set on a
    light plate (colored figures keep their colors); notation crops (.minl) are black ink on white and stay inverted; the
-   calculator embed and its bar and the ink layer are restored. Dialogs are filtered too, so they come out dark. */
+   figure viewer (which has its own dark styling), the calculator embed and its bar and the ink layer are restored. Dialogs are filtered too, so they come out dark. */
 :root[data-theme="dark"] #bank-live, :root[data-theme="dark"] #bank-content { background:#141414; }
 :root[data-theme="dark"] #bank-content > * { filter:invert(.92) hue-rotate(180deg); }
 :root[data-theme="dark"] #bank-live .lesson-stage img:not(.minl) { filter:invert(1) hue-rotate(180deg)!important; background:#fff; }
+:root[data-theme="dark"] #bank-live .fv { filter:invert(1) hue-rotate(180deg); }
+:root[data-theme="dark"] #bank-live .lesson-stage .fv img { filter:none!important; background:none; }
 :root[data-theme="dark"] #bank-live .lesson-calc-frame iframe,
 :root[data-theme="dark"] #bank-live .lesson-calc-bar,
 :root[data-theme="dark"] #bank-live .lesson-ink { filter:invert(1) hue-rotate(180deg); }

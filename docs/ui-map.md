@@ -2,6 +2,9 @@
 
 Navigation only; `public/index.html` remains one 4,057-line file. Ranges are inclusive and match the cleanup revision. No code was split or runtime behavior changed. Names of test-extraction block markers are preserved.
 
+
+**Since bank-bluebook:** the ranges below predate it and have drifted. Practice sessions no longer play in `#view-test`: they play on the React screen `lesson-ui/Bank.tsx` (mounted in `#bank-live` by `mountBank`; model drawn by `bankDraw()`, bridge `bankBridge`). `loadQuestion`, `renderPanes`, `renderAnswerArea`, the explanation/notepad/Desmos panels, the map and More menu in `index.html` now serve practice **exams** and **exam review** only. The answer rules (`pick`, `check`, `showAnswer`, `recordProgress`, `recordAttempt`, `firstTry`, `outcome`) moved to `lesson-ui/record.ts`; the page-side glue is the `// --- bank check` block (extraction marker for `tests/test_grade.cjs`).
+
 ## Structure and styles
 
 | Source range | Responsibility |

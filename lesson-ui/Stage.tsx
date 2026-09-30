@@ -39,6 +39,8 @@ export type StageProps = {
   onFlag?: () => void;
   // Grid-in: every edit of the field (the bank enables Check from it), Enter in the field, and no separate Select button.
   onDraft?: (value: string) => void;
+  // The browser's `change` of the field (blur or Enter with a new value): a committed grid value, not every keystroke.
+  onCommit?: (value: string) => void;
   onEnter?: () => void;
   noPick?: boolean;
 };
@@ -138,10 +140,11 @@ export function Stage(props: StageProps) {
     };
     const pointerdown = () => { highlighted = false; };
     const keydown = (event: KeyboardEvent) => { if (event.key === 'Enter' && (event.target as Element).id === 'lesson-grid') latest.current.onEnter?.(); };
-    el.addEventListener('keydown', keydown);
+    const change = (event: Event) => { const t = event.target as HTMLInputElement; if (t.id === 'lesson-grid') latest.current.onCommit?.(t.value.trim()); };
+    el.addEventListener('keydown', keydown); el.addEventListener('change', change);
     el.addEventListener('click', click); el.addEventListener('input', input); el.addEventListener('pointerup', pointerup); el.addEventListener('pointerdown', pointerdown);
     paint();
-    return () => { alive = false; ready.current = false; cancelAnimationFrame(figureFrame); el.removeEventListener('fv:change', onFigure); observer.disconnect(); ratio?.removeEventListener('change', onRatio); window.removeEventListener('resize', paint); el.removeEventListener('keydown', keydown); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
+    return () => { alive = false; ready.current = false; cancelAnimationFrame(figureFrame); el.removeEventListener('fv:change', onFigure); observer.disconnect(); ratio?.removeEventListener('change', onRatio); window.removeEventListener('resize', paint); el.removeEventListener('keydown', keydown); el.removeEventListener('change', change); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
   }, [props.question.id]);
   useLayoutEffect(() => {
     const el = card.current!;
