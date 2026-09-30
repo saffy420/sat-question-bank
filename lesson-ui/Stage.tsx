@@ -48,12 +48,12 @@ export function Stage(props: StageProps) {
     const el = card.current!, wrapper = host.current!;
     const q = props.question;
     const at = q.section !== 'Math' ? q.stem_html.indexOf('<h3>Prompt</h3>') : -1;
+    const math = q.section === 'Math';
     const split = at >= 0
       ? { context: Renderer.renderStem({ stem_html: q.stem_html.slice(0, at) }), body: Renderer.renderStem({ stem_html: q.stem_html.slice(at + 15) }) }
-      : Renderer.splitContext(Renderer.renderStem(q), document);
-    const math = q.section === 'Math';
-    // Passage, or a figure/table split out of the stem (math included), goes in the left pane of a fixed
-    // 50/50 split (Bluebook's default).
+      : math ? Renderer.mathStem(Renderer.renderStem(q), document) : Renderer.splitContext(Renderer.renderStem(q), document);
+    // Passage, or a table (math) / figure (reading) split out of the stem, goes in the left pane of a fixed
+    // 50/50 split (Bluebook's default). A math figure stays in the question column in its viewer frame.
     const single = !split.context;
     el.className = `lesson-stage ${math ? 'stage-math' : ''} ${single ? 'stage-single' : `stage-split ${math ? 'stage-figure' : 'stage-reading'}`}`;
     el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off"><button id="lesson-pick" type="button">Select</button><p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
@@ -69,6 +69,18 @@ export function Stage(props: StageProps) {
     const watchRatio = () => { ratio?.removeEventListener('change', onRatio); ratio = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`); ratio.addEventListener('change', onRatio); };
     watchRatio();
     window.addEventListener('resize', paint);
+    // A figure zoom/pan moves figure-anchored ink with it: redraw the canvas and laser only, once a frame.
+    let figureFrame = 0;
+    const onFigure = () => {
+      if (figureFrame) return;
+      figureFrame = requestAnimationFrame(() => {
+        figureFrame = 0;
+        if (!ready.current) return;
+        Ink.overlay(el, latest.current.marks || []);
+        Ink.refreshLaser(el);
+      });
+    };
+    el.addEventListener('fv:change', onFigure);
     props.mathify(el);
     const images = [...el.querySelectorAll('img')].map(image => image.decode().catch(() => undefined));
     Promise.all([document.fonts.ready, ...images]).then(() => {
@@ -107,7 +119,7 @@ export function Stage(props: StageProps) {
     const pointerdown = () => { highlighted = false; };
     el.addEventListener('click', click); el.addEventListener('input', input); el.addEventListener('pointerup', pointerup); el.addEventListener('pointerdown', pointerdown);
     paint();
-    return () => { alive = false; ready.current = false; observer.disconnect(); ratio?.removeEventListener('change', onRatio); window.removeEventListener('resize', paint); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
+    return () => { alive = false; ready.current = false; cancelAnimationFrame(figureFrame); el.removeEventListener('fv:change', onFigure); observer.disconnect(); ratio?.removeEventListener('change', onRatio); window.removeEventListener('resize', paint); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
   }, [props.question.id]);
   useLayoutEffect(() => {
     const el = card.current!;

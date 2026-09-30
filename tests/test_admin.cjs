@@ -38,6 +38,12 @@ test('shared annotations module is publicly served without opening other paths',
   assert.equal((await request('/shared/annotations.js', null, 'HEAD')).status, 200);
   assert.equal((await request('/shared/missing.js')).status, 404);
 });
+test('shared figure viewer module is publicly served (the bank and lessons import it)', async t => {
+  const { request } = await fixture(t);
+  const module = await request('/shared/figure.js');
+  assert.equal(module.status, 200);
+  assert.equal(await module.text(), '/shared/figure.js');
+});
 test('lesson pages alone get the Desmos CSP; shared desmos module served; key falls back to demo only locally', async t => {
   const { request, id } = await fixture(t);
   const { desmosApiKey } = await import('../src/index.js');

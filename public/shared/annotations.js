@@ -1,7 +1,8 @@
 // Shared lesson annotations: offsets count authored text nodes, never KaTeX output.
 const textNodes = root => {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode(node) {
-    return node.parentElement.closest('.katex,script,style,canvas') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+    // The figure toolbar's "125%" differs per client, so it never counts toward an offset.
+    return node.parentElement.closest('.katex,script,style,canvas,.fv-bar') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
   } });
   const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
   return nodes;
@@ -90,10 +91,15 @@ export function frame(card, a) {
     const ox = (g.left - c.left) / s, oy = (g.top - c.top) / s;
     return { em:m[2] === '~' ? k : 0, toCard:([x,y]) => [ox + x * k, oy + y * k], fromClient:(cx,cy) => [round(((cx - c.left) / s - ox) / k), round(((cy - c.top) / s - oy) / k)] };
   }
+  // A figure in a viewer frame: its box includes this client's zoom/pan, so a fraction names the same
+  // point of the figure at any zoom; `clip` is the frame's visible view in card px.
   const r = el.getBoundingClientRect();
   const ox = (r.left - c.left) / s, oy = (r.top - c.top) / s, w = r.width / s || 1, h = r.height / s || 1;
-  return { em:0, toCard:([x,y]) => [ox + x * w, oy + y * h], fromClient:(cx,cy) => [round(((cx - c.left) / s - ox) / w), round(((cy - c.top) / s - oy) / h)] };
+  const view = a.startsWith('i:') ? el.closest('.fv-view')?.getBoundingClientRect() : null;
+  const clip = view ? [(view.left - c.left) / s, (view.top - c.top) / s, view.width / s, view.height / s] : null;
+  return { em:0, clip, toCard:([x,y]) => [ox + x * w, oy + y * h], fromClient:(cx,cy) => [round(((cx - c.left) / s - ox) / w), round(((cy - c.top) / s - oy) / h)] };
 }
+const inClip = (clip, [x, y]) => !clip || (x >= clip[0] && y >= clip[1] && x <= clip[0] + clip[2] && y <= clip[1] + clip[3]);
 // The glyph under (or right next to) a client point, as an em anchor; null when no text is close.
 // Caret APIs snap to the nearest text from far away, so only a glyph within 3 em × 2 em counts.
 export function locateGlyph(card, cx, cy) {
@@ -115,7 +121,10 @@ export function locate(card, cx, cy) {
   const ids = [...card.querySelectorAll('img')].map((_, i) => 'i:' + i).concat(['P', 'Q'], [...card.querySelectorAll('[data-ann-node]')].map(n => n.dataset.annNode));
   for (const id of ids) {
     const el = anchorElement(card, id); if (!el) continue;
-    const r = el.getBoundingClientRect();
+    let r = el.getBoundingClientRect();
+    // A zoomed figure's box runs past its frame; only the part the frame shows is under the pointer.
+    const view = id.startsWith('i:') ? el.closest('.fv-view')?.getBoundingClientRect() : null;
+    if (view) r = { left:Math.max(r.left, view.left), top:Math.max(r.top, view.top), right:Math.min(r.right, view.right), bottom:Math.min(r.bottom, view.bottom), width:r.width, height:r.height };
     if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom && r.width * r.height < area) { best = id; area = r.width * r.height; }
   }
   const [x, y] = frame(card, best).fromClient(cx, cy);
@@ -169,9 +178,12 @@ export function overlay(card, layer) {
     if (!points.length) continue;
     // Pen width follows the type size it was drawn over, so it looks the same on every screen.
     const line = f.em ? Math.max(2, Math.min(6, f.em * 0.16)) : 3;
+    ctx.save();
+    if (f.clip) { ctx.beginPath(); ctx.rect(...f.clip); ctx.clip(); }
     ctx.strokeStyle = mark.color; ctx.fillStyle = mark.color; ctx.lineWidth = line; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.beginPath(); points.forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
     ctx.stroke(); if (points.length === 1) { ctx.beginPath(); ctx.arc(points[0][0],points[0][1],line / 1.5,0,Math.PI*2); ctx.fill(); }
+    ctx.restore();
   }
 }
 // Laser: one absolutely positioned dot per card, moved only with transform. Each packet
@@ -187,8 +199,9 @@ export function laser(card) {
   card.append(dot);
   let point = null;
   const move = glide => {
-    const at = frame(card, point.a)?.toCard([point.x, point.y]);
-    if (!at) { dot.hidden = true; return; }
+    const f = frame(card, point.a), at = f?.toCard([point.x, point.y]);
+    // A point on a figure this client has zoomed or panned out of its frame is not shown.
+    if (!at || !inClip(f.clip, at)) { dot.hidden = true; return; }
     dot.style.transition = glide ? GLIDE : 'none';
     dot.style.transform = `translate3d(${at[0]}px,${at[1]}px,0)`;
     dot.hidden = false;

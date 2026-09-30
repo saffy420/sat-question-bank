@@ -2598,8 +2598,8 @@ function openLightbox(src) {
 
 document.addEventListener('click', e => {
   const img = e.target.closest('.qfig img, .qimg img');
-  // a figure that IS a choice must not hijack the click that answers with it
-  if (img && !img.closest('.choice')) openLightbox(img.getAttribute('src'));
+  // a figure that IS a choice must not hijack the click that answers with it; a math figure has its own viewer
+  if (img && !img.closest('.choice, .fv')) openLightbox(img.getAttribute('src'));
 });
 
 const H3_LABEL = /<h3>\s*(?:Passage|Prompt|Question)\s*<\/h3>/gi;
@@ -2647,7 +2647,8 @@ function renderPanes(q) {
       body = renderStem(q);
     }
   } else {
-    const s = splitContext(renderStem(q));
+    // Figures stay in the question column in their own viewer frame; tables still go beside it.
+    const s = SharedRenderer.mathStem(renderStem(q), document);
     context = s.context;
     body = s.body;
   }
