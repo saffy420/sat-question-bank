@@ -16,8 +16,15 @@
 #lesson-content { margin:0; padding:0; max-width:none; min-height:100%; border:0; border-radius:0; background:#fff; box-shadow:none; }
 #lesson-live *, .lesson-stage *, .stage-host { box-sizing:border-box; }
 #lesson-live button, #lesson-live input, #lesson-live summary, #lesson-live select { font-family:'Lesson Sans',sans-serif; color:inherit; }
-/* Every control is a pill (buttons) or a rounded row (choices, inputs, selects): Bluebook has no square corners. */
-#lesson-live button { cursor:pointer; background:#fff; border:1px solid #555; border-radius:999px; padding:.4em 1.1em; font-size:inherit; }
+/* Buttons have no outline box and no circle: plain text (a subtle tint on hover), or a solid pill for the one primary
+   action (Next/Submit) and the question pill. Choices, inputs and selects are rounded; nothing is square-cornered. */
+#lesson-live button { cursor:pointer; background:none; border:0; border-radius:999px; padding:.4em 1.1em; font-size:inherit; }
+#lesson-live button:not(:disabled):hover { background:#f1f1f1; }
+#lesson-live .lesson-submit:not(:disabled):hover, #lesson-live #lesson-confirm:hover, #lesson-live #self-confirm:hover, #lesson-live #lesson-calc-replace:hover { background:#2345be; }
+#lesson-live .lesson-position:hover, #lesson-live .self-position-wrap .lesson-position:hover { background:#171717; }
+#lesson-live .lesson-tools>button:not(:disabled):hover, #lesson-live .lesson-more button:hover { background:none; }
+#lesson-live .lesson-more button:hover { background:#f1f1f1; }
+#lesson-live .lesson-stage .choices button:hover, #lesson-live .lesson-calc-bar button:hover { background:none; }
 #lesson-live button:disabled { cursor:default; opacity:.6; }
 #lesson-live button:focus-visible, #lesson-live summary:focus-visible, #lesson-live input:focus-visible, #lesson-live select:focus-visible { outline:3px solid #156fd1; outline-offset:4px; }
 #lesson-live select { border:1px solid #555; border-radius:12px; background:#fff; }
@@ -28,7 +35,7 @@
 .lesson-phase { min-height:1.2em; color:#606060; font-size:calc(var(--u) * .78); line-height:1.2; letter-spacing:.06em; }
 .lesson-timer { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:calc(var(--u) * .2); }
 #lesson-clock { font-size:calc(var(--u) * 1.9); line-height:1.15; font-weight:500; font-variant-numeric:tabular-nums; min-height:1.15em; }
-#lesson-live .lesson-timer button { padding:0 calc(var(--u) * 1.1); font-size:calc(var(--u) * .9); line-height:calc(var(--u) * 1.5); }
+#lesson-live .lesson-timer button { padding:0 calc(var(--u) * 1.1); font-size:calc(var(--u) * .9); line-height:calc(var(--u) * 1.5); color:#444; text-decoration:underline; text-underline-offset:3px; }
 .lesson-tools { display:flex; align-items:center; justify-content:flex-end; gap:calc(var(--u) * 1.7); -webkit-user-select:none; user-select:none; }
 /* Icon over label, no box and no fill; the active tool turns accent blue with a thin rule under its label. */
 #lesson-live .lesson-tools>button, .lesson-follow-tool, .lesson-more>summary { display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * .3); background:none; border:0; border-bottom:2px solid transparent; border-radius:0; padding:calc(var(--u) * .25) calc(var(--u) * .2) calc(var(--u) * .15); font-size:calc(var(--u) * .9); line-height:1.2; cursor:pointer; white-space:nowrap; }
@@ -67,15 +74,16 @@
 .lesson-stage .stage-strip { position:relative; display:flex; align-items:center; height:calc(var(--u) * 2.8); margin-bottom:calc(var(--u) * 2.6); background:#f0f0f0; font:calc(var(--u) * 1.25)/calc(var(--u) * 2.8) 'Lesson Sans',sans-serif; }
 .lesson-stage .stage-strip::after { content:''; position:absolute; left:0; right:0; bottom:-8px; height:2px; background:var(--lesson-dashes); }
 .lesson-stage .stage-strip>span { display:inline-block; min-width:calc(var(--u) * 2.3); padding:0 7px; color:#fff; background:#161616; text-align:center; }
-.lesson-stage .stage-strip .stage-strike-toggle, #lesson-live .lesson-stage .stage-strip .stage-strike-toggle { margin:0 calc(var(--u) * .5) 0 auto; padding:0 calc(var(--u) * .7); height:calc(var(--u) * 1.7); border:1.5px solid #171717; border-radius:999px; background:#fff; color:#171717; font:700 calc(var(--u) * .75)/1 'Lesson Sans',sans-serif; letter-spacing:.02em; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.lesson-stage .stage-strip .stage-strike-toggle, #lesson-live .lesson-stage .stage-strip .stage-strike-toggle { margin:0 calc(var(--u) * .5) 0 auto; padding:0 calc(var(--u) * .7); height:calc(var(--u) * 1.7); border:0; border-bottom:2px solid transparent; border-radius:0; background:none; color:#171717; font:700 calc(var(--u) * .85)/1 'Lesson Sans',sans-serif; letter-spacing:.02em; cursor:pointer; -webkit-user-select:none; user-select:none; }
 .lesson-stage .stage-strike-toggle s { text-decoration-thickness:2px; }
-.lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true], #lesson-live .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true] { background:#304fc5; border-color:#304fc5; color:#fff; }
+.lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true], #lesson-live .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true] { background:none; border-bottom-color:#2345be; color:#2345be; }
+#lesson-live .lesson-stage .stage-strip .stage-strike-toggle:hover { background:none; }
 .lesson-stage p { margin:0 0 calc(var(--fs) * .9); }
 .lesson-stage .passage { margin:0; padding:0; border:0; background:none; font:inherit; max-height:none; overflow:visible; }
 /* Readable measure inside each pane (after .passage's margin reset so it can centre). */
 .lesson-stage .stage-passage>*, .lesson-stage.stage-split .stage-question>* { max-width:44em; margin-inline:auto; }
 .lesson-stage .lesson-stem { font:inherit; }
-.lesson-stage .choices { display:flex; flex-direction:column; gap:calc(var(--u) * 1.4); margin-top:calc(var(--u) * 2.2); }
+.lesson-stage .choices { max-width:none; display:flex; flex-direction:column; gap:calc(var(--u) * 1.4); margin-top:calc(var(--u) * 2.2); }
 .lesson-stage .choices button, #lesson-live .lesson-stage .choices button { display:block; width:100%; text-align:left; padding:0; margin:0; background:none; border:0; font:inherit; color:#171717; border-radius:calc(var(--u) * .8); opacity:1; }
 .lesson-stage .stage-choice { display:flex; align-items:center; gap:calc(var(--u) * .8); }
 .lesson-stage .stage-choice>[data-lesson-choice] { position:relative; flex:1; min-width:0; }
@@ -83,10 +91,10 @@
 .lesson-stage .stage-choice.struck>[data-lesson-choice]::after, .lesson-stage .stage-choice.eliminated>[data-lesson-choice]::after { content:''; position:absolute; left:-6px; right:-6px; top:50%; height:2px; background:#171717; pointer-events:none; }
 /* The cross-out control sits outside the row, on the right, as in Bluebook. Its space is always reserved
    so switching the tool on never reflows the text (and never moves ink). */
-.lesson-stage .choices .stage-strike, #lesson-live .lesson-stage .choices .stage-strike { display:inline-flex; visibility:hidden; flex:none; align-items:center; justify-content:center; width:calc(var(--u) * 2.4); height:calc(var(--u) * 2.4); margin:0; padding:0; border:0; background:none; color:#171717; font:calc(var(--u) * .95)/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.lesson-stage .choices .stage-strike, #lesson-live .lesson-stage .choices .stage-strike:hover, #lesson-live .lesson-stage .choices .stage-strike { display:inline-flex; visibility:hidden; flex:none; align-items:center; justify-content:center; width:calc(var(--u) * 2.4); height:calc(var(--u) * 2.4); margin:0; padding:0; border:0; background:none; color:#171717; font:calc(var(--u) * .95)/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
 .lesson-stage.strike-on .choices .stage-strike, #lesson-live .lesson-stage.strike-on .choices .stage-strike { visibility:visible; }
-.lesson-stage .stage-strike-letter { position:relative; display:inline-flex; align-items:center; justify-content:center; width:calc(var(--u) * 1.9); height:calc(var(--u) * 1.9); border:1.5px solid #171717; border-radius:50%; font-size:calc(var(--u) * .85); }
-.lesson-stage .stage-strike-letter::after { content:''; position:absolute; left:-5px; right:-5px; top:50%; height:1.5px; background:#171717; }
+.lesson-stage .stage-strike-letter { position:relative; display:inline-flex; align-items:center; justify-content:center; min-width:calc(var(--u) * 1.4); height:calc(var(--u) * 1.9); border:0; font-size:calc(var(--u) * 1.05); }
+.lesson-stage .stage-strike-letter::after { content:''; position:absolute; left:-3px; right:-3px; top:50%; height:1.5px; background:#171717; }
 .lesson-stage .stage-strike-undo { display:none; font-weight:700; text-decoration:underline; font-size:calc(var(--u) * .8); }
 .lesson-stage .stage-strike[aria-pressed=true] .stage-strike-letter { display:none; }
 .lesson-stage .stage-strike[aria-pressed=true] .stage-strike-undo { display:inline; }
@@ -109,7 +117,7 @@
 .lesson-stage .gridin-wrap { margin-top:calc(var(--u) * 2); display:grid; grid-template-columns:minmax(0, calc(var(--u) * 13)) auto; gap:calc(var(--u) * .8); align-items:center; }
 .lesson-stage .gridin-wrap label { grid-column:1/-1; }
 .lesson-stage .gridin { width:100%; height:calc(var(--u) * 3.6); border:2px solid #555; border-radius:calc(var(--u) * .8); background:#fff; color:#171717; font:calc(var(--u) * 1.5) 'Lesson Serif',serif; padding:0 calc(var(--u) * .9); }
-#lesson-live .lesson-stage .gridin-wrap button { justify-self:start; height:calc(var(--u) * 2.2); padding:0 calc(var(--u) * 1.4); font-size:calc(var(--u) * .95); }
+#lesson-live .lesson-stage .gridin-wrap button { justify-self:start; color:#2345be; font-weight:600; text-decoration:underline; text-underline-offset:4px; height:calc(var(--u) * 2.2); padding:0 calc(var(--u) * 1.4); font-size:calc(var(--u) * .95); }
 .lesson-stage .spr-preview { grid-column:1/-1; font-size:calc(var(--fs) * .85); min-height:1.5em; }
 .lesson-stage .lesson-ink { max-width:none; }
 /* Highlighter tool: pen cursor over the stage, a larger I-beam over annotatable text, pointer on the
@@ -187,12 +195,12 @@
 .self-navigator { position:absolute; bottom:56px; left:50%; transform:translateX(-50%); width:min(560px,92vw); padding:18px; background:#fff; border:1px solid #999; border-radius:18px; box-shadow:0 10px 30px #0003; }
 .self-legend { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:14px; color:#444; margin:0 0 12px; }
 .self-legend svg { width:15px; height:15px; color:#bd2424; }
-.self-key { display:inline-block; width:14px; height:14px; border:1px dashed #555; border-radius:5px; }
-.self-key.answered { background:#304fc5; border:1px solid #304fc5; }
+.self-key { display:inline-block; width:16px; height:0; border-top:3px solid #999; margin-bottom:2px; }
+.self-key.answered { border-top-color:#304fc5; }
 .self-grid { list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(44px,1fr)); gap:10px; padding:0; margin:0 0 14px; }
-#lesson-live .self-grid button { position:relative; width:44px; height:44px; padding:0; border:1px dashed #555; border-radius:12px; background:#fff; font-weight:500; color:#304fc5; }
-#lesson-live .self-grid button[data-state=answered] { background:#304fc5; color:#fff; border:1px solid #304fc5; }
-#lesson-live .self-grid button[aria-current=step] { outline:3px solid #171717; outline-offset:2px; }
+#lesson-live .self-grid button { position:relative; width:44px; height:44px; padding:0; border:0; border-bottom:3px solid #999; border-radius:0; background:none; font-weight:500; color:#555; }
+#lesson-live .self-grid button[data-state=answered] { background:none; color:#304fc5; border-bottom-color:#304fc5; font-weight:700; }
+#lesson-live .self-grid button[aria-current=step] { outline:0; text-decoration:underline; text-underline-offset:5px; text-decoration-thickness:2px; color:#171717; }
 .self-grid button svg { position:absolute; top:-8px; right:-8px; width:17px; height:17px; color:#bd2424; fill:#bd2424; }
 #lesson-live #self-flag[aria-pressed=true] svg { color:#bd2424; fill:#bd2424; }
 .self-review { width:min(100%, var(--column)); margin:0 auto; }
@@ -214,7 +222,7 @@
 .history-score { justify-self:center; font-size:16px; color:#444; }
 .history-nav { display:flex; flex-wrap:wrap; gap:8px; padding:8px var(--gutter); }
 #lesson-live .history-nav button { min-width:40px; padding:4px 12px; }
-#lesson-live .history-nav button[aria-current=true] { background:#171717; color:#fff; border-color:#171717; }
+#lesson-live .history-nav button[aria-current=true] { background:none; color:#171717; font-weight:700; text-decoration:underline; text-underline-offset:5px; text-decoration-thickness:2px; }
 .history-breakdown { padding:16px 0; border-top:1px solid #bbb; }
 .history-breakdown h2 { font-size:17px; font-weight:500; margin:0 0 12px; }
 .history-breakdown>div { font:19px/1.5 'Lesson Serif',serif; }
