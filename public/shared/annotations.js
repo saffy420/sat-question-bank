@@ -111,7 +111,7 @@ const inClip = (clip, [x, y]) => !clip || (x >= clip[0] && y >= clip[1] && x <= 
 // Caret APIs snap to the nearest text from far away, so only a glyph within 3 em × 2 em counts.
 export function locateGlyph(card, cx, cy) {
   const caret = caretAt(cx, cy);
-  const block = caret?.node?.nodeType === 3 && card.contains(caret.node) && !caret.node.parentElement.closest('.katex') ? caret.node.parentElement.closest('[data-ann-node]') : null;
+  const block = caret?.node?.nodeType === 3 && card.contains(caret.node) && !caret.node.parentElement.closest('.katex, .fv-bar') ? caret.node.parentElement.closest('[data-ann-node]') : null;
   if (!block || !card.contains(block)) return null;
   let offset = 0;
   for (const node of textNodes(block)) { if (node === caret.node) { offset += caret.offset; break; } offset += node.length; }

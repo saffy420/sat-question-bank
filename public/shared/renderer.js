@@ -9,8 +9,8 @@ export function splitContext(html, document) {
   d.querySelectorAll('.qfig, .qtable, .qimg').forEach(n => ctx.appendChild(n));
   return { context: ctx.innerHTML.trim(), body: d.innerHTML.trim() };
 }
-// Math: figures stay where they are authored (between the intro and the question) in their own
-// viewer frame; only tables and legacy .qimg blocks go to the context pane.
+// Math: figures stay where they are authored in the question column, each in its own viewer frame;
+// only tables and legacy .qimg blocks go to the context pane.
 export function mathStem(html, document) {
   const d = document.createElement('div'); d.innerHTML = html;
   const ctx = document.createElement('div');

@@ -234,7 +234,8 @@ const CSS = `
   margin: .6em auto; border: 1px solid var(--fv-line); border-radius: 8px; background: #fff; }
 :root[data-theme="dark"] .fv { --fv-line: #4a4f57; --fv-bar: #2a2d33; --fv-ink: #e6e8eb; }
 .fv-bar { display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 4px 8px;
-  background: var(--fv-bar); border-bottom: 1px solid var(--fv-line); color: var(--fv-ink); font: 500 14px/1 system-ui, sans-serif; }
+  background: var(--fv-bar); border-bottom: 1px solid var(--fv-line); color: var(--fv-ink); font: 500 14px/1 system-ui, sans-serif;
+  user-select: none; }
 :is(#fv, html) .fv-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 32px;
   padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 :is(#fv, html) .fv-btn:hover { background: rgba(127,127,127,.16); }

@@ -2555,10 +2555,6 @@ function mathify(root) {
   } catch (e) { /* a malformed run should never blank the question */ }
 }
 
-// Graphs, tables and figures are context: they belong beside the question the
-// way a Reading passage does, not stacked above the answer choices.
-const splitContext = html => SharedRenderer.splitContext(html, document);
-
 let lbScale = 1, lbX = 0, lbY = 0;
 function openLightbox(src) {
   lbScale = 1; lbX = 0; lbY = 0;
