@@ -310,6 +310,14 @@ test('lessons: student A–D, instructor and history viewers, no socket traffic,
     const during = sent.slice(before).map(f => { try { return JSON.parse(f.data).type; } catch { return f.data; } });
     expect(during.filter(type => type !== 'ping'), 'the viewer sends nothing').toEqual([]);
 
+    // The toolbar's "100%" differs per client: it is not selectable and never becomes a text anchor.
+    const bar = await s1.locator('#lesson-card').evaluate(async card => {
+      const Ink = await import('/shared/annotations.js');
+      const pct = card.querySelector('.fv-pct').getBoundingClientRect();
+      return { select: getComputedStyle(card.querySelector('.fv-bar')).userSelect, glyph: Ink.locateGlyph(card, pct.x + pct.width / 2, pct.y + pct.height / 2) };
+    });
+    expect(bar).toEqual({ select: 'none', glyph: null });
+
     // The instructor's own card has the same viewer, and its zoom is local.
     await expect(teacher.locator('#live-card .fv')).toHaveCount(1);
     await teacher.locator('#live-card [data-fv="in"]').click();

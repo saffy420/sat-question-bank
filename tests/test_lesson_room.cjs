@@ -27,7 +27,7 @@ test('live student inline module parses and uses shared renderer with confirmati
   const js = html.split('<script type="module">')[1].split('</script>')[0].replace(/^import .*;\r?\n/gm,'');
   new Script(js);
   assert.match(js, /SharedRenderer\.choiceHTML\(/);
-  assert.match(js, /SharedRenderer\.splitContext\(/);
+  assert.match(js, /SharedRenderer\.mathStem\(/);
   const island = readFileSync(require('node:path').join(__dirname,'../lesson-ui/index.tsx'),'utf8');
   const stage = readFileSync(require('node:path').join(__dirname,'../lesson-ui/Stage.tsx'),'utf8');
   assert.match(island, /Have you double checked your answer and made sure it/);
