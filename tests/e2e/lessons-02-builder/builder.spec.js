@@ -15,7 +15,7 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
   try {
     const page = await context.newPage();
     await page.goto('/admin/lessons/new');
-    await expect(page.locator('#results [data-add]')).toHaveCount(8); // 8 bank questions since the 11b split-layout fixture
+    await expect(page.locator('#results [data-add]')).toHaveCount(9); // 9 bank questions since the figure-viewer math figure fixture
     await page.locator('#lesson-title').fill(`E2E builder ${Date.now()}`);
 
     await page.locator('#f-section').selectOption('Reading & Writing');
