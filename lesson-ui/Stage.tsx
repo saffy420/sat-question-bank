@@ -19,6 +19,8 @@ export type StageProps = {
   mathify: (element: HTMLElement) => void;
   onSelect?: (answer: string) => void;
   onReady?: (card: HTMLDivElement) => void;
+  // Student views only: shows Report in the question bar and hands the card on screen to the caller.
+  onReport?: (card: HTMLDivElement) => void;
   onPrivate?: (mark: Mark) => void;
   // Highlighter tool active: cursor styling only.
   annotating?: boolean;
@@ -57,7 +59,7 @@ export function Stage(props: StageProps) {
     // 50/50 split (Bluebook's default). A math figure stays in the question column in its viewer frame.
     const single = !split.context;
     el.className = `lesson-stage ${math ? 'stage-math' : ''} ${single ? 'stage-single' : `stage-split ${math ? 'stage-figure' : 'stage-reading'}`}`;
-    el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off"><button id="lesson-pick" type="button">Select</button><p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
+    el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onReport ? '<button type="button" class="stage-report" id="stage-report"><span aria-hidden="true">&#9872;</span> Report</button>' : ''}${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off"><button id="lesson-pick" type="button">Select</button><p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
     ready.current = false;
     let alive = true, highlighted = false;
     // The stage reflows with its container; ink and laser are content-anchored, so just repaint.
@@ -97,6 +99,7 @@ export function Stage(props: StageProps) {
     });
     const click = (event: MouseEvent) => {
       const target = event.target as Element;
+      if (target.closest('.stage-report')) { latest.current.onReport?.(el); return; }
       if (target.closest('.stage-strike-toggle')) { latest.current.onStrikeMode?.(); return; }
       const strike = target.closest<HTMLElement>('[data-strike]');
       if (strike) { latest.current.onStrike?.(strike.dataset.strike!); return; }

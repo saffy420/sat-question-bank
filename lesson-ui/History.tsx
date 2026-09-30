@@ -7,7 +7,7 @@ import type { LessonHistory } from './types';
 
 // §9.1 My Lessons: one ended session, one question at a time (one Desmos at a time on a
 // Chromebook). Everything is read-only: the saved review marks, the final graph, the answers.
-export function HistoryView({ history, mathify, close }: { history: LessonHistory; mathify: (el: HTMLElement) => void; close: () => void }) {
+export function HistoryView({ history, mathify, close, report }: { history: LessonHistory; mathify: (el: HTMLElement) => void; close: () => void; report: (r: { questionId: string; element: HTMLElement }) => void }) {
   const [at, setAt] = useState(0);
   const explanation = useRef<HTMLDivElement>(null);
   const breakdown = useRef<HTMLDivElement>(null);
@@ -33,7 +33,7 @@ export function HistoryView({ history, mathify, close }: { history: LessonHistor
     </nav>
     <main className={`lesson-main${item?.desmos ? ' with-desmos' : ''}`}>
       {!item ? <p className="lesson-terminal">No questions were shown in this lesson.</p> : <>
-        <Stage key={item.question.id} question={item.question} number={item.number} picked={item.inSet ? item.answer || '' : ''} active={false} revealed marks={item.annotations} eliminated={item.annotations.filter(m => m.type === 'eliminate').map(m => m.nodeId!.slice(2))} mathify={mathify}/>
+        <Stage key={item.question.id} question={item.question} number={item.number} onReport={card => report({ questionId: item.question.id, element: card })} picked={item.inSet ? item.answer || '' : ''} active={false} revealed marks={item.annotations} eliminated={item.annotations.filter(m => m.type === 'eliminate').map(m => m.nodeId!.slice(2))} mathify={mathify}/>
         <section className="lesson-reveal" id="history-reveal">
           <p id="history-correct">Correct answer: {item.question.answer}</p>
           {verdict}

@@ -77,6 +77,8 @@
 .lesson-stage .stage-strip>span { display:inline-block; min-width:calc(var(--u) * 2.3); padding:0 7px; color:#fff; background:#161616; text-align:center; }
 .lesson-stage .stage-strip .stage-strike-toggle, #lesson-live .lesson-stage .stage-strip .stage-strike-toggle { margin:0 calc(var(--u) * .5) 0 auto; padding:0 calc(var(--u) * .7); height:calc(var(--u) * 1.7); border:0; border-bottom:2px solid transparent; border-radius:0; background:none; color:#171717; font:700 calc(var(--u) * .85)/1 'Lesson Sans',sans-serif; letter-spacing:.02em; cursor:pointer; -webkit-user-select:none; user-select:none; }
 .lesson-stage .stage-strike-toggle s { text-decoration-thickness:2px; }
+.lesson-stage .stage-strip .stage-report, #lesson-live .lesson-stage .stage-strip .stage-report { margin:0 0 0 10px; padding:0 8px; height:26px; border:1.5px solid #171717; border-radius:5px; background:#fff; color:#171717; font:700 12px/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.lesson-stage .stage-strip .stage-report:hover { background:#f0f0f0; }
 .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true], #lesson-live .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true] { background:none; border-bottom-color:#2345be; color:#2345be; }
 #lesson-live .lesson-stage .stage-strip .stage-strike-toggle:hover { background:none; }
 .lesson-stage p { margin:0 0 calc(var(--fs) * .9); }

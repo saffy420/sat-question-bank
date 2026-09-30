@@ -19,6 +19,7 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
   webServer: [
+    { command: 'node tools/e2e_anthropic_mock.cjs', url: 'http://127.0.0.1:8790/__health', name: 'anthropic-mock', reuseExistingServer: false, timeout: 30000 },
     { command: 'node tools/e2e_server.cjs enabled', url: localhost(8787) + '/login', name: 'enabled', reuseExistingServer: false, ignoreHTTPSErrors: true, timeout: 90000 },
     { command: 'node tools/e2e_server.cjs unset', url: localhost(8788) + '/login', name: 'unset', reuseExistingServer: false, ignoreHTTPSErrors: true, timeout: 90000 },
     { command: 'node tools/e2e_server.cjs production', url: localhost(8789) + '/login', name: 'production-entry', reuseExistingServer: false, ignoreHTTPSErrors: true, timeout: 90000 }

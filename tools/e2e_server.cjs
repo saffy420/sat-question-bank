@@ -13,6 +13,8 @@ const [config, port] = targets[mode];
 if (!existsSync(resolve(__dirname, '..', config))) throw new Error('Local harness config missing');
 const args = [resolve(__dirname, '../node_modules/wrangler/bin/wrangler.js'), 'dev', '--local', '--config', config, '--persist-to', '.wrangler/state-e2e', '--ip', '127.0.0.1', '--inspector-ip', '127.0.0.1', '--port', port, '--local-protocol', 'https', '--show-interactive-dev-session=false'];
 if (mode !== 'unset') args.push('--var', 'E2E_TEST_MODE:1');
+// report-and-suggest: the triage call goes to tools/e2e_anthropic_mock.cjs, never to the real API (src/reports.js apiTarget).
+if (mode === 'enabled') args.push('--var', 'ANTHROPIC_API_KEY:e2e-not-a-real-key', '--var', 'ANTHROPIC_API_URL:http://127.0.0.1:8790/v1/messages');
 // Explicit empty file suppresses .dev.vars and process .env on every target.
 if (!existsSync(resolve(__dirname, 'e2e_unset.env'))) throw new Error('Empty environment file missing');
 args.push('--env-file', 'tools/e2e_unset.env');

@@ -69,8 +69,14 @@ function identity(req, env) {
   return entry.user;
 }
 
+// report-and-suggest triage: only a loopback mock (tools/e2e_anthropic_mock.cjs) is ever called from this entry. Anything
+// else, or nothing configured, points at a dead loopback port, so the triage ends as an escalation instead of a real call.
+export const claudeTarget = env => {
+  try { if (['127.0.0.1', 'localhost', '[::1]'].includes(new URL(env.ANTHROPIC_API_URL).hostname)) return env.ANTHROPIC_API_URL; } catch { /* dead address below */ }
+  return 'http://127.0.0.1:9/v1/messages';
+};
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (!allowed(req, env)) return reply({ error: 'not found' }, 404);
     if (url.pathname === '/api/e2e/budget-probe') return budgetProbe(req, env);
@@ -84,6 +90,23 @@ export default {
       if (!Number.isInteger(body?.sessionId) || body.sessionId < 1) return reply({ error: 'invalid body' }, 400);
       return env.LESSON_ROOM.getByName(String(body.sessionId)).fetch(new Request('https://lesson.internal/', { method: 'POST',
         headers: { 'X-Lesson-Internal': 'fault', 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: body.kind ?? null, after: body.after ?? 0 }) }));
+    }
+    // report-and-suggest: reset the daily limits and triage state between specs, and add or remove the one broken-formatting
+    // question they report (a permanent row would change the bank count other specs assert). Local runs only.
+    if (url.pathname === '/api/e2e/reports') {
+      if (env.E2E_TEST_MODE !== '1' || !loopback(url.hostname) || req.method !== 'POST') return reply({ error: 'not found' }, 404);
+      if (req.headers.get('Origin') !== url.origin || req.headers.get('Sec-Fetch-Site') === 'cross-site') return reply({ error: 'forbidden origin' }, 403);
+      let body; try { body = await req.json(); } catch { return reply({ error: 'invalid body' }, 400); }
+      if (!['reset', 'fixture', 'cleanup'].includes(body?.action)) return reply({ error: 'invalid body' }, 400);
+      const statements = [env.DB.prepare('DELETE FROM question_reports'), env.DB.prepare('DELETE FROM question_triage'), env.DB.prepare('DELETE FROM feature_suggestions')];
+      if (Number.isInteger(body.calls) && body.calls > 0 && body.calls <= 1000) statements.push(env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<?)
+        INSERT INTO question_triage (question_id, kind, reason, called, status) SELECT 'cap-fill-' || i, 'escalation', 'fill', 1, 'dismissed' FROM n`).bind(body.calls));
+      if (body.action === 'fixture') statements.push(env.DB.prepare(`INSERT OR REPLACE INTO questions (id,external_id,section,domain,difficulty,skill,stem_html,choices_json,correct_answer,explanation_html,source)
+        VALUES ('e2e-report-fmt','e2e-report-fmt','Math','Algebra','Easy','Report fixture skill','<p>Report fixture: what is $3 + 4$?</p>',
+        '[{"letter":"A","content":"5"},{"letter":"B","content":"6"},{"letter":"C","content":"7"},{"letter":"D","content":"8"}]','C','<p>E2E_EXPL_MARKER_REPORT: 3 + 4 = 7.</p>','College Board')`));
+      if (body.action === 'cleanup') statements.push(env.DB.prepare("DELETE FROM questions WHERE id='e2e-report-fmt'"));
+      await env.DB.batch(statements);
+      return reply({ ok: true });
     }
     if (url.pathname === '/api/e2e/login') {
       if (env.E2E_TEST_MODE !== '1') return reply({ error: 'not found' }, 404);
@@ -122,7 +145,7 @@ export default {
     }
     const t = traceEnv(env, 'worker', req.method + ' ' + url.pathname);
     let res;
-    try { res = await handleRequest(req, t.env, identity); }
+    try { res = await handleRequest(req, t.env, identity, ctx, { apiUrl: claudeTarget(t.env) }); }
     catch { res = reply({ error: 'service unavailable' }, 503); }
     return withTrace(res, t);
   }
