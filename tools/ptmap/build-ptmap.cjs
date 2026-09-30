@@ -35,6 +35,13 @@ const note = m => notes.push(m);
 
 // ---- inputs ---------------------------------------------------------------
 const active = JSON.parse(fs.readFileSync(path.join(ROOT, 'active-ids.json'), 'utf8'));
+// Bank IDs supplied by hand for externalIds that are absent from active-ids.json
+// (looked up in the bank), and the chosen bank ID for externalIds that active-ids.json
+// gives to several identical bank IDs. Used only when the exact match is missing or
+// ambiguous, and only when the section agrees.
+const manual = new Map(JSON.parse(fs.readFileSync(path.join(OUT, 'manual-matches.json'), 'utf8'))
+  .map(m => [m.externalId, m]));
+
 const byExt = new Map(); // external_id -> [{questionId, section}]
 for (const a of active) {
   if (!byExt.has(a.external_id)) byExt.set(a.external_id, []);
@@ -42,22 +49,16 @@ for (const a of active) {
 }
 for (const [ext, rows] of byExt) {
   const ids = [...new Set(rows.map(r => r.questionId))];
-  if (ids.length > 1) note(`active-ids.json: external_id ${ext} is shared by ${ids.length} bank IDs (${ids.join(', ')}); a match on it is ambiguous, so it maps to null and is listed in UNMATCHED.md`);
+  if (ids.length > 1) note(`active-ids.json: external_id ${ext} is shared by ${ids.length} bank IDs (${ids.join(', ')}); a match on it is ambiguous${manual.has(ext) ? `; resolved to ${manual.get(ext).bankId} in manual-matches.json` : ', so it maps to null and is listed in UNMATCHED.md'}`);
 }
-
-// Bank IDs supplied by hand for externalIds that are absent from active-ids.json
-// (looked up in the bank). Used only after an exact miss, and only when the
-// section agrees.
-const manual = new Map(JSON.parse(fs.readFileSync(path.join(OUT, 'manual-matches.json'), 'utf8'))
-  .map(m => [m.externalId, m]));
 
 function lookup(ext, section) {
   const rows = (byExt.get(ext) || []).filter(r => r.section === section);
   const ids = [...new Set(rows.map(r => r.questionId))];
   if (ids.length === 1) return { bankId: ids[0] };
-  if (ids.length > 1) return { bankId: null, ambiguous: ids };
   const m = manual.get(ext);
   if (m && m.section === section) return { bankId: m.bankId };
+  if (ids.length > 1) return { bankId: null, ambiguous: ids };
   return { bankId: null };
 }
 
@@ -249,7 +250,7 @@ same section. Bluebook's own \`questionId\` is never used as a join key except a
 with no \`externalId\` at all (hit rate reported; below ${FALLBACK_MIN_HIT_RATE * 100}% the file is unmappable and excluded). Every match is exact or \`null\`.
 
 \`manual-matches.json\` holds bank IDs supplied by hand for externalIds that are absent from \`active-ids.json\`
-(${manual.size} entries, looked up in the bank). They are used only after an exact miss and only when the section agrees.
+(${manual.size} entries, looked up in the bank). They are used only when the exact match is missing or ambiguous, and only when the section agrees.
 \`displayNumber\` is written as an integer (the exports store it as a string).
 
 ## \`sequence\` layout

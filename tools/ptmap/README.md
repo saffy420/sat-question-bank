@@ -18,7 +18,7 @@ same section. Bluebook's own `questionId` is never used as a join key except as 
 with no `externalId` at all (hit rate reported; below 50% the file is unmappable and excluded). Every match is exact or `null`.
 
 `manual-matches.json` holds bank IDs supplied by hand for externalIds that are absent from `active-ids.json`
-(11 entries, looked up in the bank). They are used only after an exact miss and only when the section agrees.
+(14 entries, looked up in the bank). They are used only when the exact match is missing or ambiguous, and only when the section agrees.
 `displayNumber` is written as an integer (the exports store it as a string).
 
 ## `sequence` layout
@@ -59,7 +59,7 @@ Within each module, `displayNumber` runs 1-27 (RW) or 1-22 (Math) in `sequence` 
 | PT5 | RW | present, 1 null | present, 1 null | missing |
 | PT5 | Math | present, 0 null | present, 0 null | missing |
 | PT6 | RW | present, 2 null | present, 1 null | missing |
-| PT6 | Math | present, 0 null | present, 1 null | missing |
+| PT6 | Math | present, 0 null | present, 0 null | missing |
 | PT7 | RW | present, 0 null | present, 0 null | missing |
 | PT7 | Math | present, 0 null | missing | present, 0 null |
 | PT8 | RW | present, 0 null | present, 0 null | missing |
@@ -71,8 +71,8 @@ Within each module, `displayNumber` runs 1-27 (RW) or 1-22 (Math) in `sequence` 
 | PT11 | RW | present, 0 null | present, 0 null | present, 0 null |
 | PT11 | Math | present, 0 null | present, 0 null | present, 0 null |
 
-- Positions mapped: 833; positions with `null` bankId: 6 (5 with no bank ID, 1 ambiguous). See `UNMATCHED.md`.
-- Active IDs that now have a practice-test position: **813 of 2022** (40.2%). 11 more mapped bank IDs come from `manual-matches.json` and are not in `active-ids.json`.
+- Positions mapped: 833; positions with `null` bankId: 5 (5 with no bank ID, 0 ambiguous). See `UNMATCHED.md`.
+- Active IDs that now have a practice-test position: **814 of 2022** (40.3%). 11 more mapped bank IDs come from `manual-matches.json` and are not in `active-ids.json`.
 - Distinct Bluebook externalIds seen: 830; reused on more than one test: 0.
 
 ## Checks
@@ -81,9 +81,9 @@ Within each module, `displayNumber` runs 1-27 (RW) or 1-22 (Math) in `sequence` 
 
 ## Notes
 
-- active-ids.json: external_id 40946085-fbf1-4c4a-977f-931fd79ef80c is shared by 2 bank IDs (d8539e09, f8ff3249); a match on it is ambiguous, so it maps to null and is listed in UNMATCHED.md
-- active-ids.json: external_id 7a8d2bc5-8edd-45eb-a918-924e8cba8608 is shared by 2 bank IDs (d3f7c429, dd3a910a); a match on it is ambiguous, so it maps to null and is listed in UNMATCHED.md
-- active-ids.json: external_id b43f007e-8a7c-48b8-8a0a-eeb0f65e3faf is shared by 2 bank IDs (99c5e794, c048055c); a match on it is ambiguous, so it maps to null and is listed in UNMATCHED.md
+- active-ids.json: external_id 40946085-fbf1-4c4a-977f-931fd79ef80c is shared by 2 bank IDs (d8539e09, f8ff3249); a match on it is ambiguous; resolved to d8539e09 in manual-matches.json
+- active-ids.json: external_id 7a8d2bc5-8edd-45eb-a918-924e8cba8608 is shared by 2 bank IDs (d3f7c429, dd3a910a); a match on it is ambiguous; resolved to d3f7c429 in manual-matches.json
+- active-ids.json: external_id b43f007e-8a7c-48b8-8a0a-eeb0f65e3faf is shared by 2 bank IDs (99c5e794, c048055c); a match on it is ambiguous; resolved to 99c5e794 in manual-matches.json
 - PT11: externalId 324fda2b-53dc-49f4-bd65-fd0a18a3b71c sits at more than one position (PT11 RW easy #18; PT11 RW hard #18). No single export repeats it, so the question appears in both module-2 variants; its bank ID has two positions in this test.
 - PT11: externalId 2a9be9d6-4a3d-4f2e-92ee-f5423d312669 sits at more than one position (PT11 Math easy #4; PT11 Math hard #8). No single export repeats it, so the question appears in both module-2 variants; its bank ID has two positions in this test.
 - PT11: externalId 4c3d0cff-974b-43c0-be0a-e9085cd5448d sits at more than one position (PT11 Math easy #15; PT11 Math hard #18). No single export repeats it, so the question appears in both module-2 variants; its bank ID has two positions in this test.
