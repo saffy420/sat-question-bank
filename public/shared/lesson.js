@@ -43,15 +43,17 @@ export function validDesmos(state) {
   try { return new TextEncoder().encode(JSON.stringify(state)).length <= MAX_DESMOS_BYTES; } catch { return false; }
 }
 const unit = x => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 1;
-// Pointer anchors (see annotations.js): glyph anchors carry px offsets, element anchors fractions of
-// the element (a stroke may leave it), no anchor means fractions of the whole card.
+// Pointer anchors (see annotations.js): glyph anchors carry em offsets ('~') or px offsets ('@', marks saved
+// before em anchors), element anchors fractions of the element (a stroke may leave it), no anchor means
+// fractions of the whole card.
 const NODE = /^(?:[ps]:\d{1,4}|c:[A-D])$/;
 const within = (lo, hi) => x => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi;
+const GLYPH = /^([^@~]+)([@~])(\d{1,5})$/;
 function anchored(a, values) {
   if (a === undefined) return values.every(unit);
   if (typeof a !== 'string' || a.length > 16) return false;
-  const [node, offset, extra] = a.split('@');
-  if (offset !== undefined) return extra === undefined && NODE.test(node) && /^\d{1,5}$/.test(offset) && values.every(within(-4000, 4000));
+  const glyph = GLYPH.exec(a);
+  if (glyph) return NODE.test(glyph[1]) && values.every(glyph[2] === '~' ? within(-400, 400) : within(-4000, 4000));
   return (NODE.test(a) || /^(?:i:\d{1,2}|P|Q)$/.test(a)) && values.every(within(-4, 5));
 }
 export function validMark(op) {

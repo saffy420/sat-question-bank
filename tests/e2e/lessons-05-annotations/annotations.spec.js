@@ -139,24 +139,33 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
     });
     await expect.poll(strokeVisible).toBe(true);
     await screenshot(student, '07-student-live-pen');
-    // Offset (unzoomed CSS px) of the stroke's first point from the first word, as each client draws it.
+    // Offset of the stroke's first point from the first word, as each client draws it. Since lessons-11 the anchor is
+    // scale-free (`s:0~<glyph>`, x/y in em of the block's font size), so the offset is compared in em of that
+    // block's own type size on each client, not in CSS px: type is fluid and differs per viewport and zoom.
     const wordOffset = (page, stroke) => page.locator(page === teacher ? '#live-card' : '#lesson-card').evaluate(async (card, stroke) => {
       const Ink = await import('/shared/annotations.js');
       const [x, y] = Ink.strokePoints(card, stroke)[0];
       const p = card.querySelector('.lesson-stem p');
       const range = document.createRange(); range.setStart(p.firstChild, 0); range.setEnd(p.firstChild, 5);
       const word = range.getBoundingClientRect(), rect = card.getBoundingClientRect(), scale = rect.width / card.offsetWidth;
-      return { x: x - (word.left - rect.left) / scale, y: y - (word.top - rect.top) / scale };
+      const font = parseFloat(getComputedStyle(p).fontSize);
+      return { x: (x - (word.left - rect.left) / scale) / font, y: (y - (word.top - rect.top) / scale) / font, w: word.width / scale / font, h: word.height / scale / font, font };
     }, stroke);
     const stroke = (await layer()).find(m => m.type === 'stroke');
-    expect(stroke.a).toMatch(/^s:0@\d+$/);
+    expect(stroke.a).toMatch(/^s:0~\d+$/);
     const teacherWord = await wordOffset(teacher, stroke);
     for (const page of [student, second]) {
       await expect.poll(async () => {
         const word = await wordOffset(page, stroke);
         return Math.max(Math.abs(word.x - teacherWord.x), Math.abs(word.y - teacherWord.y));
-      }).toBeLessThan(2);
+      }).toBeLessThan(0.1);
+      // The stroke really starts on the first word ("Careful") on this client too, whatever its type size.
+      const word = await wordOffset(page, stroke);
+      expect(word.x).toBeGreaterThanOrEqual(-0.1); expect(word.x).toBeLessThanOrEqual(word.w + 0.1);
+      expect(word.y).toBeGreaterThanOrEqual(-0.1); expect(word.y).toBeLessThanOrEqual(word.h + 0.1);
     }
+    // The clients really do differ in type size, so a px comparison would not have held.
+    expect((await wordOffset(teacher, stroke)).font).not.toBe((await wordOffset(student, stroke)).font);
 
     await teacher.locator('[data-tool="laser"]').click();
     const dot = student.locator('#lesson-card .lesson-laser');

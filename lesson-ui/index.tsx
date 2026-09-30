@@ -74,7 +74,7 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
   return <>
     <span hidden id="lesson-check-icon"><Check size={20} aria-label="Correct"/></span><span hidden id="lesson-x-icon"><X size={20} aria-label="Incorrect"/></span>
     <header className="lesson-header">
-      <h1>{s.title}</h1>
+      <div className="lesson-title"><h1>{s.title}</h1><div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.reviewMode ? 'REVIEW' : s.phase}</div></div>
       <div className="lesson-timer"><strong id="lesson-clock" style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: s.phase === 'ANSWERING' && remaining <= 5000 ? '#bd2424' : s.phase === 'ANSWERING' && remaining <= 10000 ? '#b56a00' : undefined }}>{s.endsAt ? `${Math.floor(Math.ceil(remaining / 1000) / 60)}:${String(Math.ceil(remaining / 1000) % 60).padStart(2, '0')}` : ''}</strong>{!s.reviewMode && <button aria-label={hiddenClock ? 'Show timer' : 'Hide timer'} onClick={() => hideClock(!hiddenClock)}>{hiddenClock ? 'Show' : 'Hide'}</button>}</div>
       <nav className="lesson-tools" aria-label="Lesson tools">
         {calc.math && <button id="lesson-calc-toggle" aria-pressed={calc.open} onClick={calc.toggle}><Calculator aria-hidden="true"/><span>Calculator</span></button>}
@@ -85,7 +85,6 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
       </nav>
     </header>
     {!model.connected && <div className="lesson-reconnect" role="status">Reconnecting…</div>}
-    <div className="lesson-phase">{s.phase === 'READY' && s.status === 'lobby' ? '' : s.reviewMode ? 'REVIEW' : s.phase}</div>
     <main className={`lesson-main${revealed && s.desmos ? ' with-desmos' : ''}${calc.math && calc.open ? ' with-calc' : ''}`}>
       {s.status === 'lobby' ? <section className="lesson-lobby"><Users size={36} aria-hidden="true"/><h2>Waiting for the instructor to start…</h2><p>{s.count} joined</p></section> : s.question && <>
         <Stage key={s.questionId} question={s.question} number={s.index + 1} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={ownMarks} mathify={bridge.mathify} onSelect={select} strikeMode={strikeMode} struck={ownStruck} eliminated={s.eliminations} onStrikeMode={() => setStrikeMode(!strikeMode)} onStrike={strike} annotating={privateOn} onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [s.questionId]: [...(all[s.questionId] || []), mark] })) : undefined}/>

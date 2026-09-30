@@ -476,3 +476,20 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 **Deviations:** no automatic reveal when everyone has submitted. Instructor-paced lessons don't have one, and the gate follows the phase, so any reveal publishes.
 
 **Manual checks:** annotate and cross out mid-question on the 1080p laptop; a Chromebook shows nothing until 0, then everything.
+
+---
+
+## 2026-09-30 — Task 11-ui-polish: Bluebook proportions, fluid scale, pen/laser tracking, resizable Desmos (Claude Code, Tier 3)
+
+**Shipped:**
+- **Student view:** header, question column, choice rows, footer and type are sized from two `clamp()` tokens, so the column is **46 % of the window at every size** (was 800 px: 59 % at 1366, 73 % at 125 % zoom). Header 102 → 69 px and footer 80 → 54 px at 1366×768; the phase row is folded into the header. No horizontal scroll at 1366×768, 1536×864, 1920×1080 or at 90/110/125 % zoom.
+- **Buttons:** no outline box and no circle. Plain text buttons; only Next/Submit and the question pill are solid pills. Choice rows and inputs stay rounded.
+- **Calculator:** docks left and the question reflows (the floating drag/resize window is gone); the instructor's graph docks right; nothing overlaps.
+- **Pen and laser:** glyph anchors are now in em of the text's font size (new anchor form `node~offset`; old px marks still work), each pen chunk re-anchors to the word under it, and the canvas is sized exactly and repaints on zoom. The instructor's own pen/laser was already under the pointer at 80–150 % in emulation; the drift was between screens with different type sizes.
+- **Instructor Desmos:** drag handle; width kept in `localStorage` across close/reopen, next question and reload; clamped so the question stays readable.
+
+**E2E:** new specs 23; updated 05, 06, 11c. Full suite 72/72 (see `.omp/pipeline/lessons-11-ui-polish/e2e.md`). Unit: 150/152, the 2 failures pre-date the task (`test_grade.cjs` needs `git.exe`; `test_lesson_flush.cjs` "daily limit" is time-of-day). Review: PASS after one repair round (`review.md`).
+
+**Deviations:** subagent Test Developer and Reviewer as the task asked (BRIEF §12.1 says main session only); browser zoom is emulated (viewport + deviceScaleFactor); em round-trip and canvas rounding are covered by e2e, not unit tests.
+
+**Manual checks:** real Ctrl+/− zoom on a Chromebook (100/110/125 %) against Bluebook; instructor stroke at 125 % watched on a 100 % and a 110 % student; laser at 80 % and 150 %; Desmos handle + reload. Screenshots: `docs/lessons/11-ui-polish/`.

@@ -183,7 +183,9 @@ test('task06 Desmos sync: reveal gate, Slow 3G latency, read-only follower, Try 
     await expect(studentList(student)).not.toContainText('3131');
     // Still read-only after Try it yourself.
     await second.locator('.lesson-header h1').click();
-    await second.locator('#lesson-desmos .dcg-new-expression').click();
+    // lessons-11: the follower is docked between header and footer, so with five rows Desmos's own "Trial Key" badge
+    // can sit over the middle of the new-expression row. Click its left edge, where the badge is not.
+    await second.locator('#lesson-desmos .dcg-new-expression').click({ position: { x: 6, y: 8 } });
     await second.keyboard.type('y=6161');
     await expect(studentList(second)).not.toContainText('6161');
     await expect(ownList(second)).not.toContainText('6161');
