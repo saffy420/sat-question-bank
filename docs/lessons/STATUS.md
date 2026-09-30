@@ -476,3 +476,20 @@ Additional approved: local-only test auth (Option B), shared stats extraction, s
 **Deviations:** no automatic reveal when everyone has submitted. Instructor-paced lessons don't have one, and the gate follows the phase, so any reveal publishes.
 
 **Manual checks:** annotate and cross out mid-question on the 1080p laptop; a Chromebook shows nothing until 0, then everything.
+
+---
+
+## 2026-09-30 — Report a problem + Suggest a feature (Claude Code; single session)
+
+**Shipped:**
+- **Report** in the question bar of the bank player, the lesson student view and lesson history. A dialog asks for a category (Formatting/display, Wrong answer or explanation, Typo, Other) and an optional note, and sends the question ID, where it was seen, viewport and zoom, and the rendered question HTML. The user comes from the sign-in, and there are no screenshots.
+- **Triage after the reply** (`ctx.waitUntil`): the report is stored in `question_reports`; Claude (`claude-opus-5-5`, secret `ANTHROPIC_API_KEY`) returns a fix or an escalation; a validator (`checkPatch`) accepts a fix only if it changes markup, math, tables or figure references, leaves the visible text and the answer key alone, and adds no script, handlers, new URLs or hidden text. Anything else becomes an escalation. Wrong-answer reports escalate without a call.
+- **Admin Reports tab**: grouped by question, before/after with the real renderer, Approve (writes the question, closes the question's open reports) or Reject/Close. Fixes are never applied on their own (`AUTO_APPLY_FORMATTING_FIXES = false`). **Suggestions tab**: newest first, done / dismiss.
+- **Suggest a feature** in the bank and lesson More menus.
+- Limits: 10 reports/user/day; one open report per user per question; one Claude call per question per 24 h; 300 calls a month; 5 suggestions/user/day.
+
+**E2E:** new `tests/e2e/report-and-suggest/` R1–R6, 6/6, with the API mocked. Full suite 52/55: the 3 failures (banner `networkidle`, Desmos sync, 11c calculator) fail the same way on the base commit. Unit 165/167 (the 2 failures are the known environmental ones). Typecheck clean.
+
+**Deviations:** in lessons the Report button sits after the question number in the stem strip (there is no Mark for Review there). A report inside the 24 h window waits for the next call for its question. A running live lesson keeps its frozen question copy.
+
+**Manual checks:** apply `migrations/0011_reports.sql` to the remote DB before deploying; `wrangler secret put ANTHROPIC_API_KEY`; send one real report and look at the Reports tab; check the dialog over the lesson view on a Chromebook. Nothing was run against the real API.

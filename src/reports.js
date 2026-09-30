@@ -48,8 +48,11 @@ const TAG = /<\s*\/?\s*([a-zA-Z][\w:-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/g;
 const ATTR = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
 const attributes = html => [...String(html ?? '').matchAll(TAG)].flatMap(m => [...m[2].matchAll(ATTR)].map(a => [a[1].toLowerCase(), a[2] ?? a[3] ?? a[4] ?? '']));
 // The question HTML reaches innerHTML under an inline-enabled CSP, so a fix may not add script, handlers or new URLs.
+// Visible text is compared with tags removed, so markup must not be able to hide words from the student either.
+const HIDING = /display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0(?![.\d])|font-size\s*:\s*0(?![.\d])|<[^>]*\shidden[\s>=/]/gi;
 function markupProblem(after, before) {
   const known = new Set(attributes(before).map(([, value]) => value));
+  if ((String(after).match(HIDING) || []).length > (String(before ?? '').match(HIDING) || []).length) return 'it would hide content';
   for (const m of String(after).matchAll(TAG)) {
     if (BANNED_TAG.test(m[1])) return `<${m[1].toLowerCase()}> is not allowed`;
     for (const [name, value] of [...m[2].matchAll(ATTR)].map(a => [a[1].toLowerCase(), a[2] ?? a[3] ?? a[4] ?? ''])) {

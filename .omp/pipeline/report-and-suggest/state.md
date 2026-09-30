@@ -1,11 +1,11 @@
 ```text
 Task: report-and-suggest
 Branch: claude/eloquent-sagan-5340sj   Base: main (cadec68)
-Last completed step: 3 (spec written)   Commit: pending
-Next step: step 4 - implement src/reports.js, migration 0011, wiring in src/index.js, then client + admin UI
+Last completed step: 9 (docs written, pushed; no PR - not requested)   Commit: see git log
+Next step: none. The owner applies migration 0011, sets ANTHROPIC_API_KEY and runs the manual checks in handoff.md
 Open blockers: none
-Decisions made this task: see spec.md "Decisions"
-PR: not requested (user did not ask for one)
+Decisions made this task: see spec.md "Decisions"; repairs in review.md
+PR: not requested
 Instructions: docs/lessons/BRIEF.md - re-read §0, §12, §13 + this task's spec.md
 ```
 

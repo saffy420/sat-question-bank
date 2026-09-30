@@ -72,6 +72,10 @@ test('validator rejects answer key, choice, text, unsafe markup and foreign-fiel
   no({ stem_html: '<p>What is $3 + 4$?</p><img src="https://evil.example/a.png">' }, /new URL/);
   no({ stem_html: '<p>What is $3 + 4$?</p><a href="javascript:alert(1)"></a>' }, /script or data URL|new URL/);
   no({ stem_html: '<p>What is $3 + 4$?</p><iframe src="/qimg/a.png"></iframe>' }, /iframe/);
+  no({ stem_html: '<p>What is $3 + 4$?</p><p style="display: none">spoiler</p>' }, /hide content|visible text changed/);
+  no({ stem_html: '<p style="font-size:0">What is $3 + 4$?</p>' }, /hide content/);
+  no({ stem_html: '<p hidden>What is $3 + 4$?</p>' }, /hide content/);
+  assert.equal(checkPatch({ ...MATH, stem_html: '<p style="display:none">x</p><p>What is $3 + 4$?</p>' }, { stem_html: '<p style="display:none">x</p><p>What is \\(3 + 4\\)?</p>' }).ok, true, 'hiding that was already there is not new');
   no({ stem_html: 42 }, /must be a string/);
   // Same visible text, but the grid-in answer the app reads out of the explanation would change.
   no({ explanation_html: '<p>The correct answer is 3<b>/</b>4.</p>' }, /answer key would change/, { id: 'spr', section: 'Math', stem_html: '<p>Enter it.</p>', choices_json: '[]', correct_answer: '', explanation_html: '<p>The correct answer is 3/4.</p>' });
