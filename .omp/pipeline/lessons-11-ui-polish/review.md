@@ -65,4 +65,4 @@ Screenshots `student-1366x768-math.png` and `student-z125-both-docks.png` inspec
 - Finding 4: spec.md corrected: unit test covers validation; em round-trip / canvas rounding are asserted in `ink.spec.js`. Recorded as a deviation in the handoff.
 - Nit 5 already fixed (the handle has no `tabIndex={-1}` since the first commit; the reviewer read an older build). Nit 6: hover tint removed on nav cells, history numbers and the resize strip.
 - Not changed (accepted, listed in the handoff): nits 7–11 (localStorage write per move is a few bytes; stale-bundle tabs redraw after reload; canvas box equals card box today; desmosMax ignores the open notes/navigator drawers, which overlay).
-- Re-run after the repair: 11-ui-polish + 11c + 05 specs 26/26; full suite: see e2e.md.
+- Re-run after the repair: 11-ui-polish + 11c + 05 specs 26/26; full suite 72/72 (12.4 min).

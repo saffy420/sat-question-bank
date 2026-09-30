@@ -2,9 +2,8 @@
 Task: lessons-11-ui-polish
 Tier: 3
 Branch: claude/loving-volta-n524ml   Base: main (cadec68)
-Last completed step: 4 (implementation committed 5f1c1d4; unit 150/152 = 2 pre-existing env failures)
-Next step: Test Developer subagent (running) writes tests/e2e/lessons-11-ui-polish/* and fixes specs 05/06/11c; then full suite,
-           fresh Reviewer subagent on `git diff main...HEAD`, repair rounds, handoff.md, STATUS.md entry, push.
+Last completed step: 9 (handoff, STATUS, review PASS after repair round 1; full suite 72/72)
+Next step: none (no PR requested); manual checks listed in handoff.md
 Open blockers: none
 Decisions made this task:
 - Root cause of pen/laser drift: glyph anchors used CSS px, valid only if every client has the same type size; item 3 makes type

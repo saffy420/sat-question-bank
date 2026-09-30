@@ -32,7 +32,7 @@ Files: `spec.md`, `state.md`, `e2e.md`, `review.md`; screenshots in `docs/lesson
 
 ## E2E / unit
 - New: `tests/e2e/lessons-11-ui-polish/{layout,shapes,docking,ink,desmos-width}.spec.js` (23 tests). Updated: `annotations.spec.js` (anchor form, em comparison), `lessons-11c.spec.js`, `lessons-06-desmos/desmos.spec.js` (docked calculator; follower click at the row's left edge because the Desmos trial badge covers the row in a docked panel).
-- Full suite 72/72 (before the repair round; re-run result in `e2e.md`). Unit: `npm test` 150/152 — the 2 failures pre-date this task on main (`test_grade.cjs` spawns `git.exe`; `test_lesson_flush.cjs` "daily limit" depends on the time of day). New `tests/test_annotation_anchors.cjs` 4/4. Typecheck clean.
+- Full suite 72/72, also after the repair round. Unit: `npm test` 150/152 — the 2 failures pre-date this task on main (`test_grade.cjs` spawns `git.exe`; `test_lesson_flush.cjs` "daily limit" depends on the time of day). New `tests/test_annotation_anchors.cjs` 4/4. Typecheck clean.
 
 ## Deviations / limits
 - Process: Tier 3 with fresh Test Developer and Reviewer subagents, as the task text asked; the repo BRIEF §12.1 says main-session only.
