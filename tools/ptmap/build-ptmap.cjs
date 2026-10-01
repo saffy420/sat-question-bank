@@ -3,7 +3,7 @@
 //   node tools/ptmap/build-ptmap.cjs
 //
 // Reads  active-ids.json (repo root) and practice-tests/PT*-questions.json.
-// Writes tools/ptmap/practice-test-map.json, README.md and UNMATCHED.md.
+// Writes tools/ptmap/practice-test-map.json, README.md and UNMATCHED.md, and public/practice-tests.json.
 // Matching is exact on College Board's external_id; no fuzzy or text matching.
 // Outputs hold IDs, positions and counts only - never question text.
 const fs = require('fs');
@@ -214,6 +214,12 @@ const testKeys = Object.keys(map).sort((a, b) => Number(a.slice(2)) - Number(b.s
 const out = {};
 for (const k of testKeys) out[k] = map[k];
 fs.writeFileSync(path.join(OUT, 'practice-test-map.json'), JSON.stringify(out, null, 1) + '\n');
+// The app's copy (Study Plan logging): bank IDs only, by module, in display-number order. A module nobody has
+// exported is null; a position with no bank ID is null.
+const slim = { tests: testKeys.map(k => ({ id: k, number: Number(k.slice(2)), name: `Practice Test ${k.slice(2)}`,
+  ...Object.fromEntries(SECTIONS.map(s => [s, Object.fromEntries(['m1', 'easy', 'hard'].map(m => [m,
+    map[k][s][m] ? map[k][s][m].slice().sort((a, b) => a.displayNumber - b.displayNumber).map(e => e.bankId || null) : null]))])) })) };
+fs.writeFileSync(path.join(ROOT, 'public', 'practice-tests.json'), JSON.stringify(slim) + '\n');
 
 // ---- reports ------------------------------------------------------------------
 const reused = [...posTests].filter(([, s]) => s.size > 1);
@@ -242,7 +248,8 @@ node tools/ptmap/build-ptmap.cjs
 \`\`\`
 
 Reads \`active-ids.json\` (repo root), \`manual-matches.json\` (this folder) and every \`practice-tests/PT*-questions.json\`, then rewrites
-\`practice-test-map.json\`, \`README.md\` and \`UNMATCHED.md\` in this folder. Output is deterministic.
+\`practice-test-map.json\`, \`README.md\` and \`UNMATCHED.md\` in this folder, and \`public/practice-tests.json\` (the app's
+copy: bank IDs per module in display-number order, read by the Study Plan's test log). Output is deterministic.
 The exit code is 1 if any check below fails; the files are still written.
 
 Join: an item's \`externalId\` is matched exactly against \`external_id\` in \`active-ids.json\`, within the

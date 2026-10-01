@@ -96,10 +96,13 @@ test('usage filter, lesson score and shown questions', async () => {
 });
 
 test('0010 upgrades a pre-0010 database and matches the fresh snapshot', () => {
-  const old = schema.replace(/  lesson_session_id INTEGER,\r?\n/, '').replace(/^CREATE UNIQUE INDEX IF NOT EXISTS attempts_lesson.*$/m, '');
+  // A pre-0010 database has neither 0010's column nor the later 0012 one; it reaches the snapshot through both, in order.
+  const old = schema.replace(/  lesson_session_id INTEGER,\r?\n/, '').replace(/^CREATE UNIQUE INDEX IF NOT EXISTS attempts_lesson.*$/m, '')
+    .replace(/^  -- 0012_study_plan\.sql.*\r?\n  plan_step TEXT,\r?\n/m, '');
   const db = new DatabaseSync(':memory:'); db.exec(old);
   db.exec("INSERT INTO attempts(user_id,question_id,ts) VALUES('u','q','t')");
   db.exec(migration);
+  db.exec(readFileSync(__dirname + '/../migrations/0012_study_plan.sql', 'utf8'));
   assert.equal(db.prepare("SELECT lesson_session_id FROM attempts").get().lesson_session_id, null);
   assert.throws(() => db.exec(migration), /duplicate column/);
   const fresh = new DatabaseSync(':memory:'); fresh.exec(schema);

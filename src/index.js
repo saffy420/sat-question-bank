@@ -211,6 +211,8 @@ const MAX_SETTINGS = 8000;
 const MAX_NOTE = 4000;
 // An exam session is ~150 answers plus timings; 64K is ten times that.
 const MAX_SESSION = 65536;
+// The Study Plan row: a year of weekly test logs and plans is well under this.
+const MAX_PLAN = 131072;
 const DAY = 86400000;
 const adminPath = p => p === '/admin' || p.startsWith('/admin/') || p === '/admin.html';
 const adminAPI = p => p === '/api/admin' || p.startsWith('/api/admin/');
@@ -647,14 +649,14 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
       '/api/auth/session': ['POST'], '/api/questions': ['GET'], '/api/account': ['GET'],
       '/api/progress': ['GET', 'POST'], '/api/attempts': ['GET', 'POST'],
       '/api/notes': ['GET', 'POST'], '/api/settings': ['GET', 'POST'], '/api/sessions': ['GET', 'POST'],
-      '/api/reports': ['POST'], '/api/suggestions': ['POST']
+      '/api/reports': ['POST'], '/api/suggestions': ['POST'], '/api/plan': ['GET', 'POST']
     };
     const isAPI = p === '/api' || p.startsWith('/api/');
     const knownAPI = apiMethods[p]?.includes(req.method) ||
       (/^\/api\/sessions\/[^/]+$/.test(p) && req.method === 'DELETE');
     if (isAPI && !knownAPI && !adminAPI(p) && !lessonRoute && !historyRoute) return json({ error: 'not found' }, 404);
     const restrictedAsset = ['GET', 'HEAD'].includes(req.method) &&
-      (p === '/app' || adminPath(p) || p === '/admin.js' || p === '/exams.json' || /^\/qimg\/[^/]+\.(?:png|jpg|jpeg|webp|svg)$/i.test(p));
+      (p === '/app' || adminPath(p) || p === '/admin.js' || p === '/exams.json' || p === '/practice-tests.json' || /^\/qimg\/[^/]+\.(?:png|jpg|jpeg|webp|svg)$/i.test(p));
     if (!knownAPI && !restrictedAsset && !adminAPI(p) && !lessonRoute && !historyRoute) {
       const res = await asset(env, new Request(new URL('/404.html', url), { method: req.method === 'HEAD' ? 'HEAD' : 'GET' }));
       return new Response(res.body, { status: 404, headers: res.headers });
@@ -833,7 +835,8 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
       const validID = id => typeof id === 'string' && id.trim().length > 0 && id.length <= 64;
       if (rows.some(r => !r || typeof r !== 'object' || Array.isArray(r) ||
           !validID(p === '/api/sessions' ? r.id : r.question_id) ||
-           (p === '/api/attempts' && (typeof r.ts !== 'string' || !r.ts.trim() || r.ts.length > 32 || !validHistory(r))) ||
+           (p === '/api/attempts' && (typeof r.ts !== 'string' || !r.ts.trim() || r.ts.length > 32 || !validHistory(r) ||
+             (r.plan_step != null && (typeof r.plan_step !== 'string' || r.plan_step.length > 40)))) ||
           (p === '/api/sessions' && (!r.state || typeof r.state !== 'object' || Array.isArray(r.state))))) {
         return json({ error: 'invalid row or missing ID' }, 400);
       }
@@ -886,7 +889,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
     if (p === '/api/attempts' && req.method === 'GET') {
       if (!u) return json({ error: 'unauthorized' }, 401);
       const r = await env.DB.prepare(
-        'SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json, lesson_session_id FROM attempts WHERE user_id = ? ORDER BY ts'
+        'SELECT question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json, lesson_session_id, plan_step FROM attempts WHERE user_id = ? ORDER BY ts'
       ).bind(u.id).all();
       return json(r.results || []);
     }
@@ -966,6 +969,36 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
          ON CONFLICT(user_id) DO UPDATE SET json=excluded.json, updated_at=excluded.updated_at`
       ).bind(u.id, blob).run();
       return json({ ok: true });
+    }
+
+    // The Study Plan (docs/plan/BRIEF.md): one JSON row per student. A save names the revision it was made
+    // from; a save from a stale copy (another tab, another device) is refused with the current revision rather
+    // than overwriting a test log made elsewhere. 401, not an empty plan, on a rejected token.
+    if (p === '/api/plan' && req.method === 'GET') {
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      const r = await env.DB.prepare('SELECT state, rev FROM study_plans WHERE user_id = ?').bind(u.id).first();
+      let state = null;
+      try { state = r ? JSON.parse(r.state) : null; } catch { state = null; }
+      return json({ state, rev: r?.rev || 0 });
+    }
+
+    if (p === '/api/plan' && req.method === 'POST') {
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      const b = await req.json().catch(() => null);
+      if (!b || typeof b !== 'object' || !b.state || typeof b.state !== 'object' || Array.isArray(b.state) ||
+          !Number.isInteger(b.rev) || b.rev < 0) return json({ error: 'bad body' }, 400);
+      const blob = JSON.stringify(b.state);
+      if (blob.length > MAX_PLAN) return json({ error: 'too large' }, 413);
+      const res = b.rev === 0
+        ? await env.DB.prepare('INSERT INTO study_plans (user_id, state, rev, updated_at) VALUES (?,?,1,?) ON CONFLICT(user_id) DO NOTHING')
+          .bind(u.id, blob, Date.now()).run()
+        : await env.DB.prepare('UPDATE study_plans SET state = ?, rev = rev + 1, updated_at = ? WHERE user_id = ? AND rev = ?')
+          .bind(blob, Date.now(), u.id, b.rev).run();
+      if (!res.meta.changes) {
+        const held = await env.DB.prepare('SELECT rev FROM study_plans WHERE user_id = ?').bind(u.id).first();
+        return json({ error: 'stale', rev: held?.rev || 0 }, 409);
+      }
+      return json({ rev: b.rev + 1 });
     }
 
     // Sessions older than 30 days stay stored but are excluded from reads.

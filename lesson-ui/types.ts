@@ -111,7 +111,17 @@ export type LessonHistory = {
 
 // Practice bank screen (Bank.tsx). `public/index.html` owns the session state and draws this model from it.
 export type BankQuestion = Question & { domain?: string; skill?: string; difficulty?: string; source?: string; ai?: boolean; level?: number };
-export type BankCell = { id: string; state: 'none' | 'correct' | 'wrong' | 'corrected' | 'unscored'; flagged: boolean };
+export type BankCell = { id: string; state: 'none' | 'correct' | 'wrong' | 'corrected' | 'unscored' | 'answered'; flagged: boolean };
+// A Study Plan set (drill, consolidation, maintenance): a timed mini test, no Check, scored at the end.
+export type BankSet = {
+  // The segment being played, e.g. "Medium · 1 of 2".
+  segment: string;
+  // Asked before the segment ends: what ending it means.
+  endText: string;
+  // The last segment: its end finishes the set.
+  final: boolean;
+  unanswered: number;
+};
 export type BankModel = {
   title: string;
   name: string;
@@ -136,6 +146,9 @@ export type BankModel = {
   noteOnMiss: boolean;
   dark: boolean;
   signedIn: boolean;
+  set?: BankSet;
+  // Review after a Study Plan set: the explanation opens when the question closes, right first time or not.
+  explainOnClose?: boolean;
 };
 export type BankBridge = {
   mathify: (element: HTMLElement) => void;
@@ -159,4 +172,6 @@ export type BankBridge = {
   exportText: () => string;
   report: (r: { questionId: string; element: HTMLElement }) => void;
   suggest: () => void;
+  // Study Plan set: end the segment being played (the screen has already asked).
+  endSegment: () => void;
 };

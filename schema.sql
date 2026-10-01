@@ -54,11 +54,22 @@ CREATE TABLE IF NOT EXISTS attempts (
   changes INTEGER DEFAULT 0,
   answer_history_json TEXT,
   lesson_session_id INTEGER,
+  -- 0012_study_plan.sql: the Study Plan step this answer was given in, if any.
+  plan_step TEXT,
   UNIQUE (user_id, question_id, ts)
 );
 CREATE INDEX IF NOT EXISTS attempts_user_ts ON attempts (user_id, ts);
 -- 0010_lesson_attempts.sql: a self-paced lesson writes one attempt per session/student/question.
 CREATE UNIQUE INDEX IF NOT EXISTS attempts_lesson ON attempts (lesson_session_id, user_id, question_id) WHERE lesson_session_id IS NOT NULL;
+
+-- 0012_study_plan.sql: the Study Plan, one JSON row per student (logged tests, per-skill
+-- cycle state, current plan). `rev` rejects a save made from a stale copy.
+CREATE TABLE IF NOT EXISTS study_plans (
+  user_id TEXT PRIMARY KEY,
+  state TEXT NOT NULL,
+  rev INTEGER NOT NULL DEFAULT 1,
+  updated_at INTEGER NOT NULL
+);
 
 -- One JSON blob per account. These settings change shape often and are read as a
 -- whole; a column per toggle would be a migration for every new preference.

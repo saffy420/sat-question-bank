@@ -24,7 +24,7 @@ type ClockStore = ReturnType<typeof createClock>;
 const NONE: Mark[] = [];
 const NO_LETTERS: string[] = [];
 const GRID_VALUE = /^[-\d./]{1,32}$/;
-const STATE_LABEL = { none: 'not answered', correct: 'correct', wrong: 'wrong', corrected: 'corrected', unscored: 'not scored' } as const;
+const STATE_LABEL = { none: 'not answered', correct: 'correct', wrong: 'wrong', corrected: 'corrected', unscored: 'not scored', answered: 'answered' } as const;
 
 // A modal <dialog> the screen opens and closes with its state.
 function useModal(open: boolean, onClose: () => void) {
@@ -74,6 +74,7 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   const [explOpen, setExplOpen] = useState(false);
   const [directions, setDirections] = useState(false);
   const [exit, setExit] = useState(false);
+  const [ending, setEnding] = useState(false);
   const [copied, setCopied] = useState(false);
   const [exported, setExported] = useState('');
   const [draft, setDraft] = useState(model.picked);
@@ -86,8 +87,10 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   const setOwnStruck = (letters: string[]) => setStruck(all => ({ ...all, [q.id]: letters }));
   const last = model.index === model.total - 1;
   const value = q.spr ? draft.trim() : model.picked;
-  const canCheck = active && (q.spr ? GRID_VALUE.test(value) : !!value && !model.missed.includes(value));
-  const label = canCheck ? 'Check' : last ? 'Finish' : 'Next';
+  const set = model.set;
+  // A Study Plan set has no Check: a pick is the answer, scored when the set ends.
+  const canCheck = !set && active && (q.spr ? GRID_VALUE.test(value) : !!value && !model.missed.includes(value));
+  const label = canCheck ? 'Check' : set && last ? (set.final ? 'Finish set' : 'Next section') : last ? 'Finish' : 'Next';
   const closeMore = () => document.querySelector('#bank-live .lesson-more')?.removeAttribute('open');
 
   const select = (letter: string) => {
@@ -100,7 +103,13 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
     setOwnStruck(on ? [...ownStruck, letter] : ownStruck.filter(x => x !== letter));
     if (on && active && model.picked === letter) bridge.pick('');
   };
-  const primary = () => { if (canCheck) bridge.check(q.spr ? value : undefined); else bridge.next(); };
+  // A grid-in draft is the answer once the student moves on (a value that is not a grid-in entry clears it).
+  const keepDraft = () => { if (set && q.spr && active && value !== model.picked) bridge.commit(GRID_VALUE.test(value) ? value : ''); };
+  const primary = () => {
+    if (canCheck) return bridge.check(q.spr ? value : undefined);
+    keepDraft();
+    if (set && last) setEnding(true); else bridge.next();
+  };
   const copy = async () => {
     const text = bridge.exportText();
     try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1600); }
@@ -116,6 +125,7 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
     const p = prev.current;
     if (p.id !== q.id) setExplOpen(false);
     else if (!p.closed && model.closed && model.missed.length && model.noteOnMiss) { setExplOpen(true); setNotesOpen(true); }
+    else if (!p.closed && model.closed && model.explainOnClose) setExplOpen(true);
     prev.current = { id: q.id, closed: model.closed };
   }, [q.id, model.closed]);
   // The explanation only exists in the page once the question is closed.
@@ -128,14 +138,14 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   const status = model.closed ? '.bank-reveal' : model.missed.length ? '.bank-status' : '';
   useLayoutEffect(() => { if (status) document.querySelector(`#bank-live ${status}`)?.scrollIntoView({ block: 'nearest' }); }, [status, q.id, model.missed.length]);
 
-  const keys = useRef({ q, model, active, select });
-  keys.current = { q, model, active, select };
+  const keys = useRef({ q, model, active, select, keepDraft });
+  keys.current = { q, model, active, select, keepDraft };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || (e.target as Element).closest?.('input, textarea, select, dialog, summary, [contenteditable]')) return;
       const k = keys.current;
-      if (e.key === 'ArrowRight') bridge.next();
-      else if (e.key === 'ArrowLeft') bridge.back();
+      if (e.key === 'ArrowRight') { if (!(k.model.set && k.model.index === k.model.total - 1)) { k.keepDraft(); bridge.next(); } }
+      else if (e.key === 'ArrowLeft') { k.keepDraft(); bridge.back(); }
       else if (/^[1-4]$/.test(e.key) && !k.q.spr) { const c = k.q.choices[Number(e.key) - 1]; if (c) k.select(c.letter); }
     };
     addEventListener('keydown', onKey);
@@ -145,6 +155,7 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   const directionsDialog = useModal(directions, () => setDirections(false));
   const exitDialog = useModal(exit, () => setExit(false));
   const exportDialog = useModal(!!exported, () => setExported(''));
+  const endDialog = useModal(ending, () => setEnding(false));
   const over = time.over ? '#bd2424' : undefined;
   const info: [string, string | undefined][] = [['Domain', q.domain], ['Skill', q.skill], ['Difficulty', q.difficulty], ['Source', q.source || 'CollegeBoard'], ['ID', q.id]];
   const missedNote = model.missed.length > 0;
@@ -158,11 +169,12 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
         <h1>{model.title}</h1>
         <div className="lesson-phase bank-sub">
           <button id="bank-directions" className="bank-link" onClick={() => setDirections(true)}>Directions <ChevronDown aria-hidden="true"/></button>
+          {set && <span className="bank-chip" id="bank-segment">{set.segment}</span>}
           {q.ai && <span className="bank-chip">AI · Level {q.level}</span>}
         </div>
       </div>
       <div className="lesson-timer"><strong id="bank-clock" style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: over }}>{time.text}</strong>
-        <span className="bank-timer-actions"><HideButton hidden={hiddenClock} onToggle={() => hideClock(!hiddenClock)}/><button id="bank-pause" onClick={bridge.pause}>{model.paused ? 'Resume' : 'Pause'}</button></span></div>
+        <span className="bank-timer-actions"><HideButton hidden={hiddenClock} onToggle={() => hideClock(!hiddenClock)}/>{!set && <button id="bank-pause" onClick={bridge.pause}>{model.paused ? 'Resume' : 'Pause'}</button>}</span></div>
       <nav className="lesson-tools" aria-label="Practice tools">
         <button id="bank-dashboard" onClick={() => setExit(true)}><House aria-hidden="true"/><span>Dashboard</span></button>
         {calc.math && <button id="bank-calc-toggle" aria-pressed={calc.open} onClick={calc.toggle}><Calculator aria-hidden="true"/><span>Calculator</span></button>}
@@ -206,13 +218,14 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
     <footer className="lesson-footer bank-footer">
       <span>{model.name}</span>
       <PositionPill id="bank-nav" panelId="bank-navigator" label={`Question ${model.index + 1} of ${model.total}`} open={navOpen} onToggle={() => setNavOpen(!navOpen)}>
-        <p className="self-legend"><span className="self-key correct"/>Correct <span className="self-key wrong"/>Wrong <span className="self-key corrected"/>Corrected <Flag aria-hidden="true"/>Marked</p>
-        <QuestionGrid attr="data-bank-q" onPick={id => { setNavOpen(false); bridge.goto(model.cells.findIndex(c => c.id === id)); }}
+        {set ? <p className="self-legend"><span className="self-key answered"/>Answered <Flag aria-hidden="true"/>Marked</p>
+          : <p className="self-legend"><span className="self-key correct"/>Correct <span className="self-key wrong"/>Wrong <span className="self-key corrected"/>Corrected <Flag aria-hidden="true"/>Marked</p>}
+        <QuestionGrid attr="data-bank-q" onPick={id => { setNavOpen(false); keepDraft(); bridge.goto(model.cells.findIndex(c => c.id === id)); }}
           items={gridItems}/>
       </PositionPill>
       <span className="bank-actions">
-        <button id="bank-back" disabled={model.index === 0} onClick={bridge.back}><ChevronLeft aria-hidden="true"/>Back</button>
-        <button id="bank-primary" className="lesson-submit" disabled={model.paused} data-mode={label.toLowerCase()} onClick={primary}>{label}{label !== 'Check' && <ChevronRight aria-hidden="true"/>}</button>
+        <button id="bank-back" disabled={model.index === 0} onClick={() => { keepDraft(); bridge.back(); }}><ChevronLeft aria-hidden="true"/>Back</button>
+        <button id="bank-primary" className="lesson-submit" disabled={model.paused} data-mode={label === 'Check' ? 'check' : set && last ? 'finish' : label.toLowerCase()} onClick={primary}>{label}{label !== 'Check' && <ChevronRight aria-hidden="true"/>}</button>
       </span>
     </footer>
     <dialog className="lesson-confirm-dialog" id="bank-directions-dialog" {...directionsDialog}>
@@ -222,9 +235,14 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
       <div><button id="bank-directions-ok" onClick={() => setDirections(false)}>Got it</button></div>
     </dialog>
     <dialog className="lesson-confirm-dialog" id="bank-exit-dialog" {...exitDialog}>
-      <p>End this practice session? {model.signedIn ? 'Progress on answered questions is saved.' : 'You are not signed in, so this session’s answers are not kept.'}</p>
+      <p>{set ? 'Leave this set? Your answers so far are kept and the clock stops until you come back to it from your plan.'
+        : <>End this practice session? {model.signedIn ? 'Progress on answered questions is saved.' : 'You are not signed in, so this session’s answers are not kept.'}</>}</p>
       <div><button id="bank-exit-cancel" onClick={() => setExit(false)}>Cancel</button><button id="bank-exit-confirm" className="lesson-submit" onClick={() => { setExit(false); bridge.exit(); }}>Confirm</button></div>
     </dialog>
+    {set && <dialog className="lesson-confirm-dialog" id="bank-end-dialog" {...endDialog}>
+      <p>{set.endText}{set.unanswered ? ` ${set.unanswered} question${set.unanswered === 1 ? ' is' : 's are'} unanswered and will count as wrong.` : ''}</p>
+      <div><button id="bank-end-cancel" onClick={() => setEnding(false)}>Keep working</button><button id="bank-end-confirm" className="lesson-submit" onClick={() => { setEnding(false); bridge.endSegment(); }}>{set.final ? 'Finish set' : 'Start next section'}</button></div>
+    </dialog>}
     <dialog className="lesson-confirm-dialog bank-export" id="bank-export-dialog" {...exportDialog}>
       <p>Copy this into your AI assistant</p>
       <textarea readOnly value={exported} onFocus={e => e.currentTarget.select()}/>
