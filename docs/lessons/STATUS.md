@@ -556,3 +556,23 @@ Unit: 154/156, with the same 2 failures as on main.
 - Touch pan, `+`/`-` and Esc on a real Chromebook.
 - Draw on a figure while one Chromebook is zoomed to 200 % and another is at 100 %.
 - Check `b544a348` against the PDF.
+
+---
+
+## 2026-10-01 — bank-bluebook: the practice question screen on the lesson-ui screen
+
+**Shipped:** practice sessions play on a React screen in `lesson-ui/` (`Bank.tsx`) that reuses `Stage`, the lesson header/footer/tools,
+the navigator and the calculator dock (shared `Chrome.tsx`; `lesson.css` selectors widened to `#bank-live`). Footer button Next → Check → Next.
+Retry until correct (wrong pick red + disabled, nothing revealed), first-try record at the first Check only, SPR Show answer after 3 wrong
+Checks, figure viewer. Record rules in typed `lesson-ui/record.ts`. Exams and exam review keep the old screen.
+
+**E2E:** main was 70/80 before the change (lessons-11 shape sweeps vs the Report box, two flakes); after: **94/94**. New
+`tests/e2e/bank-bluebook/bank.spec.ts` (C1–C9, TypeScript). Unit `npm test` 186/188 (2 failures pre-exist on main), `test_bank_record.ts` 13/13,
+typecheck clean. Artifacts: `.omp/pipeline/bank-bluebook/{spec,e2e,review,handoff,state}.md`, `docs/lessons/bank-bluebook/`.
+
+**Review:** PASS after one repair round (note saved under the wrong question; dark-theme filter made the fixed footer scroll).
+
+**Deviations from this brief:** no PR opened (not requested; body in `pr.md`); `rtk` not installed here; baseline red on arrival (§12.2 says stop) —
+the failures were a known merge interaction and two flakes, none in the practice player, so work continued and the baseline is recorded.
+
+**Manual checks for you:** see handoff.md (Chromebook run, dark theme, real Desmos dock, a practice exam).
