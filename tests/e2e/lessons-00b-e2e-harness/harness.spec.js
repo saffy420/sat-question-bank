@@ -22,10 +22,10 @@ async function bank(page, name) {
   expect(await page.evaluate(() => window.__qa().QS.map(q => q.id).sort())).toEqual([...ids].sort());
   await expect.poll(() => page.evaluate(() =>
     document.querySelector('#home-stats .v')?.textContent === '9' &&
-    document.querySelector('[data-tab="dash"]')?.classList.contains('on') &&
+    document.querySelector('[data-tab="plan"]')?.classList.contains('on') &&
     document.querySelector('#tab-practice')?.classList.contains('hide') &&
-    !document.querySelector('#tab-dash')?.classList.contains('hide')
-  )).toBe(true); // load() completed refresh() and final setTab('dash'), not merely QS assignment.
+    !document.querySelector('#tab-plan')?.classList.contains('hide')
+  )).toBe(true); // load() completed refresh() and final setTab('plan') (the Study Plan is the first screen), not merely QS assignment.
   return questions;
 }
 

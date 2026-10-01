@@ -131,6 +131,14 @@ img { max-width: 100%; height: auto; }
 .nav-i.on svg { color: var(--mint); }
 .nav-i svg { flex: 0 0 18px; }
 .nav-sp { flex: 1 1 auto; min-height: 18px; }
+/* Join lesson stands out from the rail: a raised green pill. */
+#join-lesson { justify-content: center; margin: 12px 0 4px; padding: 11px 14px; border-radius: 999px; background: var(--mint); color: var(--mint-ink);
+  font-weight: 700; box-shadow: 0 6px 18px rgba(53, 208, 127, .35), inset 0 -2px 0 rgba(0, 0, 0, .12); transition: transform .15s, box-shadow .15s, background .15s; }
+#join-lesson svg { color: var(--mint-ink); }
+#join-lesson:hover:not(:disabled) { background: #4fe093; color: var(--mint-ink); transform: translateY(-1px); box-shadow: 0 9px 22px rgba(53, 208, 127, .45), inset 0 -2px 0 rgba(0, 0, 0, .12); }
+#join-lesson:active { transform: translateY(0); box-shadow: 0 3px 10px rgba(53, 208, 127, .35); }
+#join-lesson:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { #join-lesson { transition: none; } #join-lesson:hover:not(:disabled) { transform: none; } }
 .nav-user { display: flex; align-items: center; gap: 10px; padding: 12px 10px 10px; border-top: 1px solid var(--nav-line); }
 .nav-av { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%; background: var(--nav-2); color: var(--nav-on); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
 .nav-um { min-width: 0; }
@@ -327,7 +335,7 @@ select:hover { border-color: var(--border2); }
 .tag.t-medium { color: var(--orange); background: var(--orange-bg); border-color: transparent; }
 .tag.t-hard { color: var(--red); background: var(--red-bg); border-color: transparent; }
 .tag.t-wrong { color: var(--red); background: var(--red-bg); border-color: transparent; }
-.tag.t-used, .tag.t-lesson { color: var(--blue); border-color: transparent; background: var(--blue-bg); }
+.tag.t-used, .tag.t-lesson, .tag.t-test { color: var(--blue); border-color: transparent; background: var(--blue-bg); }
 .tag.t-used { white-space: normal; }   /* a lesson reused all term lists many sessions */
 #lessons-error { color: var(--red); margin: 0 0 10px; }
 #lessons-error:empty { display: none; }
@@ -345,6 +353,7 @@ td .tag.t-used { margin-left: 6px; font-family: inherit; }
   .nav-gear { width: 100%; margin: 0; padding: 10px; }
   #btn-auth { font-size: 0; padding: 10px 0; }
   #btn-auth::after { content: "\2192"; font-size: 15px; }
+  #join-lesson { padding: 11px 0; margin: 10px 0 4px; }
   .board-h, .board-b { padding-left: 18px; padding-right: 18px; }
   .tl-head, .tl-row { grid-template-columns: 1fr 74px 74px; }
   .tl-head span:nth-child(2), .tl-row .bar { display: none; }
@@ -644,9 +653,14 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
                                     line-height: 1.2; white-space: nowrap; }
   .nav-i[data-tab="practice"] > span { font-size: 0; }
   .nav-i[data-tab="practice"] > span::after { content: "Practice"; font-size: 10px; }
+  .nav-i[data-tab="plan"] > span { font-size: 0; }
+  .nav-i[data-tab="plan"] > span::after { content: "Plan"; font-size: 10px; }
   .nav-i[data-tab="exams"] > span { font-size: 0; }
   .nav-i[data-tab="exams"] > span::after { content: "Exams"; font-size: 10px; }
   .nav-gear::after { content: "Settings"; }
+  #join-lesson { margin: 0; padding: 6px 2px; border-radius: 14px; box-shadow: 0 3px 10px rgba(53, 208, 127, .35); }
+  #join-lesson > span { color: var(--mint-ink); font-size: 0; }
+  #join-lesson > span::after { content: "Join"; font-size: 10px; }
   .nav-i.on > span, .nav-i.on::after { color: var(--mint); }
   .nav-brand, .nav-sp, .nav-av { display: none; }
   .nav-user { border-top: 0; padding: 0; gap: 0; }
@@ -780,6 +794,60 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
   #btn-note { min-width: 0; padding: 9px 11px; font-size: 15px; }
   #btn-expl::after { content: "\24D8"; font-size: 17px; }
 }
+/* ---- Study Plan (docs/plan/BRIEF.md) ---- */
+#tab-plan .panel > p, #tab-plan .plan-note, #tab-plan .plan-next { margin: 0; padding: 12px 20px; }
+#tab-plan .sub, .plan-sub { color: var(--dim); font-size: 13px; }
+.plan-hero { padding: 26px 24px; }
+.plan-hero h3 { margin: 0 0 8px; font-size: 21px; }
+.plan-hero p { margin: 0 0 18px; color: var(--dim); max-width: 60ch; }
+.plan-next { border-bottom: 1px solid var(--border); }
+.plan-steps { list-style: none; margin: 0; padding: 0; }
+.plan-step { display: grid; grid-template-columns: 34px minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); }
+.plan-step:last-child { border-bottom: 0; }
+.plan-step.cur { background: var(--blue-bg); }
+.plan-step.done .plan-st b { color: var(--dim); }
+.plan-n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--bg2); color: var(--dim); }
+.plan-step.done .plan-n { background: var(--green-bg); color: var(--green); }
+.plan-step.cur .plan-n { background: var(--blue); color: #fff; }
+.plan-st { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.plan-st span, .plan-status { color: var(--dim); font-size: 13px; }
+.plan-over { color: var(--red); font-weight: 600; font-size: 13px; }
+.plan-in { color: var(--green); font-size: 13px; }
+.plan-limit { color: var(--dim); font-size: 15px; }
+.plan-result .cards { padding: 16px 20px 0; margin: 0; }
+.plan-result > p, .plan-result > .btn-p { margin: 0 20px 14px; }
+.plan-qs { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 14px 20px; }
+.plan-qs li { display: flex; gap: 5px; align-items: center; padding: 5px 9px; border-radius: 8px; font-weight: 700; font-size: 13px; }
+.plan-qs li span { color: var(--dim); font-weight: 600; }
+.plan-qs li small { color: var(--dim); font-weight: 500; }
+.plan-qs li.ok { background: var(--green-bg); color: var(--green); }
+.plan-qs li.bad { background: var(--red-bg); color: var(--red); }
+.pl-row { display: flex; flex-wrap: wrap; gap: 14px 28px; padding: 14px 20px 0; }
+.pl-row label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.pl-route { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 14px; }
+.pl-route > span { font-weight: 600; }
+.pl-help, .pl-sum, .pl-warn, .pl-err, .pl-missing { margin: 12px 20px 0; font-size: 14px; }
+.pl-help { color: var(--dim); }
+.pl-warn { color: var(--orange); background: var(--orange-bg); padding: 10px 12px; border-radius: 8px; }
+.pl-err { color: var(--red); min-height: 1px; }
+.pl-err:empty { margin: 0; }
+.pl-missing { color: var(--dim); }
+.pl-mod { padding: 14px 20px 0; }
+.pl-mod h4 { margin: 0 0 8px; font-size: 14px; }
+.pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; max-width: 760px; }
+.pl-q { height: 40px; padding: 0; border-radius: 8px; font-weight: 700; border: 1.5px dashed var(--border2); background: var(--panel); color: var(--text); }
+#plan-body .pl-q[data-mark="W"], .pl-k[data-mark="W"] { background: var(--red-bg); color: var(--red); border: 1.5px solid var(--red); }
+#plan-body .pl-q[data-mark="S"], .pl-k[data-mark="S"] { background: var(--orange-bg); color: var(--orange); border: 1.5px solid var(--orange); }
+.pl-k { padding: 1px 7px; border-radius: 6px; }
+.pl-q[data-unmapped] { opacity: .55; }
+#plan-log-form .frow { padding: 14px 20px 18px; }
+#plan-skills td, #plan-skills th { padding-left: 20px; }
+@media (max-width: 760px) {
+  .plan-step { grid-template-columns: 30px minmax(0, 1fr) auto; }
+  .plan-status { grid-column: 2 / -1; grid-row: 2; }
+  .plan-step > button { grid-row: 1; grid-column: 3; }
+  #plan-skills th:nth-child(5), #plan-skills td:nth-child(5) { display: none; }
+}
 </style>
 </head>
 <body>
@@ -790,6 +858,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
   <aside class="nav">
     <div class="nav-brand"><span class="dot">S</span><span>SAT Question Bank</span></div>
 
+    <button class="nav-i" data-tab="plan"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Study Plan</span></button>
     <button class="nav-i" data-tab="dash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19V11M12 19V5M19 19v-6"/></svg><span>Dashboard</span></button>
     <button class="nav-i" data-tab="mistakes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l8 15H4z"/><path d="M12 9v4M12 16.2v.1"/></svg><span>Mistakes</span></button>
     <button class="nav-i" data-tab="practice"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v6H4z"/><path d="M4 15h9v4H4z"/></svg><span>Question Bank</span></button>
@@ -798,7 +867,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
     <button class="nav-i" data-tab="history"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>History</span></button>
     <button class="nav-i" data-tab="lessons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h11a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/></svg><span>My Lessons</span></button>
 
-    <button class="nav-i" id="join-lesson" type="button"><span>Join lesson</span></button>
+    <button class="nav-i" id="join-lesson" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg><span>Join lesson</span></button>
     <a class="nav-i hide" id="admin-link" href="/admin" style="text-decoration:none"><span>Admin</span></a>
     <div class="nav-sp"></div>
     <div class="nav-user">
@@ -818,6 +887,8 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
     </header>
 
     <div class="board-b">
+      <div id="tab-plan" class="hide"><div id="plan-body"></div></div>
+
       <div id="tab-practice">
         <div class="cards" id="home-stats"></div>
 
@@ -1062,7 +1133,7 @@ import * as SharedRenderer from '/shared/renderer.js';
 import * as Report from '/shared/report.js';
 import * as Figure from '/shared/figure.js';
 import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
-import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome } from '/lesson-ui/lesson.js';
+import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome, Plan } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1082,7 +1153,8 @@ let LESSONS = { attended: new Set(), sessions: [] };
 let SESS = {}, QBY = new Map(), EXAMS = [];
 let F;
 let S = null;
-let TAB = 'dash';
+// The Study Plan is the first screen after login (docs/plan/BRIEF.md §3).
+let TAB = 'plan';
 
 // ---------------- settings ----------------
 // One object, one storage key. These change shape often; a column per toggle is
@@ -1222,6 +1294,7 @@ function tidyExpl(html) {
 // server holds, and a failed fetch can never be mistaken for an empty account.
 async function loadProgress() {
   PROG = {}; LOG = []; NOTES = {}; SESS = {}; LESSONS = { attended: new Set(), sessions: [] };
+  PLAN = { state: null, rev: 0, loaded: false, error: false };
   if (!authToken) { refresh(); return; }
   // Fetched independently: one endpoint failing must not discard what the other
   // returned. Sharing a try block meant a transient 500 on the log blanked the
@@ -1249,6 +1322,8 @@ async function loadProgress() {
     // The bank's usedInLesson is as old as the page; a lesson that ended since then is in here.
     QS.forEach(q => { if (h.usage[q.id]) q.usedInLesson = h.usage[q.id]; });
   } catch (e) { lost = true; }
+  try { const b = await get('/api/plan'); PLAN = { state: b.state, rev: b.rev, loaded: true, error: false }; }
+  catch (e) { PLAN.error = true; lost = true; }
   backfillProgress();
   backfillLog();
   if (lost) warnSync('Could not load all of your saved progress. Reload the page — nothing has been lost.');
@@ -1511,6 +1586,8 @@ async function load() {
     });
     QBY = new Map(QS.map(q => [q.id, q]));
     try { EXAMS = (await (await fetch('/exams.json')).json()).tests; } catch (e) { EXAMS = []; }
+    // Practice test -> bank ID map for the Study Plan (tools/ptmap/build-ptmap.cjs writes it).
+    try { PTMAP = await (await fetch('/practice-tests.json')).json(); if (!Array.isArray(PTMAP.tests)) throw 0; } catch (e) { PTMAP = { tests: [] }; }
     await loadProgress();
     await loadSettings();
   } catch(e) {
@@ -1611,13 +1688,14 @@ window.__dd = dd;   // reachable for the DOM assertions; harmless in production
 window.__qa = () => ({ QS, PROG, LOG, S, renderStem, isRight, focusSet, weakness, levelOf, pacing, trapCounts, guessing });
 
 const NAV = document.querySelectorAll('.nav-i');
-const TABS = ['practice','dash','browse','mistakes','exams','history','lessons','settings'];
+const TABS = ['plan','practice','dash','browse','mistakes','exams','history','lessons','settings'];
 
 // One entry point, so the boot-time tab and a rail click cannot drift apart.
 function setTab(t) {
   TAB = t;
   NAV.forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   TABS.forEach(k => $('tab-'+k).classList.toggle('hide', k !== t));
+  if (t === 'plan') drawPlan();
   if (t === 'dash') drawDash();
   if (t === 'browse') drawBrowse();
   if (t === 'mistakes') drawMistakes();
@@ -2213,6 +2291,9 @@ const usedBadge = q => q.usedInLesson?.length ? ` <span class="tag t-used" title
 // LOG is served in ts order and grows at the end, so the last row per question is its latest.
 const latestLesson = () => new Map(LOG.map(x => [x.question_id, x.lesson_session_id]));
 const lessonTag = id => id ? `<span class="tag t-lesson">Lesson ${String(id).padStart(5, '0')}</span>` : '';
+// A miss logged from a Bluebook practice test (Study Plan): the test it came from.
+const testMisses = () => new Map(LOG.filter(x => !x.correct && /^test:/.test(x.plan_step || '')).map(x => [x.question_id, x.plan_step.slice(5)]));
+const testTag = id => id ? `<span class="tag t-test">${esc((PTMAP.tests.find(t => t.id === id) || { name: id }).name)}</span>` : '';
 
 // Everything you have ever got wrong, before the page's own dropdowns narrow it.
 // Section and difficulty come off the question; status comes off the marker.
@@ -2273,7 +2354,7 @@ function drawMistakes() {
   $('mk-count').textContent = `${list.length.toLocaleString()} question${list.length === 1 ? '' : 's'}`;
   $('mk-drill').disabled = list.length === 0;
   $('mk-export').disabled = !Object.keys(NOTES).length;
-  const lessonOf = latestLesson();
+  const lessonOf = latestLesson(), testOf = testMisses();
   $('mk-list').innerHTML = list.slice(0, 200).map(q => {
     const fixed = PROG[q.id].marker === 'Orange';
     const d = q.difficulty || '';
@@ -2283,7 +2364,7 @@ function drawMistakes() {
         ${d ? `<span class="tag t-${esc(d.toLowerCase())}">${esc(d)}</span>` : ''}
         <span class="tag ${fixed ? 't-fixed' : 't-wrong'}">${fixed ? 'Corrected' : 'Incorrect'}</span>
         <span class="tag t-skill">${esc(q.skill || 'Other')}</span>
-        ${lessonTag(lessonOf.get(q.id))}${usedBadge(q)}
+        ${lessonTag(lessonOf.get(q.id))}${testTag(testOf.get(q.id))}${usedBadge(q)}
       </div>
       <div class="mk-stem">${esc(plain(q.stem_html).slice(0, 220)) || '(no text)'}</div>
       ${NOTES[q.id] ? `<div class="mk-note">${esc(NOTES[q.id])}</div>` : ''}
@@ -2483,6 +2564,15 @@ function start(items, opts) {
     S.modStart = Date.now() - m.elapsed;
     S.i = Math.min(m.i || 0, items.length - 1);
   }
+  // A Study Plan set: a pick is the answer (no Check), kept on the plan's run so leaving and coming back keeps it.
+  if (o.set) {
+    const run = o.set.run;
+    S.set = o.set;
+    S.sel = run.ans; S.changes = run.changes; S.flags = run.flags;
+    S.i = Math.min(run.i || 0, items.length - 1);
+    S.segStart = Date.now() - (run.segs[run.seg].usedMs || 0);
+    S.qid = null;
+  }
   // A finished exam, read-only: every question counts as checked so the choices
   // paint right and wrong, and Next past the end returns to the results.
   if (o.review) {
@@ -2511,6 +2601,7 @@ function startTimer() {
 function stopTimer() { if (S && S._int) clearInterval(S._int); }
 function renderQTimer() {
   if (!S) return;
+  if (S.set) return planClock();
   const el = $('q-clock');
   const q = curQ();
   let s, over = false;
@@ -2613,7 +2704,7 @@ const renderStem = SharedRenderer.renderStem;
 const choiceHTML = (q, c, picked, staticMode) => SharedRenderer.choiceHTML(q, c, picked, staticMode, S, PROG);
 
 function loadQuestion() {
-  if (S.bank) { S.qStart = Date.now(); renderQTimer(); bankDraw(); return; }
+  if (S.bank) { if (S.set) planTick(curQ().id); else S.qStart = Date.now(); renderQTimer(); bankDraw(); return; }
   closeExpl();
   const np = $('note-panel');
   if (np && np.dataset.qid) { clearTimeout(noteT); saveNote(np.dataset.qid, $('np-ta').value); }
@@ -2758,7 +2849,9 @@ function renderAnswerArea(q) {
 // question open, later tries only extend the answer history). This is the page side: which record, which session, which
 // screens to redraw.
 const isRight = Stats.isRight;
-const REC = createRecorder({ stats: Stats, prog: () => PROG, log: () => LOG, saveProgress, saveLog });
+// Attempts recorded for the Study Plan carry the step they belong to (a logged test, a set, a review).
+const tagged = rows => { const tag = PLAN_TAG || (S && S.planTag); if (tag) rows.forEach(r => { r.plan_step = tag; }); return rows; };
+const REC = createRecorder({ stats: Stats, prog: () => PROG, log: () => LOG, saveProgress, saveLog: rows => saveLog(tagged(rows)) });
 
 function afterCheck(q, res) {
   if (res.ok !== null && S.session) saveSession(reviewState);
@@ -2787,12 +2880,27 @@ function afterCheck(q, res) {
 
 function bankNext() {
   if (S.i < S.items.length - 1) { S.i++; loadQuestion(); }
-  else finish();
+  else if (!S.set) finish();   // a set's section ends through its own confirm (endSegment)
 }
 const BANK_STATE = { none: 'none', correct: 'correct', corrected: 'corrected', wrong: 'wrong', unscored: 'unscored' };
 function bankDraw() {
   if (!S || !S.bank) return;
   const q = curQ();
+  if (S.set) {
+    const run = S.set.run, g = run.segs[run.seg], final = run.seg === run.segs.length - 1, nx = run.segs[run.seg + 1];
+    bankUI.update({
+      title: Plan.stepTitle(S.set.step), name: $('user-name').textContent || '',
+      question: q, index: S.i, total: S.items.length, picked: S.sel[q.id] || '', missed: [],
+      closed: false, unscored: false, shown: false, flagged: !!S.flags[q.id],
+      cells: S.items.map(x => ({ id: x.id, state: S.sel[x.id] ? 'answered' : 'none', flagged: !!S.flags[x.id] })),
+      paused: false, note: NOTES[q.id] || '', noteOnMiss: false, dark: resolvedTheme() === 'dark', signedIn: !!authToken,
+      set: { segment: run.segs.length > 1 ? `${g.level} · section ${run.seg + 1} of ${run.segs.length}` : `${g.n} ${g.level.toLowerCase()}`,
+        final, unanswered: S.items.filter(x => !S.sel[x.id]).length,
+        endText: final ? 'Finish this set? Your score and the questions to review come next.'
+          : `Finish the ${g.level.toLowerCase()} questions and start the ${nx.n} ${nx.level.toLowerCase()} ones (${clockOf(nx.limitMs)})? You cannot come back to this section.` }
+    });
+    return;
+  }
   const closed = !!S.checked[q.id];
   bankUI.update({
     title: S.session ? S.session.name : S.focus ? 'Focus practice' : 'Practice',
@@ -2804,7 +2912,7 @@ function bankDraw() {
     flagged: !!S.flags[q.id],
     cells: S.items.map(x => ({ id: x.id, state: BANK_STATE[outcome(S, x, PROG[x.id] && PROG[x.id].marker, isRight)], flagged: !!S.flags[x.id] })),
     paused: S.paused, note: NOTES[q.id] || '', noteOnMiss: !!SET.noteOnWrong,
-    dark: resolvedTheme() === 'dark', signedIn: !!authToken
+    dark: resolvedTheme() === 'dark', signedIn: !!authToken, explainOnClose: !!S.explainOnClose
   });
 }
 const bankBridge = {
@@ -2828,7 +2936,8 @@ const bankBridge = {
   goto(i) { if (S && i >= 0 && i < S.items.length) { S.i = i; loadQuestion(); } },
   flag() { const q = curQ(); S.flags[q.id] = !S.flags[q.id]; bankDraw(); },
   pause() { S.paused = !S.paused; bankDraw(); },
-  exit() { stopTimer(); S = null; showHome(); },
+  exit() { if (S && S.set) return planLeave(); stopTimer(); S = null; showHome(); },
+  endSegment() { if (S && S.set) planEndSegment(); },
   theme() { setSetting('theme', resolvedTheme() === 'dark' ? 'light' : 'dark'); },
   // Called from inside React effects, so the redraw waits for them to finish.
   saveNote(id, body) { saveNote(id, body); queueMicrotask(bankDraw); },
@@ -3344,6 +3453,389 @@ function showHome() {
 }
 
 
+// ---------------- study plan (docs/plan/BRIEF.md) ----------------
+// One JSON row per student (/api/plan): the logged practice tests, each skill's cycle state and the current plan.
+// The rules live in lesson-ui/plan.ts; this draws the plan, logs tests and plays the sets on the bank screen.
+let PLAN = { state: null, rev: 0, loaded: false, error: false };
+let PTMAP = { tests: [] };
+let PLAN_TAG = null;       // the plan step the attempts being recorded right now belong to
+let PLOG = null;           // the open test-log form
+let PLAN_RESULT = null;    // the finished set whose results are on screen
+let planBusy = false, planSaving = Promise.resolve();
+
+const planState = () => PLAN.state || Plan.emptyState();
+const skillRank = k => { const j = SKILL_ORDER.indexOf(k); return j < 0 ? 999 : j; };
+// A set is scored at the end, so a question without a stored answer never goes in one.
+const scorable = q => !!q && isRight(q, 'ZZZ') !== null;
+const clockOf = ms => { const s = Math.round(Math.abs(ms) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const localDay = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const fmtDay = d => { const [y, m, dd] = String(d).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); };
+const testName = id => (PTMAP.tests.find(t => t.id === id) || { name: id }).name;
+
+// Saves go one at a time, each naming the revision the previous one returned. A refused save (409) means another tab or
+// device changed the plan: the page reloads it rather than overwrite a test logged there.
+function savePlan(state) {
+  const run = planSaving.then(async () => {
+    if (!authToken) return false;
+    try {
+      const r = await fetch('/api/plan', { method: 'POST', headers: { ...(await sbHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state, rev: PLAN.rev }) });
+      if (r.status === 409) {
+        await reloadPlan();
+        warnSync('Your study plan was changed in another tab or on another device, so it has been reloaded.');
+        return false;
+      }
+      if (!r.ok) throw new Error(r.status);
+      PLAN.rev = (await r.json()).rev;
+      PLAN.state = state;
+      return true;
+    } catch (e) {
+      warnSync('Your study plan could not be saved. It is kept on this page and saved with your next step.');
+      return false;
+    }
+  });
+  planSaving = run.catch(() => false);
+  return run;
+}
+async function reloadPlan() {
+  try {
+    const r = await fetch('/api/plan', { headers: await sbHeaders() });
+    if (!r.ok) throw new Error(r.status);
+    const b = await r.json();
+    PLAN = { state: b.state, rev: b.rev, loaded: true, error: false };
+  } catch (e) { if (!PLAN.loaded) PLAN.error = true; }
+  if (TAB === 'plan') drawPlan();
+}
+
+function drawPlan() {
+  const el = $('plan-body'); if (!el) return;
+  if (!authToken) { el.innerHTML = '<div class="panel"><div class="empty">Sign in to build a study plan.</div></div>'; return; }
+  if (!PLAN.loaded) {
+    el.innerHTML = PLAN.error
+      ? '<div class="panel"><div class="empty">Your study plan could not be loaded. <button id="plan-retry">Try again</button></div></div>'
+      : '<div class="panel"><div class="empty">Loading your study plan…</div></div>';
+    if ($('plan-retry')) $('plan-retry').onclick = reloadPlan;
+    return;
+  }
+  if (PLOG) return drawLog();
+  const st = planState(), plan = st.plan;
+  if (!plan) {
+    el.innerHTML = `<div class="panel plan-hero" id="plan-empty">
+      <h3>Your study plan</h3>
+      <p>Take a full Bluebook practice test, then mark the questions you got wrong or found slow. Your plan is built from them, skill by skill.</p>
+      <button class="btn-p" id="plan-log">Log a Bluebook practice test</button></div>`;
+    $('plan-log').onclick = () => openLog();
+    return;
+  }
+  const nx = Plan.nextStep(plan);
+  const sets = plan.steps.filter(s => s.kind !== 'test');
+  const done = sets.filter(s => s.done).length;
+  const rows = plan.steps.map((s, i) => stepRow(s, i, nx)).join('');
+  const maint = Object.entries(st.skills).filter(([, v]) => v.status === 'maintenance').map(([k]) => k);
+  const result = PLAN_RESULT && plan.steps.find(s => s.id === PLAN_RESULT && s.done && s.run && s.run.ids.length);
+  el.innerHTML = (result ? resultHTML(result, plan) : '') + `<div class="panel" id="plan-panel">
+      <div class="panel-h"><div><h3>Your plan</h3><span class="sub plan-sub">From ${esc(testName(plan.testId))} · taken ${esc(fmtDay(plan.date))} · ${done} of ${sets.length} sets done</span></div>
+        <button class="btn-p" id="plan-start">Start practicing</button></div>
+      ${nx ? `<p class="plan-next">Next up: <b id="plan-next">${esc(Plan.stepTitle(nx))}</b></p>` : ''}
+      <ol class="plan-steps" id="plan-steps">${rows}</ol>
+      ${plan.slowOnly.length ? `<p class="plan-note" id="plan-slow">Right but slow on the test (no drill, watch the clock): ${plan.slowOnly.map(k => `<b>${esc(k)}</b> (${plan.counts[k].slows})`).join(', ')}</p>` : ''}
+      ${maint.length ? `<p class="plan-note" id="plan-maint">In maintenance: ${maint.map(k => esc(k)).join(', ')}</p>` : ''}
+    </div>
+    <div class="panel"><div class="panel-h"><h3>Skills on ${esc(testName(plan.testId))}</h3><span class="sub plan-sub">Misses and slows on the test · status · lifetime accuracy</span></div>
+      <table class="browse-table" id="plan-skills"><thead><tr><th>Skill</th><th>Missed</th><th>Slow</th><th>Status</th><th>Accuracy</th></tr></thead><tbody>${skillRows(st, plan)}</tbody></table></div>`;
+  $('plan-start').onclick = () => nx && openStep(nx);
+  el.querySelectorAll('[data-step]').forEach(b => b.onclick = () => openStep(plan.steps.find(s => s.id === b.dataset.step)));
+  if (result) {
+    $('plan-result-x').onclick = () => { PLAN_RESULT = null; drawPlan(); };
+    if ($('plan-review')) $('plan-review').onclick = () => planReview(result);
+  }
+}
+
+function stepRow(s, i, nx) {
+  const run = s.run;
+  const answered = run ? Object.values(run.ans).filter(Boolean).length : 0;
+  let status, label;
+  if (s.kind === 'test') { status = `Recommended for ${esc(fmtDay(s.date))}`; label = 'Log test'; }
+  else if (s.done && run && run.ids.length) {
+    status = `<b>${run.right}/${run.scored}</b> right · ` + run.segs.map(g => `${g.level.toLowerCase()} ${clockOf(g.usedMs)} / ${clockOf(g.limitMs)}${g.overMs ? ` <span class="plan-over">+${clockOf(g.overMs)} over</span>` : ''}`).join(' · ');
+    label = 'Results';
+  } else if (s.done) { status = 'Skipped: no questions left for this skill'; label = ''; }
+  else if (run) { status = `In progress · ${answered} of ${run.ids.length} answered`; label = 'Continue'; }
+  else { status = Plan.stepSize(s); label = 'Open'; }
+  const why = s.kind === 'test' ? 'Then log it here to build your next plan'
+    : s.kind === 'maintain' ? (s.misses ? `${s.misses} missed on the test` : 'Keeping a strong skill sharp')
+    : `${s.misses} missed${s.slows ? ` · ${s.slows} slow` : ''} on the test`;
+  return `<li class="plan-step${s.done ? ' done' : ''}${nx && nx.id === s.id ? ' cur' : ''}" data-step-row="${esc(s.id)}" data-kind="${s.kind}">
+    <span class="plan-n">${s.done ? TICK : i + 1}</span>
+    <div class="plan-st"><b>${esc(Plan.stepTitle(s))}</b><span>${esc(why)}</span></div>
+    <span class="plan-status">${status}</span>
+    ${label ? `<button data-step="${esc(s.id)}">${label}</button>` : '<span></span>'}</li>`;
+}
+
+function skillRows(st, plan) {
+  const t = tally();
+  return cbSort(Object.keys(plan.counts)).map(k => {
+    const c = plan.counts[k], v = st.skills[k] || {}, a = t.skill[k];
+    const due = plan.steps.some(s => s.kind === 'maintain' && s.skill === k);
+    const status = v.status === 'maintenance' ? (due ? 'Maintenance · due' : 'Maintenance') : c.misses ? 'Drilling' : v.clean ? `Clean ${v.clean}×` : '—';
+    return `<tr data-skill="${esc(k)}"><td>${esc(k)}</td><td class="mono">${c.misses || ''}</td><td class="mono">${c.slows || ''}</td><td>${status}</td><td>${accHTML(a && a.a ? Math.round(a.c / a.a * 100) : null)}</td></tr>`;
+  }).join('');
+}
+
+function resultHTML(s, plan) {
+  const run = s.run, missed = run.missed || [];
+  const testMiss = (plan.counts[s.skill]?.missIds || []).filter(id => QBY.has(id) && !missed.includes(id));
+  const list = run.ids.map((id, n) => {
+    const q = QBY.get(id), ok = q ? isRight(q, run.ans[id] || null) : null;
+    return `<li class="${ok ? 'ok' : 'bad'}" data-result="${esc(id)}"><span>${n + 1}</span>${ok ? '✓' : '✗'}<small>${esc(q ? q.difficulty || '' : '')}${run.ans[id] ? '' : ' · blank'}</small></li>`;
+  }).join('');
+  const n = missed.length + testMiss.length;
+  return `<div class="panel plan-result" id="plan-result">
+    <div class="panel-h"><h3>${esc(Plan.stepTitle(s))}: results</h3><button id="plan-result-x">Close</button></div>
+    <div class="cards">
+      <div class="card"><div class="k">Score</div><div class="v mono" id="plan-score">${run.right}/${run.scored}</div></div>
+      ${run.segs.map(g => `<div class="card" data-seg="${g.level}"><div class="k">${g.level} · ${g.n} question${g.n === 1 ? '' : 's'}</div>
+        <div class="v mono">${clockOf(g.usedMs)}<span class="plan-limit"> / ${clockOf(g.limitMs)}</span></div>${g.overMs ? `<div class="plan-over">+${clockOf(g.overMs)} over the limit</div>` : '<div class="plan-in">Within the limit</div>'}</div>`).join('')}
+    </div>
+    <ol class="plan-qs">${list}</ol>
+    ${n ? `<p>Review next: ${missed.length} missed in this set, then ${testMiss.length} from the practice test. Retry each until it is right, then read the explanation.</p>
+      <button class="btn-p" id="plan-review">Review mistakes</button>` : '<p>Nothing to review: every question right.</p>'}
+  </div>`;
+}
+
+function openStep(s) {
+  if (!s) return;
+  if (s.kind === 'test') return openLog(s.number);
+  if (s.done) { PLAN_RESULT = s.id; drawPlan(); $('plan-result')?.scrollIntoView({ block: 'start' }); return; }
+  startStep(s);
+}
+
+// The set for a step is chosen when it is first opened and kept with the plan, so leaving and coming back plays the same
+// questions. Never: a question seen anywhere (bank, exams, lessons, logged tests), one mapped to a practice test not
+// logged yet, or one already in another unfinished set of this plan.
+async function startStep(s) {
+  if (planBusy || !PLAN.state || !PLAN.state.plan) return;
+  const plan = PLAN.state.plan;
+  if (!s.run) {
+    const logged = PLAN.state.tests.map(t => t.testId);
+    const reserved = new Set(plan.steps.filter(x => x !== s && x.run && !x.done).flatMap(x => x.run.ids));
+    const lessonSeen = QS.filter(q => (q.usedInLesson || []).some(id => LESSONS.attended.has(id))).map(q => q.id);
+    const picked = Plan.pickSet(s.kind, s.skill, { questions: QS, progress: PROG, seen: Plan.seenIds(PROG, LOG, lessonSeen),
+      blocked: Plan.blockedIds(PTMAP, logged), reserved, scorable, seed: s.id });
+    const run = Plan.newRun(picked, new Date().toISOString());
+    if (!picked.ids.length) return confirmModal(`There are no questions left in <b>${esc(s.skill)}</b> at this level that you have not seen or got wrong. Mark this step done and move on?`, async () => {
+      s.run = run; s.done = true;
+      await savePlan(PLAN.state);
+      drawPlan();
+    });
+    s.run = run;
+    planBusy = true;
+    try { await savePlan(PLAN.state); } finally { planBusy = false; }
+    if (picked.short) return confirmModal(`Not enough unseen questions in <b>${esc(s.skill)}</b>, so this set is shorter: ${run.segs.map(g => `${g.n} ${g.level.toLowerCase()} in ${clockOf(g.limitMs)}`).join(', then ')}.`, () => playSet(s));
+  }
+  playSet(s);
+}
+
+function playSet(s) {
+  const run = s.run;
+  const items = Plan.segmentIds(run).map(id => QBY.get(id)).filter(Boolean);
+  if (!items.length) return;
+  PLAN_RESULT = null;
+  start(items, { set: { step: s, run } });
+}
+
+// Time on the question being left is added to its total; every visit counts.
+function planTick(next) {
+  const run = S.set.run;
+  if (S.qid) run.ms[S.qid] = (run.ms[S.qid] || 0) + (Date.now() - S.qStart);
+  S.qid = next; S.qStart = Date.now();
+}
+// The clock counts the segment down from its limit. [DEFAULT] soft: past 0:00 it turns red and counts overtime;
+// HARD_CUTOFF ends the segment at 0:00 instead.
+function planClock() {
+  const g = S.set.run.segs[S.set.run.seg];
+  const left = g.limitMs - (Date.now() - S.segStart);
+  if (left <= 0 && Plan.HARD_CUTOFF) { planEndSegment(); return; }
+  bankUI.clock((left < 0 ? '+' : '') + clockOf(left), left < 0);
+}
+// What a reload or a closed tab would otherwise lose: answers, where the student was, the time used so far.
+function planSnapshot() {
+  const run = S.set.run;
+  run.segs[run.seg].usedMs = Math.max(0, Date.now() - S.segStart);
+  run.i = S.i;
+}
+addEventListener('visibilitychange', () => { if (document.hidden && S && S.set && !S.ending) { planSnapshot(); savePlan(PLAN.state); } });
+
+function planEndSegment() {
+  if (!S || !S.set || S.ending) return;
+  S.ending = true;
+  const { step, run } = S.set;
+  planTick(null);
+  Plan.closeSegment(run, Date.now() - S.segStart);
+  run.i = 0;
+  if (run.seg >= run.segs.length - 1) return finishSet(step, run);
+  run.seg++;
+  S.items = Plan.segmentIds(run).map(id => QBY.get(id)).filter(Boolean);
+  S.i = 0; S.segStart = Date.now(); S.ending = false;
+  savePlan(PLAN.state);
+  loadQuestion();
+}
+
+// The set is over: scored, and every answered question recorded once through the shared record path, tagged with the
+// step. A blank is a miss on the score but not an attempt, as in practice exams.
+function finishSet(step, run) {
+  stopTimer();
+  const now = new Date().toISOString(), history = S.history || {};
+  run.finishedAt = now;
+  Plan.scoreRun(run, QBY, isRight);
+  PLAN_TAG = step.id;
+  try {
+    run.ids.forEach(id => {
+      const q = QBY.get(id), a = run.ans[id];
+      if (!q || !a) return;
+      const ok = isRight(q, a);
+      if (ok === null) return;
+      const ms = Math.round(run.ms[id] || 0);
+      REC.recordProgress(q, ok, now, ms);
+      REC.recordAttempt(q, ok, now, ms, a, run.changes[id] || 0, history[id]);
+    });
+  } finally { PLAN_TAG = null; }
+  step.done = true;
+  savePlan(PLAN.state);
+  PLAN_RESULT = step.id;
+  TAB = 'plan';
+  showHome();
+  window.scrollTo(0, 0);
+}
+
+function planLeave() {
+  planTick(null);
+  planSnapshot();
+  savePlan(PLAN.state);
+  stopTimer(); S = null;
+  TAB = 'plan';
+  showHome();
+}
+
+// Review after a set: the set's misses (blanks included), then the practice-test misses in that skill, played as a
+// practice session with retry until correct and the explanation. Kept in History like an exam's missed questions.
+function planReview(s) {
+  const plan = PLAN.state.plan, missed = s.run.missed || [];
+  const ids = [...new Set([...missed, ...(plan.counts[s.skill]?.missIds || [])])].filter(id => QBY.has(id));
+  if (!ids.length) return;
+  const id = 'pr_' + s.id;
+  const held = SESS[id] && !SESS[id].state.finished ? SESS[id].state : null;
+  const session = held || { id, kind: 'review', name: 'Review · ' + s.skill, ids, i: 0, ans: {}, checked: {}, tried: {}, finished: null, startedAt: Date.now(), planTag: s.id + '.r' };
+  practiceMissed(null, session);
+  if (!held) saveSession(reviewState, true);
+}
+
+// ---- logging a test ----
+function openLog(number) {
+  const logged = new Set(planState().tests.map(t => t.testId));
+  const open = PTMAP.tests.filter(t => !logged.has(t.id));
+  const t = open.find(x => x.number === number) || open[0];
+  PLOG = t ? { testId: t.id, date: localDay(), route: defaultRoute(t), marks: {}, error: '' } : { none: true };
+  PLAN_RESULT = null;
+  setTab('plan');
+}
+const defaultRoute = t => ({ RW: Plan.routesOf(t, 'RW')[0] || 'easy', Math: Plan.routesOf(t, 'Math')[0] || 'easy' });
+const MARK_NEXT = { '.': 'W', W: 'S', S: '.' };
+const MARK_NAME = { '.': 'right', W: 'wrong', S: 'slow' };
+
+function drawLog() {
+  const el = $('plan-body');
+  const cancel = () => { PLOG = null; drawPlan(); };
+  if (PLOG.none || !PTMAP.tests.length) {
+    el.innerHTML = `<div class="panel" id="plan-log-form"><div class="empty">${PTMAP.tests.length ? 'Every mapped practice test is already logged.' : 'The practice-test list could not be loaded. Reload the page to try again.'}
+      <button id="pl-cancel">Back</button></div></div>`;
+    $('pl-cancel').onclick = cancel;
+    return;
+  }
+  const t = PTMAP.tests.find(x => x.id === PLOG.testId);
+  const logged = new Set(planState().tests.map(x => x.testId));
+  const mods = Plan.modulesOf(t, PLOG.route);
+  const soon = Plan.tooSoon(planState(), PLOG.date);
+  let wrong = 0, slow = 0, counted = 0;
+  const grid = m => {
+    if (!m.ids) return `<p class="pl-missing">This module is not mapped to the question bank yet, so it cannot be logged.</p>`;
+    return `<div class="pl-grid">${m.ids.map((id, n) => {
+      const c = (PLOG.marks[m.key] || '')[n] || '.', known = !!(id && QBY.has(id));
+      if (c === 'W') wrong++; if (c === 'S') slow++; if (known) counted++;
+      return `<button class="pl-q" data-m="${m.key}" data-n="${n}" data-mark="${c}"${known ? '' : ' data-unmapped="1" title="Not in the question bank: it can be marked but does not count toward the plan"'} aria-label="Question ${n + 1}, ${MARK_NAME[c]}">${n + 1}</button>`;
+    }).join('')}</div>`;
+  };
+  const body = mods.map(m => `<div class="pl-mod"><h4>${Plan.SECTION_NAME[m.section]} · Module ${m.module}</h4>${grid(m)}</div>`).join('');
+  el.innerHTML = `<div class="panel" id="plan-log-form">
+    <div class="panel-h"><h3>Log a Bluebook practice test</h3></div>
+    <div class="pl-row">
+      <label>Practice test <select id="pl-test">${PTMAP.tests.map(x => `<option value="${esc(x.id)}"${x.id === t.id ? ' selected' : ''}${logged.has(x.id) ? ' disabled' : ''}>${esc(x.name)}${logged.has(x.id) ? ' (logged)' : ''}</option>`).join('')}</select></label>
+      <label>Date taken <input type="date" id="pl-date" value="${esc(PLOG.date)}" max="${localDay()}"></label>
+    </div>
+    <div class="pl-row">${Plan.SECTIONS.map(sec => `<div class="pl-route" data-route="${sec}"><span>${Plan.SECTION_NAME[sec]} module 2</span>${['easy', 'hard'].map(r =>
+      `<label><input type="radio" name="pl-${sec}" value="${r}"${PLOG.route[sec] === r ? ' checked' : ''}${t[sec][r] ? '' : ' disabled'}> ${r === 'easy' ? 'Easier' : 'Harder'}${t[sec][r] ? '' : ' (not mapped yet)'}</label>`).join('')}</div>`).join('')}</div>
+    <p class="pl-help">Click a question once for <b class="pl-k" data-mark="W">Wrong</b>, again for <b class="pl-k" data-mark="S">Slow</b> (right, but it took you too long), and a third time to clear it. Unmarked questions count as right.</p>
+    ${body}
+    ${soon === null ? '' : soon < 0 ? `<p class="pl-warn" id="pl-warn">This date is before your last logged test. Plans are built in the order tests are logged, so log tests oldest first. You can still log it.</p>`
+      : `<p class="pl-warn" id="pl-warn">Your last logged test was ${soon === 0 ? 'the same day' : `${soon} day${soon === 1 ? '' : 's'} before this one`}. Practice tests work best 5–7 days apart, with a week of drilling in between. You can still log it.</p>`}
+    <p class="pl-sum" id="pl-sum">Wrong: <b>${wrong}</b> · Slow: <b>${slow}</b> · ${counted} questions in the bank</p>
+    <p class="pl-err" id="pl-error" role="alert">${esc(PLOG.error || '')}</p>
+    <div class="frow" style="justify-content:flex-end"><button id="pl-cancel">Cancel</button><button class="btn-p" id="pl-save">Save and build my plan</button></div>
+  </div>`;
+  $('pl-cancel').onclick = cancel;
+  $('pl-test').onchange = e => { const nt = PTMAP.tests.find(x => x.id === e.target.value); Object.assign(PLOG, { testId: nt.id, route: defaultRoute(nt), marks: {}, error: '' }); drawLog(); };
+  $('pl-date').onchange = e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) PLOG.date = e.target.value; drawLog(); };
+  el.querySelectorAll('.pl-route input').forEach(r => r.onchange = () => {
+    const sec = r.closest('[data-route]').dataset.route;
+    PLOG.route[sec] = r.value; delete PLOG.marks[Plan.moduleKey(sec, 2)]; drawLog();
+  });
+  el.querySelectorAll('.pl-q').forEach(b => b.onclick = () => {
+    const m = b.dataset.m, n = +b.dataset.n, len = mods.find(x => x.key === m).ids.length;
+    const cur = (PLOG.marks[m] || '').padEnd(len, '.').split('');
+    cur[n] = MARK_NEXT[cur[n]] || 'W';
+    PLOG.marks[m] = cur.join('');
+    drawLog();
+    el.querySelector(`.pl-q[data-m="${m}"][data-n="${n}"]`)?.focus();
+  });
+  $('pl-save').onclick = saveTestLog;
+}
+
+// Logging: the plan is saved first (one row); only then are the test's answers recorded, through the shared record path
+// and tagged with the test, so a failed save records nothing and a retry cannot record twice. Each mapped question is
+// marked done (progress + attempt, dated the day of the test); a Wrong is a miss and goes to the mistake log.
+async function saveTestLog() {
+  if (planBusy || !PLOG) return;
+  const t = PTMAP.tests.find(x => x.id === PLOG.testId);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(PLOG.date) || PLOG.date > localDay()) { PLOG.error = 'Choose the date you took the test (not in the future).'; return drawLog(); }
+  const log = { testId: t.id, number: t.number, date: PLOG.date, route: { ...PLOG.route }, marks: {}, at: new Date().toISOString() };
+  for (const m of Plan.modulesOf(t, log.route)) if (m.ids) log.marks[m.key] = m.ids.map((_, n) => (PLOG.marks[m.key] || '')[n] || '.').join('');
+  const items = Plan.resolveLog(t, log, QBY).filter(it => it.id && scorable(QBY.get(it.id)));
+  const ts = log.date + 'T12:00:00.000Z';
+  // Lifetime accuracy for the tie-break includes this test's answers.
+  const after = { ...PROG };
+  items.forEach(it => { after[it.id] = Stats.nextProgress(after[it.id], it.id, it.mark !== 'W', ts, 0); });
+  const t2 = Stats.tally(QS, after);
+  const acc = new Map(Object.entries(t2.skill).map(([k, v]) => [k, v.a ? v.c / v.a : null]));
+  const { state } = Plan.logTest(planState(), PTMAP, log, QBY, acc, skillRank);
+  planBusy = true;
+  $('pl-save').disabled = true;
+  let ok = false;
+  try { ok = await savePlan(state); } finally { planBusy = false; }
+  if (!ok) { if (PLOG) { PLOG.error = 'Your log could not be saved. Check your connection and try again.'; drawLog(); } return; }
+  PLAN_TAG = 'test:' + t.id;
+  try {
+    items.forEach(it => {
+      const q = QBY.get(it.id), right = it.mark !== 'W';
+      REC.recordProgress(q, right, ts, 0);
+      REC.recordAttempt(q, right, ts, 0, '', 0);
+    });
+  } finally { PLAN_TAG = null; }
+  PLOG = null;
+  refresh();
+  drawPlan();
+  window.scrollTo(0, 0);
+}
+
 // ---------------- practice exams ----------------
 const touchExam = () => { if (S && S.exam) saveSession(examState); };
 // Elapsed is read off the live clock at save time, so a save & quit and a
@@ -3591,6 +4083,8 @@ function practiceMissed(EX, sess) {
   S.first = session.first || (session.first = {});
   S.miss = session.miss || (session.miss = {});
   S.shown = session.shown || (session.shown = {});
+  // A Study Plan review: its attempts carry the step, and each explanation opens once the question is closed.
+  S.planTag = session.planTag || null; S.explainOnClose = !!session.planTag;
   S.i = Math.min(session.i || 0, items.length - 1);
   loadQuestion();
   if (!sess) saveSession(reviewState, true);

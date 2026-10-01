@@ -10,7 +10,8 @@ node tools/ptmap/build-ptmap.cjs
 ```
 
 Reads `active-ids.json` (repo root), `manual-matches.json` (this folder) and every `practice-tests/PT*-questions.json`, then rewrites
-`practice-test-map.json`, `README.md` and `UNMATCHED.md` in this folder. Output is deterministic.
+`practice-test-map.json`, `README.md` and `UNMATCHED.md` in this folder, and `public/practice-tests.json` (the app's
+copy: bank IDs per module in display-number order, read by the Study Plan's test log). Output is deterministic.
 The exit code is 1 if any check below fails; the files are still written.
 
 Join: an item's `externalId` is matched exactly against `external_id` in `active-ids.json`, within the

@@ -26,10 +26,10 @@ export function attemptStatement(db, userId, r, lessonSessionId = null) {
   const qid = str(r.question_id, 64);
   return db.prepare(
     `INSERT OR IGNORE INTO attempts
-       (user_id, question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json, lesson_session_id)
-      SELECT ?,?,?,?,?,?,?,?,? WHERE ${KNOWN}`
+       (user_id, question_id, ts, correct, time_taken_ms, picked, changes, answer_history_json, lesson_session_id, plan_step)
+      SELECT ?,?,?,?,?,?,?,?,?,? WHERE ${KNOWN}`
   ).bind(userId, qid, str(r.ts, 32), r.correct ? 1 : 0, r.time_taken_ms | 0,
-    str(r.picked, 32) || null, r.changes | 0, r.answer_history_json ?? null, lessonSessionId, qid, qid);
+    str(r.picked, 32) || null, r.changes | 0, r.answer_history_json ?? null, lessonSessionId, str(r.plan_step, 40) || null, qid, qid);
 }
 
 // §10 self-paced write-back: one attempt and one record move per assigned scorable question,

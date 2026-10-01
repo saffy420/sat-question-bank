@@ -9,7 +9,8 @@ export { BudgetProbe } from './budget-probe.js';
 
 // e2e-student-6 takes the self-paced lessons: those now write practice stats (§10), and the
 // dashboard specs assert student 1's seeded stats exactly.
-const accounts = new Set(['e2e-admin', 'e2e-student-1', 'e2e-student-2', 'e2e-student-3', 'e2e-student-4', 'e2e-student-6']);
+// e2e-student-7 is the Study Plan student: /api/e2e/plan wipes its history before each plan spec.
+const accounts = new Set(['e2e-admin', 'e2e-student-1', 'e2e-student-2', 'e2e-student-3', 'e2e-student-4', 'e2e-student-6', 'e2e-student-7']);
 // Free-plan budget runs (docs/perf/FREE-PLAN-BRIEF.md §4) sign in a 30-student club; only
 // tools/budget_seed.cjs gives these accounts the approved membership login requires.
 const budgetAccount = account => /^e2e-budget-(?:0[1-9]|[1-3]\d|40)$/.test(account);
@@ -75,6 +76,20 @@ export const claudeTarget = env => {
   try { if (['127.0.0.1', 'localhost', '[::1]'].includes(new URL(env.ANTHROPIC_API_URL).hostname)) return env.ANTHROPIC_API_URL; } catch { /* dead address below */ }
   return 'http://127.0.0.1:9/v1/messages';
 };
+// Study Plan fixture (tests/e2e/study-plan/support.js holds the matching practice-test map). Every answer is B.
+//   a* Linear functions (Math): 11 unseen medium, 5 hard, one medium the student has seen, one mapped to the untaken PT92
+//   b* Boundaries: 2 medium, 1 hard (a short drill)   c* Words in Context: 1 hard   d* Circles: 3 hard   test questions: Easy
+const SKILLS = { a: ['Math', 'Algebra', 'Linear functions'], b: ['Reading & Writing', 'Standard English Conventions', 'Boundaries'],
+  c: ['Reading & Writing', 'Craft and Structure', 'Words in Context'], d: ['Math', 'Geometry and Trigonometry', 'Circles'],
+  e: ['Reading & Writing', 'Expression of Ideas', 'Rhetorical Synthesis'] };
+const fixture = (k, names, difficulty) => names.map(n => ['e2e-plan-' + n, ...SKILLS[k], difficulty]);
+const PLAN_FIXTURE = [
+  ...fixture('a', ['a1', 'a2', 'a3', 'a4', 'a5', 'a6'], 'Easy'), ...fixture('b', ['b1', 'b2', 'b3', 'b4', 'b5'], 'Easy'),
+  ...fixture('c', ['c1', 'c2', 'c3'], 'Easy'), ...fixture('d', ['d1', 'd2', 'd3', 'd4', 'd5', 'd6'], 'Easy'), ...fixture('e', ['e1', 'e2', 'e3'], 'Easy'),
+  ...fixture('a', [...Array.from({ length: 11 }, (_, i) => 'am' + (i + 1)), 'aseen', 'ablk'], 'Medium'),
+  ...fixture('a', Array.from({ length: 5 }, (_, i) => 'ah' + (i + 1)), 'Hard'),
+  ...fixture('b', ['bm1', 'bm2'], 'Medium'), ...fixture('b', ['bh1'], 'Hard'), ...fixture('c', ['ch1'], 'Hard'), ...fixture('d', ['dh1', 'dh2', 'dh3'], 'Hard')
+];
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
@@ -105,6 +120,30 @@ export default {
         VALUES ('e2e-report-fmt','e2e-report-fmt','Math','Algebra','Easy','Report fixture skill','<p>Report fixture: what is $3 + 4$?</p>',
         '[{"letter":"A","content":"5"},{"letter":"B","content":"6"},{"letter":"C","content":"7"},{"letter":"D","content":"8"}]','C','<p>E2E_EXPL_MARKER_REPORT: 3 + 4 = 7.</p>','College Board')`));
       if (body.action === 'cleanup') statements.push(env.DB.prepare("DELETE FROM questions WHERE id='e2e-report-fmt'"));
+      await env.DB.batch(statements);
+      return reply({ ok: true });
+    }
+    // Study Plan specs (tests/e2e/study-plan): add the plan fixture questions and give e2e-student-7 an empty history, or
+    // remove both again with the account (permanent rows would change the bank and member counts other specs assert). Local runs only.
+    if (url.pathname === '/api/e2e/plan') {
+      if (env.E2E_TEST_MODE !== '1' || !loopback(url.hostname) || req.method !== 'POST') return reply({ error: 'not found' }, 404);
+      if (req.headers.get('Origin') !== url.origin || req.headers.get('Sec-Fetch-Site') === 'cross-site') return reply({ error: 'forbidden origin' }, 403);
+      let body; try { body = await req.json(); } catch { return reply({ error: 'invalid body' }, 400); }
+      if (!['fixture', 'cleanup'].includes(body?.action)) return reply({ error: 'invalid body' }, 400);
+      const who = 'e2e-student-7';
+      const statements = ['progress', 'attempts', 'study_plans', 'sessions', 'notes', 'settings'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(who));
+      statements.push(env.DB.prepare("DELETE FROM questions WHERE id LIKE 'e2e-plan-%'"));
+      // The account exists only while a plan spec runs: the admin specs count the club's members.
+      if (body.action === 'cleanup') statements.push(env.DB.prepare('DELETE FROM membership WHERE user_id = ?').bind(who), env.DB.prepare('DELETE FROM users WHERE id = ?').bind(who));
+      if (body.action === 'fixture') {
+        statements.push(env.DB.prepare("INSERT OR IGNORE INTO users (id,email,name) VALUES (?,?,?)").bind(who, who + '@e2e.test', 'E2E Student 7'),
+          env.DB.prepare("INSERT OR IGNORE INTO membership (user_id,email,status) VALUES (?,?,'approved')").bind(who, who + '@e2e.test'));
+        for (const [id, section, domain, skill, difficulty] of PLAN_FIXTURE) statements.push(env.DB.prepare(`INSERT INTO questions
+          (id,external_id,section,domain,difficulty,skill,stem_html,choices_json,correct_answer,explanation_html,source) VALUES (?,?,?,?,?,?,?,?,?,?,'College Board')`)
+          .bind(id, id, section, domain, difficulty, skill, `<p>Plan fixture ${id}: the answer is B.</p>`,
+            '[{"letter":"A","content":"Wrong"},{"letter":"B","content":"Right"},{"letter":"C","content":"Wrong too"},{"letter":"D","content":"Also wrong"}]',
+            'B', `<p>E2E_PLAN_EXPL ${id}</p>`));
+      }
       await env.DB.batch(statements);
       return reply({ ok: true });
     }
