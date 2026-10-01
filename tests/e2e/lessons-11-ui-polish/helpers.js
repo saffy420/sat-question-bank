@@ -87,6 +87,8 @@ export function shapeReport(page) {
     let checked = 0;
     for (const el of new Set(nodes)) {
       if (el.closest('.lesson-calc-body, .lesson-desmos-calc, .katex')) continue;
+      // The question bar's Report control is a small outlined box on purpose (screenshot B, report-and-suggest).
+      if (el.matches('.stage-report')) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) continue;
       const cs = getComputedStyle(el);
@@ -198,7 +200,7 @@ export function noBoxReport(page) {
     let checked = 0;
     const buttons = [...root.querySelectorAll('button'), ...document.querySelectorAll('dialog.lesson-confirm-dialog button')];
     for (const el of new Set(buttons)) {
-      if (el.closest('.lesson-calc-body, .lesson-desmos-calc') || el.matches('[data-lesson-choice]')) continue;
+      if (el.closest('.lesson-calc-body, .lesson-desmos-calc') || el.matches('[data-lesson-choice], .stage-report')) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) continue;
       const cs = getComputedStyle(el);

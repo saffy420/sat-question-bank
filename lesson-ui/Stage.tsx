@@ -31,6 +31,18 @@ export type StageProps = {
   eliminated?: string[];
   onStrikeMode?: () => void;
   onStrike?: (letter: string) => void;
+  // Practice bank only. Choices (or grid-in values) answered wrong and not yet solved: red and disabled, the right one is
+  // never revealed from here.
+  missed?: string[];
+  // "Mark for Review" in the question bar.
+  flagged?: boolean;
+  onFlag?: () => void;
+  // Grid-in: every edit of the field (the bank enables Check from it), Enter in the field, and no separate Select button.
+  onDraft?: (value: string) => void;
+  // The browser's `change` of the field (blur or Enter with a new value): a committed grid value, not every keystroke.
+  onCommit?: (value: string) => void;
+  onEnter?: () => void;
+  noPick?: boolean;
 };
 
 export function Stage(props: StageProps) {
@@ -59,7 +71,7 @@ export function Stage(props: StageProps) {
     // 50/50 split (Bluebook's default). A math figure stays in the question column in its viewer frame.
     const single = !split.context;
     el.className = `lesson-stage ${math ? 'stage-math' : ''} ${single ? 'stage-single' : `stage-split ${math ? 'stage-figure' : 'stage-reading'}`}`;
-    el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onReport ? '<button type="button" class="stage-report" id="stage-report"><span aria-hidden="true">&#9872;</span> Report</button>' : ''}${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off"><button id="lesson-pick" type="button">Select</button><p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
+    el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onFlag ? `<button type="button" class="stage-flag" id="stage-flag" aria-pressed="false"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg> <span>Mark for Review</span></button>` : ''}${props.onReport ? '<button type="button" class="stage-report" id="stage-report"><span aria-hidden="true">&#9872;</span> Report</button>' : ''}${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off">' + (props.noPick ? '' : '<button id="lesson-pick" type="button">Select</button>') + '<p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
     ready.current = false;
     let alive = true, highlighted = false;
     // The stage reflows with its container; ink and laser are content-anchored, so just repaint.
@@ -89,7 +101,7 @@ export function Stage(props: StageProps) {
     Promise.all([document.fonts.ready, ...images]).then(() => {
       if (!alive) return;
       // Student screens (a lesson footer below): the figure must not push the first choice under it.
-      const stem = el.querySelector<HTMLElement>('.lesson-stem'), footer = el.closest('#lesson-live')?.querySelector('.lesson-footer');
+      const stem = el.querySelector<HTMLElement>('.lesson-stem'), footer = el.closest('#lesson-live, #bank-live')?.querySelector('.lesson-footer');
       if (stem && footer && stem.querySelector('.fv'))
         Figure.fitFigures(stem, () => el.querySelector('[data-lesson-choice], #lesson-grid'), () => footer.getBoundingClientRect().top);
       ready.current = true;
@@ -100,6 +112,7 @@ export function Stage(props: StageProps) {
     const click = (event: MouseEvent) => {
       const target = event.target as Element;
       if (target.closest('.stage-report')) { latest.current.onReport?.(el); return; }
+      if (target.closest('.stage-flag')) { latest.current.onFlag?.(); return; }
       if (target.closest('.stage-strike-toggle')) { latest.current.onStrikeMode?.(); return; }
       const strike = target.closest<HTMLElement>('[data-strike]');
       if (strike) { latest.current.onStrike?.(strike.dataset.strike!); return; }
@@ -114,6 +127,7 @@ export function Stage(props: StageProps) {
       const value = el.querySelector<HTMLInputElement>('#lesson-grid')?.value.trim() || '';
       const preview = el.querySelector<HTMLOutputElement>('#lesson-preview');
       if (preview) preview.value = value;
+      latest.current.onDraft?.(value);
       if (latest.current.active && /^[-\d./]{1,32}$/.test(value)) latest.current.onSelect?.(value);
     };
     const pointerup = (event: PointerEvent) => {
@@ -125,22 +139,26 @@ export function Stage(props: StageProps) {
       highlighted = true;
     };
     const pointerdown = () => { highlighted = false; };
+    const keydown = (event: KeyboardEvent) => { if (event.key === 'Enter' && (event.target as Element).id === 'lesson-grid') latest.current.onEnter?.(); };
+    const change = (event: Event) => { const t = event.target as HTMLInputElement; if (t.id === 'lesson-grid') latest.current.onCommit?.(t.value.trim()); };
+    el.addEventListener('keydown', keydown); el.addEventListener('change', change);
     el.addEventListener('click', click); el.addEventListener('input', input); el.addEventListener('pointerup', pointerup); el.addEventListener('pointerdown', pointerdown);
     paint();
-    return () => { alive = false; ready.current = false; cancelAnimationFrame(figureFrame); el.removeEventListener('fv:change', onFigure); observer.disconnect(); ratio?.removeEventListener('change', onRatio); window.removeEventListener('resize', paint); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
+    return () => { alive = false; ready.current = false; cancelAnimationFrame(figureFrame); el.removeEventListener('fv:change', onFigure); observer.disconnect(); ratio?.removeEventListener('change', onRatio); window.removeEventListener('resize', paint); el.removeEventListener('keydown', keydown); el.removeEventListener('change', change); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
   }, [props.question.id]);
   useLayoutEffect(() => {
     const el = card.current!;
     el.querySelectorAll<HTMLButtonElement>('[data-lesson-choice]').forEach(button => {
       const letter = button.dataset.lessonChoice;
       const choice = button.querySelector<HTMLElement>('.choice')!;
-      button.disabled = !props.active;
+      const missed = !!letter && !!props.missed?.includes(letter);
+      button.disabled = !props.active || missed;
       button.setAttribute('aria-pressed', String(letter === props.picked));
-      choice.classList.toggle('sel', !props.revealed && letter === props.picked);
+      choice.classList.toggle('sel', !props.revealed && !missed && letter === props.picked);
       choice.classList.toggle('right', !!props.revealed && letter === props.question.answer);
-      choice.classList.toggle('wrong', !!props.revealed && letter === props.picked && letter !== props.question.answer);
+      choice.classList.toggle('wrong', missed || (!!props.revealed && letter === props.picked && letter !== props.question.answer));
       choice.querySelector('.stage-verdict')?.remove();
-      if (props.revealed && (letter === props.question.answer || letter === props.picked)) {
+      if (missed || (props.revealed && (letter === props.question.answer || letter === props.picked))) {
         const icon = document.createElement('span'); icon.className = 'stage-verdict';
         const source = document.getElementById(letter === props.question.answer ? 'lesson-check-icon' : 'lesson-x-icon');
         if (source?.firstElementChild) icon.append(source.firstElementChild.cloneNode(true));
@@ -152,9 +170,10 @@ export function Stage(props: StageProps) {
       grid.disabled = !props.active;
       if (document.activeElement !== grid) grid.value = props.picked || '';
       el.querySelector<HTMLOutputElement>('#lesson-preview')!.value = grid.value;
-      el.querySelector<HTMLButtonElement>('#lesson-pick')!.disabled = !props.active;
+      const pickButton = el.querySelector<HTMLButtonElement>('#lesson-pick');
+      if (pickButton) pickButton.disabled = !props.active;
     }
-  }, [props.active, props.picked, props.revealed, props.question.answer]);
+  }, [props.active, props.picked, props.revealed, props.question.answer, props.missed]);
   useLayoutEffect(() => {
     const el = card.current!;
     el.classList.toggle('strike-on', !!props.strikeMode);
@@ -171,6 +190,7 @@ export function Stage(props: StageProps) {
     });
   }, [props.strikeMode, props.struck, props.eliminated]);
   useLayoutEffect(() => { card.current!.classList.toggle('tool-highlight', !!props.annotating); }, [props.annotating]);
+  useLayoutEffect(() => { card.current!.querySelector('.stage-flag')?.setAttribute('aria-pressed', String(!!props.flagged)); }, [props.flagged]);
   useLayoutEffect(paint, [props.marks, props.privateMarks]);
   return <div className="stage-host" ref={host}><div id={props.id || 'lesson-card'} ref={card} /></div>;
 }
@@ -178,7 +198,7 @@ export function Stage(props: StageProps) {
 export function followStage(card: HTMLElement, mark: Mark) {
   if (mark.type !== 'stroke') { Ink.follow(card, mark); return; }
   const y = Ink.strokePoints(card, mark).at(-1)?.[1];
-  const scroller = card.closest('#lesson-live');
+  const scroller = card.closest('#lesson-live, #bank-live');
   if (y == null || !scroller) return;
   const rect = card.getBoundingClientRect();
   const view = scroller.getBoundingClientRect();

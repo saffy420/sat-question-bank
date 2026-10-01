@@ -11,7 +11,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 // size, and it is what a fix would have to edit); a KaTeX error node is left as rendered, since that is the bug to look at.
 export function renderedHTML(element) {
   const clone = element.cloneNode(true);
-  clone.querySelectorAll('.rpt-skip, .report-btn, .stage-report, canvas').forEach(n => n.remove());
+  clone.querySelectorAll('.rpt-skip, .report-btn, .stage-report, .stage-flag, canvas').forEach(n => n.remove());
   for (const k of [...clone.querySelectorAll('.katex')]) {
     const tex = k.querySelector('annotation[encoding="application/x-tex"]');
     if (!tex) continue;

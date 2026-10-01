@@ -1,0 +1,88 @@
+/* Practice bank screen (Bank.tsx). The base look is lesson.css (tokens, header, footer, Stage, calculator dock, navigator);
+   this file only adds what the bank has and lessons do not. Selectors carry #bank-live to beat the `#bank-live button` reset. */
+.bank-sub { display:flex; align-items:center; gap:calc(var(--u) * .8); min-height:1.2em; }
+#bank-live .bank-link { display:inline-flex; align-items:center; gap:3px; padding:0; font-size:calc(var(--u) * .9); line-height:1.2; color:#171717; background:none; border-radius:0; }
+#bank-live .bank-link:hover { background:none; text-decoration:underline; text-underline-offset:3px; }
+.bank-link svg { width:calc(var(--u) * 1.1); height:calc(var(--u) * 1.1); }
+.bank-chip { display:inline-block; padding:1px calc(var(--u) * .7); border:1px solid #1d6f55; border-radius:999px; color:#1d6f55; font-size:calc(var(--u) * .78); line-height:1.5; letter-spacing:.02em; white-space:nowrap; }
+.bank-timer-actions { display:flex; align-items:center; gap:calc(var(--u) * .4); }
+#bank-live .lesson-timer .bank-timer-actions button { padding:0 calc(var(--u) * .7); }
+#bank-clock.over { color:#bd2424; }
+
+.bank-main { position:relative; }
+.bank-main.paused .bank-stage { visibility:hidden; }
+.bank-paused { position:absolute; left:0; right:0; top:clamp(20px, 7vh, 88px); text-align:center; font-size:calc(var(--u) * 1.3); color:#444; }
+.bank-status { display:flex; align-items:center; gap:8px; width:min(100%, var(--column)); margin:0 auto 12px; color:#bd2424; font:500 calc(var(--u) * 1.1)/1.4 'Lesson Sans',sans-serif; }
+#bank-live .bank-show { display:block; margin:0 auto 16px; width:min(100%, var(--column)); text-align:left; padding:0; color:#2345be; font-weight:600; text-decoration:underline; text-underline-offset:4px; background:none; border-radius:0; }
+#bank-live .bank-show:hover { background:none; }
+.bank-reveal { margin-top:calc(var(--u) * 1.5); }
+.bank-reveal .lesson-verdict { font:500 calc(var(--u) * 1.25)/1.4 'Lesson Sans',sans-serif; }
+.bank-reveal .lesson-verdict svg { color:#26783d; }
+.bank-reveal .lesson-verdict.shown svg { color:#bd2424; }
+.bank-info { display:grid; grid-template-columns:max-content 1fr; gap:6px 18px; margin:16px 0 0; font:calc(var(--u) * 1.05)/1.4 'Lesson Sans',sans-serif; }
+.bank-info>div { display:contents; }
+.bank-info dt { color:#555; }
+.bank-info dd { margin:0; word-break:break-word; }
+#bank-live .bank-note-chip { display:block; width:min(100%, var(--column)); margin:20px auto 0; padding:10px 14px; text-align:left; white-space:pre-wrap; border:1px solid #bbb; border-left:4px solid #304fc5; border-radius:10px; background:#f7f7f7; font:calc(var(--u) * 1.05)/1.45 'Lesson Sans',sans-serif; }
+.bank-note-chip b { display:block; margin-bottom:4px; font-size:calc(var(--u) * .8); letter-spacing:.05em; text-transform:uppercase; color:#555; }
+
+/* Notes dock: the instructor-graph dock's frame (right, between header and footer), a textarea inside. */
+.bank-notes-body { flex:1; min-height:0; display:flex; flex-direction:column; padding:12px 16px; }
+#bank-live .bank-notes-body textarea { flex:1; min-height:160px; resize:none; padding:12px; border:1px solid #777; border-radius:12px; background:#fff; color:#171717; font:calc(var(--u) * 1.05)/1.5 'Lesson Sans',sans-serif; }
+.bank-notes-msg { min-height:1.4em; margin:8px 0 0; color:#26783d; font-size:calc(var(--u) * .9); }
+
+.bank-footer>span:first-child { min-width:0; }
+.bank-actions { justify-self:end; display:flex; align-items:center; gap:calc(var(--u) * 1.2); }
+#bank-live .bank-actions button { display:flex; align-items:center; gap:4px; }
+#bank-live .bank-actions .lesson-submit { justify-self:auto; }
+.bank-actions svg { width:calc(var(--u) * 1.3); height:calc(var(--u) * 1.3); }
+/* The pill is a button here (it opens the navigator): keep the lesson pill's size, not the button reset's. */
+#bank-live .bank-footer .self-position-wrap .lesson-position { display:flex; align-items:center; gap:8px; padding:calc(var(--u) * .5) calc(var(--u) * 1.6); font-size:calc(var(--u) * 1.05); line-height:1.5; }
+
+/* Question-bar "Mark for Review" (Stage strip): bookmark and label, no box; accent blue once marked. */
+.lesson-stage .stage-strip .stage-flag, :is(#lesson-live, #bank-live) .lesson-stage .stage-strip .stage-flag { display:inline-flex; align-items:center; gap:6px; margin:0 0 0 calc(var(--u) * .9); padding:0; height:calc(var(--u) * 1.8); border:0; border-radius:0; background:none; color:#171717; font:500 calc(var(--u) * 1.05)/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.lesson-stage .stage-flag svg { width:calc(var(--u) * 1.3); height:calc(var(--u) * 1.3); }
+.lesson-stage .stage-flag[aria-pressed=true] { color:#2345be; }
+.lesson-stage .stage-flag[aria-pressed=true] svg { fill:currentColor; }
+:is(#lesson-live, #bank-live) .lesson-stage .stage-strip .stage-flag:hover { background:none; text-decoration:underline; text-underline-offset:3px; }
+/* The Report / ABC controls keep their own margins; the flag sits left of them. */
+.lesson-stage .stage-strip .stage-flag + .stage-report { margin-left:auto; }
+
+/* A wrong pick stays on screen, red and disabled; the choice keeps its full-strength look. */
+#bank-live .lesson-stage .stage-choice [data-lesson-choice]:disabled { opacity:1; cursor:default; }
+#bank-live .lesson-stage .choice.wrong .badge { background:#bd2424; color:#fff; border-color:#bd2424; }
+
+/* Navigator states (correct / wrong / corrected / not scored). */
+:is(#lesson-live, #bank-live) .self-grid button[data-state=correct] { background:none; color:#26783d; border-bottom-color:#26783d; font-weight:700; }
+:is(#lesson-live, #bank-live) .self-grid button[data-state=wrong] { background:none; color:#bd2424; border-bottom-color:#bd2424; font-weight:700; }
+:is(#lesson-live, #bank-live) .self-grid button[data-state=corrected] { background:none; color:#a35a00; border-bottom-color:#a35a00; font-weight:700; }
+:is(#lesson-live, #bank-live) .self-grid button[data-state=unscored] { background:none; color:#555; border-bottom-color:#555; }
+.self-key.correct { border-top-color:#26783d; }
+.self-key.wrong { border-top-color:#bd2424; }
+.self-key.corrected { border-top-color:#a35a00; }
+
+/* Calculator dock, College Board embed (Graphing / Scientific). The embed draws its own 50 px title strip that cannot be
+   restyled across origins: the frame clips it and the iframe grows by the same amount. The embed has no dark mode. */
+.lesson-calc-embed { flex:1; min-height:0; display:flex; flex-direction:column; background:#fff; }
+.lesson-calc-tabs { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid #cfcfcf; }
+#bank-live .lesson-calc-tabs button { padding:3px 12px; border-radius:8px; font-size:calc(var(--u) * .9); color:#444; }
+#bank-live .lesson-calc-tabs button[aria-selected=true] { background:#304fc5; color:#fff; }
+.lesson-calc-frame { --crop:50px; flex:1; position:relative; overflow:hidden; background:#fff; }
+.lesson-calc-frame iframe { position:absolute; left:0; top:calc(-1 * var(--crop)); width:100%; height:calc(100% + var(--crop)); border:0; }
+.bank-export textarea { width:100%; height:40vh; margin-top:12px; padding:12px; border:1px solid #777; border-radius:12px; font:13px/1.5 ui-monospace,monospace; background:#f7f7f7; color:#171717; }
+#bank-live #bank-exit-confirm { border:0; color:#fff; background:#304fc5; border-radius:999px; font-size:calc(var(--u) * 1.1); padding:calc(var(--u) * .6) calc(var(--u) * 2.2); }
+
+/* Dark theme. The screen is authored light (like Bluebook); when the page theme is dark each part of the screen is inverted and
+   rotated 180° in hue, so text, rules and accents keep their hue on a dark ground (92 % invert: a soft #141414 ground, not
+   pure black). The filter goes on the parts, never on #bank-live: a filter would make it the containing block of the fixed
+   header, footer and docks and they would scroll away with the page. Pictures are turned back the right way up and set on a
+   light plate (colored figures keep their colors); notation crops (.minl) are black ink on white and stay inverted; the
+   figure viewer (which has its own dark styling), the calculator embed and its bar and the ink layer are restored. Dialogs are filtered too, so they come out dark. */
+:root[data-theme="dark"] #bank-live, :root[data-theme="dark"] #bank-content { background:#141414; }
+:root[data-theme="dark"] #bank-content > * { filter:invert(.92) hue-rotate(180deg); }
+:root[data-theme="dark"] #bank-live .lesson-stage img:not(.minl) { filter:invert(1) hue-rotate(180deg)!important; background:#fff; }
+:root[data-theme="dark"] #bank-live .fv { filter:invert(1) hue-rotate(180deg); }
+:root[data-theme="dark"] #bank-live .lesson-stage .fv img { filter:none!important; background:none; }
+:root[data-theme="dark"] #bank-live .lesson-calc-frame iframe,
+:root[data-theme="dark"] #bank-live .lesson-calc-bar,
+:root[data-theme="dark"] #bank-live .lesson-ink { filter:invert(1) hue-rotate(180deg); }

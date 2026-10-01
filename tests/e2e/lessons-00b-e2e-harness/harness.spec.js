@@ -57,21 +57,21 @@ test('C2 student separate context; real MC choices and SPR renderer', async ({ b
     await expect(page.locator('[data-tab="practice"]')).toHaveClass(/\bon\b/);
     await expect(page.locator('#tab-practice #btn-start')).toBeVisible();
     await page.locator('#btn-start').click();
-    await expect(page.locator('#view-test')).toBeVisible();
+    await expect(page.locator('#bank-live')).toBeVisible();
     for (const id of ids) {
       await expect.poll(() => page.evaluate(() => window.__qa().S?.items[window.__qa().S.i]?.id)).toBe(id);
       if (id === 'e2e-core-spr') {
-        await expect(page.locator('#pane-a #gi')).toBeVisible();
-        await expect(page.locator('#pane-a #choices .choice')).toHaveCount(0);
+        await expect(page.locator('#bank-card #lesson-grid')).toBeVisible();
+        await expect(page.locator('#bank-card [data-lesson-choice]')).toHaveCount(0);
         await page.screenshot({ path: `${artifacts}/C2-student-SPR.png` });
       } else {
-        const choices = await page.locator('#pane-a #choices .choice').allTextContents();
+        const choices = await page.locator('#bank-card [data-lesson-choice] .choice').allTextContents();
         expect(choices).toHaveLength(4);
         expect(new Set(choices.map(x => x.trim())).size).toBe(4);
-        await expect(page.locator('#pane-a #gi')).toHaveCount(0);
+        await expect(page.locator('#bank-card #lesson-grid')).toHaveCount(0);
         if (id === 'e2e-core-rw') await page.screenshot({ path: `${artifacts}/C2-student-MC.png` });
       }
-      if (id !== ids.at(-1)) await page.locator('#btn-next').click();
+      if (id !== ids.at(-1)) await page.locator('#bank-primary').click();
     }
     await expect(adminPage.locator('#user-name')).toHaveText('E2E Admin');
   } finally { await student.close(); await admin.close(); }

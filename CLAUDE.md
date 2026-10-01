@@ -16,7 +16,7 @@
 
 ## Architecture and conventions
 
-- `src/index.js` is the real server: a Cloudflare Worker, not a Node server. `public/index.html` is the single-file vanilla HTML/CSS/JS SPA with an inline IIFE; preserve existing helpers and test extraction markers.
+- `src/index.js` is the real server: a Cloudflare Worker, not a Node server. `public/index.html` is the single-file vanilla HTML/CSS/JS SPA with an inline IIFE; preserve existing helpers and test extraction markers. The practice question screen is React in `lesson-ui/` (`Bank.tsx`, `mountBank`, same build and styles as the lesson student view); `index.html` keeps the session state `S` and draws it. Practice exams and exam review still use the old `#view-test` player.
 - `wrangler.toml` binds `public/` as `ASSETS`, the main D1 as `DB`, and the separate AI bank as `AI_DB`.
 - `schema.sql` defines core questions and all user data: users, progress, attempts, settings, notes, sessions, and `ai_ids`. `schema_ai.sql` defines AI questions, including `level`.
 - `/api/questions` explicitly selects display fields and concatenates both banks; legacy OCR `stem_text` stays off the wire. AI query errors return 503, not successful core-only results; an empty AI bank can still return 200. Responses are `private, no-store`; do not claim edge hits or scan avoidance without measurement.
@@ -25,7 +25,7 @@
 - Custom 404 handling lives in Worker `asset()`. Do not substitute asset-router `not_found_handling = "404-page"`; that previously intercepted API and callback routes.
 - The AI tutor/Gemini proxy is gone. Copy for AI is clipboard export with a selectable-text fallback, not a model API.
 - `public/exams.json` contains fixed exam question IDs, not question bodies; `tools/build_exams.cjs` requires populated local databases.
-- Package is ESM; standalone JS tools/tests use `.cjs`. Existing dependencies are Wrangler and `better-sqlite3`; some tools also need `node:sqlite` or Python packages not covered by a Python manifest.
+- Package is ESM; standalone JS tools/tests use `.cjs`. New client logic and its unit tests are TypeScript (`lesson-ui/*.ts`, `tests/test_*.ts`; `npm test` runs them through Node type stripping, no loader or new dependency); do not add hand-written `.js`. Existing dependencies are Wrangler and `better-sqlite3`; some tools also need `node:sqlite` or Python packages not covered by a Python manifest.
 
 ## Coupled configuration and security
 
@@ -87,7 +87,7 @@ and `.env.example`'s `CANONICAL_HOST` / `WWW_HOST` checklist entries.
 - Derive grid-in from empty parsed choices: `q.spr = !q.choices.length`, never a type/qtype column. Invalid choices JSON also becomes empty choices, so investigate extraction failures masquerading as grid-ins.
 - Use `explanation_html`, not obsolete `rationale_html`; use `source`, not obsolete `label`.
 - Keep `isRight()` semantics: fractions, alternative numeric answers, rounded/truncated grid precision at three or more decimals, and null for unscorable answers. Do not score unscorable questions as wrong.
-- Practice selects before Check. First Check updates progress; every scored Check appends an attempt. Retry must not reveal unselected correct choices or turn repeated guesses into first-try success.
+- Practice selects before Check: the footer button reads Next until something is picked, Check once it is, Next after a right answer. A wrong Check marks the pick red and disabled and leaves the question open; no correct answer or explanation may appear anywhere (screen, More menu, Copy for AI) until it is closed. Progress and the attempt are recorded once, at the first Check (first-try result, time to that Check); later tries only extend the in-memory answer history, so repeated guesses never become first-try success. SPR offers Show answer after 3 wrong Checks and the attempt stays wrong. The rules live in `lesson-ui/record.ts` (`tests/test_bank_record.ts`); the ladder, results and map are first-try based.
 - Green is correct, Red needs work, Orange is corrected. Count Orange as correct in current-state accuracy; derive activity history from attempts, not overwritten progress timestamps.
 - Update `PROG`/`LOG` before `refresh()` so dashboard, topic counts and mistakes agree immediately. Keep `tally()` shared and calendar activity keyed to local days.
 - Guest answers are memory-only; do not resurrect the removed localStorage guest merge. Await auth initialization before loading account state; await live `sbHeaders()` for protected requests.
@@ -98,11 +98,11 @@ and `.env.example`'s `CANONICAL_HOST` / `WWW_HOST` checklist entries.
 - Filters use `null` for all and `[]` for none; preserve old-storage migrations and separate practice/Browse/Mistakes state. Use `cbSort()` with domain/skill order instead of alphabetical taxonomy.
 - Focus selection weights weak skills and balances levels across the whole set; balancing within each skill alone can leave no harder questions for the ladder. Two correct promote, a miss demotes, bounded at levels 1–5.
 - Practice-exam scores are estimates, not official Bluebook scoring. Preserve estimated-score disclosure; exam completion uses shared progress/attempt recording. Guests do not gain durable History.
-- Notepad, explanation and Desmos share docking space; opening one closes competing panels. Retry explanation auto-open waits until closure or explicit give-up, not the first live miss.
+- On the practice screen the calculator docks left and Notes docks right, beside the column; the explanation is inline under the question. Both open after a miss only when the question closes (right answer or Show answer), never on the first live miss, and leaving a question mid-retry opens nothing. Exams keep the old docked panels.
 - KaTeX renders `\( ... \)` and `\[ ... \]`, not dollar delimiters. Load it before inline initialization; money must remain prose.
 - `tidyExpl`/`tidySpace` must preserve non-whitespace content, lists, images and math. Run punctuation spacing after paragraph repair; leading-dot decimals are not punctuation artifacts.
 - Keep figure/table context splitting and responsive single-scroller layout. Choice figures must not open the lightbox, and highlighting must not select/grade a choice.
-- Preserve dark-mode distinction: notation crops may invert; colored figures need their colors and a light plate. Test compact choice tables in the real player, not only Browse previews.
+- Preserve dark-mode distinction: notation crops may invert; colored figures need their colors and a light plate. The practice screen is authored light and turned dark by a filter on each part of `#bank-content`, never on `#bank-live` (a filter there makes it the containing block of the fixed header, footer and docks). Test compact choice tables in the real player, not only Browse previews.
 - Copy for AI must retain absolute image references, table structure, line breaks, underlining and LaTeX; naive tag stripping loses answer-critical information.
 
 ## Extraction and authored-content gotchas
@@ -122,7 +122,7 @@ and `.env.example`'s `CANONICAL_HOST` / `WWW_HOST` checklist entries.
 - `package.json` provides dev/deploy/predeploy only. User confirms no lint or typecheck commands; do not invent them. Consolidated test runner work is deferred to Phase 4.
 - Existing standalone `test_*.cjs` and tool self-checks are the available checks; inspect prerequisites and scope before running. Preserve source-block markers used to lift real functions instead of copied implementations.
 - Use the actual player's render/grading path for UI verification. Check distinct choices, correct grading, figures, tables, underlines, dark/light themes and narrow screens, not only empty output or console errors.
-- Re-query choice nodes after Check; grading replaces them. Next may first open an explanation: assert exact position changes and count skipped questions.
+- Re-query choice nodes after Check (`#bank-card [data-lesson-choice]`; the footer button is `#bank-primary`, its `data-mode` is next/check). Next never opens an explanation; a skipped question is not an attempt.
 - Exclude KaTeX subtrees when checking raw TeX or authored SVGs; its hidden source annotations and generated SVGs are intentional. DOM-decoded math is the validation target, not raw HTML entities.
 - Scope selectors to the active tab; hidden screens share the document. Use question IDs/session state rather than rendered stem text to identify questions.
 - Server readiness is not proof of populated-bank functionality. Do not claim production, signed-in isolation, full-bank sweeps or real-phone touch behavior without exercising them and having prerequisites.

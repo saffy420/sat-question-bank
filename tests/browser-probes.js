@@ -41,7 +41,7 @@ async page => {
     await p.locator(selector).waitFor({ state: 'visible' });
     const bad = await p.locator(selector).evaluate(root => {
       const width = document.documentElement.clientWidth;
-      return [document.documentElement, root, ...root.querySelectorAll('.panes, .pane, .stem, .choice, .passage, .desmos-panel')]
+      return [document.documentElement, root, ...root.querySelectorAll('.panes, .pane, .stem, .choice, .passage, .desmos-panel, .stage-question, .lesson-calc')]
         .filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden')
         .filter(el => el.scrollWidth > el.clientWidth + 2 || el.getBoundingClientRect().right > width + 2 || el.getBoundingClientRect().left < -2)
         .map(el => ({ element: el.id || el.className || el.tagName, scroll: el.scrollWidth, width: el.clientWidth }));
@@ -85,12 +85,12 @@ async page => {
     await probe('real Math player DOM and narrow layout, without grading', async () => {
       await p.locator('.nav-i[data-tab="practice"]').click();
       await p.locator('#btn-start').click();
-      await p.locator('#view-test').waitFor({ state: 'visible' });
+      await p.locator('#bank-live').waitFor({ state: 'visible' });
       let choiceQuestions = 0, figureCount = 0;
       for (let i = 0; i < 5; i++) {
-        const stem = await p.locator('#pane-a .stem').innerText();
-        assert(stem.trim() || await p.locator('#panes img, #panes svg:not(.katex svg)').count(), 'Player has empty stem');
-        const choices = p.locator('#choices .choice > span:last-of-type');
+        const stem = await p.locator('#bank-card .lesson-stem').innerText();
+        assert(stem.trim() || await p.locator('#bank-card img, #bank-card svg:not(.katex svg)').count(), 'Player has empty stem');
+        const choices = p.locator('#bank-card .choice > span:last-of-type');
         if (await choices.count()) {
           choiceQuestions++;
           assert(await choices.count() === 4, 'Expected four rendered choice bodies');
@@ -100,15 +100,16 @@ async page => {
             bodies.push(await choice.innerHTML());
           }
           assert(new Set(bodies).size === bodies.length, 'Duplicate rendered choice bodies');
-        } else assert(await p.locator('#gi').isVisible(), 'No choices or grid-in input');
-        figureCount += await images('#panes');
-        assert(await p.locator('#panes .katex-error').count() === 0, 'KaTeX error in player');
-        await overflow('#view-test');
+        } else assert(await p.locator('#lesson-grid').isVisible(), 'No choices or grid-in input');
+        figureCount += await images('#bank-card');
+        assert(await p.locator('#bank-card .katex-error').count() === 0, 'KaTeX error in player');
+        await overflow('#bank-live');
         if (i < 4) {
-          const before = await p.locator('#pos-lbl').innerText();
-          await p.locator('#btn-next').click();
-          const after = await p.locator('#pos-lbl').innerText();
-          assert(parseInt(after) === parseInt(before) + 1, 'Next did not advance exactly one unattempted question');
+          const position = async () => Number(/Question (\d+) of/.exec(await p.locator('#bank-nav').innerText())[1]);
+          const before = await position();
+          await p.locator('#bank-primary').click();
+          const after = await position();
+          assert(after === before + 1, 'Next did not advance exactly one unattempted question');
         }
       }
       assert(choiceQuestions > 0, 'Sample never exercised MCQ DOM');
@@ -117,23 +118,23 @@ async page => {
     await probe('calculator iframe src, CSP, docking and external availability', async () => {
       const csp = rootResponse.headers()['content-security-policy'] || '';
       assert(/(?:^|;)\s*frame-src\s+[^;]*https:\/\/www\.desmos\.com(?:\s|;|$)/.test(csp), 'Root CSP does not allow Desmos frames');
-      await p.locator('#btn-calc').click();
-      const frame = p.locator('#desmos-panel iframe');
+      await p.locator('#bank-calc-toggle').click();
+      const frame = p.locator('#lesson-calc iframe');
       await frame.waitFor({ state: 'visible' });
       assert(await frame.getAttribute('src') === 'https://www.desmos.com/testing/collegeboard/graphing', 'Wrong graphing src');
-      await overflow('#desmos-panel');
-      await overflow('#view-test');
+      await overflow('#lesson-calc');
+      await overflow('#bank-live');
       let availability;
       try {
-        await p.frameLocator('#desmos-panel iframe').locator('.dcg-calculator-api-container').waitFor({ state: 'visible', timeout: 15000 });
+        await p.frameLocator('#lesson-calc iframe').locator('.dcg-calculator-api-container').waitFor({ state: 'visible', timeout: 15000 });
         availability = 'graphing calculator UI loaded';
       } catch {
         availability = 'EXTERNAL_UNAVAILABLE_OR_UNVERIFIED: ' + (external.join(', ') || 'Desmos UI not ready within 15s; iframe wiring is not calculator functionality');
       }
-      await p.locator('.dp-tab[data-mode="scientific"]').click();
+      await p.locator('#bank-calc-scientific').click();
       assert(await frame.getAttribute('src') === 'https://www.desmos.com/testing/collegeboard/scientific', 'Wrong scientific src');
-      await p.locator('#dp-close').click();
-      assert(await p.locator('#desmos-panel').count() === 0, 'Calculator did not close');
+      await p.locator('#lesson-calc-close').click();
+      assert(await p.locator('#lesson-calc').isHidden(), 'Calculator did not close');
       return availability;
     });
     await probe('representative crop and KaTeX rendering in real Browse previews', async () => {

@@ -108,3 +108,55 @@ export type LessonHistory = {
     desmos: object | null;
   }[];
 };
+
+// Practice bank screen (Bank.tsx). `public/index.html` owns the session state and draws this model from it.
+export type BankQuestion = Question & { domain?: string; skill?: string; difficulty?: string; source?: string; ai?: boolean; level?: number };
+export type BankCell = { id: string; state: 'none' | 'correct' | 'wrong' | 'corrected' | 'unscored'; flagged: boolean };
+export type BankModel = {
+  title: string;
+  name: string;
+  question: BankQuestion;
+  index: number;
+  total: number;
+  // The pick waiting for Check; once the question is closed, the answer that closed it.
+  picked: string;
+  // Wrong answers given while the question was open.
+  missed: string[];
+  // Right, or no stored answer, or the answer was shown: the question is finished.
+  closed: boolean;
+  // Closed without a scoreable answer (the question has no stored key).
+  unscored: boolean;
+  // SPR closed by "Show answer": the answer that was given is still wrong.
+  shown: boolean;
+  flagged: boolean;
+  cells: BankCell[];
+  paused: boolean;
+  note: string;
+  // Settings "Note on a miss".
+  noteOnMiss: boolean;
+  dark: boolean;
+  signedIn: boolean;
+};
+export type BankBridge = {
+  mathify: (element: HTMLElement) => void;
+  // A multiple-choice pick ('' clears it). SPR values arrive with check().
+  pick: (letter: string) => void;
+  // A grid-in value the student has committed (blur or Enter).
+  commit: (value: string) => void;
+  // Check the pick, or the SPR value.
+  check: (value?: string) => void;
+  showAnswer: () => void;
+  next: () => void;
+  back: () => void;
+  goto: (index: number) => void;
+  flag: () => void;
+  pause: () => void;
+  // Leave practice (the screen has already asked).
+  exit: () => void;
+  theme: () => void;
+  saveNote: (questionId: string, body: string) => void;
+  // The question as text for an AI assistant (no answer or explanation until it is closed).
+  exportText: () => string;
+  report: (r: { questionId: string; element: HTMLElement }) => void;
+  suggest: () => void;
+};

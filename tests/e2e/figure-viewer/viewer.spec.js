@@ -220,24 +220,24 @@ test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, t
     await page.locator('#dd-sec .dd-o[data-v="Reading & Writing"]').click();
     await page.keyboard.press('Escape');
     await page.locator('#btn-start').click();
-    await expect(page.locator('#view-test')).toBeVisible();
+    await expect(page.locator('#bank-live')).toBeVisible();
     const current = () => page.evaluate(() => { const { S } = window.__qa(); return S.items[S.i].id; });
-    for (let k = 0; k < 6 && await current() !== FIG; k++) await page.locator('#btn-next').click();
+    for (let k = 0; k < 6 && await current() !== FIG; k++) await page.locator('#bank-primary').click();
     expect(await current()).toBe(FIG);
-    const scope = '#pane-a .fv';
+    const scope = '#bank-card .fv';
     await expect(page.locator(scope)).toHaveCount(1);
     await expect(page.locator(`${scope} img`)).toHaveJSProperty('complete', true);
 
     // Placement: one column, frame between the intro and the question, centred on the question column.
-    await expect(page.locator('#panes')).toHaveClass(/solo/);
-    await expect(page.locator('#pane-a .qfig, #pane-q .fv')).toHaveCount(0);
-    const order = await page.locator('#pane-a .stem').evaluate(stem => [...stem.children].map(n => n.tagName === 'P' ? n.textContent.trim().split(/\s/)[0] : n.className));
+    await expect(page.locator('#bank-card')).toHaveClass(/stage-single/);
+    await expect(page.locator('#bank-card .qfig, #bank-card .stage-passage')).toHaveCount(0);
+    const order = await page.locator('#bank-card .lesson-stem').evaluate(stem => [...stem.children].map(n => n.tagName === 'P' ? n.textContent.trim().split(/\s/)[0] : n.className));
     expect(order).toEqual(['The', 'fv', 'At']);
-    const column = await page.locator('#pane-a .stem').evaluate(el => { const r = el.getBoundingClientRect(); return r.x + r.width / 2; });
+    const column = await page.locator('#bank-card .lesson-stem').evaluate(el => { const r = el.getBoundingClientRect(); return r.x + r.width / 2; });
     near((await geo(page, scope)).frame.cx, column, 1, 'frame centred on the question column');
     // 1366×768 at 100 %: the figure does not push the first choice off-screen.
-    const first = await page.locator('#pane-a .choice[data-letter="A"]').evaluate(el => { const r = el.getBoundingClientRect(), p = document.getElementById('pane-a').getBoundingClientRect(); return { b: r.bottom, pane: p.bottom, vh: innerHeight }; });
-    expect(first.b, 'first choice inside the question pane').toBeLessThanOrEqual(Math.min(first.pane, first.vh));
+    const first = await page.locator('#bank-card [data-lesson-choice="A"] .choice').evaluate(el => { const r = el.getBoundingClientRect(), f = document.querySelector('#bank-live .lesson-footer').getBoundingClientRect(); return { b: r.bottom, footer: f.top, vh: innerHeight }; });
+    expect(first.b, 'first choice above the footer, on screen').toBeLessThanOrEqual(Math.min(first.footer, first.vh));
 
     const before = hits.length;
     expect(before, 'the figure was loaded once').toBe(1);
