@@ -81,13 +81,14 @@ function similarity(a, b) {
 }
 
 // questionPreview's exact shape is not documented. Accept an HTML string, or an object whose
-// stem sits under a stem/question/prompt/text/html key and whose choices are an array (of strings
-// or of objects holding content/html/text) under a choices/options/answers key.
+// stem sits under a stem/question/query/prompt/text/html key and whose choices are an array (of strings
+// or of objects holding content/html/text) under a choices/options/answers key. Prepzy's API sends
+// { query, text: '', image, answers }, so the first non-empty stem key wins.
 function previewParts(preview) {
   if (!preview) return { stem: '', choices: [] };
   if (typeof preview === 'string') return { stem: preview, choices: [] };
-  const pick = (o, re) => Object.keys(o).find(k => re.test(k));
-  const sk = pick(preview, /^(stem|stemHtml|stem_html|question|questionHtml|questionText|prompt|text|html)$/i);
+  const pick = (o, re) => Object.keys(o).find(k => re.test(k) && o[k] !== '' && o[k] != null) ?? Object.keys(o).find(k => re.test(k));
+  const sk = pick(preview, /^(stem|stemHtml|stem_html|question|questionHtml|questionText|query|prompt|text|html)$/i);
   const ck = pick(preview, /^(choices|choicesHtml|options|answers|answerChoices)$/i);
   let stem = sk ? preview[sk] : '';
   if (stem && typeof stem === 'object') stem = stem.html || stem.text || stem.content || '';

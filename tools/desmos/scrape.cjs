@@ -90,7 +90,9 @@ async function pageHtml(t, n, offline) {
   if (held !== undefined || offline) return held;
   if (!context) {
     const { chromium } = require('@playwright/test');
-    browser = await chromium.launch();
+    // PLAYWRIGHT_CHROMIUM_PATH: a preinstalled Chromium whose revision differs from @playwright/test's
+    // (e.g. /opt/pw-browsers/chromium in the cloud sandbox). Unset, Playwright uses its own download.
+    browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {});
     const state = process.env.PREPZY_STORAGE_STATE;
     context = await browser.newContext({ userAgent: UA, ...(state ? { storageState: state } : {}) });
     const token = process.env.PREPZY_TOKEN;

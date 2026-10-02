@@ -9,7 +9,7 @@ const root = __dirname + '/../';
 const { buildSql, problems, MAX_STATEMENT } = require('../tools/desmos/import.cjs');
 const { match } = require('../tools/desmos/map.cjs');
 const { cbIdsOf, solutionsOf, slim } = require('../tools/desmos/scrape.cjs');
-const { plain } = require('../tools/desmos/common.cjs');
+const { plain, previewParts } = require('../tools/desmos/common.cjs');
 
 const STATE = { version: 11, graph: { viewport: { xmin: -10, xmax: 10, ymin: -10, ymax: 10 } }, expressions: { list: [{ type: 'expression', id: '1', latex: 'y=2x+3' }] } };
 const row = (id, extra = {}) => ({ question_id: id, cbId: id, testName: 'Linear functions', questionIndex: 0, method: 'cbId', score: 1,
@@ -123,6 +123,11 @@ test('normalization strips HTML, converts &nbsp; and collapses whitespace', () =
 });
 
 // ---- scrape parsing ----
+test("Prepzy's preview keeps the stem under query beside an empty text", () => {
+  assert.deepEqual(previewParts({ query: '<p>Square A</p>', text: '', image: '', answers: [] }), { stem: '<p>Square A</p>', choices: [] });
+  assert.deepEqual(previewParts({ text: 'stem', answers: [{ content: 'A' }, 'B'] }), { stem: 'stem', choices: ['A', 'B'] });
+});
+
 test('scrape keeps only the agreed fields and never an email', () => {
   const html = '<button aria-label="Copy College Board question ID 1a2b3c4d">1a2b3c4d</button><span aria-label="Copy College Board question ID 1a2b3c4d"></span>';
   assert.deepEqual(cbIdsOf(html), ['1a2b3c4d']);
