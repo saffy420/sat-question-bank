@@ -5,6 +5,32 @@ const protocol = () => import('../public/shared/lesson.js');
 const roomModule = () => import('../src/lesson-room.js');
 const edit = (nodeId, i, text) => ({ type:'edit', id:`edit:${nodeId}:${i}`, nodeId, i, text });
 
+test('integration: projector receives fit updates and edits before reveal; edits prune anchored text boxes', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  await room.save(f.s);
+  const teacher = f.socket('teacher', 'admin'), alice = f.socket('alice'), projector = f.socket('teacher', 'projector');
+  const say = m => room.webSocketMessage(teacher.ws, JSON.stringify(m));
+  const view = { w: 1200, fs: 19, u: 15, vw: 1920 };
+  await say({ type: 'view', ...view });
+  for (const peer of [alice, projector]) assert.deepEqual(peer.sent.filter(m => m.type === 'view').map(({ serverNow, ...m }) => m), [{ type: 'view', ...view }]);
+  const box = (id, a) => ({ type: 'text', id, a, x: 0, y: 0, text: id, color: '#ffe066' });
+  for (const op of [box('em', 's:0~3'), box('px', 's:0@3'), box('other', 's:1~0')]) await say({ type: 'annotate', questionId: 'q', op });
+  for (const peer of [alice, projector]) assert.deepEqual(peer.sent.filter(m => m.type === 'annotate'), [], 'text boxes stay hidden');
+  await say({ type: 'annotate', questionId: 'q', op: edit('s:0', 0, 'Which is ') });
+  assert.deepEqual((await room.state()).annotations.q.map(m => m.id), ['other', 'edit:s:0:0']);
+  for (const peer of [alice, projector]) assert.deepEqual(peer.sent.filter(m => m.type === 'annotate').map(m => m.op), [edit('s:0', 0, 'Which is ')]);
+  const early = room.snapshot(await room.state(), { role: 'projector', userId: 'teacher' });
+  assert.deepEqual(early.view, view);
+  assert.deepEqual(early.annotations, [edit('s:0', 0, 'Which is ')]);
+  assert.equal(early.question.answer, undefined);
+  const s = await room.state(); s.endsAt = Date.now() - 10000; await room.save(s); await room.alarm();
+  const revealed = room.snapshot(await room.state(), { role: 'projector', userId: 'teacher' });
+  assert.equal(revealed.phase, 'REVEALED');
+  assert.deepEqual(revealed.view, view);
+  assert.deepEqual(revealed.annotations.map(m => m.id), ['other', 'edit:s:0:0']);
+  assert.equal(revealed.ownSelection, null);
+});
+
 // Same room fixture shape as tests/test_lesson_room.cjs.
 function fixture() {
   const data = new Map(), sockets = [], writes = [];

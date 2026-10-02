@@ -519,7 +519,7 @@ class Room {
       if (JSON.stringify(s.view) === JSON.stringify(view)) return;
       s.view = view;
       await this.save(s);
-      for (const peer of this.sockets('student')) try { this.send(peer, { type:'view', ...view }); } catch { /* disconnected */ }
+      for (const peer of this.audience()) try { this.send(peer, { type:'view', ...view }); } catch { /* disconnected */ }
       return;
     }
     if (m.type === 'desmos') {
@@ -587,7 +587,7 @@ class Room {
         // the hidden-until-reveal rule (11d).
         const ops = op.type === 'clear' && keep.length ? layer.filter(x => x.type !== 'edit').map(x => ({ type:'erase', id:x.id })) : [...stale.map(x => ({ type:'erase', id:x.id })), op];
         const edit = x => x.type === 'edit' || (x.type === 'erase' && layer.find(y => y.id === x.id)?.type === 'edit');
-        for (const peer of this.sockets()) {
+        for (const peer of [...this.sockets('admin'), ...this.audience()]) {
           const shown = !to || peer.deserializeAttachment()?.role === to ? ops : ops.filter(edit);
           for (const x of shown) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:x }); } catch { /* disconnected */ }
         }

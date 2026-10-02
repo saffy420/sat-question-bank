@@ -54,9 +54,9 @@ export function Stage(props: StageProps) {
   const paint = () => {
     if (!card.current || !ready.current) return;
     const p = latest.current;
-    Ink.blocks(card.current);
     // Text fixes go onto the clean blocks first: highlights and ink are laid over the edited text.
     Ink.applyEdits(card.current, p.marks || []);
+    Ink.blocks(card.current);
     Ink.paint(card.current, [...(p.marks || []), ...(p.privateMarks || [])]);
     Ink.overlay(card.current, p.marks || []);
     Ink.textBoxes(card.current, p.marks || []);
@@ -75,6 +75,7 @@ export function Stage(props: StageProps) {
     const single = !split.context;
     el.className = `lesson-stage ${math ? 'stage-math' : ''} ${single ? 'stage-single' : `stage-split ${math ? 'stage-figure' : 'stage-reading'}`}`;
     el.innerHTML = `${!single ? `<div class="stage-passage"><div class="passage">${split.context}</div></div>` : ''}<div class="stage-question"><div class="stage-strip"><span>${props.number}</span>${props.onFlag ? `<button type="button" class="stage-flag" id="stage-flag" aria-pressed="false"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg> <span>Mark for Review</span></button>` : ''}${props.onReport ? '<button type="button" class="stage-report" id="stage-report"><span aria-hidden="true">&#9872;</span> Report</button>' : ''}${props.onStrike && !q.spr ? `<button type="button" class="stage-strike-toggle" aria-pressed="false" title="Cross out answer choices" aria-label="Cross out answer choices"><s>ABC</s></button>` : ''}</div>${single && split.context ? `<div class="passage">${split.context}</div>` : ''}<div class="lesson-stem">${split.body}</div>${q.spr ? '<div class="gridin-wrap"><label for="lesson-grid">Grid-in</label><input class="gridin" id="lesson-grid" type="text" inputmode="decimal" maxlength="32" autocomplete="off">' + (props.noPick ? '' : '<button id="lesson-pick" type="button">Select</button>') + '<p class="spr-preview">Answer preview: <output id="lesson-preview"></output></p></div>' : `<div class="choices">${q.choices.map(c => { const letter = escapeHTML(c.letter); return `<div class="stage-choice" data-choice="${letter}"><button type="button" data-lesson-choice="${letter}" aria-pressed="false">${Renderer.choiceHTML(q, c, null, true)}</button>${props.onStrike ? `<button type="button" class="stage-strike" data-strike="${letter}" aria-pressed="false" aria-label="Cross out choice ${letter}"><span class="stage-strike-letter">${letter}</span><span class="stage-strike-undo">Undo</span></button>` : ''}</div>`; }).join('')}</div>`}</div>`;
+    Ink.blocks(el);
     ready.current = false;
     let alive = true, highlighted = false;
     // The stage reflows with its container; ink and laser are content-anchored, so just repaint.
@@ -87,20 +88,17 @@ export function Stage(props: StageProps) {
     const watchRatio = () => { ratio?.removeEventListener('change', onRatio); ratio = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`); ratio.addEventListener('change', onRatio); };
     watchRatio();
     window.addEventListener('resize', paint);
-    // A figure zoom/pan moves figure-anchored ink with it: redraw the canvas and laser only, once a frame.
+    // Figure zoom/pan and presenter scaling move anchored marks: repaint once a frame.
     let figureFrame = 0;
     const onFigure = () => {
       if (figureFrame) return;
       figureFrame = requestAnimationFrame(() => {
         figureFrame = 0;
-        if (!ready.current) return;
-        Ink.overlay(el, latest.current.marks || []);
-        Ink.textBoxes(el, latest.current.marks || []);
-        Ink.refreshLaser(el);
+        paint();
       });
     };
     el.addEventListener('fv:change', onFigure);
-    // A new scale from an ancestor transform (presenter fit) keeps the layout: only the canvas store and laser follow.
+    // Presenter fit keeps the layout while the canvas, text boxes and laser follow its scale.
     el.addEventListener('stage:scale', onFigure);
     props.mathify(el);
     const images = [...el.querySelectorAll('img')].map(image => image.decode().catch(() => undefined));

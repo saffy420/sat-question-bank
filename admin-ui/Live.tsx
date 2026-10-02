@@ -1409,6 +1409,7 @@ function InstructorStage({
       }
     };
     const up = (e: PointerEvent) => {
+      if (tool === "edit") return;
       if (interval) {
         clearInterval(interval);
         interval = undefined;

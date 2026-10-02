@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
-import { LONG, lesson, join, openLive } from '../lessons-11-ui-polish/helpers.js';
+import { LONG, lesson, join, openLive, passageWords, wordCenter } from '../lessons-11-ui-polish/helpers.js';
 
 // PR 08: the presenter's Projector button opens the class view in its own window, with its own read-only socket.
 const ARTIFACTS = '.omp/pipeline/projector/e2e';
@@ -55,12 +55,56 @@ test('projector window: join code lobby, student view without answers, ink and l
     expect(leak).not.toMatch(/Correct answer|Official explanation|E2E Student/);
     await shot(projector, '02-projector-question');
 
+    // Combined Text/Edit tools: a passage note stays hidden, but a wording fix arrives before reveal.
+    await teacher.locator('[data-tool="text"]').click();
+    const words = await passageWords(teacher, '#live-card .stage-passage'), word = words[18];
+    const point = await wordCenter(teacher, '#live-card .stage-passage', word.t, words.slice(0, 18).filter(w => w.t === word.t).length);
+    await teacher.mouse.click(point.x, point.y);
+    await teacher.locator('.lesson-textbox-input').fill('Projector note');
+    await teacher.locator('.lesson-textbox-input').press('Enter');
+    await expect(teacher.locator('.lesson-textbox')).toHaveText('Projector note');
+    for (const page of [student, projector]) await expect(page.locator('.lesson-textbox')).toHaveCount(0);
+    await teacher.locator('[data-tool="edit"]').click();
+    await teacher.locator('#live-card .lesson-stem p').first().click();
+    await teacher.locator('#live-card [data-ann-editing]').evaluate(el => {
+      const node = el.firstChild, range = document.createRange();
+      range.setStart(node, 0); range.setEnd(node, node.length);
+      const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+    });
+    await teacher.keyboard.type('Choose the answer.');
+    await teacher.keyboard.press('Enter');
+    await expect(teacher.locator('.lesson-textbox-input')).toHaveCount(0);
+    for (const page of [student, projector]) {
+      await expect(page.locator('#lesson-card .lesson-stem')).toContainText('Choose the answer.');
+      await expect(page.locator('.lesson-textbox')).toHaveCount(0);
+      await expect(page.locator('.lesson-phase')).toHaveText('ANSWERING');
+    }
+
     // Reveal, then the presenter draws and points.
     await teacher.locator('[data-live="endNow"]').click();
     await expect(projector.locator('#lesson-content')).toContainText('REVEALED');
     await expect(projector.locator('.lesson-reveal')).toContainText('Correct answer');
     await expect(teacher.locator('.live-view')).toHaveAttribute('data-phase', 'REVEALED');
     await expect(teacher.locator('#live-card[data-ready="true"]')).toBeVisible();
+    const width = async () => teacher.locator('#live-card').evaluate(el => Math.round(el.getBoundingClientRect().width));
+    const originalWidth = await width();
+    for (const page of [student, projector]) {
+      await expect(page.locator('.stage-fit')).toHaveCSS('width', `${originalWidth}px`);
+      await expect(page.locator('.lesson-textbox')).toHaveText('Projector note');
+    }
+    // A live view frame, rather than a fresh snapshot, carries a presenter resize to both screens.
+    await teacher.setViewportSize({ width: 1920, height: 1080 });
+    await expect.poll(width).not.toBe(originalWidth);
+    const resizedWidth = await width();
+    for (const page of [student, projector]) {
+      await expect(page.locator('.stage-fit')).toHaveCSS('width', `${resizedWidth}px`);
+      const target = (await passageWords(page, '#lesson-card .stage-passage'))[18];
+      const box = await page.locator('.lesson-textbox').boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(target.l - 2);
+      expect(box.x).toBeLessThanOrEqual(target.r + 2);
+      expect(box.y).toBeGreaterThanOrEqual(target.t0 - 2);
+      expect(box.y).toBeLessThanOrEqual(target.b + 2);
+    }
     await teacher.locator('[data-tool="pen"]').click();
     const start = await teacher.locator('#live-card .lesson-stem p').first().evaluate(p => {
       const range = document.createRange(); range.setStart(p.firstChild, 0); range.setEnd(p.firstChild, 5);

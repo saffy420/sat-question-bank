@@ -77,6 +77,8 @@ export function Projector({ id }: { id: string }) {
           setState((old) => (old && old.questionId === m.questionId ? { ...old, eliminations: m.letters } : old));
         else if (m.type === "desmos")
           setState((old) => (old && old.questionId === m.questionId ? { ...old, desmos: m.state } : old));
+        else if (m.type === "view")
+          setState((old) => (old ? { ...old, view: { w: m.w, fs: m.fs, u: m.u, vw: m.vw } } : old));
         else if (m.type === "annotate") {
           setState((old) =>
             !old || old.questionId !== m.questionId
