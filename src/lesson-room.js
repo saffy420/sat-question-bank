@@ -17,6 +17,16 @@ const reviewRow = (s, item) => {
   const desmos = review(s, item).desmos || null;
   return annotations.length || desmos ? { questionId: id, annotations: annotations.length ? annotations : null, desmos } : null;
 };
+// Session results timing: s.timing[questionId] = { explainMs, answerMs }, kept in room storage and
+// written once with the ended UPDATE. `revealedAt` stamps the current REVEALED interval; leaving
+// REVEALED (any path) adds it to the question being left, so revisits accumulate.
+const timingOf = (s, id) => (s.timing ||= {})[id] ||= {};
+const openReveal = s => { s.revealedAt = Date.now(); };
+const closeReveal = s => {
+  const id = s.items[s.index]?.question_id;
+  if (s.revealedAt != null && id) { const t = timingOf(s, id); t.explainMs = (t.explainMs || 0) + Math.max(0, Date.now() - s.revealedAt); }
+  s.revealedAt = null;
+};
 
 class Room {
   constructor(ctx, env) {
@@ -67,12 +77,14 @@ class Room {
     // Leaving a revealed question lands its shared layer, as Next always has.
     const row = s.phase === 'REVEALED' ? reviewRow(s, item) : null;
     if (row) await this.queue({ questionId: item.question_id, rows: [], end: false, reviews: [row] });
+    if (s.phase === 'REVEALED') closeReveal(s);
     // The graph stays with its question (desmos:<id>) for a revisit; `desmos` holds the current one.
     if (s.desmos?.questionId === item.question_id) await this.ctx.storage.put(`desmos:${item.question_id}`, s.desmos);
     s.desmos = await this.ctx.storage.get(`desmos:${s.items[to].question_id}`) || null;
     if (s.desmos) await this.ctx.storage.put('desmos', s.desmos); else await this.ctx.storage.delete('desmos');
     s.index = to; s.reached = Math.max(reached, to); s.played = played; s.endsAt = null;
     s.phase = to < played ? 'REVEALED' : 'READY';
+    if (s.phase === 'REVEALED') openReveal(s);
     return null;
   }
   // Review-only work waits behind an in-flight flush in `nextPending`, where entries for different
@@ -209,7 +221,7 @@ class Room {
   }
   async enterReview(s, questionId) {
     s.index = s.items.findIndex(x => x.question_id === questionId);
-    s.phase = 'REVEALED'; s.poll = null; s.pollResult = null;
+    s.phase = 'REVEALED'; s.poll = null; s.pollResult = null; openReveal(s);
     if (!(s.reviewed ||= []).includes(questionId)) s.reviewed.push(questionId);
     await this.save(s);
     this.broadcast(s);
@@ -296,7 +308,8 @@ class Room {
         .bind(s.id,r.questionId,r.annotations ? JSON.stringify(r.annotations) : null,r.desmos ? JSON.stringify(r.desmos) : null).run();
       // §2 usedInLesson: every question the session showed, recorded with the end.
       if (pending.end) await this.env.DB.batch([...(pending.usage || []).map(questionId => this.env.DB.prepare('INSERT OR IGNORE INTO question_lesson_usage (question_id,session_id) VALUES (?,?)').bind(questionId, s.id)),
-        this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')) WHERE id=? AND status!='ended'").bind(s.id)]);
+        this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')), timing_json=COALESCE(?,timing_json) WHERE id=? AND status!='ended'")
+          .bind(pending.timing ? JSON.stringify(pending.timing) : null, s.id)]);
       await this.ctx.storage.delete('pending');
       if (await this.ctx.storage.get('flushRetry')) { await this.ctx.storage.delete('flushRetry'); await this.syncStatus(s, null); }
       const next = await this.ctx.storage.get('nextPending');
@@ -341,6 +354,12 @@ class Room {
     if (await this.ctx.storage.get('pending')) throw Error('pending D1 flush');
     for (const r of rows) (s.responses[r.userId][item.question_id] ||= {}).ms = r.ms;
     await this.ctx.storage.put('pending', { questionId: item.question_id, rows, end: false });
+    // Actual answering time: the question's start to the close of its clock (End now / time up /
+    // End session, which pulls endsAt back past the grace and stamps the real close in closedAt).
+    const t = timingOf(s, item.question_id);
+    t.answerMs = (t.answerMs || 0) + Math.max(0, (s.closedAt ?? Math.min(Date.now(), s.endsAt)) - (s.startedAt || s.endsAt));
+    delete s.closedAt;
+    openReveal(s);
     s.phase = 'REVEALED'; s.reached = s.index; s.played = s.index + 1; await this.save(s);
     await this.flush(s);
     this.broadcast(s);
@@ -467,7 +486,7 @@ class Room {
       return;
     }
     if (m.type === 'endSession' && a.role === 'admin' && s.phase === 'ANSWERING') {
-      s.endsAt = Date.now() - GRACE_MS;
+      s.closedAt = Date.now(); s.endsAt = s.closedAt - GRACE_MS;
       await this.save(s);
       await this.advance(s);
       await this.flush(s);
@@ -610,11 +629,13 @@ class Room {
         const row = reviewRow(s, item);
         if (row) await this.queue({ questionId: item.question_id, rows: [], end: false, reviews: [row] });
         await this.ctx.storage.delete('desmos'); s.desmos = null;
+        closeReveal(s);
         s.phase = 'FINISHED';
         changed = true;
       } else if (m.type === 'endSession') {
         const row = s.phase === 'REVEALED' ? reviewRow(s, item) : null;
-        await this.queue({ questionId: item.question_id, rows: [], end: true, usage: shownQuestionIds(s), reviews: row ? [row] : [] });
+        if (s.phase === 'REVEALED') closeReveal(s);
+        await this.queue({ questionId: item.question_id, rows: [], end: true, usage: shownQuestionIds(s), reviews: row ? [row] : [], timing: s.timing || {} });
         s.phase = 'ENDED'; s.status = 'ended'; changed = true;
       } else err = 'invalid phase';
     }

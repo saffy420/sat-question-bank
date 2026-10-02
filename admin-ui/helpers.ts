@@ -29,7 +29,11 @@ export type Session = {
   paddedId: string;
   status: string;
   created_at: string;
+  started_at?: string | null;
   join_code: string;
+  // Past sessions row (GET /api/admin/lessons/:id/sessions).
+  joined?: number;
+  average?: { right: number; scorable: number; percent: number } | null;
 };
 export const defaultTime = (
   q: Pick<BankQuestion, "section" | "skill" | "difficulty" | "domain"> & {

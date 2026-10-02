@@ -143,7 +143,9 @@ CREATE TABLE lesson_sessions (
   started_at TEXT,
   ends_at TEXT,
   ended_at TEXT,
-  snapshot_json TEXT NOT NULL
+  snapshot_json TEXT NOT NULL,
+  -- 0014_session_timing.sql: per-question { explainMs, answerMs }, written once at session end.
+  timing_json TEXT
 );
 CREATE UNIQUE INDEX lesson_sessions_join_code_active ON lesson_sessions(join_code) WHERE status != 'ended';
 CREATE TABLE session_participants (
