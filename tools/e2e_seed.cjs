@@ -79,6 +79,10 @@ async function free(port) {
         { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
       if (upgrade.status !== 0) throw new Error('0012 isolated E2E upgrade failed');
     }
+    // 0013 is CREATE TABLE IF NOT EXISTS, so it is safe to run over a state that already has it.
+    const saved = spawnSync(process.execPath, [...base, '--file', 'migrations/0013_saved_questions.sql'],
+      { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+    if (saved.status !== 0) throw new Error('0013 isolated E2E upgrade failed');
   }
   for (const [binding, file] of [['DB', 'schema.sql'], ['AI_DB', 'schema_ai.sql'], ['DB', 'tools/e2e_core.sql'], ['AI_DB', 'tools/e2e_ai.sql']]) {
     if (hasUsers && file === 'schema.sql') continue; // Snapshot has non-idempotent lesson DDL; upgrades ran above.
