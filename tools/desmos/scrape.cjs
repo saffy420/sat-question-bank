@@ -7,15 +7,15 @@
 // Prepzy is a signed-in app: its pages render client-side and its API answers 401 without a session.
 // PREPZY_TOKEN is the `accessToken` a signed-in prepzy.app tab keeps in localStorage (sent as a
 // Bearer header and injected into the headless page). Alternatively PREPZY_STORAGE_STATE names a
-// Playwright storageState JSON saved from a signed-in browser. Neither is ever written to disk.
+// Playwright storageState JSON saved from a signed-in browser. Neither is written to scrape outputs.
 //
-// Per test n = 0, 1, 2, ...: the rendered page gives the College Board question ID (its
-// aria-label="Copy College Board question ID {cbId}" button) and the API gives the solution. The walk
-// stops after STOP_AFTER pages in a row without a CB ID. One request per second (page loads and API
+// Per test n = 0, 1, 2, ...: /test/load gives the ordered College Board question IDs and the API
+// gives each solution. Verify that metadata against rendered pages before walking the full list.
+// One request per second (page loads and API
 // calls share the limiter), a descriptive User-Agent, and every response cached under cache/ (ignored)
 // with emails removed, so a rerun asks Prepzy only for what it has not seen.
 //
-// Writes (both ignored; they hold College Board question text):
+// Writes (solutions.jsonl is ignored because it holds College Board question text):
 //   tools/desmos/solutions.jsonl     one slim record per valid solution
 //   tools/desmos/scrape-report.json  per test: pages walked, CB IDs, solutions, rejects, naming check
 const fs = require('fs');
@@ -27,7 +27,6 @@ const UA = 'roadto1600-desmos-import/1.0 (+https://roadto1600.org; importing Pre
 const PAGE = (t, n) => `https://prepzy.app/test/${encodeURIComponent(t)}/${n}?difficulty=all&scoreBand=all&releaseLabel=all&program=all&excludeBluebook=0&excludeStudyPlan=0`;
 const API = (t, n) => `https://api.prepzy.app/desmos-solutions/approved?testName=${encodeURIComponent(t)}&questionIndex=${n}`;
 const CB_ID = /aria-label="Copy College Board question ID ([^"]+)"/g;
-const STOP_AFTER = 3;
 const MIN_GAP_MS = 1000;
 const PAGE_TIMEOUT_MS = 20000;
 const VERIFY_SAMPLES = 3;
@@ -57,15 +56,21 @@ function writeCache(kind, t, n, value) {
 }
 
 // ---- network ----
-async function apiGet(t, n, offline) {
-  const held = readCache('api', t, n);
+async function apiGet(t, n, offline, kind = 'api') {
+  const held = readCache(kind, t, n);
   if (held !== undefined || offline) return held === undefined ? { status: 0, body: null, missing: true } : held;
   const token = process.env.PREPZY_TOKEN;
   for (let attempt = 0; ; attempt++) {
     await slot();
     let res;
     try {
-      res = await fetch(API(t, n), { headers: { 'User-Agent': UA, Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+      res = await fetch(kind === 'test' ? 'https://api.prepzy.app/test/load' : API(t, n), {
+        headers: { 'User-Agent': UA, Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(kind === 'test' ? { 'Content-Type': 'application/json' } : {}) },
+        ...(kind === 'test' ? { method: 'POST', body: JSON.stringify({ testName: t, difficulty: 'all',
+          scoreBands: ['all'], releaseLabels: ['all'], programFilters: ['all'], excludeBluebook: false, excludeStudyPlan: false }) } : {}),
+        signal: AbortSignal.timeout(30000)
+      });
     } catch (e) {
       if (attempt >= 3) throw e;
       await sleep(2000 * 2 ** attempt); continue;
@@ -78,8 +83,14 @@ async function apiGet(t, n, offline) {
     const text = await res.text();
     let body = null;
     try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+    if (res.status !== 200 && !(kind === 'api' && res.status === 404)) throw new Error(`API ${res.status} for ${t} #${n}`);
+    if (res.status === 200 && !body) throw new Error(`API returned invalid JSON for ${t} #${n}`);
+    if (kind === 'test') {
+      questionIdsOf(body); // Validate before caching; retain only public IDs and the count.
+      body = { questionsLength: body.questionsLength, questions: body.questions.map(q => ({ collegeBoardQuestionId: q.collegeBoardQuestionId ?? null })) };
+    }
     const out = { status: res.status, body };
-    writeCache('api', t, n, out);
+    writeCache(kind, t, n, out);
     return out;
   }
 }
@@ -117,6 +128,22 @@ async function pageHtml(t, n, offline) {
 
 // ---- parsing ----
 const cbIdsOf = (html) => [...new Set([...String(html || '').matchAll(CB_ID)].map(m => m[1].trim()))];
+function questionIdsOf(body) {
+  if (!body || !Array.isArray(body.questions) || body.questionsLength !== body.questions.length)
+    throw new Error('test/load returned an incomplete question list');
+  return body.questions.map(q => {
+    if (!q || typeof q !== 'object') throw new Error('test/load returned an invalid question');
+    const id = q.collegeBoardQuestionId;
+    if (id == null || id === '') return null;
+    if (typeof id !== 'string' || !/^[0-9a-f]{8}$/i.test(id)) throw new Error('test/load returned an invalid College Board question ID');
+    return id;
+  });
+}
+async function testIds(t, offline) {
+  const response = await apiGet(t, 0, offline, 'test');
+  if (response.missing) throw new Error(`No cached test metadata for ${t}; run online first`);
+  return questionIdsOf(response.body);
+}
 // The approved list may come back as one solution, an array, or an object wrapping an array.
 function solutionsOf(body) {
   if (!body) return [];
@@ -147,14 +174,17 @@ function coverage(apiStem, html) {
 async function verify(tests, offline) {
   const samples = [];
   for (const t of tests.slice(0, 2)) {
-    for (let n = 0, found = 0; n < 15 && found < VERIFY_SAMPLES; n++) {
+    const ids = await testIds(t, offline);
+    for (let n = 0, found = 0; n < Math.min(15, ids.length) && found < VERIFY_SAMPLES; n++) {
       const api = await apiGet(t, n, offline);
       const sol = solutionsOf(api.body)[0];
       if (!sol) continue;
       const stem = previewParts(sol.questionPreview).stem;
       const here = await pageHtml(t, n, offline), next = await pageHtml(t, n + 1, offline);
-      const s = { testName: t, questionIndex: n, same: coverage(stem, here), next: coverage(stem, next), stem: plain(stem).slice(0, 120) };
-      s.aligned = s.same !== null && s.same >= ALIGNED && (s.next === null || s.same > s.next);
+      const pageIds = cbIdsOf(here);
+      const s = { testName: t, questionIndex: n, cbId: ids[n], metadataAligned: pageIds.length === 1 && pageIds[0] === ids[n],
+        same: coverage(stem, here), next: coverage(stem, next), stem: plain(stem).slice(0, 120) };
+      s.aligned = s.metadataAligned && s.same !== null && s.same >= ALIGNED && (s.next === null || s.same > s.next);
       samples.push(s); found++;
     }
   }
@@ -162,20 +192,16 @@ async function verify(tests, offline) {
 }
 
 async function walk(t, offline, out) {
-  const r = { testName: t, pages: 0, withCbId: 0, solutions: 0, invalid: [], multiCbId: [], firstPageHasCbId: false };
-  for (let n = 0, misses = 0; misses < STOP_AFTER; n++) {
-    const html = await pageHtml(t, n, offline);
-    if (html === undefined) break; // offline and never fetched
-    r.pages++;
-    const ids = cbIdsOf(html);
-    if (n === 0) r.firstPageHasCbId = ids.length > 0;
-    if (ids.length) { misses = 0; r.withCbId++; } else misses++;
-    if (ids.length > 1) r.multiCbId.push({ questionIndex: n, ids });
+  const ids = await testIds(t, offline);
+  const r = { testName: t, questions: ids.length, checked: 0, withCbId: ids.filter(Boolean).length, solutions: 0, invalid: [] };
+  for (let n = 0; n < ids.length; n++) {
     const api = await apiGet(t, n, offline);
+    if (api.missing) throw new Error(`No cached API response for ${t} #${n}; refusing an incomplete offline rebuild`);
+    r.checked++;
     const sols = solutionsOf(api.body);
     if (!sols.length) continue; // no approved solution for this question yet
     // One solution per question: the first approved one, in the order Prepzy lists them.
-    const rec = slim(sols[0], { cbId: ids.length === 1 ? ids[0] : null, testName: t, questionIndex: n });
+    const rec = slim(sols[0], { cbId: ids[n], testName: t, questionIndex: n });
     const bad = stateProblems(rec.desmosState);
     if (bad.length) { r.invalid.push({ questionIndex: n, cbId: rec.cbId, problems: bad }); continue; }
     r.solutions++;
@@ -209,11 +235,11 @@ async function main() {
       const r = await walk(testName, offline, out);
       r.skill = skill;
       report.push(r);
-      console.log(`${testName}: ${r.pages} pages, ${r.withCbId} with CB ID, ${r.solutions} solutions, ${r.invalid.length} invalid${r.firstPageHasCbId ? '' : '  <- no results: check Prepzy naming'}`);
+      console.log(`${testName}: ${r.checked}/${r.questions} questions, ${r.withCbId} with CB ID, ${r.solutions} solutions, ${r.invalid.length} invalid`);
     }
     fs.writeFileSync(path.join(DIR, 'solutions.jsonl'), out.map(r => JSON.stringify(r)).join('\n') + (out.length ? '\n' : ''));
     fs.writeFileSync(path.join(DIR, 'scrape-report.json'), JSON.stringify(report, null, 1) + '\n');
-    const none = report.filter(r => !r.firstPageHasCbId).map(r => r.testName);
+    const none = report.filter(r => !r.questions).map(r => r.testName);
     console.log(`${out.length} solutions written to tools/desmos/solutions.jsonl`);
     if (none.length) console.log(`no results on Prepzy for: ${none.join(' | ')}`);
   } catch (e) {
@@ -223,4 +249,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
-module.exports = { cbIdsOf, solutionsOf, slim, coverage };
+module.exports = { cbIdsOf, questionIdsOf, solutionsOf, slim, coverage, walk };

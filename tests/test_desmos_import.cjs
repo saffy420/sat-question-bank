@@ -8,7 +8,7 @@ const { readFileSync } = require('node:fs');
 const root = __dirname + '/../';
 const { buildSql, problems, MAX_STATEMENT } = require('../tools/desmos/import.cjs');
 const { match } = require('../tools/desmos/map.cjs');
-const { cbIdsOf, solutionsOf, slim } = require('../tools/desmos/scrape.cjs');
+const { cbIdsOf, questionIdsOf, solutionsOf, slim, walk } = require('../tools/desmos/scrape.cjs');
 const { plain, previewParts } = require('../tools/desmos/common.cjs');
 
 const STATE = { version: 11, graph: { viewport: { xmin: -10, xmax: 10, ymin: -10, ymax: 10 } }, expressions: { list: [{ type: 'expression', id: '1', latex: 'y=2x+3' }] } };
@@ -123,6 +123,31 @@ test('normalization strips HTML, converts &nbsp; and collapses whitespace', () =
 });
 
 // ---- scrape parsing ----
+test('scrape walks the complete metadata list and refuses missing offline responses', async t => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const name = 'desmos-test-' + process.pid;
+  const cache = path.join(root, 'tools/desmos/cache');
+  for (const kind of ['test', 'api']) fs.mkdirSync(path.join(cache, kind, name), { recursive: true });
+  t.after(() => { for (const kind of ['test', 'api']) fs.rmSync(path.join(cache, kind, name), { recursive: true, force: true }); });
+  const metadata = { questionsLength: 2, questions: [{ collegeBoardQuestionId: 'aaaa1111' }, { collegeBoardQuestionId: null }] };
+  assert.deepEqual(questionIdsOf(metadata), ['aaaa1111', null]);
+  assert.throws(() => questionIdsOf({ ...metadata, questionsLength: 3 }), /incomplete/);
+  assert.throws(() => questionIdsOf({ questionsLength: 1, questions: [{ collegeBoardQuestionId: 'invalid' }] }), /invalid/);
+  const write = (kind, n, status, body) => fs.writeFileSync(path.join(cache, kind, name, n + '.json'), JSON.stringify({ status, body }));
+  write('test', 0, 200, metadata);
+  write('api', 0, 404, { message: 'not found' });
+  write('api', 1, 200, { desmosState: STATE });
+  const out = [];
+  const report = await walk(name, true, out);
+  assert.equal(report.checked, 2);
+  assert.equal(report.solutions, 1);
+  assert.equal(out[0].questionIndex, 1);
+  assert.equal(out[0].cbId, null);
+  fs.unlinkSync(path.join(cache, 'api', name, '1.json'));
+  await assert.rejects(walk(name, true, []), /incomplete offline rebuild/);
+});
+
 test("Prepzy's preview keeps the stem under query beside an empty text", () => {
   assert.deepEqual(previewParts({ query: '<p>Square A</p>', text: '', image: '', answers: [] }), { stem: '<p>Square A</p>', choices: [] });
   assert.deepEqual(previewParts({ text: 'stem', answers: [{ content: 'A' }, 'B'] }), { stem: 'stem', choices: ['A', 'B'] });
