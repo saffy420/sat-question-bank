@@ -12,7 +12,71 @@ const MOJIBAKE_LEAD = /[\u0393\u00a4\u251c\u252c]/;
 export const demoji = h => typeof h === 'string' && !MOJIBAKE_LEAD.test(h) ? h : MOJIBAKE.reduce((a, [bad, good]) => a.split(bad).join(good), h || '');
 export const levelOf = q => q.level || ({ easy: 1, medium: 2, hard: 3 })[String(q.difficulty || '').toLowerCase()] || 2;
 export const TARGET_MS = { Math: 95000, 'Reading & Writing': 71000 };
-export const targetOf = q => TARGET_MS[q.section] || 85000;
+// Recommended time per question: Medium baseline per skill x difficulty factor, nearest 5 s, 30-240 s, in ms.
+// Phase 2 = recalibrate per skill x difficulty from real first-try-correct attempts.time_taken_ms, shrunk toward these values (not yet).
+export const SKILL_TIME_S = {
+  // Math - Algebra (avg 77)
+  'Linear equations in one variable': 65,
+  'Linear equations in two variables': 75,
+  'Linear functions': 80,
+  'Linear inequalities in one or two variables': 80,
+  'Systems of two linear equations in two variables': 85,
+
+  // Math - Advanced Math (avg 100)
+  'Equivalent expressions': 90,
+  'Nonlinear functions': 105,
+  'Nonlinear equations in one variable and systems of equations in two variables': 105,
+
+  // Math - Problem-Solving and Data Analysis (avg 76)
+  'Evaluating statistical claims: Observational studies and experiments': 65,
+  'Inference from sample statistics and margin of error': 70,
+  'Ratios, rates, proportional relationships, and units': 75,
+  'Percentages': 75,
+  'One-variable data: Distributions and measures of center and spread': 80,
+  'Two-variable data: Models and scatterplots': 80,
+  'Probability and conditional probability': 85,
+
+  // Math - Geometry and Trigonometry (avg 111, slowest domain)
+  'Lines, angles, and triangles': 105,
+  'Area and volume': 110,
+  'Right triangles and trigonometry': 110,
+  'Circles': 120,
+
+  // R&W - Information and Ideas (avg 92, slowest R&W domain)
+  'Central Ideas and Details': 85,
+  'Inferences': 95,
+  'Command of Evidence': 95,
+
+  // R&W - Craft and Structure
+  'Words in Context': 60,
+  'Text Structure and Purpose': 75,
+  'Cross-Text Connections': 100,
+
+  // R&W - Expression of Ideas
+  'Transitions': 50,
+  'Rhetorical Synthesis': 55,
+
+  // R&W - Standard English Conventions
+  'Boundaries': 50,
+  'Form, Structure, and Sense': 50,
+};
+export const DOMAIN_TIME_S = {
+  'Algebra': 77, 'Advanced Math': 100, 'Problem-Solving and Data Analysis': 76, 'Geometry and Trigonometry': 111,
+  'Information and Ideas': 92, 'Craft and Structure': 78, 'Expression of Ideas': 53, 'Standard English Conventions': 50
+};
+export const LEVEL_FACTOR = { 1: 0.75, 2: 1, 3: 1.3, 4: 1.4, 5: 1.5 };
+// The bank says "Nonlinear equations in one variable"; the table keeps the full College Board name. Exact match, then prefix.
+const skillSeconds = skill => {
+  if (!skill) return undefined;
+  if (SKILL_TIME_S[skill] != null) return SKILL_TIME_S[skill];
+  const key = Object.keys(SKILL_TIME_S).find(k => k.startsWith(skill));
+  return key ? SKILL_TIME_S[key] : undefined;
+};
+export const targetOf = q => {
+  const base = skillSeconds(q.skill) ?? DOMAIN_TIME_S[q.domain] ?? (TARGET_MS[q.section] || 85000) / 1000;
+  const s = Math.round(base * (LEVEL_FACTOR[levelOf(q)] ?? 1) / 5) * 5;
+  return Math.min(240, Math.max(30, s)) * 1000;
+};
 export const DOM_ORDER = ['Information and Ideas', 'Craft and Structure', 'Expression of Ideas', 'Standard English Conventions',
   'Algebra', 'Advanced Math', 'Problem-Solving and Data Analysis', 'Geometry and Trigonometry'];
 export const SKILL_ORDER = ['Central Ideas and Details', 'Inferences', 'Command of Evidence', 'Words in Context',

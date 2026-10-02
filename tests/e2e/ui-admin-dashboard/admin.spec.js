@@ -52,7 +52,7 @@ for (const viewport of [{width:1920,height:1080},{width:1366,height:768}]) {
       await page.locator('#save-start').click();await expect(page.locator('#join-result .join-code')).toBeVisible();await shot(page,'builder-session-created');
       const lessonId=page.url().match(/lessons\/(\d+)/)[1];
       await page.locator('#library-back').click();await expect(page.locator(`[data-edit="${lessonId}"]`)).toBeVisible();await shot(page,'library');
-      await page.locator(`[data-past="${lessonId}"]`).click();await expect(page.locator(`#past-${lessonId}`)).toContainText('Results unavailable');await shot(page,'past-sessions');
+      await page.locator(`[data-past="${lessonId}"]`).click();await expect(page.locator(`#past-${lessonId}`)).toContainText('Open live room');await expect(page.locator(`#past-${lessonId}`)).toContainText('0 joined');await shot(page,'past-sessions');
       await page.locator(`[data-delete="${lessonId}"]`).click();await expect(page.getByRole('dialog')).toContainText(`Algebra workshop ${size}`);await shot(page,'delete-confirmation');
       await page.getByRole('button',{name:'Delete lesson',exact:true}).click();await expect(page.locator(`[data-edit="${lessonId}"]`)).toHaveCount(0);
       const sessions=await (await context.request.get(`/api/admin/lessons/${lessonId}/sessions`)).json();expect(sessions.length).toBe(1);

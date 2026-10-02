@@ -17,8 +17,6 @@ import {
   api,
   defaultTime,
   formatTime,
-  notesHTML,
-  parseTime,
   totalTime,
   type BankQuestion,
   type Lesson,
@@ -29,13 +27,13 @@ import {
   Dialog,
   Empty,
   ErrorText,
-  HTML,
   Pagination,
   Pending,
-  Preview,
   useResource,
 } from "./ui";
 import { QuestionViewer } from "./QuestionViewer";
+import { ItemViewer } from "./ItemViewer";
+import { notesSnippet } from "./itemLabel.ts";
 
 type Filters = {
   section: string;
@@ -130,11 +128,13 @@ export function QuestionBrowser({
   add,
   remove,
   cache,
+  openInLesson,
 }: {
   items?: Item[];
   add?: (qs: BankQuestion[]) => void;
   remove?: (id: string) => void;
   cache?: (qs: BankQuestion[]) => void;
+  openInLesson?: (id: string) => void;
 }) {
   const [f, setF] = useState<Filters>(initial);
   const [search, setSearch] = useState("");
@@ -343,6 +343,17 @@ export function QuestionBrowser({
           added={!!current && !!items?.some((i) => i.question_id === current.id)}
           onAdd={add ? () => current && add([current]) : undefined}
           onRemove={remove ? () => current && remove(current.id) : undefined}
+          onOpenInLesson={
+            openInLesson
+              ? () => {
+                  if (!current) return;
+                  const id = current.id;
+                  setView(null);
+                  setShown(undefined);
+                  openInLesson(id);
+                }
+              : undefined
+          }
         />
       )}
     </>
@@ -373,14 +384,13 @@ export function Builder({
     paddedId: string;
     joinCode: string;
   }>();
-  const [custom, setCustom] = useState("");
-  const [timeError, setTimeError] = useState("");
   const current = useRef<Lesson | undefined>(undefined),
     revision = useRef(0),
     saved = useRef(0),
     timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined),
     chain = useRef(Promise.resolve()),
-    alive = useRef(true);
+    alive = useRef(true),
+    asked = useRef(new Set<string>());
   const save = async () => {
     clearTimeout(timer.current);
     const value = current.current!;
@@ -490,26 +500,28 @@ export function Builder({
     window.addEventListener("beforeunload", unload);
     return () => window.removeEventListener("beforeunload", unload);
   });
+  // Row labels and the item viewer need each item's question; fetch the ones the browser hasn't cached.
+  const wanted = lesson?.items.map((i) => i.question_id).join("\n") || "";
   useEffect(() => {
-    const x = lesson?.items[editor];
-    setCustom(x ? formatTime(x.time_limit_sec) : "");
-    setTimeError("");
-    if (!x || questions[x.question_id]) return;
     let cancelled = false;
-    api<Results>(
-      `/api/admin/questions?search=${encodeURIComponent(x.question_id)}`,
-    )
-      .then((d) => {
-        const q = d.questions.find((q) => q.id === x.question_id);
-        if (q && !cancelled) setQuestions((old) => ({ ...old, [q.id]: q }));
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message);
-      });
+    for (const id of wanted.split("\n").filter(Boolean)) {
+      if (questions[id] || asked.current.has(id)) continue;
+      asked.current.add(id);
+      api<Results>(`/api/admin/questions?search=${encodeURIComponent(id)}`)
+        .then((d) => {
+          const q = d.questions.find((q) => q.id === id);
+          if (q && !cancelled) setQuestions((old) => ({ ...old, [q.id]: q }));
+          else asked.current.delete(id);
+        })
+        .catch((e) => {
+          asked.current.delete(id);
+          if (!cancelled) setError(e.message);
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, [editor, lesson?.items[editor]?.question_id]);
+  }, [wanted]);
   if (!lesson)
     return (
       <Pending
@@ -521,7 +533,6 @@ export function Builder({
       />
     );
   const items = lesson.items;
-  const x = items[editor];
   const editItem = (part: Partial<Item>) =>
     update({
       items: items.map((i, n) => (n === editor ? { ...i, ...part } : i)),
@@ -548,6 +559,9 @@ export function Builder({
       <div className="builder">
         <QuestionBrowser
           items={items}
+          openInLesson={(id) =>
+            setEditor(items.findIndex((i) => i.question_id === id))
+          }
           remove={(id) => {
             setEditor(-1);
             update({ items: items.filter((i) => i.question_id !== id) });
@@ -633,11 +647,25 @@ export function Builder({
                 }}
               >
                 <GripVertical className="drag-handle" />
-                <span className="item-title">
-                  <strong>
-                    {n + 1}. {i.question_id}
-                  </strong>{" "}
-                  <small>{formatTime(i.time_limit_sec)}</small>
+                <span
+                  className="item-title"
+                  title={i.question_id}
+                  onClick={() => setEditor(n)}
+                >
+                  <span className="item-top">
+                    <strong>
+                      {n + 1}. {questions[i.question_id]?.skill || "…"}
+                    </strong>
+                    {questions[i.question_id] && (
+                      <Badge
+                        tone={questions[i.question_id].difficulty.toLowerCase()}
+                      >
+                        {questions[i.question_id].difficulty}
+                      </Badge>
+                    )}
+                    <small>{formatTime(i.time_limit_sec)}</small>
+                  </span>
+                  <small className="item-notes">{notesSnippet(i.notes)}</small>
                 </span>
                 <button
                   data-up={n}
@@ -675,79 +703,6 @@ export function Builder({
               </li>
             ))}
           </ol>
-          <div id="item-editor">
-            {x && (
-              <div className="editor">
-                <div className="section-head">
-                  <h3>{x.question_id}</h3>
-                  <button id="close-editor" onClick={() => setEditor(-1)}>
-                    Close editor
-                    <X />
-                  </button>
-                </div>
-                <p>Time limit</p>
-                <div className="time-chips">
-                  {[30, 45, 60, 90, 120, 180].map((sec, n) => (
-                    <button
-                      data-time={sec}
-                      key={sec}
-                      aria-pressed={x.time_limit_sec === sec}
-                      onClick={() => {
-                        editItem({ time_limit_sec: sec });
-                        setCustom(formatTime(sec));
-                        setTimeError("");
-                      }}
-                    >
-                      {["30s", "45s", "1m", "1m30", "2m", "3m"][n]}
-                    </button>
-                  ))}
-                </div>
-                <label>
-                  Custom mm:ss
-                  <input
-                    id="custom-time"
-                    value={custom}
-                    inputMode="numeric"
-                    onChange={(e) => setCustom(e.target.value)}
-                    onBlur={() => {
-                      const n = parseTime(custom);
-                      if (n == null)
-                        setTimeError("Use mm:ss (5 seconds to 180 minutes)");
-                      else {
-                        editItem({ time_limit_sec: n });
-                        setTimeError("");
-                      }
-                    }}
-                  />
-                </label>
-                <p id="time-error" className="error" role="alert">
-                  {timeError}
-                </p>
-                <label>
-                  Notes (you see these during the lesson; students see them as
-                  the breakdown when reviewing afterwards).
-                  <textarea
-                    id="lesson-notes"
-                    maxLength={4000}
-                    value={x.notes}
-                    onChange={(e) => editItem({ notes: e.target.value })}
-                  />
-                </label>
-                <h4>Notes preview</h4>
-                <HTML id="notes-preview" html={notesHTML(x.notes)} />
-                <details>
-                  <summary>Question reference</summary>
-                  <div id="editor-question">
-                    {questions[x.question_id] ? (
-                      <Preview q={questions[x.question_id]} />
-                    ) : (
-                      <p>Question unavailable</p>
-                    )}
-                  </div>
-                </details>
-              </div>
-            )}
-          </div>
           <ErrorText>{error}</ErrorText>
           <div className="editor-actions">
             <button
@@ -792,6 +747,22 @@ export function Builder({
           </div>
         </section>
       </div>
+      {editor >= 0 && items[editor] && (
+        <ItemViewer
+          items={items}
+          index={editor}
+          questions={questions}
+          setIndex={setEditor}
+          edit={editItem}
+          remove={() => {
+            // Stay in the lesson: land on the item that slides into this slot.
+            const next = Math.min(editor, items.length - 2);
+            update({ items: items.filter((_, n) => n !== editor) });
+            setEditor(next);
+          }}
+          close={() => setEditor(-1)}
+        />
+      )}
       {exit && (
         <Dialog
           title="Save changes before leaving?"

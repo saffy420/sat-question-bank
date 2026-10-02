@@ -55,6 +55,13 @@ function choosePhrase(perScreen) {
   return null;
 }
 
+// Nine words on one presenter line, for when every screen breaks lines alike.
+function onePhrase(words) {
+  const ys = words.map(w => (w.t0 + w.b) / 2);
+  for (let from = 12; from + 9 < words.length - 4; from++) if (Math.max(...ys.slice(from, from + 9)) - Math.min(...ys.slice(from, from + 9)) <= 10) return { from, len: 9, wraps: [] };
+  return null;
+}
+
 for (const [label, instructor] of [['instructor at 125% zoom', zoomOpts(1.25)], ['instructor on a 1920×1080 screen', INSTRUCTOR]]) {
   test(`pen: a stroke over a phrase covers the same words on the ${label}, on a 1366×768 student and on a 110% zoom student, wherever the lines break`, async ({ browser }) => {
     test.setTimeout(180000);
@@ -66,10 +73,12 @@ for (const [label, instructor] of [['instructor at 125% zoom', zoomOpts(1.25)], 
       const screens = [[teacher, PASSAGE], [plain, STUDENT_PASSAGE], [zoomed, STUDENT_PASSAGE]];
       const measured = await Promise.all(screens.map(([page, scope]) => passageWords(page, scope)));
       expect(new Set(measured.map(w => w.length)).size, 'every screen shows the same passage').toBe(1);
-      const phrase = choosePhrase(measured);
-      expect(phrase, 'a phrase that is on one line here and wraps on another screen exists in the passage').not.toBeNull();
+      // Revealed students lay the stage out as the presenter does (live-fit), so normally no phrase wraps differently;
+      // one that does is still preferred, else any phrase on one presenter line. The ink must follow the words either way.
+      const phrase = choosePhrase(measured) || onePhrase(measured[0]);
+      expect(phrase, 'a phrase on one presenter line exists in the passage').not.toBeNull();
       const wanted = Array.from({ length: phrase.len }, (_, k) => phrase.from + k);
-      console.log(`${label}: words ${wanted[0]}..${wanted.at(-1)} "${measured[0].slice(phrase.from, phrase.from + phrase.len).map(w => w.t).join(' ')}" wrap on screen(s) ${phrase.wraps.map(n => ['1366', '110%'][n]).join(', ')}`);
+      console.log(`${label}: words ${wanted[0]}..${wanted.at(-1)} "${measured[0].slice(phrase.from, phrase.from + phrase.len).map(w => w.t).join(' ')}" wrap on screen(s) ${phrase.wraps.map(n => ['1366', '110%'][n]).join(', ') || 'none'}`);
 
       // Scroll the first word into view on the presenter, measure again, and underline the phrase along its line.
       await wordCenter(teacher, PASSAGE, measured[0][phrase.from].t, measured[0].slice(0, phrase.from).filter(w => w.t === measured[0][phrase.from].t).length);

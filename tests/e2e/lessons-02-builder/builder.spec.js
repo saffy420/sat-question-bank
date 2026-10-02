@@ -3,7 +3,7 @@ import { newUserContext, ORIGIN } from '../lessons-00b-e2e-harness/auth.js';
 
 const artifact = '.opencode/pipeline/lessons-02-builder/e2e';
 const ids = ['e2e-core-rw', 'e2e-core-math', 'e2e-core-spr'];
-const order = page => page.locator('#lesson-items li').evaluateAll(rows => rows.map(row => row.textContent.match(/e2e-core-[\w-]+/)[0]));
+const order = page => page.locator('#lesson-items li').evaluateAll(rows => rows.map(row => row.querySelector('[title]').title.match(/e2e-core-[\w-]+/)[0]));
 
 async function openFilter(page, name) {
   const details = page.locator('.multi details').filter({ has: page.locator('summary', { hasText: name }) });
@@ -27,7 +27,7 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await expect(page.locator('#results [data-add]')).toHaveCount(1);
     await expect(page.locator('#results [data-add]')).toHaveAttribute('data-add', ids[0]);
     await page.locator(`[data-add="${ids[0]}"]`).click();
-    await expect(page.locator('#total-time')).toHaveText('1:00');
+    await expect(page.locator('#total-time')).toHaveText('0:45');
     await page.screenshot({ path: `${artifact}/01-domain-skill.png` });
 
     await page.locator('#f-section').selectOption('Math');
@@ -38,7 +38,7 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await expect(page.locator('#results [data-add]')).toHaveCount(2);
     await page.locator(`[data-add="${ids[1]}"]`).click();
     await page.locator(`[data-add="${ids[2]}"]`).click();
-    await expect(page.locator('#total-time')).toHaveText('4:00');
+    await expect(page.locator('#total-time')).toHaveText('3:00');
     expect(await order(page)).toEqual(ids);
     await page.locator('#lesson-items li').nth(2).dragTo(page.locator('#lesson-items li').first());
     await expect.poll(() => order(page)).toEqual([ids[2], ids[0], ids[1]]);
@@ -57,7 +57,7 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await page.locator(`[aria-label="Edit ${ids[2]}"]`).click();
     await page.locator('#custom-time').fill('0:35');
     await page.locator('#custom-time').press('Tab');
-    await expect(page.locator('#total-time')).toHaveText('3:05');
+    await expect(page.locator('#total-time')).toHaveText('2:35');
     await page.locator('#lesson-notes').fill('**Factor** \\(x^2\\)\n\n- <script>alert(1)</script>');
     await expect(page.locator('#notes-preview strong')).toHaveText('Factor');
     await expect(page.locator('#notes-preview .katex')).toHaveCount(1);
@@ -68,7 +68,8 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await page.locator(`[aria-label="Edit ${ids[1]}"]`).click();
     await page.locator('#custom-time').fill('2:05');
     await page.locator('#custom-time').press('Tab');
-    await expect(page.locator('#total-time')).toHaveText('3:40');
+    await expect(page.locator('#total-time')).toHaveText('3:25');
+    await page.locator('#close-editor').click();
     await page.locator('#save-lesson').click();
     await expect(page.locator('#save-status')).toHaveText('Saved');
     await expect(page).toHaveURL(/\/admin\/lessons\/\d+\/edit$/);
@@ -79,7 +80,7 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await expect(page.locator('#lesson-title')).toHaveValue(/E2E builder \d+/);
     await expect(page.locator('[name="mode"][value="instructor"]')).toBeChecked();
     expect(await order(page)).toEqual([ids[2], ids[1], ids[0]]);
-    await expect(page.locator('#total-time')).toHaveText('3:40');
+    await expect(page.locator('#total-time')).toHaveText('3:25');
     await page.locator(`[aria-label="Edit ${ids[2]}"]`).click();
     await expect(page.locator('#custom-time')).toHaveValue('0:35');
     await expect(page.locator('#lesson-notes')).toHaveValue('**Factor** \\(x^2\\)\n\n- <script>alert(1)</script>');

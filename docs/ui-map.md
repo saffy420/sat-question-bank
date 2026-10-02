@@ -10,12 +10,12 @@ Navigation only; `public/index.html` remains one 4,057-line file. Ranges are inc
 | Source range | Responsibility |
 |---|---|
 | `public/index.html:1–23` | Document head; pinned Supabase, font and KaTeX resources |
-| `public/index.html:24–109` | Base/theme/global styles |
+| `public/index.html:24–109` | Base/global styles (light only) |
 | `public/index.html:110–349` | Home layout, filters, settings, topic picker, charts and mistakes styles |
 | `public/index.html:350–588` | Player, panes, figures, choices, highlighter, map, docking, calculators and results styles |
 | `public/index.html:589–758` | Responsive/phone and compact-table overrides |
 | `public/index.html:759–763` | Style/head closure and body opening |
-| `public/index.html:764–927` | Home markup: navigation, dashboard, practice, browse, mistakes, exams, history and settings |
+| `public/index.html:764–927` | Home markup: navigation, dashboard, practice, mistakes, exams, history and settings |
 | `public/index.html:928–975` | Player markup |
 | `public/index.html:976–999` | Practice results markup |
 | `public/index.html:1000–1020` | Exam results and shared modal/overlay roots |
@@ -25,7 +25,7 @@ Navigation only; `public/index.html` remains one 4,057-line file. Ranges are inc
 | Source range | Responsibility / entry points |
 |---|---|
 | `public/index.html:1021–1040` | IIFE, DOM/escaping helpers, public auth placeholders, storage wrapper and shared state |
-| `public/index.html:1041–1102` | Settings, theme, preference saving and legacy filter migration |
+| `public/index.html:1041–1102` | Settings, preference saving and legacy filter migration |
 | `public/index.html:1103–1176` | Text normalization and `tidyExpl` extraction block |
 | `public/index.html:1177–1251` | Account data loading and `backfillProgress` extraction block |
 | `public/index.html:1252–1285` | Settings load and shared `refresh()` |
@@ -39,7 +39,6 @@ Navigation only; `public/index.html` remains one 4,057-line file. Ranges are inc
 | `public/index.html:2046–2304` | Dashboard rendering and interaction |
 | `public/index.html:2305–2405` | Mistakes filtering/review |
 | `public/index.html:2406–2445` | `notesMd` extraction block and related note preview helpers |
-| `public/index.html:2446–2523` | Browse search/preview |
 | `public/index.html:2524–2555` | Session section and pure `exam` extraction block |
 | `public/index.html:2556–2649` | `start()`, session state and timers |
 | `public/index.html:2650–2968` | Question rendering, lightbox, panes, choices and input handling |

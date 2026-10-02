@@ -1,3 +1,4 @@
+import { targetOf } from "../public/shared/stats.js";
 import type { Question } from "../lesson-ui/types";
 export type BankQuestion = Question & {
   domain: string;
@@ -28,10 +29,17 @@ export type Session = {
   paddedId: string;
   status: string;
   created_at: string;
+  started_at?: string | null;
   join_code: string;
+  // Past sessions row (GET /api/admin/lessons/:id/sessions).
+  joined?: number;
+  average?: { right: number; scorable: number; percent: number } | null;
 };
-export const defaultTime = (q: Pick<Question, "section">) =>
-  q.section === "Math" ? 90 : 60;
+export const defaultTime = (
+  q: Pick<BankQuestion, "section" | "skill" | "difficulty" | "domain"> & {
+    level?: number;
+  },
+) => Math.min(10800, Math.max(5, Math.round(targetOf(q) / 1000)));
 export const totalTime = (items: Item[]) =>
   items.reduce((n, x) => n + x.time_limit_sec, 0);
 export const formatTime = (sec: number) =>

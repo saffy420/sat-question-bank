@@ -21,7 +21,7 @@ async function bank(page, name) {
   await expect(page.locator('#user-name')).toHaveText(name);
   expect(await page.evaluate(() => window.__qa().QS.map(q => q.id).sort())).toEqual([...ids].sort());
   await expect.poll(() => page.evaluate(() =>
-    document.querySelector('#home-stats .v')?.textContent === '9' &&
+    document.querySelector('#start-count')?.textContent === '9 matching questions' &&
     document.querySelector('[data-tab="plan"]')?.classList.contains('on') &&
     document.querySelector('#tab-practice')?.classList.contains('hide') &&
     !document.querySelector('#tab-plan')?.classList.contains('hide')
@@ -34,10 +34,10 @@ test('C1 admin login cookie opens gated app; core and AI bank render', async ({ 
   try {
     const page = await context.newPage();
     await bank(page, 'E2E Admin');
-    await page.locator('[data-tab="browse"]').click();
-    await expect(page.locator('#browse-count')).toHaveText('9 questions'); // 7 + the 11b split-layout and figure-viewer fixtures
-    await expect(page.locator('#tab-browse #browse-body tr[data-id]')).toHaveCount(9);
-    await expect(page.locator('#tab-browse #browse-body')).toContainText('e2e-ai-rw');
+    await expect(page.locator('[data-tab="browse"]')).toHaveCount(0);
+    const ids = await page.evaluate(() => window.__qa().QS.map(q => q.id));
+    expect(ids).toHaveLength(9); // 7 + the 11b split-layout and figure-viewer fixtures
+    expect(ids).toContain('e2e-ai-rw');
     await page.screenshot({ path: `${artifacts}/C1-admin.png` });
   } finally { await context.close(); }
 });

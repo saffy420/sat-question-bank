@@ -141,10 +141,28 @@ test('admin WebSocket upgrades without student client ID; student sockets requir
   assert.equal(forwarded, 1);
 });
 
+test('projector WebSocket view is admin-only and forwarded with the projector role', async t => {
+  const { env, id, request } = await fixture(t);
+  const created = await data(await request('/api/admin/lessons', 'admin', 'POST', { ...body, items: [body.items[0]] }));
+  const session = await data(await request(`/api/admin/lessons/${created.id}/sessions`, 'admin', 'POST'));
+  const { handleRequest } = await import('../src/index.js');
+  const upgrade = (token, query) => handleRequest(new Request(`${origin}/api/lessons/${session.sessionId}/ws${query}`, {
+    headers: { Upgrade: 'websocket', Origin: origin, Authorization: `Bearer ${token}` }
+  }), env, async () => token === 'admin' ? { id, email: 'admin@ccs.us' } : { id: 'student', email: 'student@ccs.us' });
+  const contexts = [];
+  env.LESSON_ROOM = { getByName: () => ({ fetch: async req => { contexts.push(JSON.parse(req.headers.get('X-Lesson-Context'))); return Response.json({ accepted: true }); } }) };
+  assert.equal((await upgrade('student', `?view=projector&client=${crypto.randomUUID()}`)).status, 403);
+  assert.equal(contexts.length, 0);
+  assert.equal((await upgrade('admin', `?view=projector&client=${crypto.randomUUID()}`)).status, 200);
+  assert.equal(contexts.length, 1);
+  assert.equal(contexts[0].role, 'projector'); assert.equal(contexts[0].clientId, null);
+});
+
 test('builder time and notes checks use actual client helpers', async () => {
   const helpers = await import('../admin-ui/helpers.ts');
-  assert.equal(helpers.defaultTime({ section:'Math' }),90);
-  assert.equal(helpers.defaultTime({ section:'Reading & Writing' }),60);
+  assert.equal(helpers.defaultTime({ section:'Math', skill:'Circles', difficulty:'Medium' }),120);
+  assert.equal(helpers.defaultTime({ section:'Reading & Writing', skill:'Transitions', difficulty:'Easy' }),40);
+  assert.equal(helpers.defaultTime({ section:'Math' }),95);
   assert.equal(helpers.totalTime([{ time_limit_sec:90 },{ time_limit_sec:60 }]),150);
   assert.equal(helpers.formatTime(150),'2:30'); assert.equal(helpers.parseTime('2:30'),150);
   for (const bad of ['0:04','180:01','1:60','bad']) assert.equal(helpers.parseTime(bad),null);

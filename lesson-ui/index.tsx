@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { Check, X, Highlighter, Focus, Circle, LogOut, Eraser, Users, LockKeyhole, Calculator, Lightbulb } from 'lucide-react';
@@ -11,7 +11,7 @@ import { CalculatorShell, useCalculator } from './Calculator';
 import { SelfPlayer } from './Self';
 import { PollScreen } from './Poll';
 import { HistoryView } from './History';
-import type { Bridge, PlayerModel, Mark, Laser, LessonHistory } from './types';
+import type { Bridge, PlayerModel, Mark, Laser, LessonHistory, View } from './types';
 import type { StageProps } from './Stage';
 import './lesson.css';
 export { Stage } from './Stage';
@@ -20,6 +20,32 @@ export type { StageProps } from './Stage';
 
 const NONE: Mark[] = [];
 const NO_LETTERS: string[] = [];
+
+// Presenter fit (live-fit). Once a question is revealed the stage is laid out at the presenter's stage width,
+// type size and viewport width, then scaled uniformly to this student's column: the same layout gives the same
+// line breaks, so ink, highlights and the laser land on the same words everywhere. The box takes the scaled
+// height so the page scrolls as usual. Without a view (or while answering) both wrappers are plain blocks and
+// the stage stays fluid; the tree is the same either way, so switching never remounts the stage.
+function PresenterFit({ view, children }: { view: View | null; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const outer = box.current, inner = outer?.firstElementChild as HTMLElement | null;
+    if (!view || !outer || !inner) return;
+    const fit = () => {
+      const k = outer.getBoundingClientRect().width / view.w, transform = `scale(${k})`;
+      outer.style.height = `${inner.offsetHeight * k}px`;
+      if (inner.style.transform === transform) return;
+      inner.style.transform = transform;
+      inner.querySelector('.lesson-stage')?.dispatchEvent(new Event('stage:scale'));
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(outer); observer.observe(inner);
+    fit();
+    return () => { observer.disconnect(); outer.style.height = ''; inner.style.transform = ''; };
+  }, [view?.w]);
+  const style = view ? { width: `${view.w}px`, '--fs': `${view.fs}px`, '--u': `${view.u}px`, '--vw': `${view.vw / 100}px` } as CSSProperties : undefined;
+  return <div className={`stage-fit-box${view ? ' fitted' : ''}`} ref={box}><div className={view ? 'stage-fit' : undefined} style={style}>{children}</div></div>;
+}
 
 function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; bridge: Bridge; terminal: string; followMark: Mark | null }) {
   const { snapshot: s, picked, remaining } = model;
@@ -88,7 +114,7 @@ function Player({ model, bridge, terminal, followMark }: { model: PlayerModel; b
     {!model.connected && <div className="lesson-reconnect" role="status">Reconnecting…</div>}
     <main className={`lesson-main${revealed && s.desmos ? ' with-desmos' : ''}${calc.math && calc.open ? ' with-calc' : ''}`}>
       {s.status === 'lobby' ? <section className="lesson-lobby"><Users size={36} aria-hidden="true"/><h2>Waiting for the instructor to start…</h2><p>{s.count} joined</p></section> : s.question && <>
-        <Stage key={s.questionId} question={s.question} number={s.index + 1} onReport={card => bridge.report({ questionId: s.questionId, element: card })} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={ownMarks} mathify={bridge.mathify} onSelect={select} strikeMode={strikeMode} struck={ownStruck} eliminated={s.eliminations} onStrikeMode={() => setStrikeMode(!strikeMode)} onStrike={strike} annotating={privateOn} onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [s.questionId]: [...(all[s.questionId] || []), mark] })) : undefined}/>
+        <PresenterFit view={s.phase === 'REVEALED' && s.view ? s.view : null}><Stage key={s.questionId} question={s.question} number={s.index + 1} onReport={card => bridge.report({ questionId: s.questionId, element: card })} picked={picked} active={active} revealed={revealed} marks={s.annotations} privateMarks={ownMarks} mathify={bridge.mathify} onSelect={select} strikeMode={strikeMode} struck={ownStruck} eliminated={s.eliminations} onStrikeMode={() => setStrikeMode(!strikeMode)} onStrike={strike} annotating={privateOn} onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [s.questionId]: [...(all[s.questionId] || []), mark] })) : undefined}/></PresenterFit>
         {!revealed && (s.locked || model.lockPending) && <p className="lesson-locked" role="status"><LockKeyhole size={18} aria-hidden="true"/>Answer locked in. Waiting for time to end…</p>}
         {revealed && <section className="lesson-reveal"><p>Correct answer: {s.question.answer}{s.question.spr && !s.notInSet && <> · Your answer: {picked || 'blank'} · {isRight(s.question, picked) ? 'Correct' : 'Incorrect'}</>}</p>{s.notInSet ? <div className="lesson-verdict" id="lesson-not-in-set">Not in your set</div> : <div className="lesson-verdict"><span>{isRight(s.question, picked) ? <Check aria-label="Correct"/> : <X aria-label="Incorrect"/>}</span>{picked ? `Your answer: ${picked}` : 'No answer selected'}</div>}<details key={s.questionId}><summary>Official explanation</summary><div ref={explanation}/></details>
           {s.classResults && s.distribution && <section className="lesson-results"><h3>Class results</h3>{s.distribution.map((g, index) => <div className="lesson-result" key={g.label}><span>{g.label}</span><span className="lesson-result-track"><i style={{ width: `${100 * g.count / Math.max(1, ...s.distribution!.map(row => row.count))}%`, background: ['#1182a4', '#126bb3', '#706caf', '#398437'][index % 4] }}/></span><strong>{g.count}</strong>{g.correct && <Check size={18} aria-label="Correct"/>}</div>)}</section>}
@@ -156,3 +182,8 @@ export function mountHistory(root: HTMLElement, history: LessonHistory, mathify:
 export { mountBank } from './Bank';
 export { createRecorder, pick, commit, remember, firstTry, outcome, SHOW_ANSWER_AFTER } from './record';
 export * as Plan from './plan';
+export { mountBankHome } from './qbank/BankHome';
+export { applyExtraFilters } from './qbank/filterTypes';
+export { EXTRA_FILTERS } from './qbank/extraFilters';
+export { migrateSection } from './qbank/selection';
+export { loadSaved, setSaved, savedIds, subscribe as subscribeSaved } from './qbank/saved';

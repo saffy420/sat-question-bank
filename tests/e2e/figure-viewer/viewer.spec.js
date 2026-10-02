@@ -206,7 +206,7 @@ async function exercise(page, scope, prefix, { touch = false } = {}) {
   await expect(fv.locator('.fv-pct')).toHaveText('100%');
 }
 
-test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, touch, Esc, keyboard, no requests, dark', async ({ browser }) => {
+test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, touch, Esc, keyboard, no requests', async ({ browser }) => {
   const context = await newUserContext(browser, 'e2e-student-2');
   try {
     const hits = await serveFigure(context);
@@ -215,10 +215,8 @@ test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, t
     await page.goto('/app');
     await expect(page.locator('#user-name')).toContainText('E2E Student');
     await page.locator('[data-tab="practice"]').click();
-    await page.locator('#dd-sec .dd-t').click();
-    // From "Both sections" a pick toggles that section off: untick Reading & Writing to leave Math.
-    await page.locator('#dd-sec .dd-o[data-v="Reading & Writing"]').click();
-    await page.keyboard.press('Escape');
+    // The Math column header picks every Math topic.
+    await page.locator('#bank-home .qb-sec[data-section="Math"]').click();
     await page.locator('#btn-start').click();
     await expect(page.locator('#bank-live')).toBeVisible();
     const current = () => page.evaluate(() => { const { S } = window.__qa(); return S.items[S.i].id; });
@@ -260,12 +258,11 @@ test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, t
     await page.locator(`${scope} .fv-view`).click();
     await expect(page.locator('.lb')).toHaveCount(0);
 
-    // Dark theme: white plate under the figure, readable toolbar.
-    await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
-    const dark = await page.locator(scope).evaluate(fv => ({ view: getComputedStyle(fv.querySelector('.fv-view')).backgroundColor, bar: getComputedStyle(fv.querySelector('.fv-bar')).backgroundColor, ink: getComputedStyle(fv.querySelector('.fv-pct')).color, filter: getComputedStyle(fv.querySelector('img')).filter }));
-    expect(dark).toEqual({ view: 'rgb(255, 255, 255)', bar: 'rgb(42, 45, 51)', ink: 'rgb(230, 232, 235)', filter: 'none' });
+    // White plate under the figure, dark ink on a light toolbar (the app has no dark theme).
+    const plate = await page.locator(scope).evaluate(fv => ({ view: getComputedStyle(fv.querySelector('.fv-view')).backgroundColor, bar: getComputedStyle(fv.querySelector('.fv-bar')).backgroundColor, ink: getComputedStyle(fv.querySelector('.fv-pct')).color, filter: getComputedStyle(fv.querySelector('img')).filter }));
+    expect(plate).toEqual({ view: 'rgb(255, 255, 255)', bar: 'rgb(241, 242, 244)', ink: 'rgb(31, 41, 55)', filter: 'none' });
     await page.mouse.move(1, 1);
-    await shot(page, 'bank-dark');
+    await shot(page, 'bank-figure-light');
     expect(errors).toEqual([]);
   } finally { await context.close(); }
 });
@@ -351,10 +348,10 @@ test('lessons: student A–D, instructor and history viewers, no socket traffic,
     const imgs = [];
     for (const [i, page] of pages.entries()) {
       await expect(page.locator(`${scope} .fv-pct`)).toHaveText('100%');
+      await page.locator(scope).scrollIntoViewIfNeeded();
       const img = await imgOf(page);
       imgs.push(img);
       await expect.poll(() => onFigure(page, img), { message: `student ${i + 1}: stroke on the same figure points`, timeout: 8000 }).toBe(true);
-      await page.locator(scope).scrollIntoViewIfNeeded();
       const frame = await page.locator(scope).evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
       await shot(page, `lesson-stroke-student-${i + 1}-100`, { clip: frame });
     }

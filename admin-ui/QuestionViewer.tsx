@@ -5,7 +5,7 @@ import { rationaleHTML, type BankQuestion } from "./helpers";
 import { Badge, HTML } from "./ui";
 
 // Question body for the viewer's left pane: passage or figure, stem, then choices.
-function questionHTML(q: BankQuestion) {
+export function questionHTML(q: BankQuestion) {
   const raw = q.stem_html || "";
   const at = q.section !== "Math" ? raw.indexOf("<h3>Prompt</h3>") : -1;
   const stem =
@@ -24,7 +24,7 @@ function questionHTML(q: BankQuestion) {
   }`;
 }
 
-const typing = (target: EventTarget | null) =>
+export const typing = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable ||
     (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) &&
@@ -45,6 +45,7 @@ export function QuestionViewer(props: {
   added?: boolean;
   onAdd?: () => void;
   onRemove?: () => void;
+  onOpenInLesson?: () => void;
 }) {
   const { q, loading } = props;
   const ref = useRef<HTMLDialogElement>(null);
@@ -168,6 +169,11 @@ export function QuestionViewer(props: {
                   <Check />
                   Added
                 </span>
+                {props.onOpenInLesson && (
+                  <button id="qv-open-lesson" onClick={props.onOpenInLesson}>
+                    Open in lesson
+                  </button>
+                )}
                 <button id="qv-remove" onClick={props.onRemove}>
                   Remove
                 </button>

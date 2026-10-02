@@ -17,6 +17,16 @@ const reviewRow = (s, item) => {
   const desmos = review(s, item).desmos || null;
   return annotations.length || desmos ? { questionId: id, annotations: annotations.length ? annotations : null, desmos } : null;
 };
+// Session results timing: s.timing[questionId] = { explainMs, answerMs }, kept in room storage and
+// written once with the ended UPDATE. `revealedAt` stamps the current REVEALED interval; leaving
+// REVEALED (any path) adds it to the question being left, so revisits accumulate.
+const timingOf = (s, id) => (s.timing ||= {})[id] ||= {};
+const openReveal = s => { s.revealedAt = Date.now(); };
+const closeReveal = s => {
+  const id = s.items[s.index]?.question_id;
+  if (s.revealedAt != null && id) { const t = timingOf(s, id); t.explainMs = (t.explainMs || 0) + Math.max(0, Date.now() - s.revealedAt); }
+  s.revealedAt = null;
+};
 
 class Room {
   constructor(ctx, env) {
@@ -28,21 +38,26 @@ class Room {
   async save(s) { const { desmos, ...room } = s; await this.ctx.storage.put('room', room); }
   send(ws, data) { ws.send(JSON.stringify({ ...data, serverNow: Date.now() })); }
   sockets(role) { return this.ctx.getWebSockets().filter(ws => !role || ws.deserializeAttachment()?.role === role); }
+  // Everything students see live also goes to the classroom projector window (admin-ui/Projector.tsx).
+  audience() { return this.ctx.getWebSockets().filter(ws => ['student', 'projector'].includes(ws.deserializeAttachment()?.role)); }
   active(ws) { const a = ws.deserializeAttachment(); return !!a && this.sockets(a.role).filter(other => other.deserializeAttachment()?.userId === a.userId).at(-1) === ws; }
   snapshot(s, a, full = true) {
     if (s.mode === 'self') return this.selfSnapshot(s, a, full);
+    // The projector is the student projection with nobody's answer in it, plus the join code.
+    if (a.role === 'projector') return { ...this.snapshot(s, { ...a, role: 'student', userId: null }, full), role: 'projector', assignedQuestionIds: undefined, code: s.code, lockedJoin: s.lockedJoin };
     const item = s.items[s.index];
-    const r = a.role === 'student' ? Object.hasOwn(s.responses, a.userId) ? s.responses[a.userId]?.[item?.question_id] : null : null;
+    const r = a.role === 'student' && a.userId ? Object.hasOwn(s.responses, a.userId) ? s.responses[a.userId]?.[item?.question_id] : null : null;
     const revealed = s.phase === 'REVEALED' || s.phase === 'ENDED', { reached, played } = this.frontier(s);
     return { type: 'snapshot', sessionId: s.id, role: a.role, title: s.title, phase: s.phase, status: s.status,
       questionId: item?.question_id || null, index: s.index, total: s.items.length, endsAt: s.endsAt, revisit: s.index < reached,
       assignedQuestionIds: a.role === 'student' ? s.items.map(x => x.question_id) : undefined,
       question: item ? lessonQuestion(s.questions[item.question_id], revealed || a.role === 'admin') : null,
       ownSelection: r?.answer || null, locked: !!r?.locked, count: Object.keys(s.responses).length,
-      classResults: !!s.classResults, annotations: (revealed || a.role === 'admin') && item ? s.annotations?.[item.question_id] || [] : [],
+      classResults: !!s.classResults, annotations: item ? (s.annotations?.[item.question_id] || []).filter(x => revealed || a.role === 'admin' || x.type === 'edit') : [],
       eliminations: item ? this.sharedEliminations(s, item.question_id, a.role) : [],
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null,
       desmos: revealed && item && s.desmos?.questionId === item.question_id ? s.desmos.state : null,
+      view: s.view || null,
       ...(revealed && item && (a.role === 'admin' || s.classResults) ? { distribution: responseGroups(s.questions[item.question_id], Object.fromEntries(Object.entries(s.responses).map(([id, answers]) => [id, answers[item.question_id]])))
         .map(g => a.role === 'admin' ? { ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) } : { label: g.label, count: g.count, correct: g.correct }) } : {}),
       ...(a.role === 'admin' ? { code: s.code, lockedJoin: s.lockedJoin, roster: s.roster,
@@ -67,12 +82,14 @@ class Room {
     // Leaving a revealed question lands its shared layer, as Next always has.
     const row = s.phase === 'REVEALED' ? reviewRow(s, item) : null;
     if (row) await this.queue({ questionId: item.question_id, rows: [], end: false, reviews: [row] });
+    if (s.phase === 'REVEALED') closeReveal(s);
     // The graph stays with its question (desmos:<id>) for a revisit; `desmos` holds the current one.
     if (s.desmos?.questionId === item.question_id) await this.ctx.storage.put(`desmos:${item.question_id}`, s.desmos);
     s.desmos = await this.ctx.storage.get(`desmos:${s.items[to].question_id}`) || null;
     if (s.desmos) await this.ctx.storage.put('desmos', s.desmos); else await this.ctx.storage.delete('desmos');
     s.index = to; s.reached = Math.max(reached, to); s.played = played; s.endsAt = null;
     s.phase = to < played ? 'REVEALED' : 'READY';
+    if (s.phase === 'REVEALED') openReveal(s);
     return null;
   }
   // Review-only work waits behind an in-flight flush in `nextPending`, where entries for different
@@ -92,6 +109,15 @@ class Room {
   selfSnapshot(s, a, full) {
     const base = { type: 'snapshot', mode: 'self', sessionId: s.id, role: a.role, title: s.title, phase: s.phase, status: s.status,
       endsAt: s.endsAt, count: Object.keys(s.responses).length };
+    // Projector: the class-wide status only (clock, submitted count), never one student's set.
+    if (a.role === 'projector') {
+      const takers = Object.keys(s.responses).filter(userId => s.assigned[userId]?.length);
+      return { ...base, total: s.items.length, questionId: null, index: 0, code: s.code, lockedJoin: s.lockedJoin,
+        takers: takers.length, submittedCount: takers.filter(userId => s.submitted[userId]).length,
+        ...(s.phase === 'POLL' ? { poll: { endsAt: s.poll.endsAt, choices: s.poll.choices.map(id => ({ questionId: id, number: s.items.findIndex(x => x.question_id === id) + 1 })) } } : {}),
+        ...(s.phase === 'POLL_RESULT' ? { pollResult: s.pollResult } : {}),
+        ...(this.reviewing(s) ? this.reviewPayload(s, a) : {}) };
+    }
     if (a.role === 'student') {
       const ids = s.assigned[a.userId] || [];
       const own = s.responses[a.userId] || {};
@@ -146,7 +172,7 @@ class Room {
   // The instructor's crossed-out choices (A1). Every elimination a client receives comes from here:
   // snapshots call sharedEliminations, live changes go out only through broadcastEliminations as one
   // `eliminations` message type. Students' own cross-outs never reach the room.
-  sharedEliminations(s, questionId, role) { return role === 'student' && this.hidden(s) ? [] : s.eliminations?.[questionId] || []; }
+  sharedEliminations(s, questionId, role) { return role !== 'admin' && this.hidden(s) ? [] : s.eliminations?.[questionId] || []; }
   broadcastEliminations(s, questionId) {
     for (const ws of this.sockets(this.hidden(s) ? 'admin' : undefined)) {
       try { this.send(ws, { type: 'eliminations', questionId, letters: this.sharedEliminations(s, questionId, ws.deserializeAttachment()?.role) }); } catch { /* disconnected */ }
@@ -160,11 +186,13 @@ class Room {
     const groups = s.classResults || a.role === 'admin' ? responseGroups(q, Object.fromEntries(takers.map(userId => [userId, s.responses[userId][id] || {}]))) : null;
     // Review is untimed: the finished set's clock must not keep counting on screen.
     const common = { questionId: id, index: s.index, total: s.items.length, question: lessonQuestion(q, true), reviewMode: true, endsAt: null,
-      annotations: s.annotations?.[id] || [], eliminations: this.sharedEliminations(s, id, a.role), desmos: s.desmos?.questionId === id ? s.desmos.state : null, classResults: !!s.classResults,
+      annotations: s.annotations?.[id] || [], eliminations: this.sharedEliminations(s, id, a.role), desmos: s.desmos?.questionId === id ? s.desmos.state : null, view: s.view || null, classResults: !!s.classResults,
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null };
     if (a.role === 'admin') return { ...common, notes: item.notes || '',
       responses: Object.fromEntries(takers.map(userId => [userId, { [id]: { answer: s.responses[userId][id]?.answer, locked: true } }])),
       distribution: groups.map(g => ({ ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) })) };
+    if (a.role === 'projector') return { ...common, ownSelection: null, locked: true, notInSet: false,
+      ...(groups ? { distribution: groups.map(g => ({ label: g.label, count: g.count, correct: g.correct })) } : {}) };
     const inSet = !!s.assigned[a.userId]?.includes(id);
     return { ...common, ownSelection: inSet ? s.responses[a.userId]?.[id]?.answer || null : null, locked: true, notInSet: !inSet,
       ...(groups ? { distribution: groups.map(g => ({ label: g.label, count: g.count, correct: g.correct })) } : {}) };
@@ -209,7 +237,7 @@ class Room {
   }
   async enterReview(s, questionId) {
     s.index = s.items.findIndex(x => x.question_id === questionId);
-    s.phase = 'REVEALED'; s.poll = null; s.pollResult = null;
+    s.phase = 'REVEALED'; s.poll = null; s.pollResult = null; openReveal(s);
     if (!(s.reviewed ||= []).includes(questionId)) s.reviewed.push(questionId);
     await this.save(s);
     this.broadcast(s);
@@ -224,7 +252,7 @@ class Room {
         this.responseTimer = null;
         const latest = await this.state();
         if (!latest) return;
-        for (const ws of this.sockets('admin')) {
+        for (const ws of [...this.sockets('admin'), ...this.sockets('projector')]) {
           try { this.send(ws, this.snapshot(latest, ws.deserializeAttachment(), false)); } catch { /* disconnected */ }
         }
       }, 250);
@@ -296,7 +324,8 @@ class Room {
         .bind(s.id,r.questionId,r.annotations ? JSON.stringify(r.annotations) : null,r.desmos ? JSON.stringify(r.desmos) : null).run();
       // §2 usedInLesson: every question the session showed, recorded with the end.
       if (pending.end) await this.env.DB.batch([...(pending.usage || []).map(questionId => this.env.DB.prepare('INSERT OR IGNORE INTO question_lesson_usage (question_id,session_id) VALUES (?,?)').bind(questionId, s.id)),
-        this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')) WHERE id=? AND status!='ended'").bind(s.id)]);
+        this.env.DB.prepare("UPDATE lesson_sessions SET status='ended', ended_at=COALESCE(ended_at,datetime('now')), timing_json=COALESCE(?,timing_json) WHERE id=? AND status!='ended'")
+          .bind(pending.timing ? JSON.stringify(pending.timing) : null, s.id)]);
       await this.ctx.storage.delete('pending');
       if (await this.ctx.storage.get('flushRetry')) { await this.ctx.storage.delete('flushRetry'); await this.syncStatus(s, null); }
       const next = await this.ctx.storage.get('nextPending');
@@ -341,6 +370,12 @@ class Room {
     if (await this.ctx.storage.get('pending')) throw Error('pending D1 flush');
     for (const r of rows) (s.responses[r.userId][item.question_id] ||= {}).ms = r.ms;
     await this.ctx.storage.put('pending', { questionId: item.question_id, rows, end: false });
+    // Actual answering time: the question's start to the close of its clock (End now / time up /
+    // End session, which pulls endsAt back past the grace and stamps the real close in closedAt).
+    const t = timingOf(s, item.question_id);
+    t.answerMs = (t.answerMs || 0) + Math.max(0, (s.closedAt ?? Math.min(Date.now(), s.endsAt)) - (s.startedAt || s.endsAt));
+    delete s.closedAt;
+    openReveal(s);
     s.phase = 'REVEALED'; s.reached = s.index; s.played = s.index + 1; await this.save(s);
     await this.flush(s);
     this.broadcast(s);
@@ -387,11 +422,11 @@ class Room {
     if (!ws && req.method !== 'POST') return new Response('not found', { status: 404 });
     let a; try { a = ws ? JSON.parse(req.headers.get('X-Lesson-Context') || 'null') : await req.json(); }
     catch { return Response.json({ error: 'invalid request' }, { status: 400 }); }
-    if (!a || a.ws !== ws || (a.desmosKey != null && !/^[0-9a-f]{32}$/.test(a.desmosKey)) || (a.role === 'student' && a.join && !/^[0-9a-f-]{36}$/i.test(a.clientId || '')) || !Number.isInteger(a.sessionId) || typeof a.userId !== 'string' || a.userId.length > 128 || !['admin','student'].includes(a.role)) return Response.json({ error: 'invalid request' }, { status: 400 });
+    if (!a || a.ws !== ws || (a.desmosKey != null && !/^[0-9a-f]{32}$/.test(a.desmosKey)) || (a.role === 'student' && a.join && !/^[0-9a-f-]{36}$/i.test(a.clientId || '')) || !Number.isInteger(a.sessionId) || typeof a.userId !== 'string' || a.userId.length > 128 || !['admin','student','projector'].includes(a.role) || (a.role === 'projector' && !a.ws)) return Response.json({ error: 'invalid request' }, { status: 400 });
     const s = await this.initialize(a.sessionId);
     if (!s || s.status === 'ended') return Response.json({ error: 'session ended or unsupported' }, { status: 410 });
     // D1 owner and membership/role checked at the Worker. No direct public DO endpoint.
-    if (a.role === 'admin' && a.userId !== s.owner) return Response.json({ error: 'forbidden' }, { status: 403 });
+    if (a.role !== 'student' && a.userId !== s.owner) return Response.json({ error: 'forbidden' }, { status: 403 });
     try { await this.advance(s); await this.flush(s); }
     catch { return Response.json({ error: 'persistence unavailable' }, { status: 503 }); }
     if (a.role === 'student') {
@@ -442,7 +477,7 @@ class Room {
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ role: a.role, userId: a.userId, clientId: a.clientId, desmosKey: a.desmosKey || null });
     this.send(server, this.snapshot(s, a));
-    this.broadcast(s);
+    if (a.role !== 'projector') this.broadcast(s);
     return new Response(null, { status: 101, webSocket: client });
   }
   async webSocketMessage(ws, raw) {
@@ -450,6 +485,8 @@ class Room {
     const bytes = typeof raw === 'string' ? new TextEncoder().encode(raw).length : Infinity;
     if (!a || !this.active(ws) || bytes > (a.role === 'admin' ? MAX_DESMOS_FRAME : MAX_FRAME)) { ws.close(1008, 'Invalid frame'); return; }
     let m; try { m = JSON.parse(raw); } catch { m = undefined; }
+    // The projector only watches: a ping for its clock, nothing else.
+    if (a.role === 'projector') { this.send(ws, m?.type === 'ping' && validAction(m, a.role) ? { type: 'pong', sentAt: m.sentAt } : { type: 'error', error: 'invalid action' }); return; }
     // Only a Desmos state may use the larger admin frame.
     if (bytes > MAX_FRAME && m?.type !== 'desmos') { ws.close(1008, 'Invalid frame'); return; }
     if (m === undefined) { this.send(ws, { type: 'error', error: 'invalid JSON' }); return; }
@@ -467,7 +504,7 @@ class Room {
       return;
     }
     if (m.type === 'endSession' && a.role === 'admin' && s.phase === 'ANSWERING') {
-      s.endsAt = Date.now() - GRACE_MS;
+      s.closedAt = Date.now(); s.endsAt = s.closedAt - GRACE_MS;
       await this.save(s);
       await this.advance(s);
       await this.flush(s);
@@ -476,6 +513,15 @@ class Room {
     const item = s.items[s.index];
     if (s.status === 'ended') err = 'ended';
     if (err) { this.send(ws, { type: 'error', error: err }); return; }
+    if (m.type === 'view') {
+      // Presenter fit: session-wide (kept across questions); students use it once a question is revealed.
+      const view = { w: m.w, fs: m.fs, u: m.u, vw: m.vw };
+      if (JSON.stringify(s.view) === JSON.stringify(view)) return;
+      s.view = view;
+      await this.save(s);
+      for (const peer of this.audience()) try { this.send(peer, { type:'view', ...view }); } catch { /* disconnected */ }
+      return;
+    }
     if (m.type === 'desmos') {
       // Same gate as annotations: a graph can give the answer away before reveal.
       if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
@@ -516,24 +562,37 @@ class Room {
       } else {
         const layer = s.annotations?.[m.questionId] || [];
         const op = m.op;
-        if (op.type === 'highlight' || op.type === 'strike') {
+        if (op.type === 'highlight' || op.type === 'strike' || op.type === 'edit') {
           const q = s.questions[item.question_id];
           const choice = op.nodeId.startsWith('c:') && q.choices.find(c => c.letter === op.nodeId.slice(2));
           const index = Number(op.nodeId.slice(2));
           const blocks = (q.stem_html.match(/<(?:p|li|h[1-4]|blockquote)\b/gi) || []).length;
           const source = choice ? choice.content : /^(?:p|s):/.test(op.nodeId) && Number.isInteger(index) && index < Math.max(1,blocks) ? q.stem_html : null;
-          if (!source || op.endOffset > source.length) { this.send(ws,{ type:'error',error:'invalid anchor' }); return; }
+          if (!source || (op.type !== 'edit' && op.endOffset > source.length)) { this.send(ws,{ type:'error',error:'invalid anchor' }); return; }
         }
+        // An edit replaces the block's earlier edit of the same text node (same id). Its block's highlights,
+        // strikes and glyph-anchored ink pointed at the old text, so they go with it. Clients learn both as
+        // erase ops, which every client already applies, ahead of the edit itself.
+        const stale = op.type === 'edit' ? layer.filter(x => x.id === op.id || (x.type !== 'edit' && ((x.type === 'highlight' || x.type === 'strike') ? x.nodeId === op.nodeId : typeof x.a === 'string' && (x.a.startsWith(`${op.nodeId}~`) || x.a.startsWith(`${op.nodeId}@`))))) : [];
+        // Clear all leaves text fixes standing: with edits in the layer it goes out as erases of the rest.
+        const keep = op.type === 'clear' ? layer.filter(x => x.type === 'edit') : [];
         if (op.type === 'erase') {
           if (!layer.some(mark => mark.id === op.id)) { this.send(ws,{ type:'error',error:'unknown mark' }); return; }
-        } else if (op.type !== 'clear' && (layer.length >= 512 || layer.some(mark => mark.id === op.id))) { this.send(ws,{ type:'error',error:'layer full or duplicate mark' }); return; }
-        const next = op.type === 'clear' ? [] : op.type === 'erase' ? layer.filter(mark => mark.id !== op.id) : [...layer, op];
+        } else if (op.type !== 'clear' && (layer.length - stale.length >= 512 || (op.type !== 'edit' && layer.some(mark => mark.id === op.id)))) { this.send(ws,{ type:'error',error:'layer full or duplicate mark' }); return; }
+        const next = op.type === 'clear' ? keep : op.type === 'erase' ? layer.filter(mark => mark.id !== op.id) : [...layer.filter(x => !stale.includes(x)), op];
         if (JSON.stringify(next).length > 64000) { this.send(ws,{ type:'error',error:'layer full' }); return; }
         (s.annotations ||= {})[m.questionId] = next;
         await this.save(s);
+        // Edits are never hidden: a typo fix reaches students in every phase, while the rest of the layer keeps
+        // the hidden-until-reveal rule (11d).
+        const ops = op.type === 'clear' && keep.length ? layer.filter(x => x.type !== 'edit').map(x => ({ type:'erase', id:x.id })) : [...stale.map(x => ({ type:'erase', id:x.id })), op];
+        const edit = x => x.type === 'edit' || (x.type === 'erase' && layer.find(y => y.id === x.id)?.type === 'edit');
+        for (const peer of [...this.sockets('admin'), ...this.audience()]) {
+          const shown = !to || peer.deserializeAttachment()?.role === to ? ops : ops.filter(edit);
+          for (const x of shown) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:x }); } catch { /* disconnected */ }
+        }
+        return;
       }
-      for (const peer of this.sockets(to)) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:m.op }); } catch { /* disconnected */ }
-      return;
     }
     if (a.role === 'student') {
       if (m.type !== 'select' && m.type !== 'lock') err = 'invalid action';
@@ -610,11 +669,13 @@ class Room {
         const row = reviewRow(s, item);
         if (row) await this.queue({ questionId: item.question_id, rows: [], end: false, reviews: [row] });
         await this.ctx.storage.delete('desmos'); s.desmos = null;
+        closeReveal(s);
         s.phase = 'FINISHED';
         changed = true;
       } else if (m.type === 'endSession') {
         const row = s.phase === 'REVEALED' ? reviewRow(s, item) : null;
-        await this.queue({ questionId: item.question_id, rows: [], end: true, usage: shownQuestionIds(s), reviews: row ? [row] : [] });
+        if (s.phase === 'REVEALED') closeReveal(s);
+        await this.queue({ questionId: item.question_id, rows: [], end: true, usage: shownQuestionIds(s), reviews: row ? [row] : [], timing: s.timing || {} });
         s.phase = 'ENDED'; s.status = 'ended'; changed = true;
       } else err = 'invalid phase';
     }
@@ -696,7 +757,7 @@ class Room {
     if (ws.deserializeAttachment()?.role !== 'admin') return;
     // Presenter gone: take their laser off every student screen.
     const s = await this.state(), item = s?.items[s.index];
-    if (item && !this.hidden(s)) for (const peer of this.sockets('student')) try { peer.send(JSON.stringify({ type:'laser', questionId:item.question_id, hide:true })); } catch { /* disconnected */ }
+    if (item && !this.hidden(s)) for (const peer of this.audience()) try { peer.send(JSON.stringify({ type:'laser', questionId:item.question_id, hide:true })); } catch { /* disconnected */ }
   }
   webSocketError(ws) { ws.close(1011, 'Socket error'); }
 }

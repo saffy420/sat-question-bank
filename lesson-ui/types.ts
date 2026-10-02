@@ -9,16 +9,23 @@ export type Question = {
 };
 export type Mark = {
   // `eliminate` marks only appear in a saved review layer (My Lessons): the instructor's crossed-out choices.
-  type: 'stroke' | 'highlight' | 'strike' | 'erase' | 'clear' | 'eliminate';
+  // `edit` replaces text node `i` of block `nodeId` with `text` for this session only (live text fix).
+  type: 'stroke' | 'highlight' | 'strike' | 'text' | 'edit' | 'erase' | 'clear' | 'eliminate';
   id: string;
   color?: string;
   points?: number[][];
+  // `text` marks: a typed box at (x, y) of anchor `a`, like one pen point.
+  text?: string;
+  x?: number;
+  y?: number;
   a?: string;
   nodeId?: string;
   startOffset?: number;
   endOffset?: number;
+  i?: number;
 };
 export type Laser = { x: number; y: number; a?: string; hide?: boolean };
+export type View = { w: number; fs: number; u: number; vw: number };
 export type Snapshot = {
   title: string;
   mode?: 'self';
@@ -40,6 +47,9 @@ export type Snapshot = {
   hasMath?: boolean;
   desmosKey?: string | null;
   desmos?: object | null;
+  // Presenter fit (live-fit): the presenter's stage width, --fs, --u and viewport width in CSS px. Once a
+  // question is revealed the student stage is laid out at these and scaled to fit, so line breaks match.
+  view?: View | null;
   // Instructor-paced: the instructor went back to an already revealed question (11b navigator).
   revisit?: boolean;
   // Self-paced (§8): the student's own set only.
@@ -144,7 +154,6 @@ export type BankModel = {
   note: string;
   // Settings "Note on a miss".
   noteOnMiss: boolean;
-  dark: boolean;
   signedIn: boolean;
   set?: BankSet;
   // Review after a Study Plan set: the explanation opens when the question closes, right first time or not.
@@ -166,7 +175,6 @@ export type BankBridge = {
   pause: () => void;
   // Leave practice (the screen has already asked).
   exit: () => void;
-  theme: () => void;
   saveNote: (questionId: string, body: string) => void;
   // The question as text for an AI assistant (no answer or explanation until it is closed).
   exportText: () => string;
