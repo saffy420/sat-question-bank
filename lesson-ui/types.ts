@@ -144,7 +144,6 @@ export type BankModel = {
   note: string;
   // Settings "Note on a miss".
   noteOnMiss: boolean;
-  dark: boolean;
   signedIn: boolean;
   set?: BankSet;
   // Review after a Study Plan set: the explanation opens when the question closes, right first time or not.
@@ -166,7 +165,6 @@ export type BankBridge = {
   pause: () => void;
   // Leave practice (the screen has already asked).
   exit: () => void;
-  theme: () => void;
   saveNote: (questionId: string, body: string) => void;
   // The question as text for an AI assistant (no answer or explanation until it is closed).
   exportText: () => string;

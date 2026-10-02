@@ -322,7 +322,7 @@ test('C5 leaving mid-retry keeps the first-try result; the question resumes; res
   } finally { await student.close(); }
 });
 
-test('C6 tools: Annotate does not pick a choice, cross-out, Mark for Review, Notes dock, calculator dock, timer, dark theme, phone width', async ({ browser }) => {
+test('C6 tools: Annotate does not pick a choice, cross-out, Mark for Review, Notes dock, calculator dock, timer, light only, phone width', async ({ browser }) => {
   test.setTimeout(150000);
   const student = await newUserContext(browser, 'e2e-student-4', { viewport: SIZES['1366x768'] });
   try {
@@ -375,17 +375,12 @@ test('C6 tools: Annotate does not pick a choice, cross-out, Mark for Review, Not
     await expect(page.locator('.bank-paused')).toBeVisible();
     await page.locator('#bank-pause').click();
     await expect(page.locator('#bank-card')).toBeVisible();
-    // Dark theme: the screen goes dark, the footer stays pinned when the page scrolls.
-    await page.locator('#bank-theme').click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    // Light only: no theme button, no dark filter, and the footer stays pinned when the page scrolls.
+    await expect(page.locator('#bank-theme')).toHaveCount(0);
     await page.evaluate(() => document.getElementById('bank-live').scrollTo(0, 300));
-    const dark = await page.evaluate(() => { const f = document.querySelector('#bank-live .lesson-footer').getBoundingClientRect(); return { bottom: f.bottom, vh: innerHeight, bg: getComputedStyle(document.getElementById('bank-content')).backgroundColor, filter: getComputedStyle(document.querySelector('#bank-live .lesson-main')).filter }; });
-    expect(dark.bottom).toBe(dark.vh);
-    expect(dark.bg).toBe('rgb(20, 20, 20)');
-    expect(dark.filter).toMatch(/invert/);
-    await shot(page, 'C6-dark-1366x768');
-    await page.locator('#bank-theme').click();
-    await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark');
+    const light = await page.evaluate(() => { const f = document.querySelector('#bank-live .lesson-footer').getBoundingClientRect(); return { bottom: f.bottom, vh: innerHeight, filter: getComputedStyle(document.querySelector('#bank-live .lesson-main')).filter }; });
+    expect(light.bottom).toBe(light.vh);
+    expect(light.filter).toBe('none');
     // Phone width: nothing scrolls sideways, the footer button is on screen.
     await page.setViewportSize({ width: 390, height: 780 });
     await page.evaluate(() => document.getElementById('bank-live').scrollTo(0, 0));

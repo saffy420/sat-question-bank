@@ -15,7 +15,6 @@ The original public endpoint `https://helpmeaceit.page/api/questions` was verifi
 - **Desmos** graphing and scientific calculators docked on Math questions; external iframe availability is required.
 - **Math rendering** with KaTeX where notation is text, and separately supplied crops where image notation remains necessary.
 - **Dashboard and Mistakes** with accuracy, activity, skill breakdowns and retry practice.
-- **Browse** with search and question previews.
 - **Practice exams and History** with saved account sessions and explicitly estimated scores, not official Bluebook scoring. Tracked exam IDs need populated core data.
 - **Copy for AI** exports question content, choices, answers and explanation to paste into an assistant; no model API or tutor service is included.
 - **Supabase accounts** using Google or email/password with D1-backed progress, attempts, notes, settings and sessions. Guest answers are memory-only and are not merged on sign-in; guest preferences can persist locally. Known synchronization limits are recorded in [KNOWN-ISSUES](docs/KNOWN-ISSUES.md).

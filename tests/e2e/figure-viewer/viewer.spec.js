@@ -206,7 +206,7 @@ async function exercise(page, scope, prefix, { touch = false } = {}) {
   await expect(fv.locator('.fv-pct')).toHaveText('100%');
 }
 
-test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, touch, Esc, keyboard, no requests, dark', async ({ browser }) => {
+test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, touch, Esc, keyboard, no requests', async ({ browser }) => {
   const context = await newUserContext(browser, 'e2e-student-2');
   try {
     const hits = await serveFigure(context);
@@ -260,12 +260,11 @@ test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, t
     await page.locator(`${scope} .fv-view`).click();
     await expect(page.locator('.lb')).toHaveCount(0);
 
-    // Dark theme: white plate under the figure, readable toolbar.
-    await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
-    const dark = await page.locator(scope).evaluate(fv => ({ view: getComputedStyle(fv.querySelector('.fv-view')).backgroundColor, bar: getComputedStyle(fv.querySelector('.fv-bar')).backgroundColor, ink: getComputedStyle(fv.querySelector('.fv-pct')).color, filter: getComputedStyle(fv.querySelector('img')).filter }));
-    expect(dark).toEqual({ view: 'rgb(255, 255, 255)', bar: 'rgb(42, 45, 51)', ink: 'rgb(230, 232, 235)', filter: 'none' });
+    // White plate under the figure, dark ink on a light toolbar (the app has no dark theme).
+    const plate = await page.locator(scope).evaluate(fv => ({ view: getComputedStyle(fv.querySelector('.fv-view')).backgroundColor, bar: getComputedStyle(fv.querySelector('.fv-bar')).backgroundColor, ink: getComputedStyle(fv.querySelector('.fv-pct')).color, filter: getComputedStyle(fv.querySelector('img')).filter }));
+    expect(plate).toEqual({ view: 'rgb(255, 255, 255)', bar: 'rgb(241, 242, 244)', ink: 'rgb(31, 41, 55)', filter: 'none' });
     await page.mouse.move(1, 1);
-    await shot(page, 'bank-dark');
+    await shot(page, 'bank-figure-light');
     expect(errors).toEqual([]);
   } finally { await context.close(); }
 });
