@@ -790,3 +790,23 @@ test('lessons-11d: instructor layer, eliminations and laser stay on instructor s
   await say(teacher, { type: 'annotate', questionId: 'q', op: { ...mark, id: 'h3' } });
   assert.equal(alice.sent.at(-1).op.id, 'h3', 'new marks on a revisit are live');
 }));
+test('text marks: stored, erased, cleared, counted toward the layer limit, instructor-only before the reveal', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { reached: 0, played: 0, endsAt: Date.now() + 60000 }); await room.save(f.s);
+  const alice = f.socket('alice'), teacher = f.socket('teacher', 'admin');
+  const say = (who, m) => room.webSocketMessage(who.ws, JSON.stringify(m));
+  const box = id => ({ type: 'text', id, a: 's:0~3', x: 0.5, y: 0, text: 'note ' + id, color: '#ffe066' });
+  const send = op => say(teacher, { type: 'annotate', questionId: 'q', op });
+  await send(box('t1'));
+  assert.deepEqual((await room.state()).annotations.q.map(m => m.id), ['t1'], 'stored without a highlight offset check');
+  assert.deepEqual(alice.sent.filter(m => m.type === 'annotate'), [], 'nothing reaches a student before the reveal');
+  assert.deepEqual(room.snapshot(await room.state(), { role: 'student', userId: 'alice' }).annotations, []);
+  assert.deepEqual(room.snapshot(await room.state(), { role: 'admin', userId: 'teacher' }).annotations.map(m => m.id), ['t1']);
+  await send(box('t1')); assert.equal(teacher.sent.at(-1).error, 'layer full or duplicate mark');
+  await send({ type: 'erase', id: 't1' }); assert.deepEqual((await room.state()).annotations.q, []);
+  await send(box('t2')); await send({ type: 'clear' }); assert.deepEqual((await room.state()).annotations.q, []);
+  const state = await room.state(); state.annotations.q = Array.from({ length: 512 }, (_, i) => ({ ...box('f' + i), text: 'x' })); await room.save(state);
+  await send(box('over')); assert.equal(teacher.sent.at(-1).error, 'layer full or duplicate mark', 'boxes count toward the 512 marks');
+  assert.equal((await room.state()).annotations.q.length, 512);
+  await send({ ...box('bad'), text: '' }); assert.equal(teacher.sent.at(-1).error, 'invalid action', 'an empty box is refused');
+});

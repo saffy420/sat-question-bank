@@ -227,6 +227,32 @@ export function laser(card) {
   return view;
 }
 export function refreshLaser(card) { lasers.get(card)?.refresh(); }
+// Typed boxes: one absolutely positioned element per 'text' mark, keyed by mark id and placed with the
+// same frame as pen points, so a box stays over its words at any width and zoom. Type size follows the
+// anchor block's font size (em anchors); a box on a figure this client zoomed out of its frame is hidden.
+const BOX_EM = 0.8;
+export function textBoxes(card, layer) {
+  const marks = layer.filter(m => m.type === 'text');
+  const have = new Map([...card.querySelectorAll(':scope > .lesson-textbox')].map(n => [n.dataset.textMark, n]));
+  for (const [id, node] of have) if (!marks.some(m => m.id === id)) node.remove();
+  for (const mark of marks) {
+    let box = have.get(mark.id);
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'lesson-textbox'; box.dataset.textMark = mark.id;
+      card.append(box);
+    }
+    if (box.textContent !== mark.text) box.textContent = mark.text;
+    box.style.backgroundColor = mark.color;
+    const f = frame(card, mark.a), at = f?.toCard([mark.x, mark.y]);
+    if (!at || !inClip(f.clip, at)) { box.hidden = true; continue; }
+    box.style.left = `${at[0]}px`; box.style.top = `${at[1]}px`;
+    box.style.fontSize = f.em ? `${f.em * BOX_EM}px` : '';
+    box.hidden = false;
+  }
+}
+// The id of the typed box a pointer event landed on (the presenter's Text and Erase tools), else null.
+export const textBoxAt = target => target?.closest?.('.lesson-textbox')?.dataset.textMark || null;
 export function follow(card, op) {
   let target;
   if (op.type === 'highlight' || op.type === 'strike') {

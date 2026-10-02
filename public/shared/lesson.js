@@ -57,13 +57,15 @@ function anchored(a, values) {
   return (NODE.test(a) || /^(?:i:\d{1,2}|P|Q)$/.test(a)) && values.every(within(-4, 5));
 }
 export function validMark(op) {
-  if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','erase','clear'].includes(op.type)) return false;
-  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color','a'], erase:['type','id'], clear:['type'] };
+  if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','text','erase','clear'].includes(op.type)) return false;
+  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color','a'], text:['type','id','a','x','y','text','color'], erase:['type','id'], clear:['type'] };
   if (Object.keys(op).some(k => !fields[op.type].includes(k))) return false;
   if (op.type === 'clear') return true;
   if (!validId(op.id)) return false;
   if (op.type === 'erase') return true;
   if (!['#ffe066','#ff7676','#75dbaa'].includes(op.color)) return false;
+  // A typed box: 1-280 characters on at most 6 lines, placed like one pen point (em or fraction anchor).
+  if (op.type === 'text') return typeof op.text === 'string' && op.text.trim().length > 0 && op.text.length <= 280 && op.text.split('\n').length <= 6 && anchored(op.a, [op.x, op.y]);
   if (op.type === 'stroke') return Array.isArray(op.points) && op.points.length >= 1 && op.points.length <= 32 && op.points.every(p => Array.isArray(p) && p.length === 2 && anchored(op.a, p));
   return /^([ps]:\d+|c:[A-D])$/.test(op.nodeId) && Number.isSafeInteger(op.startOffset) && Number.isSafeInteger(op.endOffset) && op.startOffset >= 0 && op.endOffset > op.startOffset && op.endOffset <= 20000;
 }

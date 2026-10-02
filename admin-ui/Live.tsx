@@ -5,6 +5,7 @@ import {
   PenLine,
   Highlighter,
   Strikethrough,
+  Type,
   Eraser,
   Trash2,
   Focus,
@@ -66,6 +67,7 @@ const tools = {
   pen: PenLine,
   highlight: Highlighter,
   strike: Strikethrough,
+  text: Type,
   erase: Eraser,
   clear: Trash2,
   laser: Focus,
@@ -74,6 +76,7 @@ const labels = {
   pen: "Pen",
   highlight: "Highlight",
   strike: "Strikethrough",
+  text: "Text",
   erase: "Erase",
   clear: "Clear all",
   laser: "Laser",
@@ -1030,6 +1033,64 @@ function InstructorStage({
         });
       raw = drawing ? [chunk[chunk.length - 1]] : [];
     };
+    // Text tool: a floating textarea at the click. Enter commits (Shift+Enter is a newline), Esc cancels, and
+    // leaving the field commits when something was typed. The place is resolved at the click, like a pen point.
+    // Editing a box erases it and sends a new one in its place, so every frame stays one small mark.
+    let closeEditor: (() => void) | null = null;
+    const openEditor = (cx: number, cy: number, boxId: string | null) => {
+      closeEditor?.();
+      const old = boxId
+        ? latest.current.s.annotations?.find((m) => m.id === boxId && m.type === "text")
+        : undefined;
+      const place = old
+        ? { a: old.a, x: old.x as number, y: old.y as number }
+        : (Ink.locate(card, cx, cy) as { a?: string; x: number; y: number });
+      const ta = document.createElement("textarea");
+      ta.className = "lesson-textbox-input";
+      ta.maxLength = 280;
+      ta.rows = 2;
+      ta.value = old?.text || "";
+      ta.setAttribute("aria-label", "Text box");
+      document.body.append(ta);
+      ta.style.left = `${Math.max(8, Math.min(cx, innerWidth - ta.offsetWidth - 8))}px`;
+      ta.style.top = `${Math.max(8, Math.min(cy, innerHeight - ta.offsetHeight - 8))}px`;
+      ta.focus();
+      if (old) ta.select();
+      let done = false;
+      const finish = (commit: boolean) => {
+        if (done) return;
+        done = true;
+        closeEditor = null;
+        const text = ta.value.replace(/\r\n?/g, "\n").trim();
+        ta.remove();
+        if (!commit || !text || text === old?.text) return;
+        if (old) mark({ type: "erase", id: old.id });
+        mark({
+          type: "text",
+          id: crypto.randomUUID(),
+          ...(place.a ? { a: place.a } : {}),
+          x: place.x,
+          y: place.y,
+          text,
+          color: old?.color || color,
+        });
+      };
+      closeEditor = () => finish(false);
+      ta.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") finish(false);
+        else if (e.key === "Enter") {
+          e.preventDefault();
+          if (!e.shiftKey) finish(true);
+          else if (ta.value.split("\n").length < 6) ta.setRangeText("\n", ta.selectionStart, ta.selectionEnd, "end");
+        }
+      });
+      ta.addEventListener("input", () => {
+        const lines = ta.value.split("\n");
+        if (lines.length > 6) ta.value = lines.slice(0, 6).join("\n");
+      });
+      ta.addEventListener("blur", () => finish(true));
+    };
     const down = (e: PointerEvent) => {
       // The figure toolbar keeps working while the pen is out (capturing here would swallow its clicks).
       if (tool !== "pen" || (e.target as Element).closest(".fv-bar")) return;
@@ -1074,9 +1135,17 @@ function InstructorStage({
         if (range)
           mark({ type: tool, id: crypto.randomUUID(), ...range, color });
         window.getSelection()?.removeAllRanges();
+      } else if (
+        tool === "text" &&
+        e.type === "pointerup" &&
+        !(e.target as Element).closest(".fv-bar")
+      ) {
+        openEditor(e.clientX, e.clientY, Ink.textBoxAt(e.target));
       } else if (tool === "erase") {
-        const id = (e.target as Element).closest<HTMLElement>("[data-ann-mark]")
-          ?.dataset.annMark;
+        const id =
+          Ink.textBoxAt(e.target) ||
+          (e.target as Element).closest<HTMLElement>("[data-ann-mark]")
+            ?.dataset.annMark;
         if (id) mark({ type: "erase", id });
         else {
           const r = card.getBoundingClientRect(),
@@ -1109,6 +1178,7 @@ function InstructorStage({
       frame = requestAnimationFrame(pump);
     }
     return () => {
+      closeEditor?.();
       clearInterval(interval);
       clearInterval(heartbeat);
       laserOff();
