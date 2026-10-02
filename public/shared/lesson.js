@@ -3,7 +3,7 @@ import { isRight } from './stats.js';
 // Shared lesson protocol.
 export const GRACE_MS = 750;
 export const CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
-export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults', 'annotate', 'laser', 'desmos', 'startPoll', 'goto', 'eliminate'];
+export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults', 'annotate', 'laser', 'desmos', 'startPoll', 'goto', 'eliminate', 'view'];
 export const STUDENT_ACTIONS = ['select', 'lock', 'navigate', 'time', 'submitAll', 'vote'];
 // Review polls (§8.7): 30 s to vote, then the result stays on screen for 3 s.
 export const POLL_MS = 30000;
@@ -14,7 +14,7 @@ export const MAX_DESMOS_BYTES = 48 * 1024;
 export const MAX_DESMOS_FRAME = MAX_DESMOS_BYTES + 256;
 export function validAction(m, role) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return false;
-  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y', 'a', 'hide'], desmos: ['type', 'questionId', 'state'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'], navigate: ['type', 'questionId'], time: ['type', 'questionId', 'deltaMs', 'seq'], submitAll: ['type'], startPoll: ['type'], goto: ['type', 'questionId'], vote: ['type', 'option', 'questionId'], eliminate: ['type', 'questionId', 'letter', 'on'] };
+  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y', 'a', 'hide'], desmos: ['type', 'questionId', 'state'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'], navigate: ['type', 'questionId'], time: ['type', 'questionId', 'deltaMs', 'seq'], submitAll: ['type'], startPoll: ['type'], goto: ['type', 'questionId'], vote: ['type', 'option', 'questionId'], eliminate: ['type', 'questionId', 'letter', 'on'], view: ['type', 'w', 'fs', 'u', 'vw'] };
   if (!Object.hasOwn(fields, m.type) || Object.keys(m).some(k => !fields[m.type].includes(k))) return false;
   if (m.type !== 'ping' && !(role === 'admin' ? ADMIN_ACTIONS : STUDENT_ACTIONS).includes(m.type)) return false;
   if (m.type === 'ping') return Number.isSafeInteger(m.sentAt) && m.sentAt >= 0;
@@ -24,6 +24,9 @@ export function validAction(m, role) {
   if (m.type === 'desmos') return validId(m.questionId) && validDesmos(m.state);
   // The instructor crosses a choice out (on: true) or restores it (on: false) for the whole class.
   if (m.type === 'eliminate') return validId(m.questionId) && typeof m.letter === 'string' && /^[A-D]$/.test(m.letter) && typeof m.on === 'boolean';
+  // Presenter fit (live-fit): the presenter's stage width, question type and chrome unit in CSS px, and its
+  // viewport width (the stage's vw-based paddings), so revealed students lay the stage out exactly as it does.
+  if (m.type === 'view') return Number.isSafeInteger(m.w) && m.w >= 320 && m.w <= 4000 && within(10, 40)(m.fs) && within(8, 30)(m.u) && within(320, 8000)(m.vw);
   if (m.type === 'addTime') return m.sec === 15;
   if (m.type === 'lockJoin' || m.type === 'classResults') return typeof m.bool === 'boolean';
   if (m.type === 'kick') return typeof m.userId === 'string' && m.userId.length > 0 && m.userId.length <= 128;

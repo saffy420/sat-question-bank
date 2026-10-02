@@ -19,6 +19,7 @@ export type Mark = {
   endOffset?: number;
 };
 export type Laser = { x: number; y: number; a?: string; hide?: boolean };
+export type View = { w: number; fs: number; u: number; vw: number };
 export type Snapshot = {
   title: string;
   mode?: 'self';
@@ -40,6 +41,9 @@ export type Snapshot = {
   hasMath?: boolean;
   desmosKey?: string | null;
   desmos?: object | null;
+  // Presenter fit (live-fit): the presenter's stage width, --fs, --u and viewport width in CSS px. Once a
+  // question is revealed the student stage is laid out at these and scaled to fit, so line breaks match.
+  view?: View | null;
   // Instructor-paced: the instructor went back to an already revealed question (11b navigator).
   revisit?: boolean;
   // Self-paced (§8): the student's own set only.

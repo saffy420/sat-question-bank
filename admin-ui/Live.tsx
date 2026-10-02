@@ -972,6 +972,57 @@ function InstructorStage({
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, []);
+  // Presenter fit (live-fit): once revealed, students lay their stage out at this stage's width, type size,
+  // chrome unit and viewport width, then scale it to their window, so their line breaks match these. Sent
+  // with every phase change (the reveal included) and stage resize, so it is already there at the reveal;
+  // the room drops an unchanged view.
+  useEffect(() => {
+    if (!card) return;
+    let last: { w: number; fs: number; u: number; vw: number } | null = null,
+      timer: ReturnType<typeof setTimeout> | undefined;
+    const exact = (v: number) => Math.round(v * 1e4) / 1e4;
+    const measure = () => {
+      // --u and 1vw only resolve on an element; a hidden probe in the stage reads both in px.
+      const probe = document.createElement("div");
+      probe.style.cssText =
+        "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;width:var(--u);height:100vw";
+      card.parentElement!.append(probe);
+      const box = getComputedStyle(probe);
+      const view = {
+        w: Math.round(card.getBoundingClientRect().width),
+        fs: exact(parseFloat(getComputedStyle(card).fontSize)),
+        u: exact(parseFloat(box.width)),
+        vw: exact(parseFloat(box.height)),
+      };
+      probe.remove();
+      return view;
+    };
+    const update = () => {
+      if (!card.isConnected) return;
+      const view = measure();
+      if (view.w < 320) return;
+      if (
+        last &&
+        Math.abs(view.w - last.w) < 2 &&
+        view.fs === last.fs &&
+        view.u === last.u &&
+        view.vw === last.vw
+      )
+        return;
+      last = view;
+      latest.current.send("view", view);
+    };
+    update();
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(update, 300);
+    });
+    observer.observe(card);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [card, s.phase]);
   useEffect(() => {
     if (!card || !annotating) return;
     // Pen points are kept in client px and converted per chunk: each ~50 ms chunk anchors to the glyph

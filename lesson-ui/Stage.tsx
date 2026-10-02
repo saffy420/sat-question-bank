@@ -96,6 +96,8 @@ export function Stage(props: StageProps) {
       });
     };
     el.addEventListener('fv:change', onFigure);
+    // A new scale from an ancestor transform (presenter fit) keeps the layout: only the canvas store and laser follow.
+    el.addEventListener('stage:scale', onFigure);
     props.mathify(el);
     const images = [...el.querySelectorAll('img')].map(image => image.decode().catch(() => undefined));
     Promise.all([document.fonts.ready, ...images]).then(() => {
@@ -144,7 +146,7 @@ export function Stage(props: StageProps) {
     el.addEventListener('keydown', keydown); el.addEventListener('change', change);
     el.addEventListener('click', click); el.addEventListener('input', input); el.addEventListener('pointerup', pointerup); el.addEventListener('pointerdown', pointerdown);
     paint();
-    return () => { alive = false; ready.current = false; cancelAnimationFrame(figureFrame); el.removeEventListener('fv:change', onFigure); observer.disconnect(); ratio?.removeEventListener('change', onRatio); window.removeEventListener('resize', paint); el.removeEventListener('keydown', keydown); el.removeEventListener('change', change); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
+    return () => { alive = false; ready.current = false; cancelAnimationFrame(figureFrame); el.removeEventListener('fv:change', onFigure); el.removeEventListener('stage:scale', onFigure); observer.disconnect(); ratio?.removeEventListener('change', onRatio); window.removeEventListener('resize', paint); el.removeEventListener('keydown', keydown); el.removeEventListener('change', change); el.removeEventListener('click', click); el.removeEventListener('input', input); el.removeEventListener('pointerup', pointerup); el.removeEventListener('pointerdown', pointerdown); };
   }, [props.question.id]);
   useLayoutEffect(() => {
     const el = card.current!;

@@ -928,3 +928,47 @@ test('session timing: self-paced explain time is the time each question spent un
   assert.deepEqual(s.timing, { q1: { explainMs: 5000 }, q2: { explainMs: 2000 } });
   assert.deepEqual(endedTiming(f), [s.timing]);
 }));
+test('live-fit: view protocol is admin only with bounded w/fs/u/vw and exact fields', async () => {
+  const { validAction } = await protocol();
+  const view = { type: 'view', w: 1200, fs: 19.2448, u: 15.66, vw: 1920 };
+  assert.equal(validAction(view, 'admin'), true);
+  assert.equal(validAction(view, 'student'), false);
+  assert.equal(validAction({ ...view, extra: 1 }, 'admin'), false);
+  for (const bad of [{ w: 319 }, { w: 4001 }, { w: 1200.5 }, { w: '1200' }, { fs: 9.9 }, { fs: 40.1 }, { fs: NaN }, { u: 7.9 }, { u: 30.1 }, { vw: 319 }, { vw: 8001 }, { vw: undefined }])
+    assert.equal(validAction({ ...view, ...bad }, 'admin'), false, JSON.stringify(bad));
+  for (const ok of [{ w: 320 }, { w: 4000 }, { fs: 10 }, { fs: 40 }, { u: 8 }, { u: 30 }, { vw: 320 }, { vw: 8000 }])
+    assert.equal(validAction({ ...view, ...ok }, 'admin'), true, JSON.stringify(ok));
+});
+test('live-fit: the room keeps the presenter view for the session, relays it to students once, and snapshots carry it', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.items.push({ question_id: 'q2', time_limit_sec: 60 }); f.s.questions.q2 = { ...f.s.questions.q, id: 'q2' };
+  Object.assign(f.s, { phase: 'REVEALED', reached: 0, played: 1 });
+  await room.save(f.s);
+  const alice = f.socket('alice'), teacher = f.socket('teacher', 'admin');
+  const say = (who, m) => room.webSocketMessage(who.ws, JSON.stringify(m));
+  assert.equal(room.snapshot(await room.state(), { role: 'student', userId: 'alice' }).view, null);
+  const view = { w: 1200, fs: 19.2448, u: 15.66, vw: 1920 };
+  await say(teacher, { type: 'view', ...view });
+  assert.deepEqual((await room.state()).view, view);
+  const { serverNow, ...relayed } = alice.sent.at(-1);
+  assert.deepEqual(relayed, { type: 'view', ...view });
+  assert.equal(teacher.sent.some(m => m.type === 'view'), false, 'the presenter does not get its own view back');
+  const count = alice.sent.length;
+  await say(teacher, { type: 'view', ...view });
+  assert.equal(alice.sent.length, count, 'an unchanged view is not resent');
+  // A student cannot send one.
+  await say(alice, { type: 'view', ...view, w: 400 });
+  assert.equal(alice.sent.at(-1).error, 'invalid action');
+  assert.deepEqual((await room.state()).view, view);
+  // Session-wide: it survives moving to the next question (answering snapshots carry it too).
+  await say(teacher, { type: 'next' }); await say(teacher, { type: 'startQuestion' });
+  const answering = room.snapshot(await room.state(), { role: 'student', userId: 'alice' });
+  assert.deepEqual([answering.questionId, answering.phase, answering.view], ['q2', 'ANSWERING', view]);
+});
+test('live-fit: self-paced review snapshots carry the presenter view', async () => {
+  const { LessonRoom } = await roomModule(); const f = reviewFixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { phase: 'REVEALED', index: 0, view: { w: 1000, fs: 18, u: 14, vw: 1600 } });
+  await room.save(f.s);
+  const snap = room.snapshot(await room.state(), { role: 'student', userId: 'alice' });
+  assert.deepEqual([snap.reviewMode, snap.view], [true, { w: 1000, fs: 18, u: 14, vw: 1600 }]);
+});

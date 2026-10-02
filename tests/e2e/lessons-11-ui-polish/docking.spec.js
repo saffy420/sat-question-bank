@@ -126,7 +126,11 @@ for (const [name, options] of Object.entries(SIZES)) {
       expect(dockL.right, `${name} the two docks do not touch`).toBeLessThanOrEqual(dockR.x);
       expect(both.x, `${name} column right of the calculator`).toBeGreaterThanOrEqual(dockL.right);
       expect(both.right, `${name} column left of the instructor graph`).toBeLessThanOrEqual(dockR.x);
-      expect(both.w, `${name} column between the docks is usable`).toBeGreaterThanOrEqual(300);
+      // Revealed, the stage is the presenter's layout scaled to the space between the docks (live-fit): it fills that space.
+      const fitted = await box(page.locator('.stage-fit-box'));
+      expect(fitted.x, `${name} stage right of the calculator`).toBeGreaterThanOrEqual(dockL.right);
+      expect(fitted.right, `${name} stage left of the instructor graph`).toBeLessThanOrEqual(dockR.x);
+      expect(fitted.w, `${name} stage between the docks is usable`).toBeGreaterThanOrEqual(300);
       expect(await intruders(page, ['#lesson-calc', '#lesson-desmos']), `${name} a dock overlaps question content`).toEqual([]);
       await noSidewaysScroll(page, `${name} with both docks`);
       await shot(page, `student-${name}-both-docks`);
