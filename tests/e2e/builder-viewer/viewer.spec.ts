@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
+import { defaultTime, formatTime } from '../../../admin-ui/helpers';
 
 const artifact = '.opencode/pipeline/builder-viewer/e2e';
 for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 768 }]) {
@@ -41,6 +42,10 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1366, height: 76
       await expect(dialog.locator('[data-outline="1"]')).toHaveAttribute('aria-current', 'true');
       await expect(dialog.locator('.question-preview')).toContainText('What is');
       await expect(dialog).toContainText('Question 2 of 3');
+      const question = (await (await context.request.get('/api/admin/questions?search=e2e-core-math')).json()).questions.find((q: { id: string }) => q.id === 'e2e-core-math');
+      await expect(dialog.locator('#recommended-time')).toHaveText(`Recommended ${formatTime(defaultTime(question))}`);
+      await dialog.locator('#recommended-time').click();
+      await expect(dialog.locator('#recommended-time')).toHaveAttribute('aria-pressed', 'true');
       await shot('viewer-open');
 
       // Edit 1:30 + notes, step Next / Previous through the lesson's questions.

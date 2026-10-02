@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
+import { newUserContext, ORIGIN } from '../lessons-00b-e2e-harness/auth.js';
+import { RW, MATH, SPR, goTo } from '../bank-bluebook/support';
 
 // qbank-home: the Question Bank tab as a React island (lesson-ui/qbank/BankHome.tsx).
 // Seeded bank (tools/e2e_core.sql): 9 questions over a handful of skills.
@@ -163,5 +164,71 @@ for (const [size, viewport] of Object.entries(SIZES)) {
     } finally { await context.close(); }
   });
 }
+
+test('combined Filters popover changes counts and Saved only opens the flagged question', async ({ browser }) => {
+  const context = await newUserContext(browser, STUDENT);
+  const clearSaved = async () => {
+    for (const id of await (await context.request.get('/api/saved')).json()) {
+      const res = await context.request.post('/api/saved', { headers: { Origin: ORIGIN }, data: { question_id: id, saved: false } });
+      expect(res.status()).toBe(200);
+    }
+  };
+  try {
+    await clearSaved();
+    const page = await context.newPage();
+    await page.route('**/practice-tests.json', route => route.fulfill({ json: { tests: [{ RW: { m1: [RW] } }] } }));
+    await page.route('**/api/attempts', route => route.fulfill({ json: [] }));
+    await page.route('**/api/progress', route => route.fulfill({ json: [
+      { question_id: RW, marker: 'Green', attempts: 1, corrects: 1, time_taken_ms: 10000 },
+      { question_id: MATH, marker: 'Red', attempts: 1, corrects: 0, time_taken_ms: 90000 },
+      { question_id: SPR, marker: 'Orange', attempts: 2, corrects: 1, time_taken_ms: 25000 }
+    ] }));
+    await openHome(page);
+    const all = await matching(page);
+    expect(all).toBeGreaterThan(3);
+    await page.locator('#qb-filters').click();
+    for (const [key, label] of [['bluebook', 'Bluebook tests'], ['timeSpent', 'Time spent'], ['result', 'Result'], ['saved', 'Saved']])
+      await expect(page.locator(`#bank-home [data-filter="${key}"]`)).toHaveText(label);
+    await page.locator('[data-filter="bluebook"]').click();
+    await page.getByRole('radiogroup', { name: 'Bluebook tests' }).getByRole('radio', { name: 'Only', exact: true }).click();
+    await expect.poll(() => matching(page)).toBe(1);
+    await page.getByRole('radiogroup', { name: 'Bluebook tests' }).getByRole('radio', { name: 'Hide', exact: true }).click();
+    await expect.poll(() => matching(page)).toBe(all - 1);
+    await page.locator('#qb-reset').click();
+    await page.locator('[data-filter="timeSpent"]').click();
+    await page.getByRole('slider', { name: 'Longest time' }).focus();
+    await page.keyboard.press('Home');
+    await expect.poll(() => matching(page)).toBe(1);
+    await page.locator('#qb-reset').click();
+    await page.locator('[data-filter="result"]').click();
+    await page.getByRole('radio', { name: 'Correct only', exact: true }).click();
+    await expect.poll(() => matching(page)).toBe(1);
+    await page.getByRole('radio', { name: 'Incorrect only', exact: true }).click();
+    await expect.poll(() => matching(page)).toBe(2);
+    await page.locator('#qb-reset').click();
+    await expect.poll(() => matching(page)).toBe(all);
+    await page.keyboard.press('Escape');
+    await page.locator('#btn-start').click();
+    await goTo(page, RW);
+    const saved = page.waitForResponse(r => new URL(r.url()).pathname === '/api/saved' && r.request().method() === 'POST');
+    await page.locator('#bank-card #stage-flag').click();
+    expect((await saved).status()).toBe(200);
+    await page.locator('#bank-dashboard').click();
+    await page.locator('#bank-exit-confirm').click();
+    await page.locator('[data-tab="practice"]').click();
+    await page.locator('#qb-filters').click();
+    await page.locator('[data-filter="saved"]').click();
+    await page.getByRole('radio', { name: 'Saved only', exact: true }).click();
+    await expect.poll(() => matching(page)).toBe(1);
+    await page.keyboard.press('Escape');
+    await page.reload();
+    await page.locator('[data-tab="practice"]').click();
+    await expect.poll(() => matching(page)).toBe(1);
+    await page.locator('#btn-start').click();
+    await expect(page.locator('#bank-card[data-ready="true"]')).toBeVisible();
+    expect(await page.evaluate(() => window.__qa().S.items.map((q: { id: string }) => q.id))).toEqual([RW]);
+    await expect(page.locator('#bank-card #stage-flag')).toHaveAttribute('aria-pressed', 'true');
+  } finally { await clearSaved(); await context.close(); }
+});
 
 declare global { interface Window { __qa: () => any } }

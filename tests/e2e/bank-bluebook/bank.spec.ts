@@ -377,6 +377,7 @@ test('C6 tools: Annotate does not pick a choice, cross-out, Mark for Review, Not
     await expect(page.locator('#bank-card')).toBeVisible();
     // Light only: no theme button, no dark filter, and the footer stays pinned when the page scrolls.
     await expect(page.locator('#bank-theme')).toHaveCount(0);
+    await expect(page.locator('#bank-target')).toHaveText(/^Target \d+:\d{2}$/);
     await page.evaluate(() => document.getElementById('bank-live').scrollTo(0, 300));
     const light = await page.evaluate(() => { const f = document.querySelector('#bank-live .lesson-footer').getBoundingClientRect(); return { bottom: f.bottom, vh: innerHeight, filter: getComputedStyle(document.querySelector('#bank-live .lesson-main')).filter }; });
     expect(light.bottom).toBe(light.vh);
