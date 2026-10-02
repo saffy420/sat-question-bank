@@ -42,6 +42,15 @@ tools/*
 !tools/aiq/
 # Practice-test position -> bank ID map: generated from tracked inputs, IDs only.
 !tools/ptmap/
+# Prepzy Desmos solutions: the pipeline, mapping.json and the generated SQL are tracked. The raw cache,
+# the scraped records and the review sheets hold College Board question text (and the cache is raw
+# Prepzy responses), so they stay local like data/.
+!tools/desmos/
+tools/desmos/cache/
+tools/desmos/solutions.jsonl
+tools/desmos/review.csv
+tools/desmos/unmatched.csv
+tools/desmos/verify.json
 !tools/restore_bluebook.cjs
 !tools/bluebook_explanations.json
 !tools/bluebook_stem_fixes.json

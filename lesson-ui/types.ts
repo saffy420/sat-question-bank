@@ -120,7 +120,9 @@ export type LessonHistory = {
 };
 
 // Practice bank screen (Bank.tsx). `public/index.html` owns the session state and draws this model from it.
-export type BankQuestion = Question & { domain?: string; skill?: string; difficulty?: string; source?: string; ai?: boolean; level?: number };
+// has_desmos: a community Desmos solution exists (desmos_solutions); it is fetched only when asked for.
+export type BankQuestion = Question & { domain?: string; skill?: string; difficulty?: string; source?: string; ai?: boolean; level?: number; has_desmos?: number };
+export type DesmosSolution = { state: object; credit: string | null; key: string | null };
 export type BankCell = { id: string; state: 'none' | 'correct' | 'wrong' | 'corrected' | 'unscored' | 'answered'; flagged: boolean };
 // A Study Plan set (drill, consolidation, maintenance): a timed mini test, no Check, scored at the end.
 export type BankSet = {
@@ -182,4 +184,6 @@ export type BankBridge = {
   suggest: () => void;
   // Study Plan set: end the segment being played (the screen has already asked).
   endSegment: () => void;
+  // One question's community Desmos solution (GET /api/desmos/:id); rejects when it cannot be had.
+  desmosSolution: (questionId: string) => Promise<DesmosSolution>;
 };

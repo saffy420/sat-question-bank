@@ -21,6 +21,10 @@
 .bank-reveal .lesson-verdict { font:500 calc(var(--u) * 1.25)/1.4 'Lesson Sans',sans-serif; }
 .bank-reveal .lesson-verdict svg { color:#26783d; }
 .bank-reveal .lesson-verdict.shown svg { color:#bd2424; }
+.bank-desmos { margin:12px 0; }
+.bank-desmos-calc { height:min(420px, 60vh); border:1px solid #c6c6c6; border-radius:8px; overflow:hidden; }
+.bank-desmos-credit { margin:6px 0 0; font-size:13px; color:#555; }
+.bank-desmos-error { color:#bd2424; }
 .bank-info { display:grid; grid-template-columns:max-content 1fr; gap:6px 18px; margin:16px 0 0; font:calc(var(--u) * 1.05)/1.4 'Lesson Sans',sans-serif; }
 .bank-info>div { display:contents; }
 .bank-info dt { color:#555; }

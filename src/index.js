@@ -244,12 +244,16 @@ async function syncRole(env, u) {
   return role;
 }
 const BANK_COLS = 'id, external_id, section, domain, difficulty, skill, stem_html, choices_json, correct_answer, explanation_html, source, source_page, has_figure';
+// has_desmos marks the core questions with a community Desmos solution (desmos_solutions, main DB only).
+// It rides in the cached bank body, so the screen never reads D1 to decide whether to offer one.
 async function bank(env) {
-  const [core, ai] = await Promise.all([
+  const [core, ai, desmos] = await Promise.all([
     env.DB.prepare(`SELECT ${BANK_COLS} FROM questions`).all(),
-    env.AI_DB.prepare(`SELECT ${BANK_COLS}, level FROM questions`).all()
+    env.AI_DB.prepare(`SELECT ${BANK_COLS}, level FROM questions`).all(),
+    env.DB.prepare('SELECT question_id FROM desmos_solutions').all()
   ]);
-  return [...(core.results || []), ...(ai.results || [])];
+  const solved = new Set((desmos.results || []).map(r => r.question_id));
+  return [...(core.results || []).map(q => solved.has(q.id) ? { ...q, has_desmos: 1 } : q), ...(ai.results || [])];
 }
 // What the shared stats read from a question: taxonomy, level, answer and each choice's letter and
 // trap, not its HTML (free-plan CPU, docs/perf/free-plan-budget.md). normalizeQuestion still runs on
@@ -300,10 +304,11 @@ const BANK_CACHE = 'https://bank-cache.internal/v1/', BANK_TTL = 3600;
 // and hands them to the caches and memos below.
 // An approved question fix edits a row in place, so the count of applied fixes (src/reports.js) is part of the
 // bank key too: without it the cached body would keep serving the broken question for up to BANK_TTL.
+// A Desmos-solution import adds rows, so its max rowid moves the key and the new has_desmos flags show at once.
 const stamps = env => Promise.all([
-  env.DB.prepare("SELECT (SELECT MAX(rowid) FROM questions) AS q, (SELECT MAX(rowid) FROM question_lesson_usage) AS u, (SELECT COUNT(*) FROM question_triage WHERE status='applied') AS f").all(),
+  env.DB.prepare("SELECT (SELECT MAX(rowid) FROM questions) AS q, (SELECT MAX(rowid) FROM question_lesson_usage) AS u, (SELECT COUNT(*) FROM question_triage WHERE status='applied') AS f, (SELECT MAX(rowid) FROM desmos_solutions) AS d").all(),
   env.AI_DB.prepare('SELECT MAX(rowid) AS q FROM questions').all()
-]).then(([core, ai]) => ({ bank: `${core.results?.[0]?.q ?? ''}-${ai.results?.[0]?.q ?? ''}-${core.results?.[0]?.f ?? 0}`, usage: core.results?.[0]?.u ?? '' }));
+]).then(([core, ai]) => ({ bank: `${core.results?.[0]?.q ?? ''}-${ai.results?.[0]?.q ?? ''}-${core.results?.[0]?.f ?? 0}-${core.results?.[0]?.d ?? ''}`, usage: core.results?.[0]?.u ?? '' }));
 async function questionsResponse(env) {
   const st = await stamps(env);
   const key = BANK_CACHE + st.bank + '-' + st.usage;
@@ -664,7 +669,8 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
     };
     const isAPI = p === '/api' || p.startsWith('/api/');
     const knownAPI = apiMethods[p]?.includes(req.method) ||
-      (/^\/api\/sessions\/[^/]+$/.test(p) && req.method === 'DELETE');
+      (/^\/api\/sessions\/[^/]+$/.test(p) && req.method === 'DELETE') ||
+      (/^\/api\/desmos\/[^/]+$/.test(p) && req.method === 'GET');
     if (isAPI && !knownAPI && !adminAPI(p) && !lessonRoute && !historyRoute) return json({ error: 'not found' }, 404);
     const restrictedAsset = ['GET', 'HEAD'].includes(req.method) &&
       (p === '/app' || adminPath(p) || p === '/admin.js' || p === '/exams.json' || p === '/practice-tests.json' || /^\/qimg\/[^/]+\.(?:png|jpg|jpeg|webp|svg)$/i.test(p));
@@ -1067,6 +1073,21 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
       }
       const results = await env.DB.batch(binds);
       return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0), acknowledged: rows });
+    }
+
+    // One question's community Desmos solution, read only when the student asks for it (the bank body's
+    // has_desmos says which questions have one). Same identity and membership checks as the bank.
+    if (p.startsWith('/api/desmos/') && req.method === 'GET') {
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      let id;
+      try { id = decodeURIComponent(p.slice('/api/desmos/'.length)); }
+      catch { return json({ error: 'invalid question ID' }, 400); }
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return json({ error: 'invalid question ID' }, 400);
+      let r;
+      try { r = await env.DB.prepare('SELECT state_json, credit_name FROM desmos_solutions WHERE question_id = ?').bind(id).first(); }
+      catch { return json({ error: 'solution unavailable' }, 503); }
+      if (!r) return json({ error: 'not found' }, 404);
+      return json({ state_json: r.state_json, credit_name: r.credit_name, desmosKey: desmosApiKey(env, url) });
     }
 
     if (p.startsWith('/api/sessions/') && req.method === 'DELETE') {
