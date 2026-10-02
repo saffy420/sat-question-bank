@@ -72,6 +72,20 @@
   .lesson-stage .stage-passage { padding:0 0 24px; border-bottom:2px solid #cfcfcf; }
   .lesson-stage .stage-question, .lesson-stage.stage-split .stage-question { padding:24px 0 35px; border-left:0; }
 }
+/* Presenter fit (live-fit, index.tsx PresenterFit): revealed, the stage is laid out at the presenter's width with its
+   --fs/--u and --vw (its 1vw), and scaled to this column. The rules below restate the stage's vw lengths in --vw and
+   add the presenter's pane inset (admin.css #live-card), so the panes resolve to the presenter's exact measure. */
+.stage-fit-box.fitted { position:relative; }
+.stage-fit { position:absolute; left:0; top:0; transform-origin:0 0; --column:clamp(440px, calc(var(--vw) * 46), 960px); --pane-inset:clamp(24px, calc(var(--vw) * 2.8), 56px); }
+.stage-fit .lesson-stage.stage-split .stage-passage { padding-right:clamp(20px, calc(var(--vw) * 3), 56px); }
+.stage-fit .lesson-stage.stage-split .stage-question { padding-left:clamp(20px, calc(var(--vw) * 3), 56px); }
+@container (max-width: 720px) {
+  .stage-fit .lesson-stage.stage-split .stage-passage { padding-right:0; }
+  .stage-fit .lesson-stage.stage-split .stage-question { padding-left:0; }
+}
+.stage-fit .lesson-stage.stage-split .stage-passage { padding-left:var(--pane-inset); }
+.stage-fit .lesson-stage.stage-split .stage-question { padding-right:var(--pane-inset); }
+.stage-fit .lesson-stage.stage-single { padding-inline:var(--pane-inset); }
 .lesson-stage .stage-strip { position:relative; display:flex; align-items:center; height:calc(var(--u) * 2.8); margin-bottom:calc(var(--u) * 2.6); background:#f0f0f0; font:calc(var(--u) * 1.25)/calc(var(--u) * 2.8) 'Lesson Sans',sans-serif; }
 .lesson-stage .stage-strip::after { content:''; position:absolute; left:0; right:0; bottom:-8px; height:2px; background:var(--lesson-dashes); }
 .lesson-stage .stage-strip>span { display:inline-block; min-width:calc(var(--u) * 2.3); padding:0 7px; color:#fff; background:#161616; text-align:center; }

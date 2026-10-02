@@ -4381,6 +4381,8 @@ function lessonConnect() {
       lessonDraw(); lessonUI.annotate(data.op);
     } else if (data.type === 'eliminations' && lessonState?.questionId === data.questionId) {
       lessonState = { ...lessonState, eliminations: data.letters }; lessonDraw();
+    } else if (data.type === 'view' && lessonState) {
+      lessonState = { ...lessonState, view: { w: data.w, fs: data.fs, u: data.u, vw: data.vw } }; lessonDraw();
     } else if (data.type === 'laser' && lessonState?.questionId === data.questionId) {
       lessonUI.laser(data);
     } else if (data.type === 'error' && data.error === 'ended') {

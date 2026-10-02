@@ -43,6 +43,7 @@ class Room {
       eliminations: item ? this.sharedEliminations(s, item.question_id, a.role) : [],
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null,
       desmos: revealed && item && s.desmos?.questionId === item.question_id ? s.desmos.state : null,
+      view: s.view || null,
       ...(revealed && item && (a.role === 'admin' || s.classResults) ? { distribution: responseGroups(s.questions[item.question_id], Object.fromEntries(Object.entries(s.responses).map(([id, answers]) => [id, answers[item.question_id]])))
         .map(g => a.role === 'admin' ? { ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) } : { label: g.label, count: g.count, correct: g.correct }) } : {}),
       ...(a.role === 'admin' ? { code: s.code, lockedJoin: s.lockedJoin, roster: s.roster,
@@ -160,7 +161,7 @@ class Room {
     const groups = s.classResults || a.role === 'admin' ? responseGroups(q, Object.fromEntries(takers.map(userId => [userId, s.responses[userId][id] || {}]))) : null;
     // Review is untimed: the finished set's clock must not keep counting on screen.
     const common = { questionId: id, index: s.index, total: s.items.length, question: lessonQuestion(q, true), reviewMode: true, endsAt: null,
-      annotations: s.annotations?.[id] || [], eliminations: this.sharedEliminations(s, id, a.role), desmos: s.desmos?.questionId === id ? s.desmos.state : null, classResults: !!s.classResults,
+      annotations: s.annotations?.[id] || [], eliminations: this.sharedEliminations(s, id, a.role), desmos: s.desmos?.questionId === id ? s.desmos.state : null, view: s.view || null, classResults: !!s.classResults,
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null };
     if (a.role === 'admin') return { ...common, notes: item.notes || '',
       responses: Object.fromEntries(takers.map(userId => [userId, { [id]: { answer: s.responses[userId][id]?.answer, locked: true } }])),
@@ -476,6 +477,15 @@ class Room {
     const item = s.items[s.index];
     if (s.status === 'ended') err = 'ended';
     if (err) { this.send(ws, { type: 'error', error: err }); return; }
+    if (m.type === 'view') {
+      // Presenter fit: session-wide (kept across questions); students use it once a question is revealed.
+      const view = { w: m.w, fs: m.fs, u: m.u, vw: m.vw };
+      if (JSON.stringify(s.view) === JSON.stringify(view)) return;
+      s.view = view;
+      await this.save(s);
+      for (const peer of this.sockets('student')) try { this.send(peer, { type:'view', ...view }); } catch { /* disconnected */ }
+      return;
+    }
     if (m.type === 'desmos') {
       // Same gate as annotations: a graph can give the answer away before reveal.
       if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
