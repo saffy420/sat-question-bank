@@ -9,10 +9,14 @@ export type Question = {
 };
 export type Mark = {
   // `eliminate` marks only appear in a saved review layer (My Lessons): the instructor's crossed-out choices.
-  type: 'stroke' | 'highlight' | 'strike' | 'erase' | 'clear' | 'eliminate';
+  type: 'stroke' | 'highlight' | 'strike' | 'text' | 'erase' | 'clear' | 'eliminate';
   id: string;
   color?: string;
   points?: number[][];
+  // `text` marks: a typed box at (x, y) of anchor `a`, like one pen point.
+  text?: string;
+  x?: number;
+  y?: number;
   a?: string;
   nodeId?: string;
   startOffset?: number;

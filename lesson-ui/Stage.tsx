@@ -57,6 +57,7 @@ export function Stage(props: StageProps) {
     Ink.blocks(card.current);
     Ink.paint(card.current, [...(p.marks || []), ...(p.privateMarks || [])]);
     Ink.overlay(card.current, p.marks || []);
+    Ink.textBoxes(card.current, p.marks || []);
     Ink.refreshLaser(card.current);
   };
   useLayoutEffect(() => {
@@ -92,6 +93,7 @@ export function Stage(props: StageProps) {
         figureFrame = 0;
         if (!ready.current) return;
         Ink.overlay(el, latest.current.marks || []);
+        Ink.textBoxes(el, latest.current.marks || []);
         Ink.refreshLaser(el);
       });
     };
