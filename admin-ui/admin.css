@@ -1191,9 +1191,26 @@ body {
   gap: 4px;
   overflow-wrap: anywhere;
 }
+:where(#admin-root) .item-title {
+  cursor: pointer;
+  min-width: 0;
+}
+:where(#admin-root) .item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+:where(#admin-root) .item-top small {
+  margin-left: auto;
+}
 :where(#admin-root) .item-title small {
   font-size: 11px;
   color: var(--muted);
+}
+:where(#admin-root) .item-title .item-notes {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 :where(#admin-root) #lesson-items button {
   padding: 5px;
@@ -1396,6 +1413,82 @@ body {
   padding: 0 12px;
   color: #1f7a45;
   font-weight: 600;
+}
+:where(#admin-root) .iv-body {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+}
+:where(#admin-root) .iv-side {
+  overflow: auto;
+  padding: 20px 22px 28px;
+}
+:where(#admin-root) .iv-side h3 {
+  margin: 18px 0 8px;
+  font-size: 14px;
+}
+:where(#admin-root) .iv-side h3:first-child {
+  margin-top: 0;
+}
+:where(#admin-root) .iv-outline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+:where(#admin-root) .iv-outline button {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+  font-size: 12px;
+}
+:where(#admin-root) .iv-outline button[aria-current="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+:where(#admin-root) .iv-row-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+:where(#admin-root) .iv-row-top small {
+  margin-left: auto;
+}
+:where(#admin-root) .iv-snippet {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+:where(#admin-root) .iv-reveal {
+  margin: 22px 0 12px;
+}
+:where(#admin-root) .iv-side label {
+  display: block;
+  margin: 12px 0;
+  font-size: 12px;
+}
+:where(#admin-root) .iv-side textarea {
+  width: 100%;
+  min-height: 90px;
+}
+:where(#admin-root) .iv-side .time-chips button {
+  font-size: 12px;
+}
+@media (max-width: 860px) {
+  :where(#admin-root) .iv-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :where(#admin-root) .iv-side {
+    overflow: visible;
+  }
 }
 @media (max-width: 860px) {
   :where(#admin-root) .qv-body {
