@@ -215,10 +215,8 @@ test('bank practice: the math figure is in its own frame; A–D, pan at 200 %, t
     await page.goto('/app');
     await expect(page.locator('#user-name')).toContainText('E2E Student');
     await page.locator('[data-tab="practice"]').click();
-    await page.locator('#dd-sec .dd-t').click();
-    // From "Both sections" a pick toggles that section off: untick Reading & Writing to leave Math.
-    await page.locator('#dd-sec .dd-o[data-v="Reading & Writing"]').click();
-    await page.keyboard.press('Escape');
+    // The Math column header picks every Math topic.
+    await page.locator('#bank-home .qb-sec[data-section="Math"]').click();
     await page.locator('#btn-start').click();
     await expect(page.locator('#bank-live')).toBeVisible();
     const current = () => page.evaluate(() => { const { S } = window.__qa(); return S.items[S.i].id; });

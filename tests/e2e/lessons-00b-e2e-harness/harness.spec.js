@@ -21,7 +21,7 @@ async function bank(page, name) {
   await expect(page.locator('#user-name')).toHaveText(name);
   expect(await page.evaluate(() => window.__qa().QS.map(q => q.id).sort())).toEqual([...ids].sort());
   await expect.poll(() => page.evaluate(() =>
-    document.querySelector('#home-stats .v')?.textContent === '9' &&
+    document.querySelector('#start-count')?.textContent === '9 matching questions' &&
     document.querySelector('[data-tab="plan"]')?.classList.contains('on') &&
     document.querySelector('#tab-practice')?.classList.contains('hide') &&
     !document.querySelector('#tab-plan')?.classList.contains('hide')
