@@ -232,7 +232,6 @@ const CSS = `
 .fv { --fv-line: #c9ccd1; --fv-bar: #f1f2f4; --fv-ink: #1f2937; --fv-h: clamp(150px, 28vh, 440px);
   display: flex; flex-direction: column; width: max-content; min-width: 280px; max-width: 100%; box-sizing: border-box;
   margin: .6em auto; border: 1px solid var(--fv-line); border-radius: 8px; background: #fff; }
-:root[data-theme="dark"] .fv { --fv-line: #4a4f57; --fv-bar: #2a2d33; --fv-ink: #e6e8eb; }
 .fv-bar { display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 4px 8px;
   background: var(--fv-bar); border-bottom: 1px solid var(--fv-line); color: var(--fv-ink); font: 500 14px/1 system-ui, sans-serif;
   user-select: none; }

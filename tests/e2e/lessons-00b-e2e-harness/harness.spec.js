@@ -34,10 +34,10 @@ test('C1 admin login cookie opens gated app; core and AI bank render', async ({ 
   try {
     const page = await context.newPage();
     await bank(page, 'E2E Admin');
-    await page.locator('[data-tab="browse"]').click();
-    await expect(page.locator('#browse-count')).toHaveText('9 questions'); // 7 + the 11b split-layout and figure-viewer fixtures
-    await expect(page.locator('#tab-browse #browse-body tr[data-id]')).toHaveCount(9);
-    await expect(page.locator('#tab-browse #browse-body')).toContainText('e2e-ai-rw');
+    await expect(page.locator('[data-tab="browse"]')).toHaveCount(0);
+    const ids = await page.evaluate(() => window.__qa().QS.map(q => q.id));
+    expect(ids).toHaveLength(9); // 7 + the 11b split-layout and figure-viewer fixtures
+    expect(ids).toContain('e2e-ai-rw');
     await page.screenshot({ path: `${artifacts}/C1-admin.png` });
   } finally { await context.close(); }
 });

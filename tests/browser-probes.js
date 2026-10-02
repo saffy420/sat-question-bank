@@ -74,7 +74,7 @@ async page => {
       assert((await p.locator('#user-name').innerText()) === 'Guest', 'Expected isolated guest');
       return { questions: questions.length, ai: questions.filter(q => q.source === 'AI').length };
     });
-    for (const tab of ['dash', 'practice', 'browse', 'mistakes', 'exams', 'history', 'settings']) {
+    for (const tab of ['dash', 'practice', 'mistakes', 'exams', 'history', 'settings']) {
       await probe('375px tab navigation: ' + tab, async () => {
         await p.setViewportSize({ width: 375, height: 812 });
         await p.locator(`.nav-i[data-tab="${tab}"]`).click();
@@ -136,26 +136,6 @@ async page => {
       await p.locator('#lesson-calc-close').click();
       assert(await p.locator('#lesson-calc').isHidden(), 'Calculator did not close');
       return availability;
-    });
-    await probe('representative crop and KaTeX rendering in real Browse previews', async () => {
-      await p.goto(base.origin, { waitUntil: 'networkidle' });
-      await p.locator('.nav-i[data-tab="browse"]').click();
-      const crops = questions.filter(q => /<img[^>]+\/qimg\//.test((q.stem_html || '') + (q.choices_json || ''))).slice(0, 3);
-      const math = questions.find(q => /\\[([]/.test(q.stem_html || ''));
-      assert(crops.length === 3 && math, 'Need three crop questions and one TeX question in local bank');
-      let loaded = 0;
-      for (const q of [...new Map([...crops, math].map(q => [q.id, q])).values()]) {
-        await p.locator('#browse-q').fill(q.id);
-        await p.locator('#browse-body tr[data-id]').filter({ hasText: q.id }).click();
-        await p.locator('#pv-close').waitFor({ state: 'visible' });
-        loaded += await images('#modal-root');
-        assert(await p.locator('#modal-root .katex-error').count() === 0, 'KaTeX error for ' + q.id);
-        if (q.id === math.id) assert(await p.locator('#modal-root .katex').count() > 0, 'KaTeX did not render ' + q.id);
-        await overflow('#modal-root .modal');
-        await p.locator('#pv-close').click();
-      }
-      assert(loaded >= 3, 'Representative crop probe did not load three images');
-      return { ids: [...new Set([...crops, math].map(q => q.id))], loaded };
     });
     await probe('404 response and working home navigation', async () => {
       const response = await p.goto(base.origin + '/browser-probes-missing-page', { waitUntil: 'domcontentloaded' });

@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SAT Question Bank — Official College Board + AI</title>
+<title>Road to 1600</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <!-- Pinned and hashed. supabase-js used to float on the @2 tag, so a bad release —
      or a bad day at the CDN — would have run arbitrary code in the page that holds
      the signed-in session token. integrity makes the browser refuse anything else. -->
@@ -44,27 +45,6 @@
   --orange: #ea580c;
   --orange-bg: #fff7ed;
   --sans: "Roboto Variable", Roboto, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0f1115;
-  --bg2: #22262e;
-  --panel: #181b21;
-  --border: #2a2e37;
-  --border2: #3a3f4b;
-  --text: #e5e7eb;
-  --dim: #9ca3af;
-  --dim2: #98a1b0;
-  --blue: #3b82f6;
-  --blue-dark: #60a5fa;
-  --blue-bg: #1e3a5f;
-  --green: #22c55e;
-  --green-bg: #14291c;
-  --gold: #f2b632;
-  --red: #f87171;
-  --red-bg: #3a1a1a;
-  --orange: #fb923c;
-  --orange-bg: #3a2712;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; }
@@ -109,21 +89,21 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
 img { max-width: 100%; height: auto; }
 
 /* ---------- HOME ---------- */
-/* A dark rail pinned left, the work on a light board beside it. The rail keeps
-   its own palette in both themes - that contrast is what carries the look. */
+/* A navy rail pinned left, the work on a light board beside it. The app is light
+   only; the rail's navy is its own palette, not a theme. */
 :root {
   --nav: #101423; --nav-2: #1b2033; --nav-line: #232941;
   --nav-txt: #9aa2ba; --nav-dim: #5d6784; --nav-on: #ffffff;
   --mint: #35d07f; --mint-ink: #06301b;
   --r: 18px;
 }
-:root[data-theme="dark"] { --nav: #0a0d16; --nav-2: #161b28; --nav-line: #1f2534; }
 
 #view-home { height: 100vh; display: flex; overflow: hidden; }
 
 .nav { flex: 0 0 246px; background: var(--nav); display: flex; flex-direction: column; padding: 18px 12px; overflow-y: auto; }
-.nav-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 6px; color: var(--nav-on); font-weight: 700; font-size: 15.5px; letter-spacing: -.01em; }
-.nav-brand .dot { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 10px; background: var(--mint); color: var(--mint-ink); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; }
+/* Same mark as the front page (site.css .brand / .brand-mark): 34px blue tile, r. in white. */
+.nav-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 6px; color: var(--nav-on); font-weight: 750; font-size: 18px; text-decoration: none; white-space: nowrap; }
+.nav-brand .brand-mark { flex: 0 0 34px; display: grid; place-items: center; width: 34px; height: 34px; background: #2563eb; color: #fff; border-radius: 10px; font-size: 20px; }
 .nav-grp { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--nav-dim); padding: 18px 10px 7px; }
 .nav-i { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; border: 0; background: transparent; color: var(--nav-txt); font-size: 14px; font-weight: 500; padding: 10px; border-radius: 11px; margin-bottom: 2px; }
 .nav-i:hover:not(:disabled) { background: var(--nav-2); border-color: transparent; color: var(--nav-on); }
@@ -167,7 +147,6 @@ img { max-width: 100%; height: auto; }
 .panel-h h3 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.015em; }
 .panel-b { padding: 18px 20px; }
 .empty { color: var(--dim); font-size: 13.5px; padding: 18px 20px; }
-.theme-toggle { width: 38px; height: 38px; padding: 0; border-radius: 11px; font-size: 16px; }
 /* four narrower cards, so the dashboard row does not wrap 3 + 1 */
 #db-overview { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 
@@ -222,7 +201,6 @@ select { appearance: none; -webkit-appearance: none; padding-right: 34px; font-w
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 12px center; }
 select:hover { border-color: var(--border2); }
-:root[data-theme="dark"] select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
 
 /* topic picker: domains open, one row per skill, the way the bank reads */
 .tl-head, .tl-row { display: grid; grid-template-columns: minmax(0,1fr) 150px 70px 72px; align-items: center; gap: 12px; }
@@ -320,10 +298,6 @@ select:hover { border-color: var(--border2); }
 .heat i.fut { opacity: 0; }
 .heat i.l1, .heat-key i.l1 { background: #b7ecce; } .heat i.l2, .heat-key i.l2 { background: #79dfa8; }
 .heat i.l3, .heat-key i.l3 { background: #35d07f; } .heat i.l4, .heat-key i.l4 { background: #1a8f53; }
-:root[data-theme="dark"] .heat i.l1, :root[data-theme="dark"] .heat-key i.l1 { background: #143d28; }
-:root[data-theme="dark"] .heat i.l2, :root[data-theme="dark"] .heat-key i.l2 { background: #1a6640; }
-:root[data-theme="dark"] .heat i.l3, :root[data-theme="dark"] .heat-key i.l3 { background: #27a463; }
-:root[data-theme="dark"] .heat i.l4, :root[data-theme="dark"] .heat-key i.l4 { background: #35d07f; }
 
 /* mistakes drill */
 .mk-card { padding: 15px 20px; border-bottom: 1px solid var(--border); cursor: pointer; }
@@ -346,7 +320,7 @@ td .tag.t-used { margin-left: 6px; font-family: inherit; }
 
 @media (max-width: 980px) {
   .nav { flex-basis: 66px; padding: 16px 8px; }
-  .nav-brand > span, .nav-grp, .nav-i > span, .nav-um { display: none; }
+  .nav-brand-t, .nav-grp, .nav-i > span, .nav-um { display: none; }
   .nav-brand, .nav-i, .nav-user { justify-content: center; }
   .nav-av { display: none; }
   .nav-user { flex-direction: column; align-items: stretch; gap: 6px; padding: 12px 0 0; }
@@ -382,7 +356,7 @@ td .tag.t-used { margin-left: 6px; font-family: inherit; }
 .pane-q { flex: 1 1 50%; min-width: 0; background: var(--panel); border-right: 1px solid var(--border); }
 .pane-a { flex: 1 1 50%; min-width: 0; background: var(--panel); }
 /* One column fills the window: a centred column left bare strips of page
-   background down both sides, which read as black gutters in dark mode.
+   background down both sides.
    The panel runs edge to edge and the text keeps its measure inside it. */
 .panes.solo .pane-q { display: none; }
 .panes.solo .pane-a { flex: 1 1 auto; border: 0; }
@@ -408,12 +382,10 @@ td .tag.t-used { margin-left: 6px; font-family: inherit; }
    restores the source proportions instead: 5px/pt / (96/72 px/pt) gives 0.267,
    times 16/14.67 to carry 11pt up to the 16px stem. */
 img.minl, .choice img.minl { display: inline-block; vertical-align: middle; zoom: .29; margin: 2px 1px; }
-/* The notation crops are black ink on an opaque white square. Blending drops
-   the square either way round - multiply keeps the ink over a light page,
-   invert-then-screen keeps it over a dark one - so what is left of the
-   cropped notation sits in the sentence as text rather than as a chip. */
+/* The notation crops are black ink on an opaque white square. Multiply drops
+   the square, so what is left of the cropped notation sits in the sentence as
+   text rather than as a chip. */
 img.minl { mix-blend-mode: multiply; }
-:root[data-theme="dark"] img.minl { filter: invert(1); mix-blend-mode: screen; }
 .cb .qfig { margin: 16px 0; }
 .cb .qfig img { display: block; border-radius: 8px; max-width: 100%; }
 .cb .qfig img, .cb .qimg img { cursor: zoom-in; }
@@ -424,20 +396,15 @@ img.minl { mix-blend-mode: multiply; }
 .choice .qfig { margin: 0; }
 .choice .qfig img { display: block; max-width: min(100%, 340px); border-radius: 8px;
                     mix-blend-mode: multiply; }
-:root[data-theme="dark"] .choice .qfig img { filter: invert(1); mix-blend-mode: screen; }
-/* A figure keeps its own colours (inverting a coloured chart misreports it), so
-   on a dark panel its black axes and labels disappear. Put it on white paper. */
-:root[data-theme="dark"] .cb .qfig img { background: #fff; padding: 6px; }
 /* .cb figure carries the one HTML table in the bank; without these it takes the
    UA's 0 40px margin and no scroll box, and its last column is unreachable. */
 .qtable, .cb figure { margin: 16px 0; overflow-x: auto; }
 .cb figure figcaption { color: var(--dim); margin-top: 6px; }
 /* 926 rationales carry their own figure crops as a bare <img alt="Figure"> with
-   no wrapper class, so they picked up neither the width cap nor the dark-mode
-   handling: a full-bleed white block bleeding out of the explanation. Notation
+   no wrapper class, so they picked up no width cap: a full-bleed white block
+   bleeding out of the explanation. Notation
    crops (.minl) are excluded — they are inline and already scaled. */
 .expl img:not(.minl) { display: block; max-width: 100%; height: auto; border-radius: 8px; margin: 12px 0; }
-:root[data-theme="dark"] .expl img:not(.minl) { filter: invert(1); mix-blend-mode: screen; }
 .qtable table, .cb table { border-collapse: collapse; font-size: 14.5px; }
 .qtable table th, .qtable table td, .cb table th, .cb table td { border: 1px solid var(--border2); padding: 8px 14px; text-align: left; }
 .qtable table th, .cb table th { background: var(--bg2); font-weight: 600; }
@@ -485,7 +452,7 @@ img.minl { mix-blend-mode: multiply; }
 .cb u, .choice u { text-decoration-thickness: 1px; text-underline-offset: .18em; }
 
 /* highlighter - the three colours Bluebook offers. mark.hl sets its ink
-   explicitly: the pastels are light backgrounds and --text is near-white in dark. */
+   explicitly so the ink does not depend on --text. */
 mark.hl { background: #fff3a3; color: #111827; border-radius: 3px; padding: 0 1px; cursor: pointer; }
 mark.hl-p { background: #ffc2e0; }
 mark.hl-b { background: #bfe3ff; }
@@ -593,8 +560,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
 /* The embed draws its own 50px title strip - "Graphing Calculator / College Board
    Version", no controls in it - which we cannot restyle across origins. Crop it:
    the wrapper clips, and the iframe grows by the same amount so the calculator
-   still fills the panel. The embed has no dark mode, so the panel is white in
-   both themes; otherwise a white calculator sits inside a dark card. */
+   still fills the panel. The embed is white, so the panel is too. */
 .desmos-panel { --dp-crop: 50px; background: #fff; }
 .desmos-panel .dp-frame { flex: 1; position: relative; overflow: hidden; background: #fff; }
 .desmos-panel iframe { position: absolute; left: 0; top: calc(-1 * var(--dp-crop)); width: 100%; height: calc(100% + var(--dp-crop)); border: 0; }
@@ -707,7 +673,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
   .top-l, .top-r { gap: 6px; }
   /* Directions, Pause and Hide are all reachable from a desk. On a phone they
      cost the row that Calculator and More need. */
-  #btn-directions, #btn-hide-timer, #btn-pause, .top .theme-toggle { display: none; }
+  #btn-directions, #btn-hide-timer, #btn-pause { display: none; }
   .tbtn { padding: 7px 10px; font-size: 13px; }
   /* "← Dashboard" beside the clock, Calculator and More is 324px of the 300px
      this row has at 320px wide, so the bar wrapped onto a second line and the
@@ -856,13 +822,12 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
 <!-- ================= HOME ================= -->
 <div id="view-home">
   <aside class="nav">
-    <div class="nav-brand"><span class="dot">S</span><span>SAT Question Bank</span></div>
+    <a class="nav-brand" href="/app"><span class="brand-mark" aria-hidden="true">r.</span><span class="nav-brand-t">Road to 1600</span></a>
 
     <button class="nav-i" data-tab="plan"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Study Plan</span></button>
     <button class="nav-i" data-tab="dash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19V11M12 19V5M19 19v-6"/></svg><span>Dashboard</span></button>
     <button class="nav-i" data-tab="mistakes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l8 15H4z"/><path d="M12 9v4M12 16.2v.1"/></svg><span>Mistakes</span></button>
     <button class="nav-i" data-tab="practice"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v6H4z"/><path d="M4 15h9v4H4z"/></svg><span>Question Bank</span></button>
-    <button class="nav-i" data-tab="browse"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Browse</span></button>
     <button class="nav-i" data-tab="exams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg><span>Practice Exams</span></button>
     <button class="nav-i" data-tab="history"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>History</span></button>
     <button class="nav-i" data-tab="lessons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h11a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/></svg><span>My Lessons</span></button>
@@ -883,7 +848,6 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
       <div>
         <h1 id="greet">Welcome back</h1>
       </div>
-      <button class="theme-toggle" data-theme-toggle title="Toggle dark mode">&#127769;</button>
     </header>
 
     <div class="board-b">
@@ -1005,28 +969,6 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
         <div class="panel"><div class="panel-h"><h3>Settings</h3></div><div id="set-body"></div></div>
       </div>
 
-      <div id="tab-browse" class="hide">
-        <div class="panel">
-          <div class="ctrls" style="margin-bottom:14px">
-            <div class="dd" id="bd-sec"></div>
-            <div class="dd" id="bd-diff"></div>
-            <div class="dd" id="bd-topic"></div>
-          </div>
-          <div class="panel-h">
-            <input type="text" id="browse-q" placeholder="Search domain, skill, id&#8230;" style="flex:1;max-width:380px">
-            <span id="browse-count" style="color:var(--dim);font-size:13px"></span>
-          </div>
-          <table class="browse-table">
-            <thead><tr><th style="width:110px">ID</th><th>Section</th><th>Domain</th><th>Skill</th><th>Diff.</th><th>Type</th></tr></thead>
-            <tbody id="browse-body"></tbody>
-          </table>
-        </div>
-        <div class="frow" style="margin-top:14px">
-          <button id="browse-prev">&#8592; Prev</button>
-          <span id="browse-page" style="color:var(--dim);font-size:13px"></span>
-          <button id="browse-next">Next &#8594;</button>
-        </div>
-      </div>
     </div>
   </main>
 </div>
@@ -1051,7 +993,6 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
         Calculator
       </button>
       <button class="tbtn" id="btn-more">More ▾</button>
-      <button class="theme-toggle" data-theme-toggle title="Toggle dark mode">🌙</button>
     </div>
   </div>
 
@@ -1159,26 +1100,11 @@ let TAB = 'plan';
 // ---------------- settings ----------------
 // One object, one storage key. These change shape often; a column per toggle is
 // churn for nothing. Guests keep them in localStorage, accounts on the server.
-const SET_DEFAULTS = { theme: 'system', rand: false, count: 0, ai: '', noteOnWrong: true };
-let SET = Object.assign({}, SET_DEFAULTS, LS.get('settings', {}));
-
-// The theme used to live under its own key. Carry a stored one over once, so a
-// returning user does not get flipped back to their system setting.
-const oldTheme = LS.get('theme', null);
-if (oldTheme && !LS.get('settings', null)) { SET.theme = oldTheme; LS.set('settings', SET); }
-
-function resolvedTheme() {
-  return SET.theme === 'system'
-    ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    : SET.theme;
-}
-
-function applyTheme() {
-  const t = resolvedTheme();
-  document.documentElement.dataset.theme = t;
-  document.querySelectorAll('[data-theme-toggle]').forEach(b => b.textContent = t === 'dark' ? '☀️' : '🌙');
-  if (S && S.bank) bankDraw();
-}
+const SET_DEFAULTS = { rand: false, count: 0, ai: '', noteOnWrong: true };
+// The app is light only. Settings saved when it had a theme still carry one; it is
+// dropped on load, so the next save no longer sends it.
+const loadSet = stored => { const o = Object.assign({}, SET_DEFAULTS, stored); delete o.theme; return o; };
+let SET = loadSet(LS.get('settings', {}));
 
 async function saveSettings() {
   LS.set('settings', SET);
@@ -1200,18 +1126,8 @@ async function saveSettings() {
 function setSetting(k, v) {
   SET[k] = v;
   saveSettings();
-  if (k === 'theme') { applyTheme(); if (TAB === 'settings') drawSettings(); }
   if (k === 'count' || k === 'rand') drawFilters();
 }
-
-document.querySelectorAll('[data-theme-toggle]').forEach(b => b.onclick = () =>
-  setSetting('theme', resolvedTheme() === 'dark' ? 'light' : 'dark'));
-
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  if (SET.theme === 'system') applyTheme();
-});
-
-applyTheme();
 
 // F holds the practice-set filters. It reads SET.count, so it is initialised after
 // the settings block rather than beside the other top-level state.
@@ -1243,7 +1159,7 @@ const LEAKED_RATIONALE = /<p>\s*(?:<strong>\s*)?Rationale\b[\s\S]*$/i;
 //   2,090 rows run two or more choice analyses together in one paragraph, which
 //         on a phone is a wall of text where every other row is four paragraphs.
 // Done at load, not in the data: every consumer - the explanation modal, the
-// browse preview, the mistakes teaser, the AI export - reads this one field, and
+// mistakes teaser, the AI export - reads this one field, and
 // D1's daily row-write budget is small enough that a 3,770-row migration costs
 // a real fraction of it.
 // Tags and \( ... \) spans are matched first so the rewrite only ever touches
@@ -1386,12 +1302,11 @@ async function loadSettings() {
     if (r.ok) remote = await r.json();
   } catch (e) {}
   if (remote && Object.keys(remote).length) {
-    SET = Object.assign({}, SET_DEFAULTS, remote);
+    SET = loadSet(remote);
     LS.set('settings', SET);
   } else if (remote) {
     saveSettings();   // the account has no row yet: push what the guest had up
   }                   // a failed read pushes nothing, or it overwrites the account
-  applyTheme();
   if (TAB === 'settings') drawSettings();
 }
 
@@ -1688,16 +1603,16 @@ window.__dd = dd;   // reachable for the DOM assertions; harmless in production
 window.__qa = () => ({ QS, PROG, LOG, S, renderStem, isRight, focusSet, weakness, levelOf, pacing, trapCounts, guessing });
 
 const NAV = document.querySelectorAll('.nav-i');
-const TABS = ['plan','practice','dash','browse','mistakes','exams','history','lessons','settings'];
+const TABS = ['plan','practice','dash','mistakes','exams','history','lessons','settings'];
 
 // One entry point, so the boot-time tab and a rail click cannot drift apart.
 function setTab(t) {
+  if (!TABS.includes(t)) t = 'plan';   // a tab that no longer exists (Browse) lands on the default
   TAB = t;
   NAV.forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   TABS.forEach(k => $('tab-'+k).classList.toggle('hide', k !== t));
   if (t === 'plan') drawPlan();
   if (t === 'dash') drawDash();
-  if (t === 'browse') drawBrowse();
   if (t === 'mistakes') drawMistakes();
   if (t === 'settings') drawSettings();
   if (t === 'exams') drawExams();
@@ -1759,8 +1674,6 @@ function drawSettings() {
     row('account', uid ? 'Account' : 'Sign in',
       uid ? $('nav-sub').textContent : 'Save your progress and pick it up on any device.',
       `<button class="btn-p" id="set-auth">${uid ? 'Sign out' : 'Sign in'}</button>`) +
-    row('theme', 'Appearance', 'System follows your device setting.',
-      `<select data-set="theme">${['system','light','dark'].map(v => opt(v, v[0].toUpperCase()+v.slice(1), SET.theme)).join('')}</select>`) +
     row('noteOnWrong', 'Note on a miss',
       'Open the explanation and a note box beside the question when you get one wrong, so you can log why.', sw('noteOnWrong')) +
     row('rand', 'Random order', 'Shuffle a practice set instead of taking it in bank order.', sw('rand')) +
@@ -2425,80 +2338,6 @@ $('mk-drill').onclick = () => {
   if (a.length) start(a);
 };
 
-// ---------------- browse ----------------
-// Browse filters are its own state. Changing the practice set must not silently
-// re-filter this table, and the reverse.
-let FB = LS.get('browse', { sec:null, diff:null, skills:null });
-const saveFB = () => { LS.set('browse', FB); browsePage = 0; drawBrowse(); };
-
-function browseBase() {
-  const secs = FB.sec ? new Set(FB.sec) : null;
-  const diffs = FB.diff ? new Set(FB.diff.map(d => d.toLowerCase())) : null;
-  const sks = FB.skills ? new Set(FB.skills) : null;
-  return QS.filter(q => {
-    if (secs && !secs.has(q.section)) return false;
-    if (diffs && !diffs.has((q.difficulty || '').toLowerCase())) return false;
-    if (sks && !sks.has(q.skill || 'Other')) return false;
-    return true;
-  });
-}
-
-let browsePage = 0;
-function drawBrowse() {
-  dd($('bd-sec'), { label: 'Section', allLabel: 'Both sections',
-    opts: SECTIONS.map(v => ({ v, label: v })),
-    get: () => FB.sec, set: (x) => { FB.sec = x; FB.skills = null; saveFB(); } });
-  dd($('bd-diff'), { label: 'Difficulty', allLabel: 'Any difficulty',
-    opts: DIFFS.map(v => ({ v, label: v })),
-    get: () => FB.diff, set: (x) => { FB.diff = x; saveFB(); } });
-  {
-    const groups = {};
-    browseBase().forEach(q => (groups[q.domain || 'Other'] = groups[q.domain || 'Other'] || new Set()).add(q.skill || 'Other'));
-    const opts = cbSort(Object.keys(groups)).flatMap(d =>
-      [{ v: d, label: d, head: true }].concat(cbSort([...groups[d]]).map(sk => ({ v: sk, label: sk, group: d }))));
-    dd($('bd-topic'), { label: 'Topic', allLabel: 'All topics',
-      opts, get: () => FB.skills, set: (x) => { FB.skills = x; saveFB(); } });
-  }
-  const q = ($('browse-q').value||'').toLowerCase();
-  let list = browseBase().filter(x => !q || [x.id,x.domain,x.skill,x.section,x.difficulty].join(' ').toLowerCase().includes(q));
-  $('browse-count').textContent = `${list.length.toLocaleString()} questions`;
-  const per = 50, pages = Math.max(1, Math.ceil(list.length/per));
-  browsePage = Math.min(browsePage, pages-1);
-  const slice = list.slice(browsePage*per, browsePage*per+per);
-  $('browse-body').innerHTML = slice.map(x => `
-    <tr data-id="${esc(x.id)}">
-      <td class="mono" style="color:var(--dim)">${esc(x.id)}${usedBadge(x)}</td>
-      <td>${esc(x.section)}</td>
-      <td>${esc(x.domain)}</td>
-      <td>${esc(x.skill)}</td>
-      <td>${esc(x.difficulty)}</td>
-      <td>${x.spr?'SPR':'MCQ'}</td>
-    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:24px;">No matches</td></tr>';
-  $('browse-page').textContent = `Page ${browsePage+1} / ${pages}`;
-  $('browse-body').querySelectorAll('tr[data-id]').forEach(tr => {
-    tr.onclick = () => previewQuestion(tr.dataset.id);
-  });
-}
-$('browse-q').oninput = () => { browsePage = 0; drawBrowse(); };
-$('browse-prev').onclick = () => { if (browsePage>0){ browsePage--; drawBrowse(); } };
-$('browse-next').onclick = () => { browsePage++; drawBrowse(); };
-
-function previewQuestion(id) {
-  const q = QS.find(x=>x.id===id);
-  if (!q) return;
-  const root = $('modal-root');
-  root.innerHTML = `<div class="modal-bg"><div class="modal" style="width:min(760px,94vw)">
-    <div class="frow" style="justify-content:space-between; margin-bottom:14px;">
-      <strong>${esc(q.id)} · ${esc(q.section)} · ${esc(q.difficulty)}</strong>
-      <button id="pv-close">Close</button>
-    </div>
-    ${SharedRenderer.previewHTML(q, document)}
-  </div></div>`;
-  mathify(root);
-  $('pv-close').onclick = () => root.innerHTML = '';
-  root.querySelector('.modal-bg').onclick = (e) => { if (e.target.classList.contains('modal-bg')) root.innerHTML=''; };
-}
-
 // ---------------- session ----------------
 // --- exam (test_exams.cjs reads this block)
 // The real test: two Reading modules, a break, two Math modules; module 2 is the
@@ -2893,7 +2732,7 @@ function bankDraw() {
       question: q, index: S.i, total: S.items.length, picked: S.sel[q.id] || '', missed: [],
       closed: false, unscored: false, shown: false, flagged: !!S.flags[q.id],
       cells: S.items.map(x => ({ id: x.id, state: S.sel[x.id] ? 'answered' : 'none', flagged: !!S.flags[x.id] })),
-      paused: false, note: NOTES[q.id] || '', noteOnMiss: false, dark: resolvedTheme() === 'dark', signedIn: !!authToken,
+      paused: false, note: NOTES[q.id] || '', noteOnMiss: false, signedIn: !!authToken,
       set: { segment: run.segs.length > 1 ? `${g.level} · section ${run.seg + 1} of ${run.segs.length}` : `${g.n} ${g.level.toLowerCase()}`,
         final, unanswered: S.items.filter(x => !S.sel[x.id]).length,
         endText: final ? 'Finish this set? Your score and the questions to review come next.'
@@ -2912,7 +2751,7 @@ function bankDraw() {
     flagged: !!S.flags[q.id],
     cells: S.items.map(x => ({ id: x.id, state: BANK_STATE[outcome(S, x, PROG[x.id] && PROG[x.id].marker, isRight)], flagged: !!S.flags[x.id] })),
     paused: S.paused, note: NOTES[q.id] || '', noteOnMiss: !!SET.noteOnWrong,
-    dark: resolvedTheme() === 'dark', signedIn: !!authToken, explainOnClose: !!S.explainOnClose
+    signedIn: !!authToken, explainOnClose: !!S.explainOnClose
   });
 }
 const bankBridge = {
@@ -2938,7 +2777,6 @@ const bankBridge = {
   pause() { S.paused = !S.paused; bankDraw(); },
   exit() { if (S && S.set) return planLeave(); stopTimer(); S = null; showHome(); },
   endSegment() { if (S && S.set) planEndSegment(); },
-  theme() { setSetting('theme', resolvedTheme() === 'dark' ? 'light' : 'dark'); },
   // Called from inside React effects, so the redraw waits for them to finish.
   saveNote(id, body) { saveNote(id, body); queueMicrotask(bankDraw); },
   exportText: () => exportPrompt(curQ()),

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { Check, X, Highlighter, House, Calculator, NotebookPen, Moon, Sun, Copy, Eraser, Lightbulb, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
+import { Check, X, Highlighter, House, Calculator, NotebookPen, Copy, Eraser, Lightbulb, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
 import { Stage } from './Stage';
 import { CalculatorShell, useCalculator } from './Calculator';
 import { HideButton, More, PositionPill, QuestionGrid } from './Chrome';
@@ -187,7 +187,6 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
           <button id="bank-export" onClick={copy}><Copy aria-hidden="true"/>{copied ? '✓ Copied' : 'Copy for AI'}</button>
           <button id="bank-suggest" onClick={() => { closeMore(); bridge.suggest(); }}><Lightbulb aria-hidden="true"/>Suggest a feature</button>
         </More>
-        <button id="bank-theme" onClick={bridge.theme}>{model.dark ? <Sun aria-hidden="true"/> : <Moon aria-hidden="true"/>}<span>{model.dark ? 'Light' : 'Dark'}</span></button>
       </nav>
     </header>
     <main className={`lesson-main bank-main${notesOpen ? ' with-desmos' : ''}${calc.math && calc.open ? ' with-calc' : ''}${model.paused ? ' paused' : ''}`}>

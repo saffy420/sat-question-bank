@@ -62,7 +62,7 @@
 .self-key.corrected { border-top-color:#a35a00; }
 
 /* Calculator dock, College Board embed (Graphing / Scientific). The embed draws its own 50 px title strip that cannot be
-   restyled across origins: the frame clips it and the iframe grows by the same amount. The embed has no dark mode. */
+   restyled across origins: the frame clips it and the iframe grows by the same amount. */
 .lesson-calc-embed { flex:1; min-height:0; display:flex; flex-direction:column; background:#fff; }
 .lesson-calc-tabs { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid #cfcfcf; }
 #bank-live .lesson-calc-tabs button { padding:3px 12px; border-radius:8px; font-size:calc(var(--u) * .9); color:#444; }
@@ -71,18 +71,3 @@
 .lesson-calc-frame iframe { position:absolute; left:0; top:calc(-1 * var(--crop)); width:100%; height:calc(100% + var(--crop)); border:0; }
 .bank-export textarea { width:100%; height:40vh; margin-top:12px; padding:12px; border:1px solid #777; border-radius:12px; font:13px/1.5 ui-monospace,monospace; background:#f7f7f7; color:#171717; }
 #bank-live #bank-exit-confirm { border:0; color:#fff; background:#304fc5; border-radius:999px; font-size:calc(var(--u) * 1.1); padding:calc(var(--u) * .6) calc(var(--u) * 2.2); }
-
-/* Dark theme. The screen is authored light (like Bluebook); when the page theme is dark each part of the screen is inverted and
-   rotated 180° in hue, so text, rules and accents keep their hue on a dark ground (92 % invert: a soft #141414 ground, not
-   pure black). The filter goes on the parts, never on #bank-live: a filter would make it the containing block of the fixed
-   header, footer and docks and they would scroll away with the page. Pictures are turned back the right way up and set on a
-   light plate (colored figures keep their colors); notation crops (.minl) are black ink on white and stay inverted; the
-   figure viewer (which has its own dark styling), the calculator embed and its bar and the ink layer are restored. Dialogs are filtered too, so they come out dark. */
-:root[data-theme="dark"] #bank-live, :root[data-theme="dark"] #bank-content { background:#141414; }
-:root[data-theme="dark"] #bank-content > * { filter:invert(.92) hue-rotate(180deg); }
-:root[data-theme="dark"] #bank-live .lesson-stage img:not(.minl) { filter:invert(1) hue-rotate(180deg)!important; background:#fff; }
-:root[data-theme="dark"] #bank-live .fv { filter:invert(1) hue-rotate(180deg); }
-:root[data-theme="dark"] #bank-live .lesson-stage .fv img { filter:none!important; background:none; }
-:root[data-theme="dark"] #bank-live .lesson-calc-frame iframe,
-:root[data-theme="dark"] #bank-live .lesson-calc-bar,
-:root[data-theme="dark"] #bank-live .lesson-ink { filter:invert(1) hue-rotate(180deg); }

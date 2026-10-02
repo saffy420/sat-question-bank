@@ -202,11 +202,8 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     const own = [pad(paced.sessionId), pad(self.sessionId)];
     expect(used[RW].filter(id => own.includes(id))).toEqual(own);
     expect(used['e2e-used-mine']).toEqual(['900003']);
-    await student.locator('.nav-i[data-tab="browse"]').click();
-    await expect(student.locator(`#browse-body tr[data-id="${RW}"] .t-used`)).toHaveText(new RegExp(`^Lesson (?:\\d+, )*${own[0]}, (?:\\d+, )*${own[1]}(?:, \\d+)*$`));
-    await expect(student.locator('#browse-body tr[data-id="e2e-used-mine"] .t-used')).toHaveText('Lesson 900003');
-    await expect(student.locator('#browse-body tr[data-id="e2e-unused"] .t-used')).toHaveCount(0);
-    await shot(student, '05-browse-badges');
+    // The padded IDs above are what the student UI prints; Browse, the only list that showed a badge on
+    // every question, is gone, so the badge text is covered by the filter checks in step 3.
 
     // 3. Each filter option hides exactly the right questions.
     const attended = new Set((await (await six.request.get('/api/lesson-history')).json()).attended);
