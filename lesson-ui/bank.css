@@ -8,6 +8,8 @@
 .bank-timer-actions { display:flex; align-items:center; gap:calc(var(--u) * .4); }
 #bank-live .lesson-timer .bank-timer-actions button { padding:0 calc(var(--u) * .7); }
 #bank-clock.over { color:#bd2424; }
+#bank-clock.late { color:#b45f06; }
+.bank-target { font-size:calc(var(--u) * .8); line-height:1.2; color:#666; }
 
 .bank-main { position:relative; }
 .bank-main.paused .bank-stage { visibility:hidden; }

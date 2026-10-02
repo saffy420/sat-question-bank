@@ -121,8 +121,8 @@ test('shared stats compute Orange current, attempt accuracy, sparse time and tra
   assert.equal(stats.isRight(qs[1],'.6'),false);
   assert.equal(stats.isRight({ ...qs[1], answer:'' },'.5'),null);
   const progress = { mc:{ attempts:2,corrects:1,marker:'Orange',time_taken_ms:90000 }, spr:{ attempts:1,corrects:0,marker:'Red' } };
-  const log = [{ question_id:'mc', ts:'2026-01-01', correct:0, picked:'A', time_taken_ms:40000, changes:1 },
-    { question_id:'mc', ts:'2026-01-02', correct:1, picked:'B', time_taken_ms:95000, changes:0 },
+  const log = [{ question_id:'mc', ts:'2026-01-01', correct:0, picked:'A', time_taken_ms:30000, changes:1 },
+    { question_id:'mc', ts:'2026-01-02', correct:1, picked:'B', time_taken_ms:105000, changes:0 },
     { question_id:'spr', ts:'2026-01-03', correct:0, picked:'2', time_taken_ms:0, changes:null }];
   const b = stats.breakdown(qs, progress, log);
   assert.equal(b.tally.att,2); assert.equal(b.tally.corr,1);
