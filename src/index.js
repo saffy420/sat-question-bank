@@ -5,6 +5,7 @@ export { LessonRoom } from './lesson-room.js';
 export { LessonSync } from './lesson-sync.js';
 import { traceEnv } from './budget.js';
 import { submitReport, submitSuggestion, adminReportRoute, MAX_REPORT_BODY } from './reports.js';
+import { sessionResults, classAverage } from './session-results.js';
 
 export const validLessonUpgrade = (req, url) => req.method === 'GET' &&
   req.headers.get('Upgrade')?.toLowerCase() === 'websocket' &&
@@ -528,8 +529,15 @@ async function lessonRoutes(req, env, url, p, u) {
   if (m && !id) return json({ error: 'invalid lesson ID' }, 400);
   if (m && m[2] === 'sessions' && method === 'GET') {
     if (!await env.DB.prepare('SELECT id FROM lessons WHERE id=?').bind(id).first()) return json({ error: 'not found' }, 404);
-    const rows = await env.DB.prepare('SELECT id, join_code, status, created_at, started_at, ends_at, ended_at FROM lesson_sessions WHERE lesson_id=? ORDER BY id DESC').bind(id).all();
-    return json((rows.results || []).map(r => ({ ...r, paddedId: padSessionId(r.id) })));
+    const [rows, joined, scores] = await Promise.all([
+      env.DB.prepare('SELECT id, join_code, status, created_at, started_at, ends_at, ended_at FROM lesson_sessions WHERE lesson_id=? ORDER BY id DESC').bind(id).all(),
+      env.DB.prepare('SELECT p.session_id, COUNT(*) AS n FROM session_participants p JOIN lesson_sessions s ON s.id=p.session_id WHERE s.lesson_id=? GROUP BY p.session_id').bind(id).all(),
+      env.DB.prepare(`SELECT r.session_id, r.user_id, SUM(r.is_correct=1) AS "right", COUNT(r.is_correct) AS scorable
+        FROM session_responses r JOIN lesson_sessions s ON s.id=r.session_id WHERE s.lesson_id=? GROUP BY r.session_id, r.user_id`).bind(id).all()]);
+    // Past sessions row: joined count and the class average (session results' classAverage).
+    const count = new Map((joined.results || []).map(r => [r.session_id, r.n]));
+    return json((rows.results || []).map(r => ({ ...r, paddedId: padSessionId(r.id), joined: count.get(r.id) || 0,
+      average: classAverage((scores.results || []).filter(x => x.session_id === r.id)) })));
   }
   if (m && !m[2] && method === 'GET') {
     const detail = await lessonDetail(env, id);
@@ -742,6 +750,11 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
         } catch { return json({ error: 'service unavailable' }, 503); }
       }
       if (req.method !== 'GET') return json({ error: 'not found' }, 404);
+      const results = /^\/api\/admin\/sessions\/(\d{1,10})\/results$/.exec(p);
+      if (results) {
+        try { const r = await sessionResults(env.DB, env.AI_DB, Number(results[1])); return json(r.body, r.status); }
+        catch { return json({ error: 'service unavailable' }, 503); }
+      }
       if (p === '/api/admin/students') {
         const page = pageOf(url); if (!page) return json({ error: 'invalid page' }, 400);
         const search = (url.searchParams.get('search') || '').trim();

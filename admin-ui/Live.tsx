@@ -27,6 +27,7 @@ import { Stage } from "../lesson-ui/Stage";
 import { DesmosLeader } from "../lesson-ui/Desmos";
 import { SelfGrid, type SelfRoom } from "./SelfLive";
 import { Overview, PollPanel, ResultPanel } from "./Review";
+import { SessionResults } from "./SessionResults";
 import type { Snapshot, Mark } from "../lesson-ui/types";
 import * as Ink from "/shared/annotations.js";
 import { isRight } from "/shared/stats.js";
@@ -168,6 +169,15 @@ export function Live({
   const collapsed = useRef(false);
   // Cross-out mode is local; crossed-out choices are shared with the class.
   const [strikeMode, setStrikeMode] = useState(false);
+  // Session results open by themselves once this tab's End session has ended the session.
+  const ending = useRef(false);
+  const [results, setResults] = useState(false);
+  useEffect(() => {
+    if (s?.status === "ended" && ending.current) {
+      ending.current = false;
+      setResults(true);
+    }
+  }, [s?.status]);
   const send: Send = (type, fields = {}) => {
     if (socket.current?.readyState === WebSocket.OPEN)
       socket.current.send(JSON.stringify({ type, ...fields }));
@@ -424,13 +434,21 @@ export function Live({
     </div>
   );
   const endSession = (
-    <button
-      data-live="endSession"
-      disabled={s.phase === "ENDED"}
-      onClick={() => send("endSession")}
-    >
-      End session
-    </button>
+    <>
+      <button
+        data-live="endSession"
+        disabled={s.phase === "ENDED"}
+        onClick={() => {
+          ending.current = true;
+          send("endSession");
+        }}
+      >
+        End session
+      </button>
+      {results && (
+        <SessionResults id={s.sessionId} close={() => setResults(false)} />
+      )}
+    </>
   );
   const errorLine = (
     <p id="live-error" className="error" role="alert">

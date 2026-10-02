@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { api, formatTime, type LessonCard, type Session } from "./helpers";
 import { Badge, Dialog, Empty, ErrorText, Pending, useResource } from "./ui";
+import { SessionResults, averageText, localDate } from "./SessionResults";
 
 export function Library({ navigate }: { navigate: (path: string) => void }) {
   const { data, error, retry } =
@@ -157,27 +158,45 @@ function PastSessions({ id }: { id: number }) {
   const { data, error, retry } = useResource<Session[]>(
     `/api/admin/lessons/${id}/sessions`,
   );
+  const [open, setOpen] = useState<number>();
   return (
     <section id={`past-${id}`} className="past-sessions">
       <h3>Past sessions</h3>
       {!data ? (
         <Pending error={error} retry={retry} />
       ) : data.length ? (
-        data.map((s) => (
-          <div key={s.id}>
-            <strong>Session {s.paddedId}</strong>
-            <Badge>{s.status}</Badge>
-            <p>
-              {s.created_at} · {s.join_code}
-            </p>
-            <p className="muted">Results unavailable until later task.</p>
-            {s.status !== "ended" && (
+        data.map((s) => {
+          const line = [
+            localDate(s.started_at || s.created_at),
+            s.join_code,
+            `${s.joined ?? 0} joined`,
+            ...(s.average ? [`avg ${averageText(s.average)}`] : []),
+          ].join(" · ");
+          return s.status === "ended" ? (
+            <button
+              key={s.id}
+              className="past-session"
+              data-session={s.id}
+              onClick={() => setOpen(s.id)}
+            >
+              <strong>Session {s.paddedId}</strong>
+              <Badge>{s.status}</Badge>
+              <span>{line}</span>
+            </button>
+          ) : (
+            <div key={s.id} data-session={s.id}>
+              <strong>Session {s.paddedId}</strong>
+              <Badge>{s.status}</Badge>
+              <p>{line}</p>
               <a href={`/admin/live/${s.id}`}>Open live room</a>
-            )}
-          </div>
-        ))
+            </div>
+          );
+        })
       ) : (
         <Empty>No sessions yet.</Empty>
+      )}
+      {open != null && (
+        <SessionResults id={open} close={() => setOpen(undefined)} />
       )}
     </section>
   );

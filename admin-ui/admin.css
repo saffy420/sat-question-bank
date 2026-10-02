@@ -1524,6 +1524,125 @@ body {
 :where(#admin-root) .past-sessions .badge-ui {
   margin-left: 8px;
 }
+:where(#admin-root) .past-sessions > .past-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  padding: 12px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  justify-content: flex-start;
+  cursor: pointer;
+}
+:where(#admin-root) .past-sessions > .past-session:hover {
+  background: var(--soft);
+}
+:where(#admin-root) .past-session > span:last-child {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+/* Session results (SessionResults.tsx): a wider slide-over. */
+:where(#admin-root) dialog.slide-over:has(.session-results) {
+  width: min(980px, 94vw);
+}
+:where(#admin-root) .results-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+:where(#admin-root) .results-back {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 13px;
+  gap: 4px;
+}
+:where(#admin-root) .results-back svg {
+  width: 14px;
+  height: 14px;
+}
+:where(#admin-root) .results-rows,
+:where(#admin-root) .results-questions {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 13px;
+}
+:where(#admin-root) .results-rows li {
+  display: grid;
+  grid-template-columns: 44px minmax(120px, 1.4fr) minmax(110px, 1fr) 28px minmax(110px, auto);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+:where(#admin-root) .results-rows li.missed {
+  background: #fdecee;
+}
+:where(#admin-root) .results-rows li.absent {
+  color: var(--muted);
+}
+:where(#admin-root) .results-mark svg {
+  width: 16px;
+  height: 16px;
+}
+:where(#admin-root) .results-topic {
+  color: var(--muted);
+}
+:where(#admin-root) .results-questions li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+:where(#admin-root) .results-questions header,
+:where(#admin-root) .results-qfacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 6px;
+}
+:where(#admin-root) .results-dist {
+  display: flex;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #e2e6ed;
+  font-size: 11px;
+}
+:where(#admin-root) .results-dist > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  overflow: hidden;
+  white-space: nowrap;
+  background: #f2b8bf;
+  border-right: 1px solid #fff;
+}
+:where(#admin-root) .results-dist > span.correct {
+  background: #9fd8b3;
+}
+:where(#admin-root) .results-dist > span.blank {
+  background: #d5dae3;
+}
+@media (max-width: 700px) {
+  :where(#admin-root) .results-rows li {
+    grid-template-columns: 40px 1fr 24px;
+  }
+  :where(#admin-root) .results-rows li > .results-topic,
+  :where(#admin-root) .results-rows li > [data-fact="time"] {
+    grid-column: 2 / -1;
+  }
+}
 :where(#admin-root) .student-search {
   max-width: 400px;
   margin-bottom: 25px;

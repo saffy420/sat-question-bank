@@ -790,3 +790,73 @@ test('lessons-11d: instructor layer, eliminations and laser stay on instructor s
   await say(teacher, { type: 'annotate', questionId: 'q', op: { ...mark, id: 'h3' } });
   assert.equal(alice.sent.at(-1).op.id, 'h3', 'new marks on a revisit are live');
 }));
+// Session results timing: s.timing[questionId] = { explainMs, answerMs }, written once with the ended UPDATE.
+const endedTiming = f => f.writes.filter(([sql]) => sql.includes("status='ended'")).map(([sql, args]) => (assert.match(sql, /timing_json=COALESCE\(\?,timing_json\)/), JSON.parse(args[0])));
+test('session timing: explain time accumulates over reveals and revisits, answering time recorded, written once at the end', async () => withClock(async tick => {
+  const { GRACE_MS } = await protocol();
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.items = ['q', 'q2', 'q3'].map(id => ({ question_id: id, time_limit_sec: 5, notes: '' }));
+  for (const id of ['q2', 'q3']) f.s.questions[id] = { ...f.s.questions.q, id };
+  Object.assign(f.s, { reached: 0, played: 0, startedAt: Date.now(), endsAt: Date.now() + 5000 });
+  await room.save(f.s);
+  const teacher = f.socket('teacher', 'admin');
+  const say = m => room.webSocketMessage(teacher.ws, JSON.stringify(m));
+  const timing = async () => (await room.state()).timing;
+  // Q1: End now after 3 s; the reveal lands after the grace.
+  tick(3000); await say({ type: 'endNow' });
+  tick(GRACE_MS + 1); await room.alarm();
+  assert.equal((await room.state()).phase, 'REVEALED');
+  assert.deepEqual(await timing(), { q: { answerMs: 3000 } });
+  tick(4000); await say({ type: 'next' });
+  assert.deepEqual((await timing()).q, { answerMs: 3000, explainMs: 4000 }, 'REVEALED → next closes the interval');
+  assert.equal((await room.state()).revealedAt, null);
+  // Q2 runs its full clock.
+  await say({ type: 'startQuestion' });
+  tick(5000 + GRACE_MS + 1); await room.alarm();
+  assert.equal((await timing()).q2.answerMs, 5000, 'answering time stops at the clock, not the grace');
+  tick(2000); await say({ type: 'goto', questionId: 'q' });
+  tick(1500); await say({ type: 'goto', questionId: 'q2' });
+  assert.equal((await timing()).q.explainMs, 5500, 'a revisit adds to the question');
+  assert.equal((await timing()).q2.explainMs, 2000);
+  assert.equal(f.writes.some(([sql]) => sql.includes('timing_json')), false, 'no timing writes during the session');
+  // End session while REVEALED closes the open interval.
+  tick(1000); await say({ type: 'endSession' });
+  const s = await room.state();
+  assert.deepEqual(s.timing, { q: { answerMs: 3000, explainMs: 5500 }, q2: { answerMs: 5000, explainMs: 3000 } });
+  assert.deepEqual(endedTiming(f), [s.timing], 'written once, with the ended UPDATE');
+  assert.equal(f.writes.filter(([sql]) => sql.includes('timing_json')).length, 1);
+}));
+test('session timing: End session during answering reveals and closes at once; a lobby end writes an empty map', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule();
+  let f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { reached: 0, played: 0 });
+  await room.save(f.s);
+  const teacher = f.socket('teacher', 'admin');
+  tick(2000); await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'endSession' }));
+  const s = await room.state();
+  assert.equal(s.status, 'ended');
+  assert.deepEqual(s.timing, { q: { answerMs: 2000, explainMs: 0 } }, 'answering ran until End session, not to the pulled-back endsAt');
+  assert.equal(s.revealedAt, null);
+  assert.deepEqual(endedTiming(f), [s.timing]);
+  f = fixture(); room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { status: 'lobby', phase: 'READY', startedAt: undefined, endsAt: null });
+  await room.save(f.s);
+  await room.webSocketMessage(f.socket('teacher', 'admin').ws, JSON.stringify({ type: 'endSession' }));
+  assert.deepEqual(endedTiming(f), [{}]);
+}));
+test('session timing: self-paced explain time is the time each question spent under review', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { status: 'review', phase: 'FINISHED', reviewed: [] });
+  await room.save(f.s);
+  const teacher = f.socket('teacher', 'admin');
+  const say = m => room.webSocketMessage(teacher.ws, JSON.stringify(m));
+  await say({ type: 'goto', questionId: 'q1' }); tick(4000); await say({ type: 'next' });
+  assert.equal((await room.state()).phase, 'FINISHED');
+  await say({ type: 'goto', questionId: 'q1' }); tick(1000); await say({ type: 'next' });
+  await say({ type: 'goto', questionId: 'q2' }); tick(2000);
+  await say({ type: 'endSession' });
+  const s = await room.state();
+  assert.equal(s.status, 'ended');
+  assert.deepEqual(s.timing, { q1: { explainMs: 5000 }, q2: { explainMs: 2000 } });
+  assert.deepEqual(endedTiming(f), [s.timing]);
+}));
