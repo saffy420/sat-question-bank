@@ -38,11 +38,15 @@ class Room {
   async save(s) { const { desmos, ...room } = s; await this.ctx.storage.put('room', room); }
   send(ws, data) { ws.send(JSON.stringify({ ...data, serverNow: Date.now() })); }
   sockets(role) { return this.ctx.getWebSockets().filter(ws => !role || ws.deserializeAttachment()?.role === role); }
+  // Everything students see live also goes to the classroom projector window (admin-ui/Projector.tsx).
+  audience() { return this.ctx.getWebSockets().filter(ws => ['student', 'projector'].includes(ws.deserializeAttachment()?.role)); }
   active(ws) { const a = ws.deserializeAttachment(); return !!a && this.sockets(a.role).filter(other => other.deserializeAttachment()?.userId === a.userId).at(-1) === ws; }
   snapshot(s, a, full = true) {
     if (s.mode === 'self') return this.selfSnapshot(s, a, full);
+    // The projector is the student projection with nobody's answer in it, plus the join code.
+    if (a.role === 'projector') return { ...this.snapshot(s, { ...a, role: 'student', userId: null }, full), role: 'projector', assignedQuestionIds: undefined, code: s.code, lockedJoin: s.lockedJoin };
     const item = s.items[s.index];
-    const r = a.role === 'student' ? Object.hasOwn(s.responses, a.userId) ? s.responses[a.userId]?.[item?.question_id] : null : null;
+    const r = a.role === 'student' && a.userId ? Object.hasOwn(s.responses, a.userId) ? s.responses[a.userId]?.[item?.question_id] : null : null;
     const revealed = s.phase === 'REVEALED' || s.phase === 'ENDED', { reached, played } = this.frontier(s);
     return { type: 'snapshot', sessionId: s.id, role: a.role, title: s.title, phase: s.phase, status: s.status,
       questionId: item?.question_id || null, index: s.index, total: s.items.length, endsAt: s.endsAt, revisit: s.index < reached,
@@ -104,6 +108,15 @@ class Room {
   selfSnapshot(s, a, full) {
     const base = { type: 'snapshot', mode: 'self', sessionId: s.id, role: a.role, title: s.title, phase: s.phase, status: s.status,
       endsAt: s.endsAt, count: Object.keys(s.responses).length };
+    // Projector: the class-wide status only (clock, submitted count), never one student's set.
+    if (a.role === 'projector') {
+      const takers = Object.keys(s.responses).filter(userId => s.assigned[userId]?.length);
+      return { ...base, total: s.items.length, questionId: null, index: 0, code: s.code, lockedJoin: s.lockedJoin,
+        takers: takers.length, submittedCount: takers.filter(userId => s.submitted[userId]).length,
+        ...(s.phase === 'POLL' ? { poll: { endsAt: s.poll.endsAt, choices: s.poll.choices.map(id => ({ questionId: id, number: s.items.findIndex(x => x.question_id === id) + 1 })) } } : {}),
+        ...(s.phase === 'POLL_RESULT' ? { pollResult: s.pollResult } : {}),
+        ...(this.reviewing(s) ? this.reviewPayload(s, a) : {}) };
+    }
     if (a.role === 'student') {
       const ids = s.assigned[a.userId] || [];
       const own = s.responses[a.userId] || {};
@@ -158,7 +171,7 @@ class Room {
   // The instructor's crossed-out choices (A1). Every elimination a client receives comes from here:
   // snapshots call sharedEliminations, live changes go out only through broadcastEliminations as one
   // `eliminations` message type. Students' own cross-outs never reach the room.
-  sharedEliminations(s, questionId, role) { return role === 'student' && this.hidden(s) ? [] : s.eliminations?.[questionId] || []; }
+  sharedEliminations(s, questionId, role) { return role !== 'admin' && this.hidden(s) ? [] : s.eliminations?.[questionId] || []; }
   broadcastEliminations(s, questionId) {
     for (const ws of this.sockets(this.hidden(s) ? 'admin' : undefined)) {
       try { this.send(ws, { type: 'eliminations', questionId, letters: this.sharedEliminations(s, questionId, ws.deserializeAttachment()?.role) }); } catch { /* disconnected */ }
@@ -177,6 +190,8 @@ class Room {
     if (a.role === 'admin') return { ...common, notes: item.notes || '',
       responses: Object.fromEntries(takers.map(userId => [userId, { [id]: { answer: s.responses[userId][id]?.answer, locked: true } }])),
       distribution: groups.map(g => ({ ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) })) };
+    if (a.role === 'projector') return { ...common, ownSelection: null, locked: true, notInSet: false,
+      ...(groups ? { distribution: groups.map(g => ({ label: g.label, count: g.count, correct: g.correct })) } : {}) };
     const inSet = !!s.assigned[a.userId]?.includes(id);
     return { ...common, ownSelection: inSet ? s.responses[a.userId]?.[id]?.answer || null : null, locked: true, notInSet: !inSet,
       ...(groups ? { distribution: groups.map(g => ({ label: g.label, count: g.count, correct: g.correct })) } : {}) };
@@ -236,7 +251,7 @@ class Room {
         this.responseTimer = null;
         const latest = await this.state();
         if (!latest) return;
-        for (const ws of this.sockets('admin')) {
+        for (const ws of [...this.sockets('admin'), ...this.sockets('projector')]) {
           try { this.send(ws, this.snapshot(latest, ws.deserializeAttachment(), false)); } catch { /* disconnected */ }
         }
       }, 250);
@@ -406,11 +421,11 @@ class Room {
     if (!ws && req.method !== 'POST') return new Response('not found', { status: 404 });
     let a; try { a = ws ? JSON.parse(req.headers.get('X-Lesson-Context') || 'null') : await req.json(); }
     catch { return Response.json({ error: 'invalid request' }, { status: 400 }); }
-    if (!a || a.ws !== ws || (a.desmosKey != null && !/^[0-9a-f]{32}$/.test(a.desmosKey)) || (a.role === 'student' && a.join && !/^[0-9a-f-]{36}$/i.test(a.clientId || '')) || !Number.isInteger(a.sessionId) || typeof a.userId !== 'string' || a.userId.length > 128 || !['admin','student'].includes(a.role)) return Response.json({ error: 'invalid request' }, { status: 400 });
+    if (!a || a.ws !== ws || (a.desmosKey != null && !/^[0-9a-f]{32}$/.test(a.desmosKey)) || (a.role === 'student' && a.join && !/^[0-9a-f-]{36}$/i.test(a.clientId || '')) || !Number.isInteger(a.sessionId) || typeof a.userId !== 'string' || a.userId.length > 128 || !['admin','student','projector'].includes(a.role) || (a.role === 'projector' && !a.ws)) return Response.json({ error: 'invalid request' }, { status: 400 });
     const s = await this.initialize(a.sessionId);
     if (!s || s.status === 'ended') return Response.json({ error: 'session ended or unsupported' }, { status: 410 });
     // D1 owner and membership/role checked at the Worker. No direct public DO endpoint.
-    if (a.role === 'admin' && a.userId !== s.owner) return Response.json({ error: 'forbidden' }, { status: 403 });
+    if (a.role !== 'student' && a.userId !== s.owner) return Response.json({ error: 'forbidden' }, { status: 403 });
     try { await this.advance(s); await this.flush(s); }
     catch { return Response.json({ error: 'persistence unavailable' }, { status: 503 }); }
     if (a.role === 'student') {
@@ -461,7 +476,7 @@ class Room {
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ role: a.role, userId: a.userId, clientId: a.clientId, desmosKey: a.desmosKey || null });
     this.send(server, this.snapshot(s, a));
-    this.broadcast(s);
+    if (a.role !== 'projector') this.broadcast(s);
     return new Response(null, { status: 101, webSocket: client });
   }
   async webSocketMessage(ws, raw) {
@@ -469,6 +484,8 @@ class Room {
     const bytes = typeof raw === 'string' ? new TextEncoder().encode(raw).length : Infinity;
     if (!a || !this.active(ws) || bytes > (a.role === 'admin' ? MAX_DESMOS_FRAME : MAX_FRAME)) { ws.close(1008, 'Invalid frame'); return; }
     let m; try { m = JSON.parse(raw); } catch { m = undefined; }
+    // The projector only watches: a ping for its clock, nothing else.
+    if (a.role === 'projector') { this.send(ws, m?.type === 'ping' && validAction(m, a.role) ? { type: 'pong', sentAt: m.sentAt } : { type: 'error', error: 'invalid action' }); return; }
     // Only a Desmos state may use the larger admin frame.
     if (bytes > MAX_FRAME && m?.type !== 'desmos') { ws.close(1008, 'Invalid frame'); return; }
     if (m === undefined) { this.send(ws, { type: 'error', error: 'invalid JSON' }); return; }
@@ -717,7 +734,7 @@ class Room {
     if (ws.deserializeAttachment()?.role !== 'admin') return;
     // Presenter gone: take their laser off every student screen.
     const s = await this.state(), item = s?.items[s.index];
-    if (item && !this.hidden(s)) for (const peer of this.sockets('student')) try { peer.send(JSON.stringify({ type:'laser', questionId:item.question_id, hide:true })); } catch { /* disconnected */ }
+    if (item && !this.hidden(s)) for (const peer of this.audience()) try { peer.send(JSON.stringify({ type:'laser', questionId:item.question_id, hide:true })); } catch { /* disconnected */ }
   }
   webSocketError(ws) { ws.close(1011, 'Socket error'); }
 }

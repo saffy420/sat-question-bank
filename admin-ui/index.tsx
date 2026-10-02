@@ -17,6 +17,7 @@ import {
 import { Builder, QuestionBrowser, type Guard } from "./Builder";
 import { Library } from "./Library";
 import { Live, LiveRooms } from "./Live";
+import { Projector } from "./Projector";
 import { Students } from "./Students";
 import { Reports } from "./Reports";
 import { Suggestions } from "./Suggestions";
@@ -57,9 +58,12 @@ function App() {
           : path.includes("/suggestions")
             ? "Suggestions"
             : "Students";
+  const projector = /^\/admin\/live\/([1-9]\d{0,8})\/projector$/.exec(path);
   useEffect(() => {
-    document.title = `${section} · SAT Club`;
-  }, [section]);
+    if (!projector) document.title = `${section} · SAT Club`;
+  }, [section, !!projector]);
+  // The projector window shows only the class view: no sidebar or admin chrome.
+  if (projector) return <Projector id={projector[1]} />;
   return (
     <div className={`admin-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside id="side" className={collapsed ? "collapsed" : ""}>

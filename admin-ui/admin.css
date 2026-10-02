@@ -2244,3 +2244,26 @@ body {
 :where(#admin-root) .report-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 :where(#admin-root) .suggestion-filter { display: inline-flex; align-items: center; gap: 8px; }
 @media (max-width: 1100px) { :where(#admin-root) .report-diff { grid-template-columns: 1fr; } }
+
+/* Projector window (Projector.tsx): the class view only, light, no admin chrome. */
+:where(#admin-root) .projector-screen { min-height: 100%; display: grid; place-items: center; padding: 4vh 4vw; background: #f5f6fa; }
+:where(#admin-root) .projector-card { width: min(1100px, 100%); padding: 5vh 4vw; border-radius: 24px; background: #fff; box-shadow: 0 18px 60px rgba(23, 23, 23, .12); text-align: center; color: #171717; }
+:where(#admin-root) .projector-card h1 { margin: 0 0 2vh; font-size: clamp(28px, 4.5vw, 64px); line-height: 1.15; }
+:where(#admin-root) .projector-card p { margin: 1.5vh 0; font-size: clamp(18px, 2.4vw, 34px); }
+:where(#admin-root) .projector-title { display: block; color: var(--muted); font-size: clamp(16px, 1.8vw, 26px); font-weight: 600; }
+:where(#admin-root) .projector-join-line { color: #303441; }
+:where(#admin-root) .projector-code { display: block; margin: 3vh 0; font-size: clamp(64px, 13vw, 220px); line-height: 1; font-weight: 800; letter-spacing: .14em; padding-left: .14em; font-variant-numeric: tabular-nums; color: #304fc5; }
+:where(#admin-root) .projector-count { display: inline-flex; align-items: center; gap: .4em; font-weight: 700; }
+:where(#admin-root) .projector-count svg { width: 1.1em; height: 1.1em; }
+:where(#admin-root) .projector-wait { color: var(--muted); }
+:where(#admin-root) .projector-big { font-size: clamp(48px, 9vw, 150px) !important; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* The student Player, read-only: no student controls or own verdict on the class screen. */
+#lesson-live.projector-live :is(.lesson-tools, #lesson-lock, .lesson-timer button, .stage-report, .stage-strike-toggle, .stage-strike, .lesson-verdict, .lesson-reconnect) { display: none; }
+:where(#admin-root) .projector-badge { position: fixed; right: 16px; bottom: 16px; z-index: 210; display: flex; flex-direction: column; align-items: center; padding: 6px 14px; border-radius: 12px; background: #171717; color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); pointer-events: none; }
+:where(#admin-root) .projector-badge span { font-size: 13px; opacity: .8; }
+:where(#admin-root) .projector-badge strong { font-size: 26px; letter-spacing: .12em; padding-left: .12em; }
+:where(#admin-root) .projector-badge.locked { opacity: .45; }
+:where(#admin-root) .projector-reconnect { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 220; padding: 4px 14px; border-radius: 999px; background: #fff0bd; color: #171717; font-size: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, .15); }
+:where(#admin-root) .projector-fullscreen { position: fixed; top: 12px; right: 12px; z-index: 220; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: #171717; font: 600 13px/1.2 system-ui, sans-serif; cursor: pointer; opacity: .75; }
+:where(#admin-root) .projector-fullscreen:hover { opacity: 1; }
+:where(#admin-root) .projector-fullscreen svg { width: 16px; height: 16px; }

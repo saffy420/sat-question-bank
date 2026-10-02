@@ -240,6 +240,74 @@ test('annotation protocol gates role, shape, sizes and phase; laser never persis
   await room.webSocketMessage(again.ws,'é'.repeat(1100));
   assert.equal(again.ws.code,1008);
 });
+test('projector: student-shaped, uncounted, read-only, beside the presenter; hidden layer stays hidden until reveal', async () => {
+  const { LessonRoom } = await roomModule();
+  const f = fixture(), room = new LessonRoom(f.ctx,f.env);
+  f.s.responses.alice = { q: { answer:'B', locked:true } }; f.s.annotations = { q: [{ type:'strike', id:'early', nodeId:'s:0', startOffset:0, endOffset:4, color:'#ffe066' }] };
+  const view = room.snapshot(f.s,{role:'projector',userId:'teacher'}), text = JSON.stringify(view);
+  for (const secret of ['PRIVATE_NOTE','SECRET_EXPLANATION','TRAP_SECRET','Alice','Bob','"answer":"B"','early','alice']) assert.equal(text.includes(secret),false,secret);
+  assert.equal(view.role,'projector'); assert.equal(view.code,'ABCDEF'); assert.equal(view.lockedJoin,false); assert.equal(view.count,2);
+  assert.equal(view.roster,undefined); assert.equal(view.responses,undefined); assert.equal(view.ownSelection,null); assert.equal(view.locked,false);
+  assert.equal(view.assignedQuestionIds,undefined); assert.equal(view.question.stem_html.includes('Stem'),true);
+  f.s.annotations = {};
+  await room.save(f.s);
+  const teacher = f.socket('teacher','admin'), alice = f.socket('alice');
+  // Upgrade: owner only, socket only, and the presenter's admin socket stays open.
+  const upgrade = (userId, ws = true) => room.fetch(new Request('https://lesson.internal/', ws ? { headers:{ 'X-Lesson-Internal':'room', Upgrade:'websocket',
+    'X-Lesson-Context':JSON.stringify({ sessionId:7, userId, role:'projector', ws:true, clientId:null }) } } : { method:'POST', headers:{ 'X-Lesson-Internal':'room' },
+    body: JSON.stringify({ sessionId:7, userId, role:'projector', ws:false }) }));
+  assert.equal((await upgrade('alice')).status,403);
+  assert.equal((await upgrade('teacher',false)).status,400);
+  try { await upgrade('teacher'); assert.fail('Node Response cannot accept status 101'); }
+  catch (e) { assert.match(String(e), /init\["status"\] must be in the range of 200 to 599/); }
+  assert.equal(teacher.ws.code,undefined); assert.equal(f.sockets.includes(teacher.ws),true);
+  // The stub server socket from the aborted upgrade stands in for nothing; use a fixture socket instead.
+  f.sockets.splice(0, f.sockets.length, ...f.sockets.filter(ws => ws.deserializeAttachment));
+  const projector = f.socket('teacher','projector');
+  assert.deepEqual(room.connected(await room.state()),['alice']);
+  // Every action but ping is refused, and nothing changes.
+  for (const m of [{type:'select',questionId:'q',answer:'A'},{type:'lock',questionId:'q'},{type:'endNow'},{type:'annotate',questionId:'q',op:{type:'clear',id:'c'}},{type:'laser',questionId:'q',x:.5,y:.5}]) {
+    await room.webSocketMessage(projector.ws,JSON.stringify(m)); assert.equal(projector.sent.at(-1).error,'invalid action');
+  }
+  assert.deepEqual((await room.state()).responses,{ alice:{ q:{ answer:'B', locked:true } }, bob:{} });
+  await room.webSocketMessage(projector.ws,JSON.stringify({type:'ping',sentAt:5})); assert.equal(projector.sent.at(-1).type,'pong');
+  // Before the reveal the instructor's layer reaches admin sockets only.
+  const mark = {type:'stroke',id:'pen1',color:'#ff7676',points:[[.1,.1],[.2,.2]]};
+  projector.sent.length = 0;
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'annotate',questionId:'q',op:mark}));
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'laser',questionId:'q',x:.5,y:.5}));
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'eliminate',questionId:'q',letter:'A',on:true}));
+  await new Promise(r => setTimeout(r,40));
+  assert.deepEqual(projector.sent,[]); assert.equal(alice.sent.some(m => ['annotate','laser'].includes(m.type)),false);
+  // Revealed: the same frames reach students and the projector alike.
+  f.s = await room.state(); f.s.phase = 'REVEALED'; await room.save(f.s);
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'annotate',questionId:'q',op:{...mark,id:'pen2'}}));
+  assert.equal(projector.sent.at(-1).op.id,'pen2');
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'laser',questionId:'q',x:.4,y:.4}));
+  await new Promise(r => setTimeout(r,40));
+  assert.equal(projector.sent.filter(m => m.type === 'laser').at(-1).x,.4);
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'eliminate',questionId:'q',letter:'B',on:true}));
+  assert.deepEqual(projector.sent.at(-1),{...projector.sent.at(-1),type:'eliminations',letters:['A','B']});
+  const revealed = room.snapshot(await room.state(),{role:'projector',userId:'teacher'});
+  assert.equal(revealed.question.answer,'B'); assert.deepEqual(revealed.annotations.map(x => x.id),['pen1','pen2']);
+  assert.equal(JSON.stringify(revealed).includes('PRIVATE_NOTE'),false); assert.equal(revealed.ownSelection,null);
+  // Presenter gone: the dot leaves the projector too.
+  await room.webSocketClose(teacher.ws,1000,'bye');
+  assert.deepEqual(projector.sent.at(-1),{type:'laser',questionId:'q',hide:true});
+});
+test('self-paced projector shows class status only, and review as students see it', async () => {
+  const { LessonRoom } = await roomModule();
+  const f = fixture(), room = new LessonRoom(f.ctx,f.env);
+  Object.assign(f.s, { mode:'self', assigned:{ alice:['q'], bob:['q'] }, positions:{ alice:'q', bob:'q' }, submitted:{ alice:Date.now() }, clock:{}, joinRemaining:{}, reviewed:[], poll:null, pollResult:null,
+    responses:{ alice:{ q:{ answer:'B' } }, bob:{} } });
+  const live = room.snapshot(f.s,{role:'projector',userId:'teacher'}), text = JSON.stringify(live);
+  assert.equal(live.submittedCount,1); assert.equal(live.takers,2); assert.equal(live.code,'ABCDEF');
+  for (const secret of ['PRIVATE_NOTE','Alice','alice','"answer"','Stem']) assert.equal(text.includes(secret),false,secret);
+  Object.assign(f.s, { status:'review', phase:'REVEALED', classResults:true });
+  const review = room.snapshot(f.s,{role:'projector',userId:'teacher'});
+  assert.equal(review.reviewMode,true); assert.equal(review.notInSet,false); assert.equal(review.ownSelection,null);
+  assert.equal(review.distribution.find(g => g.label === 'B').count,1); assert.equal(JSON.stringify(review).includes('Alice'),false);
+});
 test('laser floor holds a burst\'s newest frame and sends it, so the resting position always arrives', async () => {
   const { LessonRoom } = await roomModule();
   const f = fixture(), room = new LessonRoom(f.ctx,f.env), teacher=f.socket('teacher','admin'), student=f.socket('alice');
