@@ -1134,6 +1134,7 @@ import * as Report from '/shared/report.js';
 import * as Figure from '/shared/figure.js';
 import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
 import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome, Plan } from '/lesson-ui/lesson.js';
+import { loadSaved, setSaved, savedIds } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1589,6 +1590,8 @@ async function load() {
     // Practice test -> bank ID map for the Study Plan (tools/ptmap/build-ptmap.cjs writes it).
     try { PTMAP = await (await fetch('/practice-tests.json')).json(); if (!Array.isArray(PTMAP.tests)) throw 0; } catch (e) { PTMAP = { tests: [] }; }
     await loadProgress();
+    await loadSaved(authToken ? await sbHeaders() : null);
+    flagSaved(); bankDraw();
     await loadSettings();
   } catch(e) {
     warnSync('Could not reach the server.');
@@ -2531,6 +2534,12 @@ function scaled(sec, route, raw) {
 const scoreRange = (s) => [Math.max(200, s - 30), Math.min(800, s + 30)];
 // --- end exam
 
+// Practice shows a saved question flagged (Mark for Review). A set's own run flags win; exams keep their own.
+// Also run when the account's saved list arrives after a session was already opened.
+function flagSaved() {
+  if (S && S.bank) S.items.forEach(q => { if (savedIds.has(q.id) && !(q.id in S.flags)) S.flags[q.id] = true; });
+}
+
 function start(items, opts) {
   if (!items.length) return;
   const o = opts || {};
@@ -2573,6 +2582,7 @@ function start(items, opts) {
     S.segStart = Date.now() - (run.segs[run.seg].usedMs || 0);
     S.qid = null;
   }
+  flagSaved();
   // A finished exam, read-only: every question counts as checked so the choices
   // paint right and wrong, and Next past the end returns to the results.
   if (o.review) {
@@ -2934,7 +2944,19 @@ const bankBridge = {
   next: () => { if (S) bankNext(); },
   back() { if (S && S.i > 0) { S.i--; loadQuestion(); } },
   goto(i) { if (S && i >= 0 && i < S.items.length) { S.i = i; loadQuestion(); } },
-  flag() { const q = curQ(); S.flags[q.id] = !S.flags[q.id]; bankDraw(); },
+  // Mark for Review is Saved: kept on the account (guests: this sitting only), and the bank's count follows.
+  async flag() {
+    const q = curQ(), on = !S.flags[q.id], s = S;
+    s.flags[q.id] = on; bankDraw();
+    let ok = false;
+    try { ok = await setSaved(q.id, on, authToken ? await sbHeaders() : null); } catch (e) {}
+    if (!ok) {
+      warnSync('Could not save that question. Try again.');
+      if (s.flags[q.id] === on) s.flags[q.id] = !on;
+      if (S === s) bankDraw();
+    }
+    refresh();
+  },
   pause() { S.paused = !S.paused; bankDraw(); },
   exit() { if (S && S.set) return planLeave(); stopTimer(); S = null; showHome(); },
   endSegment() { if (S && S.set) planEndSegment(); },

@@ -648,7 +648,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
     const apiMethods = {
       '/api/auth/session': ['POST'], '/api/questions': ['GET'], '/api/account': ['GET'],
       '/api/progress': ['GET', 'POST'], '/api/attempts': ['GET', 'POST'],
-      '/api/notes': ['GET', 'POST'], '/api/settings': ['GET', 'POST'], '/api/sessions': ['GET', 'POST'],
+      '/api/notes': ['GET', 'POST'], '/api/saved': ['GET', 'POST'], '/api/settings': ['GET', 'POST'], '/api/sessions': ['GET', 'POST'],
       '/api/reports': ['POST'], '/api/suggestions': ['POST'], '/api/plan': ['GET', 'POST']
     };
     const isAPI = p === '/api' || p.startsWith('/api/');
@@ -828,7 +828,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
     if (restrictedAsset) return p === '/app' ? asset(env, new Request(new URL('/index.html', url), req), LESSON_CSP) : asset(env, req);
 
     let rows;
-    if (req.method === 'POST' && ['/api/progress', '/api/attempts', '/api/notes', '/api/sessions'].includes(p)) {
+    if (req.method === 'POST' && ['/api/progress', '/api/attempts', '/api/notes', '/api/saved', '/api/sessions'].includes(p)) {
       const b = await req.json().catch(() => null);
       rows = Array.isArray(b) ? b : [b];
       if (rows.length > MAX_ROWS) return json({ error: 'too many rows', limit: MAX_ROWS }, 413);
@@ -942,6 +942,32 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
       }));
       return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0),
         acknowledged: rows.filter((r, i) => results[i].meta.changes > 0 || !str(r.body, MAX_NOTE).trim()) });
+    }
+
+    // Saved questions: the player's Mark for Review flag, kept so it outlives the session.
+    // A row means saved, so un-saving deletes it. Bounded by the primary key, like notes.
+    if (p === '/api/saved' && req.method === 'GET') {
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      const r = await env.DB.prepare(
+        'SELECT question_id FROM saved_questions WHERE user_id = ? ORDER BY created_at, question_id').bind(u.id).all();
+      return json((r.results || []).map(x => x.question_id));
+    }
+
+    if (p === '/api/saved' && req.method === 'POST') {
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      if (rows.some(r => typeof r.saved !== 'boolean')) return json({ error: 'invalid row or missing saved flag' }, 400);
+      const del = env.DB.prepare('DELETE FROM saved_questions WHERE user_id = ? AND question_id = ?');
+      const put = env.DB.prepare(
+        `INSERT INTO saved_questions (user_id, question_id)
+           SELECT ?,? WHERE EXISTS(SELECT 1 FROM questions WHERE id = ?)
+                          OR EXISTS(SELECT 1 FROM ai_ids   WHERE id = ?)
+         ON CONFLICT(user_id, question_id) DO NOTHING`
+      );
+      const results = await env.DB.batch(rows.map(r => r.saved
+        ? put.bind(u.id, r.question_id, r.question_id, r.question_id)
+        : del.bind(u.id, r.question_id)));
+      // Saving an id that is already saved changes nothing but is satisfied; unknown ids never get here.
+      return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0), acknowledged: rows });
     }
 
     // Preferences, one JSON blob per account, so they follow the user across

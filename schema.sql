@@ -90,6 +90,15 @@ CREATE TABLE IF NOT EXISTS notes (
   PRIMARY KEY (user_id, question_id)
 );
 
+-- 0013_saved_questions.sql: the questions a student marked Saved (the player's Mark for
+-- Review flag). One row per saved question; un-saving deletes the row.
+CREATE TABLE IF NOT EXISTS saved_questions (
+  user_id TEXT NOT NULL,
+  question_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, question_id)
+);
+
 -- The ids of the AI bank, whose rows live in a second D1 database. D1 cannot join
 -- across databases, so this registry is what lets the progress/attempts/notes write
 -- guards stay exact for a question `questions` has never heard of.

@@ -156,3 +156,4 @@ export function mountHistory(root: HTMLElement, history: LessonHistory, mathify:
 export { mountBank } from './Bank';
 export { createRecorder, pick, commit, remember, firstTry, outcome, SHOW_ANSWER_AFTER } from './record';
 export * as Plan from './plan';
+export { loadSaved, setSaved, savedIds, subscribe as subscribeSaved } from './qbank/saved';
