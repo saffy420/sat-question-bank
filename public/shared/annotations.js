@@ -1,5 +1,5 @@
 // Shared lesson annotations: offsets count authored text nodes, never KaTeX output.
-const textNodes = root => {
+export const textNodes = root => {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode(node) {
     // The figure toolbar's "125%" differs per client, so it never counts toward an offset.
     return node.parentElement.closest('.katex,script,style,canvas,.fv-bar') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
@@ -141,12 +141,44 @@ export function strokePoints(card, mark) {
   const f = frame(card, mark.a);
   return f ? mark.points.map(f.toCard) : [];
 }
+// Unwraps painted highlights/strikes and rejoins the text they split, so the block is clean again: the
+// same text nodes it was rendered with (edit marks count them). A block being edited live is left alone.
+const editing = n => !!n.closest('[data-ann-editing]');
+export function unpaint(card) {
+  const parents = new Set();
+  [...card.querySelectorAll('[data-ann-mark]')].reverse().forEach(n => { if (editing(n)) return; parents.add(n.parentNode); n.replaceWith(...n.childNodes); });
+  for (const parent of parents) {
+    // Merge runs of adjacent text nodes (unlike normalize(), a lone empty node stays: it is still counted).
+    for (let n = parent.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType !== 3) continue;
+      while (n.nextSibling?.nodeType === 3) { n.data += n.nextSibling.data; n.nextSibling.remove(); }
+    }
+  }
+}
+// Live text fixes (`edit` marks): text node `i` of a clean block shows `text`. Each block's rendered text
+// is kept on first sight, so a replaced or cleared edit puts the original back.
+const originals = new WeakMap();
+export function applyEdits(card, layer) {
+  unpaint(card);
+  for (const block of card.querySelectorAll('[data-ann-node]')) {
+    if (editing(block)) continue;
+    const nodes = textNodes(block), was = originals.get(block);
+    if (!was) { originals.set(block, nodes.map(n => n.data)); continue; }
+    if (was.length === nodes.length) nodes.forEach((n, i) => { if (n.data !== was[i]) n.data = was[i]; });
+  }
+  for (const mark of layer) {
+    if (mark.type !== 'edit') continue;
+    const block = [...card.querySelectorAll('[data-ann-node]')].find(n => n.dataset.annNode === mark.nodeId);
+    const node = block && !editing(block) ? textNodes(block)[mark.i] : null;
+    if (node && node.data !== mark.text) node.data = mark.text;
+  }
+}
 export function paint(card, layer) {
-  [...card.querySelectorAll('[data-ann-mark]')].reverse().forEach(n => n.replaceWith(...n.childNodes));
+  unpaint(card);
   for (const mark of layer) {
     if (mark.type !== 'highlight' && mark.type !== 'strike') continue;
     const block = [...card.querySelectorAll('[data-ann-node]')].find(n => n.dataset.annNode === mark.nodeId);
-    if (!block) continue;
+    if (!block || editing(block)) continue;
     let pos = 0;
     const segments = [];
     for (const node of textNodes(block)) {

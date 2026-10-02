@@ -60,12 +60,16 @@ function anchored(a, values) {
   return (NODE.test(a) || /^(?:i:\d{1,2}|P|Q)$/.test(a)) && values.every(within(-4, 5));
 }
 export function validMark(op) {
-  if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','text','erase','clear'].includes(op.type)) return false;
-  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color','a'], text:['type','id','a','x','y','text','color'], erase:['type','id'], clear:['type'] };
+  if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','erase','clear','text','edit'].includes(op.type)) return false;
+  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color','a'], erase:['type','id'], clear:['type'], text:['type','id','a','x','y','text','color'], edit:['type','id','nodeId','i','text'] };
   if (Object.keys(op).some(k => !fields[op.type].includes(k))) return false;
   if (op.type === 'clear') return true;
   if (!validId(op.id)) return false;
   if (op.type === 'erase') return true;
+  // Live text fix: text node `i` of a block (counted on the clean block, KaTeX excluded) becomes `text`.
+  // One mark per text node, so the id names it; 1500 chars keeps the frame under MAX_FRAME.
+  if (op.type === 'edit') return typeof op.nodeId === 'string' && NODE.test(op.nodeId) && Number.isSafeInteger(op.i) && op.i >= 0 && op.i <= 999
+    && typeof op.text === 'string' && op.text.length <= 1500 && op.id === `edit:${op.nodeId}:${op.i}`;
   if (!['#ffe066','#ff7676','#75dbaa'].includes(op.color)) return false;
   // A typed box: 1-280 characters on at most 6 lines, placed like one pen point (em or fraction anchor).
   if (op.type === 'text') return typeof op.text === 'string' && op.text.trim().length > 0 && op.text.length <= 280 && op.text.split('\n').length <= 6 && anchored(op.a, [op.x, op.y]);
