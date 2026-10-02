@@ -22,6 +22,7 @@ import {
   ChevronRight,
   NotebookText,
   EyeOff,
+  Presentation,
 } from "lucide-react";
 import { Stage } from "../lesson-ui/Stage";
 import { DesmosLeader } from "../lesson-ui/Desmos";
@@ -367,6 +368,19 @@ export function Live({
       {connected ? "Connected" : "Reconnecting…"}
     </span>
   );
+  // A second window for the classroom screen (Projector.tsx); the same name reuses an open one.
+  const projector = (
+    <button
+      id="live-projector"
+      title="Open the class view in a window for the projector"
+      onClick={() =>
+        window.open(`/admin/live/${id}/projector`, `r1600-projector-${id}`, "popup,width=1280,height=720")
+      }
+    >
+      <Presentation />
+      Projector
+    </button>
+  );
   const roster = (
     <div id="live-roster" className="roster">
       {rows.map((r) => (
@@ -462,6 +476,7 @@ export function Live({
               Submitted {Object.keys(self.submitted).length}
             </span>
             {clock}
+            {projector}
           </div>
         </header>
         {s.status === "lobby" ? (
@@ -860,6 +875,7 @@ export function Live({
           <NotebookText />
           Notes
         </button>
+        {projector}
         {connection}
         {endSession}
       </footer>

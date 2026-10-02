@@ -42,14 +42,17 @@ async function lessonAccess(req, env, url, p, u) {
   const owner = session.created_by || (await env.DB.prepare('SELECT l.created_by FROM lessons l JOIN lesson_sessions s ON s.lesson_id=l.id WHERE s.id=?').bind(session.id).first())?.created_by;
   const admin = role.role === 'admin' && owner === u.id;
   if (!join && !admin && role.role !== 'student') return json({ error: 'forbidden' }, 403);
+  // The classroom projector window (admin-only) holds its own read-only socket beside the presenter's.
+  const projector = !!ws && url.searchParams.get('view') === 'projector';
+  if (projector && !admin) return json({ error: 'forbidden' }, 403);
   if (ws && !admin && !clientId) return json({ error: 'invalid client' }, 400);
   if (join && role.role !== 'student') return json({ error: 'student only' }, 403);
   if (role.role === 'student' && !join) {
     const participant = await env.DB.prepare('SELECT 1 FROM session_participants WHERE session_id=? AND user_id=? AND left_at IS NULL').bind(session.id,u.id).first();
     if (!participant) return json({ error: 'not joined' }, 403);
   }
-  const body = { sessionId: session.id, userId: u.id, role: admin ? 'admin' : 'student',
-    name: String(u.user_metadata?.full_name || u.email || u.id).slice(0, 200), ws: !!ws, join, clientId, desmosKey: desmosApiKey(env, url) };
+  const body = { sessionId: session.id, userId: u.id, role: projector ? 'projector' : admin ? 'admin' : 'student',
+    name: String(u.user_metadata?.full_name || u.email || u.id).slice(0, 200), ws: !!ws, join, clientId: projector ? null : clientId, desmosKey: desmosApiKey(env, url) };
   return env.LESSON_ROOM.getByName(String(session.id)).fetch(ws
     ? new Request('https://lesson.internal/', { headers: { Upgrade: 'websocket', 'X-Lesson-Internal': 'room', 'X-Lesson-Context': JSON.stringify(body) } })
     : new Request('https://lesson.internal/', { method: 'POST', headers: { 'X-Lesson-Internal': 'room', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
