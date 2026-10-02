@@ -3,7 +3,7 @@ import { newUserContext, ORIGIN } from '../lessons-00b-e2e-harness/auth.js';
 
 const artifact = '.opencode/pipeline/lessons-02-builder/e2e';
 const ids = ['e2e-core-rw', 'e2e-core-math', 'e2e-core-spr'];
-const order = page => page.locator('#lesson-items li').evaluateAll(rows => rows.map(row => row.textContent.match(/e2e-core-[\w-]+/)[0]));
+const order = page => page.locator('#lesson-items li').evaluateAll(rows => rows.map(row => row.querySelector('[title]').title.match(/e2e-core-[\w-]+/)[0]));
 
 async function openFilter(page, name) {
   const details = page.locator('.multi details').filter({ has: page.locator('summary', { hasText: name }) });
@@ -69,6 +69,7 @@ test('task02 builder: filtered add, drag, remove, custom times, math notes, pers
     await page.locator('#custom-time').fill('2:05');
     await page.locator('#custom-time').press('Tab');
     await expect(page.locator('#total-time')).toHaveText('3:40');
+    await page.locator('#close-editor').click();
     await page.locator('#save-lesson').click();
     await expect(page.locator('#save-status')).toHaveText('Saved');
     await expect(page).toHaveURL(/\/admin\/lessons\/\d+\/edit$/);
