@@ -102,18 +102,20 @@ test('past sessions list carries the joined count and class average', async t =>
   assert.deepEqual(rows.map(s => [s.id, s.joined, s.average]), [[17, 0, null], [16, 3, { right: 1, scorable: 2, percent: 0.5 }], [15, 3, { right: 1, scorable: 2, percent: 0.5 }]]);
 });
 
-test('0014 adds timing_json to an existing lesson_sessions and matches the fresh snapshot', () => {
+test('0013 and 0014 upgrade an existing database and match the fresh snapshot', () => {
   const migration = readFileSync(__dirname + '/../migrations/0014_session_timing.sql', 'utf8');
-  const old = schema.replace(/^  -- 0014_session_timing\.sql.*\r?\n  timing_json TEXT\r?\n/m, '').replace(/snapshot_json TEXT NOT NULL,(\r?\n\);)/, 'snapshot_json TEXT NOT NULL$1');
+  const old = schema.replace(/^-- 0013_saved_questions\.sql[\s\S]*?CREATE TABLE IF NOT EXISTS saved_questions \([\s\S]*?\);\r?\n/m, '')
+    .replace(/^  -- 0014_session_timing\.sql.*\r?\n  timing_json TEXT\r?\n/m, '').replace(/snapshot_json TEXT NOT NULL,(\r?\n\);)/, 'snapshot_json TEXT NOT NULL$1');
   assert.notEqual(old, schema);
   const db = new DatabaseSync(':memory:'); db.exec(old);
   assert.equal(db.prepare('PRAGMA table_info(lesson_sessions)').all().some(c => c.name === 'timing_json'), false);
   db.exec("INSERT INTO lessons(id,title,mode,created_by) VALUES(1,'L','instructor','t'); INSERT INTO lesson_sessions(lesson_id,join_code,snapshot_json) VALUES(1,'ABCDEF','{}')");
+  db.exec(readFileSync(__dirname + '/../migrations/0013_saved_questions.sql', 'utf8'));
   db.exec(migration);
   assert.equal(db.prepare('SELECT timing_json FROM lesson_sessions').get().timing_json, null, 'existing sessions read as untimed');
   assert.throws(() => db.exec(migration), /duplicate column/);
   const fresh = new DatabaseSync(':memory:'); fresh.exec(schema);
-  const shape = d => d.prepare('PRAGMA table_info(lesson_sessions)').all().map(c => [c.name, c.type, c.notnull, c.dflt_value]);
+  const shape = d => ['saved_questions', 'lesson_sessions'].map(name => d.prepare(`PRAGMA table_info(${name})`).all().map(c => [c.name, c.type, c.notnull, c.dflt_value, c.pk]));
   assert.deepEqual(shape(db), shape(fresh));
   db.close(); fresh.close();
 });
