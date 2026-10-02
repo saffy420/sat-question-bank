@@ -39,7 +39,7 @@ class Room {
       assignedQuestionIds: a.role === 'student' ? s.items.map(x => x.question_id) : undefined,
       question: item ? lessonQuestion(s.questions[item.question_id], revealed || a.role === 'admin') : null,
       ownSelection: r?.answer || null, locked: !!r?.locked, count: Object.keys(s.responses).length,
-      classResults: !!s.classResults, annotations: (revealed || a.role === 'admin') && item ? s.annotations?.[item.question_id] || [] : [],
+      classResults: !!s.classResults, annotations: item ? (s.annotations?.[item.question_id] || []).filter(x => revealed || a.role === 'admin' || x.type === 'edit') : [],
       eliminations: item ? this.sharedEliminations(s, item.question_id, a.role) : [],
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null,
       desmos: revealed && item && s.desmos?.questionId === item.question_id ? s.desmos.state : null,
@@ -516,24 +516,37 @@ class Room {
       } else {
         const layer = s.annotations?.[m.questionId] || [];
         const op = m.op;
-        if (op.type === 'highlight' || op.type === 'strike') {
+        if (op.type === 'highlight' || op.type === 'strike' || op.type === 'edit') {
           const q = s.questions[item.question_id];
           const choice = op.nodeId.startsWith('c:') && q.choices.find(c => c.letter === op.nodeId.slice(2));
           const index = Number(op.nodeId.slice(2));
           const blocks = (q.stem_html.match(/<(?:p|li|h[1-4]|blockquote)\b/gi) || []).length;
           const source = choice ? choice.content : /^(?:p|s):/.test(op.nodeId) && Number.isInteger(index) && index < Math.max(1,blocks) ? q.stem_html : null;
-          if (!source || op.endOffset > source.length) { this.send(ws,{ type:'error',error:'invalid anchor' }); return; }
+          if (!source || (op.type !== 'edit' && op.endOffset > source.length)) { this.send(ws,{ type:'error',error:'invalid anchor' }); return; }
         }
+        // An edit replaces the block's earlier edit of the same text node (same id). Its block's highlights,
+        // strikes and glyph-anchored ink pointed at the old text, so they go with it. Clients learn both as
+        // erase ops, which every client already applies, ahead of the edit itself.
+        const stale = op.type === 'edit' ? layer.filter(x => x.id === op.id || (x.type !== 'edit' && ((x.type === 'highlight' || x.type === 'strike') ? x.nodeId === op.nodeId : typeof x.a === 'string' && (x.a.startsWith(`${op.nodeId}~`) || x.a.startsWith(`${op.nodeId}@`))))) : [];
+        // Clear all leaves text fixes standing: with edits in the layer it goes out as erases of the rest.
+        const keep = op.type === 'clear' ? layer.filter(x => x.type === 'edit') : [];
         if (op.type === 'erase') {
           if (!layer.some(mark => mark.id === op.id)) { this.send(ws,{ type:'error',error:'unknown mark' }); return; }
-        } else if (op.type !== 'clear' && (layer.length >= 512 || layer.some(mark => mark.id === op.id))) { this.send(ws,{ type:'error',error:'layer full or duplicate mark' }); return; }
-        const next = op.type === 'clear' ? [] : op.type === 'erase' ? layer.filter(mark => mark.id !== op.id) : [...layer, op];
+        } else if (op.type !== 'clear' && (layer.length - stale.length >= 512 || (op.type !== 'edit' && layer.some(mark => mark.id === op.id)))) { this.send(ws,{ type:'error',error:'layer full or duplicate mark' }); return; }
+        const next = op.type === 'clear' ? keep : op.type === 'erase' ? layer.filter(mark => mark.id !== op.id) : [...layer.filter(x => !stale.includes(x)), op];
         if (JSON.stringify(next).length > 64000) { this.send(ws,{ type:'error',error:'layer full' }); return; }
         (s.annotations ||= {})[m.questionId] = next;
         await this.save(s);
+        // Edits are never hidden: a typo fix reaches students in every phase, while the rest of the layer keeps
+        // the hidden-until-reveal rule (11d).
+        const ops = op.type === 'clear' && keep.length ? layer.filter(x => x.type !== 'edit').map(x => ({ type:'erase', id:x.id })) : [...stale.map(x => ({ type:'erase', id:x.id })), op];
+        const edit = x => x.type === 'edit' || (x.type === 'erase' && layer.find(y => y.id === x.id)?.type === 'edit');
+        for (const peer of this.sockets()) {
+          const shown = !to || peer.deserializeAttachment()?.role === to ? ops : ops.filter(edit);
+          for (const x of shown) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:x }); } catch { /* disconnected */ }
+        }
+        return;
       }
-      for (const peer of this.sockets(to)) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:m.op }); } catch { /* disconnected */ }
-      return;
     }
     if (a.role === 'student') {
       if (m.type !== 'select' && m.type !== 'lock') err = 'invalid action';

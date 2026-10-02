@@ -9,7 +9,8 @@ export type Question = {
 };
 export type Mark = {
   // `eliminate` marks only appear in a saved review layer (My Lessons): the instructor's crossed-out choices.
-  type: 'stroke' | 'highlight' | 'strike' | 'erase' | 'clear' | 'eliminate';
+  // `edit` replaces text node `i` of block `nodeId` with `text` for this session only (live text fix).
+  type: 'stroke' | 'highlight' | 'strike' | 'erase' | 'clear' | 'eliminate' | 'edit';
   id: string;
   color?: string;
   points?: number[][];
@@ -17,6 +18,8 @@ export type Mark = {
   nodeId?: string;
   startOffset?: number;
   endOffset?: number;
+  i?: number;
+  text?: string;
 };
 export type Laser = { x: number; y: number; a?: string; hide?: boolean };
 export type Snapshot = {

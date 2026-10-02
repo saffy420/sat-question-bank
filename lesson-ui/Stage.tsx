@@ -55,6 +55,8 @@ export function Stage(props: StageProps) {
     if (!card.current || !ready.current) return;
     const p = latest.current;
     Ink.blocks(card.current);
+    // Text fixes go onto the clean blocks first: highlights and ink are laid over the edited text.
+    Ink.applyEdits(card.current, p.marks || []);
     Ink.paint(card.current, [...(p.marks || []), ...(p.privateMarks || [])]);
     Ink.overlay(card.current, p.marks || []);
     Ink.refreshLaser(card.current);

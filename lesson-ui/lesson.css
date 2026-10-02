@@ -138,6 +138,11 @@
 .lesson-stage.tool-strike .qfig, .lesson-stage.tool-strike .qimg, .lesson-stage.tool-strike .qtable { cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='-2 -2 28 28' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 4H9a3 3 0 0 0-2.83 4' stroke='%23fff' stroke-width='4.5'/%3E%3Cpath d='M14 12a4 4 0 0 1 0 8H6' stroke='%23fff' stroke-width='4.5'/%3E%3Cpath d='M4 12h16' stroke='%23fff' stroke-width='4.5'/%3E%3Cpath d='M16 4H9a3 3 0 0 0-2.83 4' stroke='%23171717' stroke-width='2'/%3E%3Cpath d='M14 12a4 4 0 0 1 0 8H6' stroke='%23171717' stroke-width='2'/%3E%3Cpath d='M4 12h16' stroke='%23171717' stroke-width='2'/%3E%3C/svg%3E") 6 16, crosshair; }
 .lesson-stage.tool-strike .badge { cursor:pointer; }
 .lesson-stage.tool-pen, .lesson-stage.tool-erase, .lesson-stage.tool-laser { cursor:crosshair; }
+/* Edit text (instructor): an I-beam over editable text; the block being edited is outlined and its math
+   (and any image) sits on a light grey plate that cannot be edited. */
+.lesson-stage.tool-edit [data-ann-node] { cursor:text; }
+.lesson-stage [data-ann-editing] { outline:2px solid #2f6fdf; outline-offset:3px; border-radius:2px; cursor:text; }
+.lesson-stage [data-ann-editing] .ann-locked { background:#e6e6e6; border-radius:3px; cursor:not-allowed; user-select:none; }
 .lesson-stage .lesson-laser { position:absolute; left:0; top:0; z-index:3; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:#e32020; box-shadow:0 0 0 3px rgba(227,32,32,.25), 0 0 14px 5px rgba(227,32,32,.35); pointer-events:none; will-change:transform; }
 .lesson-stage .lesson-laser[hidden] { display:none; }
 .lesson-footer { position:fixed; left:0; bottom:0; right:0; z-index:5; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:var(--gutter); align-items:center; padding:0 var(--gutter); height:var(--foot); background:#fff; font-size:calc(var(--u) * 1.35); }

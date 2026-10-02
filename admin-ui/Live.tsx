@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Check,
   X,
@@ -22,6 +22,7 @@ import {
   ChevronRight,
   NotebookText,
   EyeOff,
+  TextCursorInput,
 } from "lucide-react";
 import { Stage } from "../lesson-ui/Stage";
 import { DesmosLeader } from "../lesson-ui/Desmos";
@@ -66,6 +67,7 @@ const tools = {
   pen: PenLine,
   highlight: Highlighter,
   strike: Strikethrough,
+  edit: TextCursorInput,
   erase: Eraser,
   clear: Trash2,
   laser: Focus,
@@ -74,6 +76,7 @@ const labels = {
   pen: "Pen",
   highlight: "Highlight",
   strike: "Strikethrough",
+  edit: "Edit text",
   erase: "Erase",
   clear: "Clear all",
   laser: "Laser",
@@ -931,6 +934,210 @@ function InstructorStage({
   const resting = useRef<[number, number] | null>(null);
   const hidden = hiddenLayer(s);
   const annotating = canAnnotate(s);
+  // Edit text: committed fixes are shown until the room echoes them, so the block never flashes the old text,
+  // and the marks the room will drop from an edited block (see src/lesson-room.js) are not repainted meanwhile.
+  const [pending, setPending] = useState<Mark[]>([]);
+  const [editNote, setEditNote] = useState("");
+  useEffect(() => setPending([]), [s.questionId]);
+  useEffect(() => {
+    setPending((old) => {
+      const left = old.filter(
+        (p) => !s.annotations?.some((m) => m.id === p.id && m.text === p.text),
+      );
+      return left.length === old.length ? old : left;
+    });
+  }, [s.annotations]);
+  useEffect(() => {
+    if (!editNote) return;
+    const timer = setTimeout(() => setEditNote(""), 4000);
+    return () => clearTimeout(timer);
+  }, [editNote]);
+  const shown = useMemo(
+    () =>
+      pending.length
+        ? [
+            ...(s.annotations || []).filter(
+              (m) =>
+                !pending.some(
+                  (p) =>
+                    p.id === m.id ||
+                    (m.type !== "edit" &&
+                      (m.nodeId === p.nodeId ||
+                        !!m.a?.startsWith(`${p.nodeId}~`) ||
+                        !!m.a?.startsWith(`${p.nodeId}@`))),
+                ),
+            ),
+            ...pending,
+          ]
+        : s.annotations,
+    [s.annotations, pending],
+  );
+  // Edit text: one passage/stem block or choice text at a time becomes editable. KaTeX (and any image) is
+  // locked; the block's text nodes must come back the same in number and the markup the same in shape, so
+  // only prose changes. Each changed text node goes out as one `edit` mark, counted on the clean block.
+  useEffect(() => {
+    if (!card || !annotating || tool !== "edit") return;
+    let block: HTMLElement | null = null,
+      saved: Node[] = [],
+      before: string[] = [],
+      shape = 0;
+    // Choice text sits in the choice buttons, disabled on this screen (the presenter never selects). Clicks
+    // never reach a disabled button's text, so they are enabled while the tool is on; with no `active`
+    // Stage prop a click still selects nothing.
+    const buttons = [...card.querySelectorAll<HTMLButtonElement>("button[data-lesson-choice]")];
+    for (const b of buttons) b.disabled = false;
+    const shapeOf = (el: HTMLElement) => el.getElementsByTagName("*").length;
+    const locked = (el: HTMLElement) => [
+      ...el.querySelectorAll<HTMLElement>(".katex, img, svg, .fv"),
+    ].filter((n) => !n.parentElement?.closest(".katex, .fv"));
+    const end = (commit: boolean) => {
+      const el = block;
+      if (!el) return;
+      block = null;
+      el.removeEventListener("keydown", key);
+      el.removeEventListener("focusout", away);
+      el.removeEventListener("beforeinput", guard);
+      el.removeEventListener("input", check);
+      const nodes = Ink.textNodes(el) as Text[];
+      const same = nodes.length === before.length && shapeOf(el) === shape;
+      const changed = nodes
+        .map((n, i) => ({ i, text: n.data }))
+        .filter(({ i, text }) => same && text !== before[i]);
+      const ops = changed.map(({ i, text }) => ({
+        type: "edit" as const,
+        id: `edit:${el.dataset.annNode}:${i}`,
+        nodeId: el.dataset.annNode,
+        i,
+        text,
+      }));
+      // The room closes a socket on a frame over MAX_FRAME (2048 bytes), so a long fix is refused here.
+      const fits = ops.every(
+        (op) =>
+          op.text.length <= 1500 &&
+          new TextEncoder().encode(
+            JSON.stringify({ type: "annotate", questionId: latest.current.s.questionId, op }),
+          ).length < 2000,
+      );
+      const keep = commit && same && fits;
+      if (!keep) {
+        if (same) nodes.forEach((n, i) => (n.data = before[i]));
+        else el.replaceChildren(...saved);
+        if (commit && !same)
+          setEditNote("Only text can be changed — math and formatting are locked");
+        else if (commit) setEditNote("That edit is too long to send at once");
+      }
+      el.removeAttribute("contenteditable");
+      el.spellcheck = true;
+      delete el.dataset.annEditing;
+      for (const n of locked(el)) {
+        n.removeAttribute("contenteditable");
+        n.classList.remove("ann-locked");
+        if (n.classList.contains("katex")) n.removeAttribute("title");
+      }
+      if (keep && ops.length) {
+        setPending((old) => [
+          ...old.filter((p) => !ops.some((op) => op.id === p.id)),
+          ...ops,
+        ]);
+        for (const op of ops)
+          latest.current.send("annotate", {
+            questionId: latest.current.s.questionId,
+            op,
+          });
+      } else Ink.paint(card, latest.current.s.annotations || []);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        end(true);
+      } else if (e.key === "Escape") {
+        // Esc only cancels the edit; the tool stays selected.
+        e.preventDefault();
+        e.stopPropagation();
+        end(false);
+      }
+    };
+    const away = () => end(true);
+    // Markup can't be typed: Enter commits (handled on keydown), a line break is refused. The caret is noted
+    // so a refused input (below) can put it back.
+    const guard = (e: InputEvent) => {
+      if (e.inputType === "insertParagraph" || e.inputType === "insertLineBreak") e.preventDefault();
+      const el = block, at = window.getSelection();
+      if (el && at?.anchorNode) {
+        const nodes = Ink.textNodes(el) as Node[];
+        caret = [nodes.indexOf(at.anchorNode), at.anchorOffset];
+      }
+    };
+    // Browsers delete a locked inline (KaTeX) as one unit and report it inconsistently beforehand, so each
+    // input is checked after the fact: anything that changed the block's shape is put back at once.
+    let good: Node[] = [],
+      caret: [number, number] = [-1, 0];
+    const check = () => {
+      const el = block;
+      if (!el) return;
+      if (Ink.textNodes(el).length === before.length && shapeOf(el) === shape) {
+        good = [...el.childNodes].map((n) => n.cloneNode(true));
+        return;
+      }
+      el.replaceChildren(...good.map((n) => n.cloneNode(true)));
+      const node = (Ink.textNodes(el) as Text[])[caret[0]];
+      if (node) {
+        const range = document.createRange();
+        range.setStart(node, Math.min(caret[1], node.length));
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
+      setEditNote("Only text can be changed — math and formatting are locked");
+    };
+    const start = (el: HTMLElement, x: number, y: number) => {
+      if (el.closest("table") || el.querySelector("table")) return;
+      Ink.unpaint(card);
+      el.dataset.annEditing = "true";
+      // Repaint every other block's marks; this one stays clean while it is edited.
+      Ink.paint(card, latest.current.s.annotations || []);
+      saved = [...el.childNodes].map((n) => n.cloneNode(true));
+      before = (Ink.textNodes(el) as Text[]).map((n) => n.data);
+      shape = shapeOf(el);
+      for (const n of locked(el)) {
+        n.contentEditable = "false";
+        n.classList.add("ann-locked");
+        if (n.classList.contains("katex")) n.title = "Math can't be edited";
+      }
+      try {
+        el.contentEditable = "plaintext-only";
+      } catch {
+        el.contentEditable = "true";
+      }
+      el.spellcheck = false;
+      good = [...el.childNodes].map((n) => n.cloneNode(true));
+      block = el;
+      el.addEventListener("keydown", key);
+      el.addEventListener("focusout", away);
+      el.addEventListener("beforeinput", guard);
+      el.addEventListener("input", check);
+      el.focus();
+      const point = document.caretRangeFromPoint?.(x, y);
+      if (point && el.contains(point.startContainer)) {
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(point);
+      }
+    };
+    const click = (e: MouseEvent) => {
+      const el = (e.target as Element).closest<HTMLElement>("[data-ann-node]");
+      if (!el || el === block || !card.contains(el) || (e.target as Element).closest(".badge, .fv-bar"))
+        return;
+      e.preventDefault();
+      end(true);
+      start(el, e.clientX, e.clientY);
+    };
+    card.addEventListener("click", click, true);
+    return () => {
+      card.removeEventListener("click", click, true);
+      end(false);
+      for (const b of buttons) b.disabled = true;
+    };
+  }, [card, tool, annotating, s.questionId]);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setTool("");
@@ -1160,11 +1367,16 @@ function InstructorStage({
             <span>Desmos</span>
           </button>
         )}
+        {editNote && (
+          <span id="live-edit-note" className="live-hidden" role="alert">
+            {editNote}
+          </span>
+        )}
         {hidden && (
           <span
             className="live-hidden"
             role="status"
-            title="Students see your annotations, cross-outs and laser when the question is revealed"
+            title="Students see your annotations, cross-outs and laser when the question is revealed. Text edits reach them at once."
           >
             <EyeOff aria-hidden="true" />
             Hidden until reveal
@@ -1190,7 +1402,7 @@ function InstructorStage({
             number={s.index + 1}
             id="live-card"
             revealed
-            marks={s.annotations}
+            marks={shown}
             mathify={mathify}
             onReady={setCard}
             strikeMode={strikeMode}
@@ -1222,7 +1434,9 @@ function InstructorStage({
           title="Clear all shared annotations?"
           close={() => setClear(false)}
         >
-          <p>This clears the shared layer for this question.</p>
+          <p>
+            This clears the shared layer for this question. Text edits stay.
+          </p>
           <div className="actions">
             <button onClick={() => setClear(false)}>Cancel</button>
             <button
