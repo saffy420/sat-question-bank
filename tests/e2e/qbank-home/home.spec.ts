@@ -1,0 +1,167 @@
+import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
+
+// qbank-home: the Question Bank tab as a React island (lesson-ui/qbank/BankHome.tsx).
+// Seeded bank (tools/e2e_core.sql): 9 questions over a handful of skills.
+const SHOTS = 'docs/lessons/qbank-home';
+const shot = (page: Page, name: string) => { mkdirSync(SHOTS, { recursive: true }); return page.screenshot({ path: `${SHOTS}/${name}.png` }); };
+const SIZES = { '1366x768': { width: 1366, height: 768 }, '1920x1080': { width: 1920, height: 1080 } };
+const STUDENT = 'e2e-student-4';
+
+// The full College Board taxonomy (4 + 10 Reading and Writing rows, 4 + 19 Math rows), for the fit check.
+const TAXONOMY: [string, string, string[]][] = [
+  ['Reading & Writing', 'Information and Ideas', ['Central Ideas and Details', 'Inferences', 'Command of Evidence']],
+  ['Reading & Writing', 'Craft and Structure', ['Words in Context', 'Text Structure and Purpose', 'Cross-Text Connections']],
+  ['Reading & Writing', 'Expression of Ideas', ['Rhetorical Synthesis', 'Transitions']],
+  ['Reading & Writing', 'Standard English Conventions', ['Boundaries', 'Form, Structure, and Sense']],
+  ['Math', 'Algebra', ['Linear equations in one variable', 'Linear functions', 'Linear equations in two variables', 'Systems of two linear equations in two variables', 'Linear inequalities in one or two variables']],
+  ['Math', 'Advanced Math', ['Equivalent expressions', 'Nonlinear equations in one variable', 'Nonlinear functions']],
+  ['Math', 'Problem-Solving and Data Analysis', ['Ratios, rates, proportional relationships, and units', 'Percentages', 'One-variable data: Distributions and measures of center and spread', 'Two-variable data: Models and scatterplots', 'Probability and conditional probability', 'Inference from sample statistics and margin of error', 'Evaluating statistical claims: Observational studies and experiments']],
+  ['Math', 'Geometry and Trigonometry', ['Area and volume', 'Lines, angles, and triangles', 'Right triangles and trigonometry', 'Circles']]
+];
+
+async function openHome(page: Page) {
+  await page.goto('/app');
+  await expect(page.locator('#user-name')).toContainText('E2E Student');
+  await page.locator('[data-tab="practice"]').click();
+  await expect(page.locator('#bank-home .qb-cols')).toBeVisible();
+}
+const matching = async (page: Page) => Number((await page.locator('#start-count').innerText()).match(/^([\d,]+)/)![1].replace(/,/g, ''));
+
+test('question bank home: layout, selection, Review and Start', async ({ browser }) => {
+  const context = await newUserContext(browser, STUDENT);
+  try {
+    const page = await context.newPage();
+    const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+    await openHome(page);
+
+    // No stat cards, no "Topics" heading, no Section dropdown, no greeting on this tab.
+    await expect(page.locator('#home-stats, #topic-list, #dd-sec')).toHaveCount(0);
+    await expect(page.locator('#tab-practice').getByRole('heading', { name: 'Topics' })).toHaveCount(0);
+    await expect(page.locator('.board-h')).toBeHidden();
+    await expect(page.locator('#tab-practice')).not.toContainText('Focus');
+
+    // Reading and Writing on the left, Math on the right.
+    const rw = await page.locator('#bank-home .qb-col[data-section="Reading & Writing"]').boundingBox();
+    const math = await page.locator('#bank-home .qb-col[data-section="Math"]').boundingBox();
+    expect(rw!.x + rw!.width).toBeLessThanOrEqual(math!.x);
+    expect(Math.abs(rw!.y - math!.y)).toBeLessThan(1);
+
+    // Clicking a skill's name selects the whole row: aria-pressed and the blue background, and the count narrows.
+    const all = await matching(page);
+    const skill = page.locator('#bank-home .qb-skill').first();
+    const name = await skill.getAttribute('data-skill');
+    await expect(skill).toHaveAttribute('aria-pressed', 'false');
+    await skill.locator('.qb-name').click();
+    await expect(skill).toHaveAttribute('aria-pressed', 'true');
+    await page.mouse.move(0, 0); // off the row: hover is its own, darker state
+    await expect.poll(() => skill.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(232, 239, 255)');
+    expect(await skill.locator('svg, input[type="checkbox"]').count()).toBe(0);
+    const one = await page.evaluate(n => window.__qa().QS.filter((q: { skill?: string }) => q.skill === n).length, name);
+    await expect(page.locator('#start-count')).toHaveText(`${one} matching question${one === 1 ? '' : 's'}`);
+    expect(one).toBeLessThan(all);
+    // Un-picking the last skill is every topic again.
+    await skill.click();
+    await expect(skill).toHaveAttribute('aria-pressed', 'false');
+    expect(await matching(page)).toBe(all);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('satq_filters') || '{}').skills)).toBeNull();
+
+    // A domain row selects every skill under it.
+    const domain = page.locator('#bank-home .qb-col[data-section="Math"] .qb-dom').first();
+    await domain.click();
+    await expect(domain).toHaveAttribute('aria-pressed', 'true');
+    const domSkills = await page.evaluate(d => [...new Set(window.__qa().QS.filter((q: { domain?: string }) => q.domain === d).map((q: { skill?: string }) => q.skill))], await domain.getAttribute('data-domain'));
+    for (const s of domSkills) await expect(page.locator(`#bank-home .qb-skill[data-skill="${s}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await shot(page, 'home-domain-picked');
+    await domain.click();
+    await expect(page.locator('#bank-home .qb-row[aria-pressed="true"]')).toHaveCount(0);
+
+    // A section header selects the whole section; Start practice opens the player on exactly that set.
+    await page.locator('#bank-home .qb-sec[data-section="Math"]').click();
+    const mathIds = await page.evaluate(() => window.__qa().QS.filter((q: { section: string }) => q.section === 'Math').map((q: { id: string }) => q.id));
+    await expect(page.locator('#start-count')).toHaveText(`${mathIds.length} matching questions`);
+    await page.locator('#qb-count').click();
+    await page.locator('#bank-home [data-opt="count"][data-v="0"]').click();
+    await expect(page.locator('#qb-count')).toContainText('Questions: All');
+    await page.locator('#btn-start').click();
+    await expect(page.locator('#bank-live')).toBeVisible();
+    expect((await page.evaluate(() => window.__qa().S.items.map((q: { id: string }) => q.id))).sort()).toEqual([...mathIds].sort());
+    await page.locator('#bank-dashboard').click();
+    await page.locator('#bank-exit-confirm').click();
+    await expect(page.locator('#view-home')).toBeVisible();
+
+    // Review replaces Focus: the segment, the button and the modal.
+    await page.locator('[data-tab="practice"]').click();
+    await page.locator('#bank-home .qb-seg [data-mode="focus"]').click();
+    await expect(page.locator('#bank-home .qb-seg [data-mode="focus"]')).toHaveText('Review');
+    await expect(page.locator('#btn-start')).toHaveText('Start review set');
+    await page.locator('#btn-start').click();
+    await expect(page.locator('#modal-root .fx-h')).toHaveText('Review practice');
+    await expect(page.locator('#modal-root [data-go]')).toHaveText('Start review set');
+    await shot(page, 'home-review-modal');
+    await page.locator('#modal-root [data-x]').click();
+    await page.locator('#bank-home .qb-seg [data-mode="all"]').click();
+    await expect(page.locator('#btn-start')).toHaveText('Start practice');
+
+    // The Filters card: question set and lesson questions, a count badge, Reset filters.
+    await page.locator('#qb-filters').click();
+    await page.locator('#bank-home [data-filter="bank"]').click();
+    await page.locator('#bank-home [data-opt="bank"][data-v="ai"]').click();
+    await expect(page.locator('#qb-filters .qb-badge')).toHaveText('1');
+    await expect(page.locator('#bank-home [data-filter="bank"]')).toContainText('Question set: AI');
+    const ai = await page.evaluate(() => window.__qa().QS.filter((q: { ai?: boolean; section: string }) => q.ai && q.section === 'Math').length);
+    await expect(page.locator('#start-count')).toHaveText(`${ai} matching question${ai === 1 ? '' : 's'}`);
+    await shot(page, 'home-filters');
+    await page.locator('#qb-reset').click();
+    await expect(page.locator('#qb-filters .qb-badge')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#bank-home .qb-pop')).toHaveCount(0);
+    expect(errors).toEqual([]);
+  } finally { await context.close(); }
+});
+
+for (const [size, viewport] of Object.entries(SIZES)) {
+  test(`question bank home fits ${size} with every topic and no scroll`, async ({ browser }) => {
+    const context = await newUserContext(browser, STUDENT, { viewport });
+    try {
+      const page = await context.newPage();
+      await openHome(page);
+      // The seed has a few skills; add one question per skill of the full taxonomy and redraw.
+      await page.evaluate(tax => {
+        const { QS } = window.__qa();
+        tax.forEach(([section, domain, skills]) => skills.forEach((skill, i) =>
+          QS.push({ id: `fit-${section}-${skill}`, section, domain, skill, difficulty: ['Easy', 'Medium', 'Hard'][i % 3], choices: [], stem_html: '', explanation_html: '' })));
+      }, TAXONOMY);
+      await page.locator('#qb-order').click();
+      await page.locator('#bank-home [data-opt="order"][data-v="false"]').click();
+      // Every taxonomy row is drawn, plus any fixture skill outside it (the seed has one), which only makes the fit harder.
+      for (const [section, domain, skills] of TAXONOMY) {
+        const col = page.locator(`#bank-home .qb-col[data-section="${section}"]`);
+        await expect(col.locator(`.qb-dom[data-domain="${domain}"]`)).toHaveCount(1);
+        for (const s of skills) await expect(col.locator(`.qb-skill[data-skill="${s}"]`)).toHaveCount(1);
+      }
+      expect(await page.locator('#bank-home .qb-col[data-section="Reading & Writing"] .qb-row').count()).toBeGreaterThanOrEqual(1 + 4 + 10);
+      expect(await page.locator('#bank-home .qb-col[data-section="Math"] .qb-row').count()).toBeGreaterThanOrEqual(1 + 4 + 19);
+      await page.locator('#bank-home .qb-skill[data-skill="Inferences"]').click();
+
+      const fit = await page.evaluate(() => {
+        const board = document.querySelector('.board-b')!;
+        const rows = [...document.querySelectorAll('#bank-home .qb-row')].map(r => r.getBoundingClientRect());
+        return {
+          doc: document.scrollingElement!.scrollHeight, inner: innerHeight,
+          board: board.scrollHeight, boardClient: board.clientHeight,
+          lowest: Math.max(...rows.map(r => r.bottom)), shortest: Math.min(...rows.map(r => r.height))
+        };
+      });
+      expect(fit.doc).toBeLessThanOrEqual(fit.inner);
+      expect(fit.board).toBeLessThanOrEqual(fit.boardClient);
+      expect(fit.lowest).toBeLessThanOrEqual(fit.inner);
+      expect(fit.shortest).toBeGreaterThanOrEqual(22);
+      await shot(page, `home-${size}`);
+    } finally { await context.close(); }
+  });
+}
+
+declare global { interface Window { __qa: () => any } }

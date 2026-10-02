@@ -69,7 +69,7 @@ async page => {
       questions = Array.isArray(body) ? body : body.questions;
       assert(questions?.length > 0, 'Local bank empty; restore local DB bindings/data before running.');
       assert(questions.some(q => q.source === 'AI') && questions.some(q => q.source !== 'AI'), 'Both local banks required; AI fallback may hide missing AI_DB.');
-      await p.locator('#home-stats .card').first().waitFor({ state: 'attached' });
+      await p.locator('#bank-home .qb').first().waitFor({ state: 'attached' });
       await p.getByRole('button', { name: 'Continue as guest', exact: true }).click();
       assert((await p.locator('#user-name').innerText()) === 'Guest', 'Expected isolated guest');
       return { questions: questions.length, ai: questions.filter(q => q.source === 'AI').length };
@@ -150,7 +150,7 @@ async page => {
       assert(parseURL(response.url()).pathname === '/auth/callback', 'Server callback response path lost');
       assert(parseURL(p.url()).origin === base.origin, 'Callback left local origin');
       assert((await p.locator('#user-name').innerText()) === 'Guest', 'Callback did not render guest');
-      await p.locator('#home-stats .card').first().waitFor({ state: 'attached' });
+      await p.locator('#bank-home .qb').first().waitFor({ state: 'attached' });
     });
     await probe('guest safety and browser runtime errors', async () => {
       assert(!writes.length, 'Unexpected local writes blocked: ' + writes.join(', '));

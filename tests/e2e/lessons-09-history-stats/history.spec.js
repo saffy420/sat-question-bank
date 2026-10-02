@@ -49,10 +49,16 @@ async function selectText(page, text) {
 const record = async context => ({ progress: await (await context.request.get('/api/progress')).json(), attempts: await (await context.request.get('/api/attempts')).json() });
 const history = (context, id) => context.request.get(`/api/lesson-history/${id}`);
 // "Lesson questions" is a three-way choice; clicking an option makes it the only one.
-async function usage(page, value) {
-  await page.locator('#dd-lesson .dd-t').click();
-  await page.locator(`#dd-lesson .dd-o[data-v="${value}"]`).click();
-  await page.locator('#tab-practice .panel-h h3').first().click();
+// It sits in the question bank home's Filters card; the card closes again with Escape.
+async function usage(page, value, label) {
+  await page.locator('#qb-filters').click();
+  await page.locator('#bank-home [data-filter="lesson"]').click();
+  await page.locator(`#bank-home [data-opt="lesson"][data-v="${value}"]`).click();
+  await expect(page.locator('#bank-home [data-opt="lesson"][aria-pressed="true"]')).toHaveText(label);
+  // The long option label stays inside the card at 1366×768.
+  expect(await page.locator('#bank-home .qb-pop').evaluate(pop => [...pop.querySelectorAll('[data-opt="lesson"]')].every(b => b.getBoundingClientRect().right <= pop.getBoundingClientRect().right))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#bank-home .qb-pop')).toHaveCount(0);
 }
 
 test('task09 My Lessons, usage badges and filter, self-paced write-back, instructor-paced isolation', async ({ browser }) => {
@@ -218,14 +224,12 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
       ['hide-attended', 'Hide questions from lessons I attended', { Transitions: 0, 'Rhetorical Synthesis': 1, Boundaries: 1 }],
       ['hide-all', 'Hide all lesson questions', { Transitions: 0, 'Rhetorical Synthesis': 0, Boundaries: 1 }],
       ['show-all', 'Show all', { Transitions: 1, 'Rhetorical Synthesis': 1, Boundaries: 1 }]]) {
-      await usage(student, mode);
-      await expect(student.locator('#dd-lesson .dd-val')).toHaveText(label);
-      // The long option label stays inside its box (ellipsized) at 1366×768.
-      expect(await student.locator('#dd-lesson .dd-t').evaluate(t => t.querySelector('.dd-val').getBoundingClientRect().right <= t.getBoundingClientRect().right)).toBe(true);
+      await usage(student, mode, label);
+      await expect(student.locator('#qb-filters .qb-badge')).toHaveCount(mode === 'show-all' ? 0 : 1);
       await expect(student.locator('#start-count')).toHaveText(`${expected[mode].length} matching questions`);
-      for (const [skill, n] of Object.entries(topics)) await expect(student.locator(`#topic-list .tl-row[data-s="${skill}"]`)).toHaveCount(n);
+      for (const [skill, n] of Object.entries(topics)) await expect(student.locator(`#bank-home .qb-skill[data-skill="${skill}"]`)).toHaveCount(n);
       const skills = [...new Set(expected[mode].map(q => q.skill))].sort();
-      expect((await student.locator('#topic-list .tl-row').evaluateAll(rows => rows.map(r => r.dataset.s))).sort()).toEqual(skills);
+      expect((await student.locator('#bank-home .qb-skill').evaluateAll(rows => rows.map(r => r.dataset.skill))).sort()).toEqual(skills);
       await shot(student, `06-filter-${mode}`);
     }
 

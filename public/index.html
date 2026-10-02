@@ -853,42 +853,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
     <div class="board-b">
       <div id="tab-plan" class="hide"><div id="plan-body"></div></div>
 
-      <div id="tab-practice">
-        <div class="cards" id="home-stats"></div>
-
-        <div class="panel">
-          <div class="panel-h">
-            <h3>Build your practice set</h3>
-            <div class="startbar">
-              <div class="seg" id="mode-seg">
-                <button data-mode="all" class="on">All questions</button>
-                <button data-mode="focus">Focus</button>
-              </div>
-              <span id="start-count" class="sub" style="color:var(--dim);font-size:13px"></span>
-              <button class="btn-p" id="btn-start">Start practice</button>
-            </div>
-          </div>
-          <div class="ctrls">
-            <div class="dd" id="dd-sec"></div>
-            <div class="dd" id="dd-bank"></div>
-            <div class="dd" id="dd-diff"></div>
-            <div class="dd" id="dd-count"></div>
-            <div class="dd" id="dd-lesson"></div>
-            <label class="set-row" style="border:0;padding:0;gap:10px">
-              <div class="set-l"><b>Random order</b></div>
-              <button class="sw" id="f-rand" aria-pressed="false"></button>
-            </label>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-h">
-            <h3>Topics</h3>
-          </div>
-          <div class="tl-head"><span>Topic</span><span>Progress</span><span></span><span>Accuracy</span></div>
-          <div id="topic-list"></div>
-        </div>
-      </div>
+      <div id="tab-practice"><div id="bank-home"></div></div>
 
       <div id="tab-dash" class="hide">
         <div class="frow" style="justify-content:space-between;margin-bottom:16px">
@@ -1075,6 +1040,7 @@ import * as Report from '/shared/report.js';
 import * as Figure from '/shared/figure.js';
 import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
 import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome, Plan } from '/lesson-ui/lesson.js';
+import { mountBankHome, applyExtraFilters, EXTRA_FILTERS, migrateSection } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1140,6 +1106,10 @@ if (typeof F.count !== 'number') F.count = SET.count;
 if (typeof F.rand !== 'boolean') F.rand = SET.rand;
 if (F.bank === undefined) F.bank = null;
 if (!USAGE_MODES.includes(F.lesson)) F.lesson = 'show-all';
+// Extra filters (lesson-ui/qbank/extraFilters.ts) keep their values here by key.
+if (!F.extra || typeof F.extra !== 'object' || Array.isArray(F.extra)) F.extra = {};
+// An empty topic pick is every topic: the home has no "none" state.
+if (Array.isArray(F.skills) && !F.skills.length) F.skills = null;
 LS.set('filters', F);
 
 // ---------------- data ----------------
@@ -1314,7 +1284,7 @@ async function loadSettings() {
 // each caller picking a subset and letting two panels disagree.
 function refresh() {
   if (!QS.length) return;
-  drawHomeStats(); drawFilters(); drawDash(); drawMistakes();
+  drawFilters(); drawDash(); drawMistakes();
 }
 
 // One row or many. Signed out there is no account to put it in and the answer
@@ -1611,6 +1581,8 @@ function setTab(t) {
   TAB = t;
   NAV.forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   TABS.forEach(k => $('tab-'+k).classList.toggle('hide', k !== t));
+  // The question bank home fits the screen; the greeting header would push it into a scroll.
+  document.querySelector('.board-h').classList.toggle('hide', t === 'practice');
   if (t === 'plan') drawPlan();
   if (t === 'dash') drawDash();
   if (t === 'mistakes') drawMistakes();
@@ -1714,12 +1686,14 @@ const everWrong = id => Stats.everWrong(PROG, id);
 
 function base() {
   const secs = F.sec ? new Set(F.sec) : null;
+  const ctx = { prog: PROG, log: LOG, ptmap: PTMAP };
   const diffs = F.diff ? new Set(F.diff.map(d => d.toLowerCase())) : null;
   return QS.filter(q => {
     if (secs && !secs.has(q.section)) return false;
     if (diffs && !diffs.has((q.difficulty || '').toLowerCase())) return false;
     if (F.bank && !F.bank.includes(q.ai ? 'ai' : 'official')) return false;
     if (!lessonUsageVisible(q.usedInLesson, F.lesson, LESSONS.attended)) return false;
+    if (!applyExtraFilters(EXTRA_FILTERS, q, F.extra, ctx)) return false;
     return true;
   });
 }
@@ -1824,17 +1798,6 @@ const pctOf = (v) => v.a ? Math.round(v.c/v.a*100) : null;
 const accHTML = (pct) => pct == null ? '&mdash;'
   : `<span class="dot-a" style="background:${pct>=80?'var(--green)':pct>=60?'var(--orange)':'var(--red)'}"></span><b>${pct}%</b>`;
 
-// Counted through tally() so the cards here and the dashboard cannot disagree.
-// They used to: this counted every PROG row including untouched ones, and scored
-// only Green, while tally() requires an attempt and counts Orange as correct.
-function drawHomeStats() {
-  const t = tally(), att = t.att, corr = t.corr;
-  $('home-stats').innerHTML = `
-    <div class="card"><div class="k">Question bank</div><div class="v mono">${QS.length.toLocaleString()}</div></div>
-    <div class="card"><div class="k">Attempted</div><div class="v mono">${att}</div></div>
-    <div class="card"><div class="k">Accuracy</div><div class="v mono">${att?Math.round(corr/att*100):0}%</div></div>`;
-}
-
 const SECTIONS = ['Math', 'Reading & Writing'];
 const DIFFS = ['Easy', 'Medium', 'Hard'];
 
@@ -1842,101 +1805,60 @@ const DIFFS = ['Easy', 'Medium', 'Hard'];
 // Math before Algebra and Boundaries before Central Ideas.
 const { DOM_ORDER, SKILL_ORDER, cbSort } = Stats;
 
+// The question bank home (lesson-ui/qbank/BankHome.tsx) draws this model; F stays here.
+// Reading and Writing is the left column, Math the right.
+const HOME_SECTIONS = ['Reading & Writing', 'Math'];
+let PRACTICE_MODE = LS.get('mode', 'all');
+
+// The Section dropdown is gone: a stored F.sec becomes the skills it allowed, once the
+// bank is loaded and those skills are known. F.sec then stays null so base() ignores it.
+function migrateSec() {
+  if (!F.sec || !QS.length) return;
+  const bySec = {};
+  QS.forEach(q => (bySec[q.section || 'Other'] = bySec[q.section || 'Other'] || new Set()).add(q.skill || 'Other'));
+  F.skills = migrateSection(F, Object.fromEntries(Object.entries(bySec).map(([k, v]) => [k, [...v]])));
+  F.sec = null;
+  LS.set('filters', F);
+}
+
+// The topic tallies are drawn from what the filters leave, as the topic list always was.
 function drawFilters() {
-  dd($('dd-sec'), { label: 'Section', allLabel: 'Both sections',
-    opts: SECTIONS.map(v => ({ v, label: v })),
-    get: () => F.sec, set: (x) => { F.sec = x; F.skills = null; saveF(); } });
-
-  // Which bank to draw from. null is both, the same convention the other
-  // multiselects use, so a returning visitor is never filtered down to nothing.
-  dd($('dd-bank'), { label: 'Bank', allLabel: 'Both banks',
-    opts: [{ v: 'official', label: 'Official' }, { v: 'ai', label: 'AI' }],
-    get: () => F.bank, set: (x) => { F.bank = x; F.skills = null; saveF(); } });
-
-  dd($('dd-diff'), { label: 'Difficulty', allLabel: 'Any difficulty',
-    opts: DIFFS.map(v => ({ v, label: v })),
-    get: () => F.diff, set: (x) => { F.diff = x; saveF(); } });
-
-  dd($('dd-count'), { label: 'Questions', allLabel: 'All',
-    opts: [['10','10'],['20','20'],['30','30'],['50','50'],['0','All']].map(([v,l]) => ({ v, label: l })),
-    get: () => [String(F.count)], set: (x) => { F.count = parseInt(x && x.length ? x[x.length-1] : '0', 10); saveF(); } });
-
-  // §9.2: one three-way choice, so "hide attended" and "hide all" can never both be on.
-  dd($('dd-lesson'), { label: 'Lesson questions', allLabel: 'Show all',
-    opts: [['show-all','Show all'],['hide-attended','Hide questions from lessons I attended'],['hide-all','Hide all lesson questions']].map(([v,l]) => ({ v, label: l })),
-    get: () => [F.lesson], set: (x) => { F.lesson = x && x.length ? x[x.length-1] : 'show-all'; saveF(); } });
-
-  $('f-rand').classList.toggle('on', !!F.rand);
-  $('f-rand').setAttribute('aria-pressed', String(!!F.rand));
-
-  drawTopics();
-  const sel = picked();
-  const n = base().filter(q => inPick(sel, q)).length;
-  $('start-count').textContent = `${n.toLocaleString()} matching questions`;
-  $('btn-start').disabled = n === 0;
+  if (!QS.length) return;
+  migrateSec();
+  const list = base(), t = tally(list), sel = picked();
+  const zero = { a: 0, c: 0, n: 0 };
+  const groups = {};
+  list.forEach(q => {
+    const sec = (groups[q.section || 'Other'] = groups[q.section || 'Other'] || {});
+    (sec[q.domain || 'Other'] = sec[q.domain || 'Other'] || new Set()).add(q.skill || 'Other');
+  });
+  const sections = HOME_SECTIONS.map(name => ({
+    name, tally: t.sec[name] || zero,
+    domains: cbSort(Object.keys(groups[name] || {})).map(d => {
+      const skills = cbSort([...groups[name][d]]).map(sk => ({ name: sk, tally: t.skill[sk] || zero, picked: !!sel && sel.has(sk) }));
+      return { name: d, tally: skills.reduce((o, x) => ({ a: o.a + x.tally.a, c: o.c + x.tally.c, n: o.n + x.tally.n }), zero), skills };
+    })
+  }));
+  bankHome.update({
+    sections, skills: F.skills,
+    filters: { diff: F.diff, count: F.count, rand: !!F.rand, bank: F.bank, lesson: F.lesson, extra: F.extra },
+    matching: list.filter(q => inPick(sel, q)).length,
+    mode: PRACTICE_MODE === 'focus' ? 'focus' : 'all'
+  });
 }
 
 function saveF() { LS.set('filters', F); drawFilters(); }
 
-$('f-rand').onclick = () => { F.rand = !F.rand; saveF(); };
-
-
-function drawTopics() {
-  const list = base(), t = tally(list);
-  const groups = {};
-  list.forEach(q => (groups[q.domain || 'Other'] = groups[q.domain || 'Other'] || new Set()).add(q.skill || 'Other'));
-  const doms = cbSort(Object.keys(groups));
-  const all = [...new Set(doms.flatMap(d => [...groups[d]]))];
-  const sel = F.skills ? new Set(F.skills) : new Set(all);
-
-  const row = (sk) => {
-    const v = t.skill[sk] || {a:0,c:0,n:0};
-    return `<div class="tl-row" data-s="${esc(sk)}">
-      <span class="tl-n"><span class="tick ${sel.has(sk)?'on':''}">${TICK}</span><b>${esc(sk)}</b></span>
-      <span class="bar"><i style="width:${v.n?Math.round(v.a/v.n*100):0}%"></i></span>
-      <span class="tl-c mono">${v.a}/${v.n}</span>
-      <span class="tl-a mono">${accHTML(pctOf(v))}</span></div>`;
-  };
-
-  $('topic-list').innerHTML = doms.map(d => {
-    const sks = cbSort([...groups[d]]);
-    const v = sks.reduce((o,sk) => { const x = t.skill[sk]||{a:0,c:0,n:0}; return {a:o.a+x.a,c:o.c+x.c,n:o.n+x.n}; }, {a:0,c:0,n:0});
-    return `<div class="dom" data-d="${esc(d)}">
-      <div class="dom-h"><span class="tick ${sks.every(sk=>sel.has(sk))?'on':''}" data-dom="${esc(d)}">${TICK}</span>${esc(d)}
-        <span class="cnt">${v.a}/${v.n} &middot; ${accHTML(pctOf(v))}</span></div>
-      <div class="dom-b">${sks.map(row).join('')}</div></div>`;
-  }).join('') || '<div class="empty">No topics match these filters.</div>';
-
-  const el = $('topic-list');
-  // Everything ticked is the same as nothing ticked, and does not go stale the
-  // next time the bank grows.
-  const toggle = (sks) => {
-    const next = new Set(F.skills || all);
-    const allOn = sks.every(sk => next.has(sk));
-    sks.forEach(sk => allOn ? next.delete(sk) : next.add(sk));
-    F.skills = next.size === all.length ? null : [...next];
+const bankHome = mountBankHome($('bank-home'), {
+  setFilters(partial) {
+    Object.assign(F, partial);
+    if (Array.isArray(F.skills) && !F.skills.length) F.skills = null;
     saveF();
-  };
-  el.querySelectorAll('.tl-row').forEach(r => r.onclick = () => toggle([r.dataset.s]));
-  el.querySelectorAll('.dom-h .tick').forEach(t => t.onclick = (e) => {
-    e.stopPropagation();
-    toggle([...groups[t.dataset.dom]]);
-  });
-}
-
-let PRACTICE_MODE = LS.get('mode', 'all');
-document.querySelectorAll('#mode-seg button').forEach(b => {
-  b.classList.toggle('on', b.dataset.mode === PRACTICE_MODE);
-  b.onclick = () => {
-    PRACTICE_MODE = b.dataset.mode;
-    LS.set('mode', PRACTICE_MODE);
-    document.querySelectorAll('#mode-seg button').forEach(x => x.classList.toggle('on', x === b));
-    $('btn-start').textContent = PRACTICE_MODE === 'focus' ? 'Start focus set' : 'Start practice';
-    $('btn-start').disabled = false;
-  };
+  },
+  setMode(mode) { PRACTICE_MODE = mode; LS.set('mode', PRACTICE_MODE); drawFilters(); },
+  start: () => start(pool()),
+  startReview: () => focusModal()
 });
-$('btn-start').textContent = PRACTICE_MODE === 'focus' ? 'Start focus set' : 'Start practice';
-$('btn-start').onclick = () => (PRACTICE_MODE === 'focus' ? focusModal() : start(pool()));
 
 // ---------------- dashboard ----------------
 // Dates are bucketed on the local calendar, not UTC: a question answered at
@@ -2742,7 +2664,7 @@ function bankDraw() {
   }
   const closed = !!S.checked[q.id];
   bankUI.update({
-    title: S.session ? S.session.name : S.focus ? 'Focus practice' : 'Practice',
+    title: S.session ? S.session.name : S.focus ? 'Review practice' : 'Practice',
     name: $('user-name').textContent || '',
     question: q, index: S.i, total: S.items.length,
     picked: (closed ? S.ans[q.id] : S.sel[q.id]) || '',
@@ -3099,7 +3021,7 @@ function focusModal() {
     const items = focusSet({ n: FX.n, sections: FX.sections, bank: FX.bank });
     const mins = Math.round(items.reduce((n, q) => n + targetOf(q) * (perQ ? FX.mult : 1), 0) / 60000);
     root.innerHTML = `<div class="modal-bg"><div class="modal" style="width:min(560px,92vw);">
-      <h2 class="fx-h">Focus practice</h2>
+      <h2 class="fx-h">Review practice</h2>
       <p class="fx-sub">Drills the skills you are most likely to miss, and steps the difficulty up as you get them right.</p>
       <div class="fx-row"><span class="fx-lab">Section</span><div class="fx-opts">
         <button class="fx-o${sec === 'Reading & Writing' ? ' on' : ''}" data-sec="rw">Reading &amp; Writing</button>
@@ -3117,7 +3039,7 @@ function focusModal() {
         ${opt('auto', false, 'Keep going', !perQ)}${opt('auto', true, 'Auto-advance', !perQ)}</div></div>
       <p class="fx-n">${items.length} question${items.length === 1 ? '' : 's'} selected${FX.timing === 'off' ? '' : ` · about ${mins} min`}</p>
       <div class="frow" style="justify-content:flex-end;margin-top:16px;"><button data-x="1">Cancel</button>
-        <button class="btn-p" data-go="1"${items.length ? '' : ' disabled'}>Start focus set</button></div>
+        <button class="btn-p" data-go="1"${items.length ? '' : ' disabled'}>Start review set</button></div>
     </div></div>`;
     root.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => {
       FX.sections = b.dataset.sec === 'both' ? null
