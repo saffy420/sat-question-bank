@@ -15,9 +15,9 @@ const api = (QS, PROG, LOG) => ({
 let statsModule;
 
 const QS = [
-  { id: 'q1', section: 'Math', difficulty: 'Hard',
+  { id: 'q1', section: 'Math', skill: 'Circles', difficulty: 'Hard',
     choices: [{ letter: 'A', content: 'a' }, { letter: 'B', content: 'b', trap: 'sign-flip' }] },
-  { id: 'ai_rw001', section: 'Reading & Writing', difficulty: 'Hard', level: 5,
+  { id: 'ai_rw001', section: 'Reading & Writing', skill: 'Transitions', difficulty: 'Hard', level: 5,
     choices: [{ letter: 'A', content: 'a' }, { letter: 'C', content: 'c', trap: 'too-extreme' }] },
   { id: 'q2', section: 'Math', difficulty: 'Easy', choices: [] }
 ];
@@ -38,9 +38,9 @@ const onlyRight = api(QS, {}, [{ question_id: 'q1', ts: 'T', correct: 1, picked:
 assert.deepStrictEqual(onlyRight.trapCounts(), [], 'a correct attempt was counted as a trap');
 
 const p = a.pacing();
-assert.strictEqual(p.rushed, 1, '40s against a 95s Math target is rushed');
-assert.strictEqual(p.onPace, 1, '95s against a 95s Math target is on pace');
-assert.strictEqual(p.slow, 1, '200s against a 71s Reading & Writing target is slow');
+assert.strictEqual(p.rushed, 1, '40s against a 155s Hard Circles target is rushed');
+assert.strictEqual(p.onPace, 1, '95s against a 155s Hard Circles target is on pace');
+assert.strictEqual(p.slow, 1, '200s against a 75s level-5 Transitions target is slow');
 assert.strictEqual(p.n['Math'], 2, 'per-section counts are wrong');
 
 const g = a.guessing();
@@ -56,6 +56,7 @@ assert.strictEqual(old.guessing().n, 0, 'attempts predating the column were coun
 assert.strictEqual(a.levelOf(QS[0]), 3, 'official Hard is level 3');
 assert.strictEqual(a.levelOf(QS[1]), 5, 'an AI row keeps its stored level');
 assert.strictEqual(a.levelOf(QS[2]), 1, 'official Easy is level 1');
-assert.strictEqual(a.targetOf(QS[1]), 71000, 'Reading & Writing target');
+assert.strictEqual(a.targetOf(QS[1]), 75000, 'level-5 Transitions target');
+assert.strictEqual(a.targetOf(QS[2]), 70000, 'no skill or domain falls back to the Math section time (95s x 0.75, to 5s)');
 console.log('metrics: all cases hold');
 }).catch(e => { console.error(e); process.exitCode = 1; });
