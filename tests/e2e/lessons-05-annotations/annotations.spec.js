@@ -164,8 +164,10 @@ test('task05 shared highlight, strike, pen, laser, follow, reconnect and student
       expect(word.x).toBeGreaterThanOrEqual(-0.1); expect(word.x).toBeLessThanOrEqual(word.w + 0.1);
       expect(word.y).toBeGreaterThanOrEqual(-0.1); expect(word.y).toBeLessThanOrEqual(word.h + 0.1);
     }
-    // The clients really do differ in type size, so a px comparison would not have held.
-    expect((await wordOffset(teacher, stroke)).font).not.toBe((await wordOffset(student, stroke)).font);
+    // The clients really do draw the type at different sizes (revealed students lay out at the presenter's size, live-fit,
+    // then scale it to their window), so a client px comparison would not have held.
+    const drawn = page => page.locator(page === teacher ? '#live-card' : '#lesson-card').evaluate(card => parseFloat(getComputedStyle(card).fontSize) * card.getBoundingClientRect().width / card.offsetWidth);
+    expect(Math.abs(await drawn(teacher) - await drawn(student))).toBeGreaterThan(0.5);
 
     await teacher.locator('[data-tool="laser"]').click();
     const dot = student.locator('#lesson-card .lesson-laser');
