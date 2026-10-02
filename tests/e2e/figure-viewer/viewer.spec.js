@@ -348,10 +348,10 @@ test('lessons: student A–D, instructor and history viewers, no socket traffic,
     const imgs = [];
     for (const [i, page] of pages.entries()) {
       await expect(page.locator(`${scope} .fv-pct`)).toHaveText('100%');
+      await page.locator(scope).scrollIntoViewIfNeeded();
       const img = await imgOf(page);
       imgs.push(img);
       await expect.poll(() => onFigure(page, img), { message: `student ${i + 1}: stroke on the same figure points`, timeout: 8000 }).toBe(true);
-      await page.locator(scope).scrollIntoViewIfNeeded();
       const frame = await page.locator(scope).evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
       await shot(page, `lesson-stroke-student-${i + 1}-100`, { clip: frame });
     }
