@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
 import { ORIGIN } from '../lessons-00b-e2e-harness/auth.js';
 import { INSTRUCTOR, lesson, join, openLive } from '../lessons-11-ui-polish/helpers.js';
-import { RW, MATH, SPR, SIZES, shot, startPractice, current, goTo, primary, choice, choiceBox, snapshot, attemptsSince, progressOf, expectNoLeak, exportedText } from './support';
+import { RW, MATH, SPR, SIZES, shot, startPractice, current, goTo, primary, choice, choiceBox, snapshot, attemptsSince, progressOf, expectNoLeak, exportedText, openExplanation } from './support';
 
 // bank-bluebook checkpoints C1-C6. The practice player is the lesson-ui screen (Bank.tsx): same header, toolbar, column,
 // choice rows and footer as the lesson student view, plus Check / retry-until-correct.
@@ -21,7 +21,6 @@ const metrics = (page, [root, card, tool]) => page.evaluate(([root, card, tool])
     header: r(q('.lesson-header')), footer: r(q('.lesson-footer')), footerPosition: getComputedStyle(q('.lesson-footer')).position,
     h1: fs(q('.lesson-header h1')), clock: fs(q('.lesson-timer strong')), hide: fs(q('.lesson-timer button')),
     tool: { box: r(q(tool)), svg: r(q(`${tool} svg`)), label: fs(q(`${tool} span`)) },
-    name: fs(q('.lesson-footer>span:first-child')),
     pill: { box: r(q('.lesson-position')), font: fs(q('.lesson-position')), ...st(q('.lesson-position'), 'backgroundColor', 'borderTopLeftRadius') },
     submit: { h: r(q('.lesson-submit')).h, ...st(q('.lesson-submit'), 'backgroundColor', 'borderTopLeftRadius', 'fontSize') },
     strip: r(c('.stage-strip')), number: r(c('.stage-strip>span')),
@@ -64,7 +63,8 @@ for (const [size, viewport] of Object.entries(SIZES)) {
       expect(bankM.footerPosition).toBe('fixed');
       // Header, footer, dashes, type scale.
       for (const k of ['header', 'footer']) { near(bankM[k].h, lessonM[k].h, 1, `${where} ${k} height`); near(bankM[k].y, lessonM[k].y, 1, `${where} ${k} y`); near(bankM[k].w, lessonM[k].w, 1, `${where} ${k} width`); }
-      for (const k of ['h1', 'clock', 'hide', 'name', 'stem']) near(bankM[k], lessonM[k], 0.05, `${where} ${k} font size`);
+      // The bank footer starts with its Explanation button, not the lesson's student name.
+      for (const k of ['h1', 'clock', 'hide', 'stem']) near(bankM[k], lessonM[k], 0.05, `${where} ${k} font size`);
       expect(bankM.dashes).toBe(lessonM.dashes);
       // The tool row: icon over label, same size, same ink as the lesson's Annotate tool.
       near(bankM.tool.box.h, lessonM.tool.box.h, 1, `${where} tool height`);
@@ -119,10 +119,11 @@ for (const [size, viewport] of Object.entries(SIZES)) {
       expect(await attemptsSince(student, before, [RW])).toHaveLength(0);
       await shot(page, `C2-picked-${size}`);
       await primary(page).click();
-      // Right: Next again, the right choice green, the explanation appears.
+      // Right: Next again, the right choice green; Explanation opens the panel with the verdict.
       await expect(primary(page)).toHaveText('Next');
       await expect(primary(page)).toHaveAttribute('data-mode', 'next');
       await expect(choiceBox(page, 'A')).toHaveClass(/right/);
+      await openExplanation(page);
       await expect(page.locator('#bank-verdict')).toContainText('Correct');
       await expect(page.locator('#bank-reveal')).toContainText('E2E_EXPL_MARKER_RW');
       await shot(page, `C2-right-${size}`);
@@ -182,6 +183,7 @@ for (const [size, viewport] of Object.entries(SIZES)) {
       await expect(choiceBox(page, 'A')).toHaveClass(/right/);
       await expect(page.locator('#bank-card .choice.wrong')).toHaveCount(2);
       await expect(primary(page)).toHaveText('Next');
+      await openExplanation(page);
       await expect(page.locator('#bank-reveal')).toContainText('E2E_EXPL_MARKER_RW');
       await shot(page, `C3-solved-${size}`);
       // The record is first-try: one attempt, wrong, the first pick; one progress move.
@@ -224,6 +226,7 @@ for (const [size, viewport] of Object.entries(SIZES)) test(`C4 a grid-in offers 
     const exported = await exportedText(page);
     expect(exported).not.toMatch(/CORRECT ANSWER|OFFICIAL EXPLANATION|E2E_EXPL_MARKER_SPR/);
     await page.locator('#bank-show-answer').click();
+    await openExplanation(page);
     await expect(page.locator('#bank-verdict')).toContainText('Correct answer: 3');
     await expect(page.locator('#bank-reveal')).toContainText('E2E_EXPL_MARKER_SPR');
     await expect(page.locator('#bank-show-answer')).toHaveCount(0);
@@ -248,6 +251,7 @@ test('C4b a grid-in answered right after two misses closes with one wrong attemp
     for (const value of ['1', '2']) { await grid.fill(value); await primary(page).click(); await expect(page.locator('#bank-status')).toBeVisible(); }
     await grid.fill('3');
     await grid.press('Enter');                       // Enter in the field is Check
+    await openExplanation(page);
     await expect(page.locator('#bank-verdict')).toContainText('Correct');
     await expect(page.locator('#bank-show-answer')).toHaveCount(0);
     await page.waitForTimeout(500);
@@ -288,6 +292,7 @@ test('C5 leaving mid-retry keeps the first-try result; the question resumes; res
     // Solve it now: still one attempt, the first-try miss.
     await pick(page, 'A');
     await primary(page).click();
+    await openExplanation(page);
     await expect(page.locator('#bank-verdict')).toContainText('Correct');
     await page.waitForTimeout(500);
     const attempts = await attemptsSince(student, before, [RW]);
@@ -477,5 +482,43 @@ test('C9 a practice exam still plays on the old screen: no Check, no retry, answ
     await page.locator('#cm-yes').click();
     await expect(page.locator('#view-home')).toBeVisible();
     expect(errors).toEqual([]);
+  } finally { await student.close(); }
+});
+
+test('C9 Explanation on an open question asks first, counts it wrong once, and lays reading out in one column', async ({ browser }) => {
+  test.setTimeout(120000);
+  const student = await newUserContext(browser, 'e2e-student-4', { viewport: SIZES['1366x768'] });
+  try {
+    const page = await student.newPage();
+    const before = await snapshot(student);
+    await startPractice(page);
+    expect(await current(page)).toBe(RW);
+    // Cancel: nothing recorded, nothing revealed.
+    await page.locator('#bank-explain').click();
+    await expect(page.locator('#bank-stuck-dialog')).toContainText('This question will count as wrong.');
+    await page.locator('#bank-stuck-cancel').click();
+    await expectNoLeak(page, { marker: 'E2E_EXPL_MARKER_RW' });
+    // Confirm: one wrong attempt, the answer shown, the panel open on the left, the stage stacked beside it.
+    await page.locator('#bank-explain').click();
+    await page.locator('#bank-stuck-confirm').click();
+    await expect(page.locator('#bank-verdict')).toContainText('Correct answer: A');
+    await expect(page.locator('#bank-reveal')).toContainText('E2E_EXPL_MARKER_RW');
+    await expect(choiceBox(page, 'A')).toHaveClass(/right/);
+    await expect(page.locator('#bank-card')).toHaveClass(/stage-stacked/);
+    const panel = await page.locator('#bank-reveal').boundingBox(), column = await page.locator('#bank-card').boundingBox();
+    expect(column.x, 'the question sits right of the panel').toBeGreaterThanOrEqual(panel.x + panel.width);
+    await shot(page, 'C9-stuck-1366x768');
+    await expect.poll(async () => (await attemptsSince(student, before, [RW])).length).toBe(1);
+    expect((await attemptsSince(student, before, [RW]))[0]).toMatchObject({ correct: 0, picked: null });   // nothing picked: stored as null
+    expect((await progressOf(student, RW)).marker).toBe('Red');
+    // Closing it returns the passage to its side; on a closed question Explanation reopens it without asking.
+    await page.locator('#bank-expl-close').click();
+    await expect(page.locator('#bank-card')).not.toHaveClass(/stage-stacked/);
+    await page.locator('#bank-explain').click();
+    await expect(page.locator('#bank-stuck-dialog')).not.toBeVisible();
+    await expect(page.locator('#bank-reveal')).toBeVisible();
+    // A question already given up records nothing more.
+    await page.waitForTimeout(500);
+    expect(await attemptsSince(student, before, [RW])).toHaveLength(1);
   } finally { await student.close(); }
 });

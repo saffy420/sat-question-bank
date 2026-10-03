@@ -222,12 +222,12 @@ export function noBoxReport(page) {
       const circle = radius.every(v => v.endsWith('%') ? parseFloat(v) >= 50 : parseFloat(v) >= Math.min(r.width, r.height) / 2 - 0.5) && Math.abs(r.width - r.height) < 2;
       if (circle && (bottom > 0 || alpha(cs.backgroundColor) > 0.02) && !el.matches(solid)) problems.push(`${name}: a circle`);
     }
-    // The cross-out control: no bordered circle, no box.
-    for (const el of root.querySelectorAll('.stage-strike, .stage-strike-letter')) {
+    // The cross-out control: a plain button around Bluebook's outlined letter circle, never a box or a filled circle.
+    for (const el of root.querySelectorAll('.stage-strike')) {
       const cs = getComputedStyle(el);
-      for (const side of ['Top', 'Right', 'Bottom', 'Left']) if (parseFloat(cs[`border${side}Width`]) > 0 && cs[`border${side}Style`] !== 'none') problems.push(`.${el.className.trim().split(/\s+/)[0]}: border-${side.toLowerCase()}`);
-      if (/50%/.test(cs.borderTopLeftRadius) && alpha(cs.backgroundColor) > 0.02) problems.push(`.${el.className.trim().split(/\s+/)[0]}: filled circle`);
+      for (const side of ['Top', 'Right', 'Bottom', 'Left']) if (parseFloat(cs[`border${side}Width`]) > 0 && cs[`border${side}Style`] !== 'none') problems.push(`.stage-strike: border-${side.toLowerCase()}`);
     }
+    for (const el of root.querySelectorAll('.stage-strike-letter')) if (alpha(getComputedStyle(el).backgroundColor) > 0.02) problems.push('.stage-strike-letter: filled circle');
     return { checked, problems };
   }, SOLID_PILLS);
 }

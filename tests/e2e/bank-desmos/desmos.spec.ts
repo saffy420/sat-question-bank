@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
-import { MATH, startPractice, current, goTo, primary, choice } from '../bank-bluebook/support';
+import { MATH, startPractice, current, goTo, primary, choice, openExplanation } from '../bank-bluebook/support';
 
 // bank-desmos: the Prepzy community Desmos solution in the practice player. Seeded for e2e-core-math only
 // (tools/e2e_core.sql); its answer is C.
@@ -21,11 +21,11 @@ test('the Desmos solution appears only once the question is closed, and loads on
     await expect(page.locator('#bank-status')).toBeVisible();
     await expect(page.locator('#bank-desmos')).toHaveCount(0);
     expect(await page.locator('#bank-live').innerText()).not.toMatch(/desmos solution|via prepzy/i);
-    // Right answer closes it: the button shows, but nothing is fetched until it is pressed.
+    // Right answer closes it: the explanation panel offers Desmos, but nothing is fetched until it is pressed.
     await choice(page, 'C').click();
     await primary(page).click();
-    await expect(page.locator('#bank-reveal')).toBeVisible();
-    await expect(page.locator('#bank-desmos-open')).toHaveText('Desmos solution');
+    await openExplanation(page);
+    await expect(page.locator('#bank-desmos-open')).toHaveText('Desmos');
     expect(fetches).toEqual([]);
     await page.locator('#bank-desmos-open').click();
     await expect(page.locator('#bank-desmos-calc[data-ready="true"]')).toBeVisible({ timeout: 30000 });
@@ -33,6 +33,11 @@ test('the Desmos solution appears only once the question is closed, and loads on
     await expect(page.locator('#bank-desmos-calc .dcg-graph-outer, #bank-desmos-calc canvas').first()).toBeVisible();
     expect(fetches.length).toBe(1);
     await page.locator('#bank-reveal').screenshot({ path: test.info().outputPath('bank-desmos.png') });
+    // The header button swaps back to the text explanation.
+    await expect(page.locator('#bank-desmos-open')).toHaveText('Explanation');
+    await page.locator('#bank-desmos-open').click();
+    await expect(page.locator('#bank-verdict')).toContainText('Correct');
+    await expect(page.locator('#bank-desmos')).toHaveCount(0);
     // The next question has no solution: nothing offered, closed or not.
     await primary(page).click();
     await expect(page.locator('#bank-card[data-ready="true"]')).toBeVisible();

@@ -74,6 +74,9 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   const [navOpen, setNavOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [explOpen, setExplOpen] = useState(false);
+  // The explanation panel shows the text or, when the question has one, the Desmos solution.
+  const [desmosView, setDesmosView] = useState(false);
+  const [stuck, setStuck] = useState(false);
   const [directions, setDirections] = useState(false);
   const [exit, setExit] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -94,6 +97,9 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   const canCheck = !set && active && (q.spr ? GRID_VALUE.test(value) : !!value && !model.missed.includes(value));
   const label = canCheck ? 'Check' : set && last ? (set.final ? 'Finish set' : 'Next section') : last ? 'Finish' : 'Next';
   const closeMore = () => document.querySelector('#bank-live .lesson-more')?.removeAttribute('open');
+  // One left dock at a time: the explanation panel takes the calculator's slot.
+  const showExpl = () => { setExplOpen(true); if (calc.open) calc.toggle(); };
+  const explShown = explOpen && model.closed;
 
   const select = (letter: string) => {
     if (q.spr || !active || model.missed.includes(letter)) return;
@@ -125,9 +131,9 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   // Never while it is open, and never after a right first try.
   useLayoutEffect(() => {
     const p = prev.current;
-    if (p.id !== q.id) setExplOpen(false);
-    else if (!p.closed && model.closed && model.missed.length && model.noteOnMiss) { setExplOpen(true); setNotesOpen(true); }
-    else if (!p.closed && model.closed && model.explainOnClose) setExplOpen(true);
+    if (p.id !== q.id) { setExplOpen(false); setDesmosView(false); }
+    else if (!p.closed && model.closed && model.missed.length && model.noteOnMiss) { showExpl(); setNotesOpen(true); }
+    else if (!p.closed && model.closed && model.explainOnClose) showExpl();
     prev.current = { id: q.id, closed: model.closed };
   }, [q.id, model.closed]);
   // The explanation only exists in the page once the question is closed.
@@ -135,9 +141,9 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
     if (!explanation.current || !model.closed) return;
     explanation.current.innerHTML = q.explanation_html || '<p>No explanation available for this question.</p>';
     bridge.mathify(explanation.current);
-  }, [model.closed, q.id, q.explanation_html]);
+  }, [model.closed, q.id, q.explanation_html, explShown, desmosView]);
   // A status that just appeared is brought on screen below a long passage.
-  const status = model.closed ? '.bank-reveal' : model.missed.length ? '.bank-status' : '';
+  const status = !model.closed && model.missed.length ? '.bank-status' : '';
   useLayoutEffect(() => { if (status) document.querySelector(`#bank-live ${status}`)?.scrollIntoView({ block: 'nearest' }); }, [status, q.id, model.missed.length]);
 
   const keys = useRef({ q, model, active, select, keepDraft });
@@ -158,6 +164,7 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   const exitDialog = useModal(exit, () => setExit(false));
   const exportDialog = useModal(!!exported, () => setExported(''));
   const endDialog = useModal(ending, () => setEnding(false));
+  const stuckDialog = useModal(stuck, () => setStuck(false));
   const over = time.over ? '#bd2424' : undefined;
   const targetSec = Math.round(targetOf(q) / 1000);
   const info: [string, string | undefined][] = [['Domain', q.domain], ['Skill', q.skill], ['Difficulty', q.difficulty], ['Source', q.source || 'CollegeBoard'], ['ID', q.id]];
@@ -181,19 +188,19 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
         <span className="bank-timer-actions"><HideButton hidden={hiddenClock} onToggle={() => hideClock(!hiddenClock)}/>{!set && <button id="bank-pause" onClick={bridge.pause}>{model.paused ? 'Resume' : 'Pause'}</button>}</span></div>
       <nav className="lesson-tools" aria-label="Practice tools">
         <button id="bank-dashboard" onClick={() => setExit(true)}><House aria-hidden="true"/><span>Dashboard</span></button>
-        {calc.math && <button id="bank-calc-toggle" aria-pressed={calc.open} onClick={calc.toggle}><Calculator aria-hidden="true"/><span>Calculator</span></button>}
+        {calc.math && <button id="bank-calc-toggle" aria-pressed={calc.open} onClick={() => { if (!calc.open) setExplOpen(false); calc.toggle(); }}><Calculator aria-hidden="true"/><span>Calculator</span></button>}
         <button id="bank-annotate" aria-pressed={privateOn} onClick={() => setPrivateOn(!privateOn)}><Highlighter aria-hidden="true"/><span>Annotate</span></button>
         <button id="bank-notes-toggle" aria-pressed={notesOpen} onClick={() => setNotesOpen(!notesOpen)}><NotebookPen aria-hidden="true"/><span>Notes</span></button>
         <More>
           <button id="bank-clear-eliminations" onClick={() => { setOwnStruck([]); closeMore(); }}><Eraser aria-hidden="true"/>Clear eliminations</button>
           <button id="bank-clear-marks" onClick={() => { setPrivateMarks(all => ({ ...all, [q.id]: [] })); closeMore(); }}><Eraser aria-hidden="true"/>Clear annotations</button>
-          {model.closed && <button id="bank-show-explanation" onClick={() => { setExplOpen(true); closeMore(); setTimeout(() => document.querySelector('#bank-live .bank-reveal')?.scrollIntoView({ block: 'nearest' }), 0); }}><BookOpen aria-hidden="true"/>Show explanation</button>}
+          {model.closed && <button id="bank-show-explanation" onClick={() => { showExpl(); closeMore(); }}><BookOpen aria-hidden="true"/>Show explanation</button>}
           <button id="bank-export" onClick={copy}><Copy aria-hidden="true"/>{copied ? '✓ Copied' : 'Copy for AI'}</button>
           <button id="bank-suggest" onClick={() => { closeMore(); bridge.suggest(); }}><Lightbulb aria-hidden="true"/>Suggest a feature</button>
         </More>
       </nav>
     </header>
-    <main className={`lesson-main bank-main${notesOpen ? ' with-desmos' : ''}${calc.math && calc.open ? ' with-calc' : ''}${model.paused ? ' paused' : ''}`}>
+    <main className={`lesson-main bank-main${notesOpen ? ' with-desmos' : ''}${calc.math && calc.open ? ' with-calc' : ''}${explShown ? ' with-expl' : ''}${model.paused ? ' paused' : ''}`}>
       {model.paused && <p className="bank-paused" role="status">Paused. Press Resume to continue.</p>}
       <div className="bank-stage">
         <Stage key={q.id} id="bank-card" question={q} number={model.index + 1} picked={q.spr ? draft : model.picked} active={active}
@@ -201,27 +208,38 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
           onReport={card => bridge.report({ questionId: q.id, element: card })} flagged={model.flagged} onFlag={bridge.flag}
           onSelect={select} onDraft={q.spr ? setDraft : undefined} onCommit={q.spr && active ? v => { if (v) bridge.commit(v); } : undefined} onEnter={() => { if (canCheck) primary(); }} noPick
           strikeMode={strikeMode} struck={ownStruck} onStrikeMode={() => setStrikeMode(!strikeMode)} onStrike={strike}
-          privateMarks={ownMarks} annotating={privateOn}
+          privateMarks={ownMarks} annotating={privateOn} stacked={explShown}
           onPrivate={privateOn ? mark => setPrivateMarks(all => ({ ...all, [q.id]: [...(all[q.id] || []), mark] })) : undefined}/>
       </div>
       {open && missedNote && <p className="bank-status" id="bank-status" role="status"><X size={18} aria-hidden="true"/>{q.spr ? 'Not right. Try again.' : 'Not quite. Choose another answer.'}</p>}
       {open && q.spr && model.missed.length >= SHOW_ANSWER_AFTER && <button id="bank-show-answer" className="bank-show" onClick={bridge.showAnswer}>Show answer</button>}
-      {model.closed && <section className="lesson-reveal bank-reveal" id="bank-reveal">
-        <div className={`lesson-verdict${model.shown ? ' shown' : ''}`} id="bank-verdict">
-          {model.unscored ? <span>Not auto-scored: this question has no stored answer. See the explanation.</span>
-            : model.shown ? <><X aria-label="Answer shown"/><span>Correct answer: {q.answer}</span></>
-            : <><Check aria-label="Correct"/><span>Correct</span></>}
-        </div>
-        <details open={explOpen} onToggle={e => setExplOpen(e.currentTarget.open)}><summary>Official explanation</summary><div ref={explanation}/></details>
-        {/* Inside the closed-question section only: it never shows before the question is answered or revealed. */}
-        {q.has_desmos ? <DesmosSolution key={q.id} questionId={q.id} load={bridge.desmosSolution}/> : null}
-        <details><summary>Question info</summary><dl className="bank-info">{info.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v || '—'}</dd></div>)}</dl></details>
-      </section>}
       {model.note && <button className="bank-note-chip" id="bank-note-chip" onClick={() => setNotesOpen(true)}><b>Your note</b>{model.note}</button>}
     </main>
+    {/* Left dock, the calculator's slot. Only once the question is closed: it never shows before it is answered or revealed. */}
+    {explShown && <aside className="bank-expl" id="bank-reveal" aria-label={desmosView ? 'Desmos solution' : 'Explanation'}>
+      <div className="lesson-desmos-bar bank-expl-bar">
+        <strong>{desmosView ? 'Desmos solution' : 'Explanation'}</strong>
+        <span>
+          {q.has_desmos ? <button id="bank-desmos-open" onClick={() => setDesmosView(!desmosView)}>{desmosView ? 'Explanation' : 'Desmos'}</button> : null}
+          <button id="bank-expl-close" className="bank-expl-x" aria-label="Close explanation" onClick={() => setExplOpen(false)}><X aria-hidden="true"/></button>
+        </span>
+      </div>
+      {desmosView ? <DesmosSolution key={q.id} questionId={q.id} load={bridge.desmosSolution}/>
+        : <div className="bank-expl-body">
+          <div className={`lesson-verdict${model.shown ? ' shown' : ''}`} id="bank-verdict">
+            {model.unscored ? <span>Not auto-scored: this question has no stored answer. See the explanation.</span>
+              : model.shown ? <><X aria-label="Answer shown"/><span>Correct answer: {q.answer}</span></>
+              : <><Check aria-label="Correct"/><span>Correct</span></>}
+          </div>
+          <details><summary>Question info</summary><dl className="bank-info">{info.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v || '—'}</dd></div>)}</dl></details>
+          <div className="bank-expl-text" ref={explanation}/>
+        </div>}
+    </aside>}
     {notesOpen && <Notes qid={q.id} value={model.note} onSave={bridge.saveNote} onClose={() => setNotesOpen(false)}/>}
     <footer className="lesson-footer bank-footer">
-      <span>{model.name}</span>
+      {/* A Study Plan set has no Check, so an explanation would give its answers away. */}
+      {set ? <span/> : <button id="bank-explain" className="bank-explain" aria-pressed={explShown} disabled={model.paused}
+        onClick={() => !model.closed ? setStuck(true) : explShown ? setExplOpen(false) : showExpl()}><BookOpen aria-hidden="true"/><span className="bank-explain-label">Explanation</span></button>}
       <PositionPill id="bank-nav" panelId="bank-navigator" label={`Question ${model.index + 1} of ${model.total}`} open={navOpen} onToggle={() => setNavOpen(!navOpen)}>
         {set ? <p className="self-legend"><span className="self-key answered"/>Answered <Flag aria-hidden="true"/>Marked</p>
           : <p className="self-legend"><span className="self-key correct"/>Correct <span className="self-key wrong"/>Wrong <span className="self-key corrected"/>Corrected <Flag aria-hidden="true"/>Marked</p>}
@@ -247,6 +265,10 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
     {set && <dialog className="lesson-confirm-dialog" id="bank-end-dialog" {...endDialog}>
       <p>{set.endText}{set.unanswered ? ` ${set.unanswered} question${set.unanswered === 1 ? ' is' : 's are'} unanswered and will count as wrong.` : ''}</p>
       <div><button id="bank-end-cancel" onClick={() => setEnding(false)}>Keep working</button><button id="bank-end-confirm" className="lesson-submit" onClick={() => { setEnding(false); bridge.endSegment(); }}>{set.final ? 'Finish set' : 'Start next section'}</button></div>
+    </dialog>}
+    {!set && <dialog className="lesson-confirm-dialog" id="bank-stuck-dialog" {...stuckDialog}>
+      <p>Showing the explanation reveals the answer. This question will count as wrong.</p>
+      <div><button id="bank-stuck-cancel" onClick={() => setStuck(false)}>Cancel</button><button id="bank-stuck-confirm" className="lesson-submit" onClick={() => { setStuck(false); bridge.giveUp(); showExpl(); }}>Show explanation</button></div>
     </dialog>}
     <dialog className="lesson-confirm-dialog bank-export" id="bank-export-dialog" {...exportDialog}>
       <p>Copy this into your AI assistant</p>

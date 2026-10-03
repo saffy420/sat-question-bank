@@ -170,6 +170,8 @@ export type BankBridge = {
   // Check the pick, or the SPR value.
   check: (value?: string) => void;
   showAnswer: () => void;
+  // "Explanation" on an open question: counts as wrong (once), then closes it with the answer shown.
+  giveUp: () => void;
   next: () => void;
   back: () => void;
   goto: (index: number) => void;
