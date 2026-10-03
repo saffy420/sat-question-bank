@@ -99,6 +99,17 @@ CREATE TABLE IF NOT EXISTS saved_questions (
   PRIMARY KEY (user_id, question_id)
 );
 
+-- 0015_desmos_solutions.sql: community Desmos solutions imported from Prepzy (tools/desmos/),
+-- at most one per core question; AI questions have none.
+CREATE TABLE IF NOT EXISTS desmos_solutions (
+  question_id TEXT PRIMARY KEY,
+  state_json TEXT NOT NULL,
+  credit_name TEXT,
+  source TEXT NOT NULL DEFAULT 'prepzy',
+  source_fingerprint TEXT,
+  imported_at TEXT
+);
+
 -- The ids of the AI bank, whose rows live in a second D1 database. D1 cannot join
 -- across databases, so this registry is what lets the progress/attempts/notes write
 -- guards stay exact for a question `questions` has never heard of.

@@ -5,6 +5,7 @@ import { Check, X, Highlighter, House, Calculator, NotebookPen, Copy, Eraser, Li
 import { Stage } from './Stage';
 import { CalculatorShell, useCalculator } from './Calculator';
 import { HideButton, More, PositionPill, QuestionGrid } from './Chrome';
+import { DesmosSolution } from './Desmos';
 import { targetOf } from '/shared/stats.js';
 import { SHOW_ANSWER_AFTER } from './record';
 import type { BankBridge, BankModel, Mark } from './types';
@@ -212,6 +213,8 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
             : <><Check aria-label="Correct"/><span>Correct</span></>}
         </div>
         <details open={explOpen} onToggle={e => setExplOpen(e.currentTarget.open)}><summary>Official explanation</summary><div ref={explanation}/></details>
+        {/* Inside the closed-question section only: it never shows before the question is answered or revealed. */}
+        {q.has_desmos ? <DesmosSolution key={q.id} questionId={q.id} load={bridge.desmosSolution}/> : null}
         <details><summary>Question info</summary><dl className="bank-info">{info.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v || '—'}</dd></div>)}</dl></details>
       </section>}
       {model.note && <button className="bank-note-chip" id="bank-note-chip" onClick={() => setNotesOpen(true)}><b>Your note</b>{model.note}</button>}

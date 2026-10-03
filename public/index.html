@@ -2725,7 +2725,14 @@ const bankBridge = {
   saveNote(id, body) { saveNote(id, body); queueMicrotask(bankDraw); },
   exportText: () => exportPrompt(curQ()),
   report({ questionId, element }) { Report.openReport({ questionId, seenIn: 'bank', element, send: postJSON }); },
-  suggest() { Report.openSuggest({ send: postJSON }); }
+  suggest() { Report.openSuggest({ send: postJSON }); },
+  // Fetched on demand only: the bank body's has_desmos already said a solution exists.
+  async desmosSolution(id) {
+    const r = await fetch('/api/desmos/' + encodeURIComponent(id), { headers: await sbHeaders() });
+    if (!r.ok) throw new Error(r.status === 404 ? 'No Desmos solution for this question.' : 'Could not load the Desmos solution. Try again.');
+    const b = await r.json();
+    return { state: JSON.parse(b.state_json), credit: b.credit_name || null, key: b.desmosKey || null };
+  }
 };
 const bankUI = mountBank($('bank-content'), bankBridge);
 
