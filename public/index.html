@@ -2759,7 +2759,7 @@ function bankDraw() {
     question: q, index: S.i, total: S.items.length,
     picked: (closed ? S.ans[q.id] : S.sel[q.id]) || '',
     missed: S.miss[q.id] || [],
-    closed, unscored: closed && isRight(q, S.ans[q.id]) === null, shown: !!S.shown[q.id],
+    closed, unscored: closed && !String(q.answer || '').trim(), shown: !!S.shown[q.id],
     flagged: !!S.flags[q.id],
     cells: S.items.map(x => ({ id: x.id, state: BANK_STATE[outcome(S, x, PROG[x.id] && PROG[x.id].marker, isRight)], flagged: !!S.flags[x.id] })),
     paused: S.paused, note: NOTES[q.id] || '', noteOnMiss: !!SET.noteOnWrong,
@@ -2781,6 +2781,13 @@ const bankBridge = {
     if (!S || !REC.showAnswer(S, curQ())) return;
     if (S.session) saveSession(reviewState);
     bankDraw();
+  },
+  // "Explanation" on an open question: a wrong first try unless a wrong Check already recorded one; then closed.
+  giveUp() {
+    const q = curQ();
+    if (!S || S.set) return;
+    const res = REC.giveUp(S, q);
+    if (res) afterCheck(q, res);
   },
   next: () => { if (S) bankNext(); },
   back() { if (S && S.i > 0) { S.i--; loadQuestion(); } },

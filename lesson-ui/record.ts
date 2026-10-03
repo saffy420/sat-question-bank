@@ -133,14 +133,34 @@ export function createRecorder(env: Env) {
     return true;
   }
 
-  return { recordProgress, recordAttempt, check, showAnswer };
+  // "Explanation" on an open question (I'm stuck): it counts as wrong. Nothing recorded yet records a wrong first try
+  // with the time up to now; a wrong Check already recorded stays the only record. Then the question closes, answer shown.
+  function giveUp(S: PracticeState, q: Question, now = Date.now()): CheckResult | null {
+    const id = q.id;
+    if (S.checked[id]) return null;
+    const scored = !!String(q.answer || '').trim();
+    const first = !S.tried[id];
+    S.tried[id] = true;
+    (S.shown ||= {})[id] = true;
+    S.checked[id] = true;
+    if (!scored) return { ok: null, first, closed: true, recorded: false };
+    if (first) {
+      (S.first ||= {})[id] = false;
+      const ts = new Date(now).toISOString(), ms = Math.round(now - S.qStart);
+      recordProgress(q, false, ts, ms);
+      recordAttempt(q, false, ts, ms, '', S.changes[id], S.history?.[id]);
+    }
+    return { ok: false, first, closed: true, recorded: first };
+  }
+
+  return { recordProgress, recordAttempt, check, showAnswer, giveUp };
 }
 
 // The first-try verdict. Sessions saved before the first-try rule carry only ans/checked, so fall back to those.
 export function firstTry(S: PracticeState, q: Question, isRight: StatsFns['isRight']): boolean | undefined {
   const v = S.first?.[q.id];
   if (v !== undefined) return v;
-  if (!S.checked[q.id]) return undefined;
+  if (!S.checked[q.id] || !String(q.answer || '').trim()) return undefined;
   const ok = isRight(q, S.ans[q.id]);
   return ok === null ? undefined : ok;
 }

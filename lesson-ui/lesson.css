@@ -67,6 +67,10 @@
 .lesson-stage.stage-figure .stage-passage img { display:block; margin-inline:auto; }
 .lesson-stage .stage-question { padding:0 0 35px clamp(20px, 3vw, 56px); }
 .lesson-stage.stage-single .stage-question { width:min(100%, var(--column)); margin:0 auto; padding:0 0 35px; }
+/* Stacked (the bank's explanation panel is open): the narrow layout below at any width. */
+.lesson-stage.stage-split.stage-stacked { grid-template-columns:minmax(0,1fr); }
+.lesson-stage.stage-stacked .stage-passage { padding:0 0 24px; border-bottom:2px solid #cfcfcf; }
+.lesson-stage.stage-split.stage-stacked .stage-question { padding:24px 0 35px; border-left:0; }
 @container (max-width: 720px) {
   .lesson-stage.stage-split { grid-template-columns:minmax(0,1fr); }
   .lesson-stage .stage-passage { padding:0 0 24px; border-bottom:2px solid #cfcfcf; }
@@ -90,10 +94,13 @@
 .lesson-stage .stage-strip::after { content:''; position:absolute; left:0; right:0; bottom:-8px; height:2px; background:var(--lesson-dashes); }
 .lesson-stage .stage-strip>span { display:inline-block; min-width:calc(var(--u) * 2.3); padding:0 7px; color:#fff; background:#161616; text-align:center; }
 .lesson-stage .stage-strip .stage-strike-toggle, :is(#lesson-live, #bank-live) .lesson-stage .stage-strip .stage-strike-toggle { margin:0 calc(var(--u) * .5) 0 auto; padding:0 calc(var(--u) * .7); height:calc(var(--u) * 1.7); border:0; border-bottom:2px solid transparent; border-radius:0; background:none; color:#171717; font:700 calc(var(--u) * .85)/1 'Lesson Sans',sans-serif; letter-spacing:.02em; cursor:pointer; -webkit-user-select:none; user-select:none; }
-.lesson-stage .stage-strike-toggle s { text-decoration-thickness:2px; }
+/* Bluebook's cross-out icon: ABC under a diagonal slash in a rounded square, filled accent blue while the tool is on. */
+.lesson-stage .stage-strike-icon { position:relative; display:inline-flex; align-items:center; justify-content:center; height:calc(var(--u) * 1.6); padding:0 calc(var(--u) * .3); border:1.5px solid currentColor; border-radius:calc(var(--u) * .4); background:#fff; font:700 calc(var(--u) * .8)/1 'Lesson Sans',sans-serif; letter-spacing:-.02em; }
+.lesson-stage .stage-strike-icon::after { content:''; position:absolute; inset:2px; background:linear-gradient(to top right, transparent calc(50% - .75px), currentColor calc(50% - .75px), currentColor calc(50% + .75px), transparent calc(50% + .75px)); }
+.lesson-stage .stage-strike-toggle[aria-pressed=true] .stage-strike-icon { background:#2345be; border-color:#2345be; color:#fff; }
 .lesson-stage .stage-strip .stage-report, :is(#lesson-live, #bank-live) .lesson-stage .stage-strip .stage-report { margin:0 0 0 10px; padding:0 8px; height:26px; border:1.5px solid #171717; border-radius:5px; background:#fff; color:#171717; font:700 12px/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
 .lesson-stage .stage-strip .stage-report:hover { background:#f0f0f0; }
-.lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true], :is(#lesson-live, #bank-live) .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true] { background:none; border-bottom-color:#2345be; color:#2345be; }
+.lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true], :is(#lesson-live, #bank-live) .lesson-stage .stage-strip .stage-strike-toggle[aria-pressed=true] { background:none; border-bottom-color:transparent; }
 :is(#lesson-live, #bank-live) .lesson-stage .stage-strip .stage-strike-toggle:hover { background:none; }
 .lesson-stage p { margin:0 0 calc(var(--fs) * .9); }
 .lesson-stage .passage { margin:0; padding:0; border:0; background:none; font:inherit; max-height:none; overflow:visible; }
@@ -105,13 +112,17 @@
 .lesson-stage .stage-choice { display:flex; align-items:center; gap:calc(var(--u) * .8); }
 .lesson-stage .stage-choice>[data-lesson-choice] { position:relative; flex:1; min-width:0; }
 .lesson-stage .stage-choice.struck .choice, .lesson-stage .stage-choice.eliminated .choice { opacity:.5; }
-.lesson-stage .stage-choice.struck>[data-lesson-choice]::after, .lesson-stage .stage-choice.eliminated>[data-lesson-choice]::after { content:''; position:absolute; left:-6px; right:-6px; top:50%; height:2px; background:#171717; pointer-events:none; }
+/* The student's own cross-out: a solid line across the whole card. The instructor's (.eliminated): dashed and grey,
+   running past the card, so the two never read alike. */
+.lesson-stage .stage-choice.struck>[data-lesson-choice]::after { content:''; position:absolute; left:0; right:0; top:50%; height:2px; margin-top:-1px; background:#171717; pointer-events:none; }
+.lesson-stage .stage-choice.eliminated>[data-lesson-choice]::after { content:''; position:absolute; left:-6px; right:-6px; top:50%; height:0; border-top:2px dashed #666; pointer-events:none; }
 /* The cross-out control sits outside the row, on the right, as in Bluebook. Its space is always reserved
    so switching the tool on never reflows the text (and never moves ink). */
 .lesson-stage .choices .stage-strike, :is(#lesson-live, #bank-live) .lesson-stage .choices .stage-strike:hover, :is(#lesson-live, #bank-live) .lesson-stage .choices .stage-strike { display:inline-flex; visibility:hidden; flex:none; align-items:center; justify-content:center; width:calc(var(--u) * 2.4); height:calc(var(--u) * 2.4); margin:0; padding:0; border:0; background:none; color:#171717; font:calc(var(--u) * .95)/1 'Lesson Sans',sans-serif; cursor:pointer; -webkit-user-select:none; user-select:none; }
 .lesson-stage.strike-on .choices .stage-strike, :is(#lesson-live, #bank-live) .lesson-stage.strike-on .choices .stage-strike { visibility:visible; }
-.lesson-stage .stage-strike-letter { position:relative; display:inline-flex; align-items:center; justify-content:center; min-width:calc(var(--u) * 1.4); height:calc(var(--u) * 1.9); border:0; font-size:calc(var(--u) * 1.05); }
-.lesson-stage .stage-strike-letter::after { content:''; position:absolute; left:-3px; right:-3px; top:50%; height:1.5px; background:#171717; }
+/* A circled letter with a horizontal line through it, the line running past the circle (Bluebook). */
+.lesson-stage .stage-strike-letter { position:relative; display:inline-flex; align-items:center; justify-content:center; width:calc(var(--u) * 1.6); height:calc(var(--u) * 1.6); border:1.5px solid #171717; border-radius:50%; font:700 calc(var(--u) * .85)/1 'Lesson Sans',sans-serif; }
+.lesson-stage .stage-strike-letter::after { content:''; position:absolute; left:-5px; right:-5px; top:50%; height:1.5px; margin-top:-.75px; background:#171717; }
 .lesson-stage .stage-strike-undo { display:none; font-weight:700; text-decoration:underline; font-size:calc(var(--u) * .8); }
 .lesson-stage .stage-strike[aria-pressed=true] .stage-strike-letter { display:none; }
 .lesson-stage .stage-strike[aria-pressed=true] .stage-strike-undo { display:inline; }

@@ -115,6 +115,46 @@ test('an unscorable question (no stored answer) closes and records nothing', () 
   assert.equal(outcome(S, NOKEY, undefined, stats.isRight), 'unscored');
 });
 
+test('giveUp before any Check: one wrong first try timed to now, then closed with the answer shown', () => {
+  const { rec, S, prog, log, savedLog, T0 } = setup();
+  pick(S, MC, 'A', T0 + 1000);
+  assert.deepEqual(rec.giveUp(S, MC, T0 + 7000), { ok: false, first: true, closed: true, recorded: true });
+  assert.equal(S.checked.mc, true);
+  assert.equal(S.shown!.mc, true);
+  assert.equal(log.length, 1);
+  assert.equal(savedLog.length, 1);
+  assert.deepEqual({ c: log[0].correct, t: log[0].time_taken_ms, p: log[0].picked }, { c: 0, t: 7000, p: '' });
+  assert.equal(prog.mc.marker, 'Red');
+  assert.equal(outcome(S, MC, prog.mc.marker, stats.isRight), 'wrong');
+  assert.equal(rec.giveUp(S, MC, T0 + 9000), null, 'a closed question cannot be given up again');
+  assert.equal(log.length, 1);
+});
+
+test('giveUp after a wrong Check records nothing new', () => {
+  const { rec, S, prog, log, T0 } = setup();
+  pick(S, MC, 'A', T0 + 100); rec.check(S, MC, T0 + 2000);
+  assert.deepEqual(rec.giveUp(S, MC, T0 + 9000), { ok: false, first: false, closed: true, recorded: false });
+  assert.equal(log.length, 1);
+  assert.equal(log[0].picked, 'A');
+  assert.equal(log[0].time_taken_ms, 2000);
+  assert.equal(prog.mc.attempts, 1);
+  assert.equal(S.checked.mc, true);
+  assert.equal(firstTry(S, MC, stats.isRight), false);
+});
+
+test('giveUp on a grid-in closes it without three misses; on an unscorable question it records nothing', () => {
+  const a = setup();
+  assert.equal(a.rec.giveUp(a.S, SPR, a.T0 + 500)!.recorded, true);
+  assert.equal(a.S.checked.spr, true);
+  assert.equal(a.prog.spr.marker, 'Red');
+  const b = setup();
+  assert.deepEqual(b.rec.giveUp(b.S, NOKEY, b.T0), { ok: null, first: true, closed: true, recorded: false });
+  assert.equal(b.S.checked.nokey, true);
+  assert.equal(b.log.length, 0);
+  assert.deepEqual(b.prog, {});
+  assert.equal(outcome(b.S, NOKEY, undefined, stats.isRight), 'unscored');
+});
+
 test('Check with nothing picked does nothing', () => {
   const { rec, S, log } = setup();
   assert.equal(rec.check(S, MC), null);

@@ -142,8 +142,10 @@ test.describe('student view proportions', () => {
         }));
         expect(rows.map(x => x.letter), where).toEqual(['A', 'B', 'C', 'D']);
         // The cross-out control has no bordered circle or box, and no button of the screen is boxed, filled or round (pills aside).
-        const strikeStyle = await page.locator('#lesson-card .stage-strike-letter').first().evaluate(el => { const cs = getComputedStyle(el); return { borders: ['Top', 'Right', 'Bottom', 'Left'].map(s => cs[`border${s}Width`]), bg: cs.backgroundColor }; });
-        expect(strikeStyle.borders, `${where} cross-out letter has no circle`).toEqual(['0px', '0px', '0px', '0px']);
+        // Bluebook's cross-out letter: an outlined (unfilled) circle with a line through it.
+        const strikeStyle = await page.locator('#lesson-card .stage-strike-letter').first().evaluate(el => { const cs = getComputedStyle(el); return { borders: ['Top', 'Right', 'Bottom', 'Left'].map(s => cs[`border${s}Width`]), radius: cs.borderTopLeftRadius, bg: cs.backgroundColor }; });
+        expect(strikeStyle.borders.every(w => parseFloat(w) >= 1), `${where} cross-out letter in a circle`).toBe(true);
+        expect(strikeStyle.radius, where).toBe('50%');
         expect(strikeStyle.bg, where).toBe('rgba(0, 0, 0, 0)');
         await page.mouse.move(2, 2);
         expect((await noBoxReport(page)).problems, `${where} boxed, filled or circular buttons`).toEqual([]);

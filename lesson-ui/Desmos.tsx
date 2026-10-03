@@ -132,17 +132,17 @@ export function DesmosSolution({ questionId, load }: { questionId: string; load:
   const [solution, setSolution] = useState<Solution | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
-  const open = () => {
+  // Mounted only when the student asks for it (the explanation panel's Desmos toggle), so this is still a fetch on click.
+  useEffect(() => {
+    let alive = true;
     setLoading(true); setError('');
-    load(questionId).then(s => { if (alive.current) setSolution(s); })
-      .catch((e: Error) => { if (alive.current) setError(e.message || 'Could not load the Desmos solution.'); })
-      .finally(() => { if (alive.current) setLoading(false); });
-  };
+    load(questionId).then(s => { if (alive) setSolution(s); })
+      .catch((e: Error) => { if (alive) setError(e.message || 'Could not load the Desmos solution.'); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [questionId]);
   return <div className="bank-desmos" id="bank-desmos">
-    {solution ? <SolutionGraph apiKey={solution.key} state={solution.state}/>
-      : <button id="bank-desmos-open" onClick={open} disabled={loading}>{loading ? 'Loading Desmos solution…' : 'Desmos solution'}</button>}
+    {solution ? <SolutionGraph apiKey={solution.key} state={solution.state}/> : loading ? <p>Loading Desmos solution…</p> : null}
     {error ? <p role="alert" className="bank-desmos-error">{error}</p> : null}
     {solution ? <p className="bank-desmos-credit" id="bank-desmos-credit">{solution.credit ? `Solution by ${solution.credit} via Prepzy` : 'Solution via Prepzy'}</p> : null}
   </div>;

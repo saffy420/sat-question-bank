@@ -54,6 +54,11 @@ export async function expectNoLeak(page, { marker, answerText } = {}) {
   expect(text, 'an explanation heading').not.toMatch(/official explanation/i);
   if (answerText) expect(html).not.toContain(answerText);
 }
+// The explanation panel of a closed question (it opens by itself only after a miss with "Note on a miss", or in review).
+export async function openExplanation(page) {
+  if (!await page.locator('#bank-reveal').count()) await page.locator('#bank-explain').click();
+  await expect(page.locator('#bank-reveal')).toBeVisible();
+}
 export async function exportedText(page) {
   await page.locator('#bank-live .lesson-more summary').click();
   await page.locator('#bank-export').click();
