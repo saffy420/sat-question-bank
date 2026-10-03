@@ -792,12 +792,29 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
 .pl-row label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .pl-route { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 14px; }
 .pl-route > span { font-weight: 600; }
+.pl-mod .pl-route { margin: 0 0 10px; }
 .pl-help, .pl-sum, .pl-warn, .pl-err, .pl-missing { margin: 12px 20px 0; font-size: 14px; }
 .pl-help { color: var(--dim); }
 .pl-warn { color: var(--orange); background: var(--orange-bg); padding: 10px 12px; border-radius: 8px; }
 .pl-err { color: var(--red); min-height: 1px; }
 .pl-err:empty { margin: 0; }
 .pl-missing { color: var(--dim); }
+.pl-upload { padding: 12px 20px 0; font-size: 14px; color: var(--dim); }
+.pl-upload label { color: var(--blue); font-weight: 600; cursor: pointer; text-decoration: underline; }
+.pl-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.pl-upload p { margin: 6px 0 0; color: var(--text); }
+.pl-upload p.bad { color: var(--red); }
+.pl-check { max-width: 760px; margin: 0 0 12px; }
+.pl-ask { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.pl-vers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pl-ver { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--border2); background: var(--panel); color: var(--text); font: inherit; font-size: 14px; line-height: 1.45; cursor: pointer; }
+.pl-ver:hover, .pl-ver:focus-visible { border-color: var(--blue); background: var(--blue-bg); }
+.pl-ver b { font-size: 13px; color: var(--blue); }
+.pl-check-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; font-size: 13px; color: var(--dim); }
+.pl-done { margin: 0 0 10px; font-size: 14px; color: var(--green); }
+.pl-hint { margin: 0 0 10px; font-size: 14px; color: var(--orange); background: var(--orange-bg); padding: 10px 12px; border-radius: 8px; max-width: 736px; }
+.pl-link { background: none; border: 0; padding: 0; color: var(--blue); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+@media (max-width: 600px) { .pl-vers { grid-template-columns: 1fr; } }
 .pl-mod { padding: 14px 20px 0; }
 .pl-mod h4 { margin: 0 0 8px; font-size: 14px; }
 .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; max-width: 760px; }
@@ -3524,11 +3541,43 @@ function openLog(number) {
   const logged = new Set(planState().tests.map(t => t.testId));
   const open = PTMAP.tests.filter(t => !logged.has(t.id));
   const t = open.find(x => x.number === number) || open[0];
-  PLOG = t ? { testId: t.id, date: localDay(), route: defaultRoute(t), marks: {}, error: '' } : { none: true };
+  PLOG = t ? { testId: t.id, date: localDay(), ...freshRoute(t), marks: {}, error: '' } : { none: true };
   PLAN_RESULT = null;
   setTab('plan');
 }
-const defaultRoute = t => ({ RW: Plan.routesOf(t, 'RW')[0] || 'easy', Math: Plan.routesOf(t, 'Math')[0] || 'easy' });
+// Module 2 per section: with both variants mapped, a recognition check (Plan.pickPositions) decides it and the route
+// starts empty; otherwise the radios, on the variant that is mapped.
+const checkPositions = (t, sec) => Plan.routesOf(t, sec).length === 2 ? Plan.pickPositions(t, sec, QBY) : [];
+const freshRoute = t => {
+  const route = {}, check = {}, fromFile = {};
+  for (const sec of Plan.SECTIONS) { check[sec] = []; route[sec] = checkPositions(t, sec).length ? null : Plan.routesOf(t, sec)[0] || 'easy'; }
+  return { route, check, fromFile, upload: null };
+};
+// A resolved route that changes clears that section's module-2 marks, as the radios did.
+const setRoute = (sec, r) => { if (PLOG.route[sec] !== r) delete PLOG.marks[Plan.moduleKey(sec, 2)]; PLOG.route[sec] = r; };
+let PTEXT = null;          // public/practice-tests-ext.json, fetched only when a student picks an export file
+async function readExport(file) {
+  let json;
+  try { json = JSON.parse(await file.text()); } catch (e) { return { error: 'This file is not a My Practice questions.json export.' }; }
+  if (!PTEXT) {
+    try { PTEXT = await (await fetch('/practice-tests-ext.json')).json(); } catch (e) { return { error: 'The practice-test list could not be loaded. Try again.' }; }
+  }
+  return Plan.matchExport(PTMAP, PTEXT, json);
+}
+function applyExport(m) {
+  if (!PLOG || PLOG.none) return;
+  if (m.error) { PLOG.upload = { msg: m.error, bad: true }; return drawLog(); }
+  if (m.testId !== PLOG.testId) {
+    const logged = planState().tests.some(x => x.testId === m.testId);
+    PLOG.upload = { msg: `This export is from ${testName(m.testId)}${logged ? ', which you have already logged.' : ', not the test chosen above.'}`, bad: true, switchTo: logged ? null : m };
+    return drawLog();
+  }
+  const found = Plan.SECTIONS.filter(sec => m.route[sec] && Plan.routesOf(PTMAP.tests.find(x => x.id === m.testId), sec).includes(m.route[sec]));
+  for (const sec of found) { PLOG.fromFile[sec] = m.route[sec]; PLOG.check[sec] = []; setRoute(sec, m.route[sec]); }
+  PLOG.upload = found.length ? { msg: `Found your second ${found.map(s => Plan.SECTION_NAME[s]).join(' and ')} module${found.length > 1 ? 's' : ''} in the export.` }
+    : { msg: 'The export does not show which second modules you took. Answer the questions below instead.', bad: true };
+  drawLog();
+}
 const MARK_NEXT = { '.': 'W', W: 'S', S: '.' };
 const MARK_NAME = { '.': 'right', W: 'wrong', S: 'slow' };
 
@@ -3543,10 +3592,20 @@ function drawLog() {
   }
   const t = PTMAP.tests.find(x => x.id === PLOG.testId);
   const logged = new Set(planState().tests.map(x => x.testId));
+  // Module 2 per section: the export said, the recognition answers settle it, or the radios (one variant mapped).
+  const positions = {}, rec = {};
+  for (const sec of Plan.SECTIONS) {
+    positions[sec] = checkPositions(t, sec);
+    if (!positions[sec].length || PLOG.fromFile[sec]) continue;
+    rec[sec] = Plan.recognize(PLOG.check[sec], positions[sec].length);
+    setRoute(sec, rec[sec].route);
+  }
+  const unresolved = Plan.SECTIONS.filter(sec => !PLOG.route[sec]);
   const mods = Plan.modulesOf(t, PLOG.route);
   const soon = Plan.tooSoon(planState(), PLOG.date);
   let wrong = 0, slow = 0, counted = 0;
   const grid = m => {
+    if (m.module === 2 && !PLOG.route[m.section]) return `<p class="pl-missing">Answer the question above to show this module's questions.</p>`;
     if (!m.ids) return `<p class="pl-missing">This module is not mapped to the question bank yet, so it cannot be logged.</p>`;
     return `<div class="pl-grid">${m.ids.map((id, n) => {
       const c = (PLOG.marks[m.key] || '')[n] || '.', known = !!(id && QBY.has(id));
@@ -3554,30 +3613,76 @@ function drawLog() {
       return `<button class="pl-q" data-m="${m.key}" data-n="${n}" data-mark="${c}"${known ? '' : ' data-unmapped="1" title="Not in the question bank: it can be marked but does not count toward the plan"'} aria-label="Question ${n + 1}, ${MARK_NAME[c]}">${n + 1}</button>`;
     }).join('')}</div>`;
   };
-  const body = mods.map(m => `<div class="pl-mod"><h4>${Plan.SECTION_NAME[m.section]} · Module ${m.module}</h4>${grid(m)}</div>`).join('');
+  // Which module 2: never "easier or harder?". The opening line of question P from both variants, as Version A and B.
+  const routeUi = sec => {
+    const name = Plan.SECTION_NAME[sec], pos = positions[sec];
+    if (!pos.length) return `<div class="pl-route" data-route="${sec}"><span>Your second ${name} module</span>${['easy', 'hard'].map(r =>
+      `<label><input type="radio" name="pl-${sec}" value="${r}"${PLOG.route[sec] === r ? ' checked' : ''}${t[sec][r] ? '' : ' disabled'}> ${r === 'easy' ? 'Easier' : 'Harder'}${t[sec][r] ? '' : ' (not mapped yet)'}</label>`).join('')}</div>`;
+    if (PLOG.fromFile[sec]) return `<div class="pl-m2" data-route="${sec}"><p class="pl-done" data-resolved="file">Found in your export. <button class="pl-link" data-redo>Answer the questions instead</button></p></div>`;
+    const r = rec[sec], asked = PLOG.check[sec].length;
+    if (r.route) return `<div class="pl-m2" data-route="${sec}"><p class="pl-done" data-resolved="check">Got it: your second ${name} module is matched. <button class="pl-link" data-redo>Change my answers</button></p></div>`;
+    if (r.stuck) {
+      const p = pos[Math.max(0, asked - 1)] + 1;
+      return `<div class="pl-m2" data-route="${sec}"><p class="pl-hint" id="pl-hint-${sec}">Not sure? In Bluebook, open ${esc(t.name)} from My Practice and look at its review. Find question ${p} of your second ${name} module, then start over here.</p>
+        <p class="pl-check-foot"><button class="pl-link" data-redo>Start over</button></p></div>`;
+    }
+    const p = pos[asked], order = Plan.versionOrder(t.id, sec, p);
+    const card = (r, v) => `<button class="pl-ver" data-version="${v}"><b>Version ${v}</b><span>${esc(Plan.stemSnippet(QBY.get(t[sec][r][p]).stem_html) || '')}</span></button>`;
+    return `<div class="pl-m2 pl-check" data-route="${sec}" data-pos="${p + 1}">
+      <p class="pl-ask">Which was question ${p + 1} in your second ${name} module?</p>
+      <div class="pl-vers">${card(order[0], 'A')}${card(order[1], 'B')}</div>
+      <p class="pl-check-foot"><button class="pl-link pl-unsure">Not sure</button>${asked ? `<span>Question ${asked + 1} of ${Math.min(asked < 2 ? 2 : 3, pos.length)}</span>` : ''}</p></div>`;
+  };
+  const body = mods.map(m => `<div class="pl-mod"><h4>${Plan.SECTION_NAME[m.section]} · Module ${m.module}</h4>${m.module === 2 ? routeUi(m.section) : ''}${grid(m)}</div>`).join('');
   el.innerHTML = `<div class="panel" id="plan-log-form">
     <div class="panel-h"><h3>Log a Bluebook practice test</h3></div>
     <div class="pl-row">
       <label>Practice test <select id="pl-test">${PTMAP.tests.map(x => `<option value="${esc(x.id)}"${x.id === t.id ? ' selected' : ''}${logged.has(x.id) ? ' disabled' : ''}>${esc(x.name)}${logged.has(x.id) ? ' (logged)' : ''}</option>`).join('')}</select></label>
       <label>Date taken <input type="date" id="pl-date" value="${esc(PLOG.date)}" max="${localDay()}"></label>
     </div>
-    <div class="pl-row">${Plan.SECTIONS.map(sec => `<div class="pl-route" data-route="${sec}"><span>${Plan.SECTION_NAME[sec]} module 2</span>${['easy', 'hard'].map(r =>
-      `<label><input type="radio" name="pl-${sec}" value="${r}"${PLOG.route[sec] === r ? ' checked' : ''}${t[sec][r] ? '' : ' disabled'}> ${r === 'easy' ? 'Easier' : 'Harder'}${t[sec][r] ? '' : ' (not mapped yet)'}</label>`).join('')}</div>`).join('')}</div>
+    <div class="pl-upload">Optional: <label for="pl-file">Upload your My Practice questions.json</label> to find your second modules. It is read in your browser and never sent or saved.<input type="file" id="pl-file" accept=".json,application/json">
+      ${PLOG.upload ? `<p id="pl-upload-msg" class="${PLOG.upload.bad ? 'bad' : ''}" role="status">${esc(PLOG.upload.msg)}${PLOG.upload.switchTo ? ` <button class="pl-link" id="pl-switch">Switch to ${esc(testName(PLOG.upload.switchTo.testId))}</button>` : ''}</p>` : ''}</div>
     <p class="pl-help">Click a question once for <b class="pl-k" data-mark="W">Wrong</b>, again for <b class="pl-k" data-mark="S">Slow</b> (right, but it took you too long), and a third time to clear it. Unmarked questions count as right.</p>
     ${body}
     ${soon === null ? '' : soon < 0 ? `<p class="pl-warn" id="pl-warn">This date is before your last logged test. Plans are built in the order tests are logged, so log tests oldest first. You can still log it.</p>`
       : `<p class="pl-warn" id="pl-warn">Your last logged test was ${soon === 0 ? 'the same day' : `${soon} day${soon === 1 ? '' : 's'} before this one`}. Practice tests work best 5–7 days apart, with a week of drilling in between. You can still log it.</p>`}
     <p class="pl-sum" id="pl-sum">Wrong: <b>${wrong}</b> · Slow: <b>${slow}</b> · ${counted} questions in the bank</p>
+    ${unresolved.length ? `<p class="pl-help" id="pl-wait">Match your second ${unresolved.map(s => Plan.SECTION_NAME[s]).join(' and ')} module above to save.</p>` : ''}
     <p class="pl-err" id="pl-error" role="alert">${esc(PLOG.error || '')}</p>
-    <div class="frow" style="justify-content:flex-end"><button id="pl-cancel">Cancel</button><button class="btn-p" id="pl-save">Save and build my plan</button></div>
+    <div class="frow" style="justify-content:flex-end"><button id="pl-cancel">Cancel</button><button class="btn-p" id="pl-save"${unresolved.length ? ' disabled' : ''}>Save and build my plan</button></div>
   </div>`;
   $('pl-cancel').onclick = cancel;
-  $('pl-test').onchange = e => { const nt = PTMAP.tests.find(x => x.id === e.target.value); Object.assign(PLOG, { testId: nt.id, route: defaultRoute(nt), marks: {}, error: '' }); drawLog(); };
+  $('pl-test').onchange = e => { const nt = PTMAP.tests.find(x => x.id === e.target.value); Object.assign(PLOG, { testId: nt.id, ...freshRoute(nt), marks: {}, error: '' }); drawLog(); };
   $('pl-date').onchange = e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) PLOG.date = e.target.value; drawLog(); };
   el.querySelectorAll('.pl-route input').forEach(r => r.onchange = () => {
     const sec = r.closest('[data-route]').dataset.route;
-    PLOG.route[sec] = r.value; delete PLOG.marks[Plan.moduleKey(sec, 2)]; drawLog();
+    setRoute(sec, r.value); drawLog();
   });
+  const answer = (b, a) => {
+    const sec = b.closest('[data-route]').dataset.route;
+    PLOG.check[sec].push(a);
+    drawLog();
+    el.querySelector(`[data-route="${sec}"] .pl-ver, [data-route="${sec}"] [data-redo]`)?.focus();
+  };
+  el.querySelectorAll('.pl-ver').forEach(b => b.onclick = () => {
+    const sec = b.closest('[data-route]').dataset.route, p = +b.closest('[data-pos]').dataset.pos - 1;
+    answer(b, Plan.versionOrder(t.id, sec, p)[b.dataset.version === 'A' ? 0 : 1]);
+  });
+  el.querySelectorAll('.pl-unsure').forEach(b => b.onclick = () => answer(b, 'unsure'));
+  el.querySelectorAll('[data-redo]').forEach(b => b.onclick = () => {
+    const sec = b.closest('[data-route]').dataset.route;
+    PLOG.check[sec] = []; delete PLOG.fromFile[sec]; drawLog();
+  });
+  if ($('pl-file')) $('pl-file').onchange = async e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (f) applyExport(await readExport(f));
+  };
+  if ($('pl-switch')) $('pl-switch').onclick = () => {
+    const m = PLOG.upload.switchTo, nt = PTMAP.tests.find(x => x.id === m.testId);
+    Object.assign(PLOG, { testId: nt.id, ...freshRoute(nt), marks: {}, error: '' });
+    applyExport(m);
+  };
   el.querySelectorAll('.pl-q').forEach(b => b.onclick = () => {
     const m = b.dataset.m, n = +b.dataset.n, len = mods.find(x => x.key === m).ids.length;
     const cur = (PLOG.marks[m] || '').padEnd(len, '.').split('');
@@ -3595,6 +3700,7 @@ function drawLog() {
 async function saveTestLog() {
   if (planBusy || !PLOG) return;
   const t = PTMAP.tests.find(x => x.id === PLOG.testId);
+  if (Plan.SECTIONS.some(sec => !PLOG.route[sec])) return drawLog();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(PLOG.date) || PLOG.date > localDay()) { PLOG.error = 'Choose the date you took the test (not in the future).'; return drawLog(); }
   const log = { testId: t.id, number: t.number, date: PLOG.date, route: { ...PLOG.route }, marks: {}, at: new Date().toISOString() };
   for (const m of Plan.modulesOf(t, log.route)) if (m.ids) log.marks[m.key] = m.ids.map((_, n) => (PLOG.marks[m.key] || '')[n] || '.').join('');

@@ -27,7 +27,8 @@ test('C2 logging a test: plan order with the slows tie-break; questions done; mi
   // Circles: clean. RW1 #4 has no bank question: it can be marked and counts for nothing.
   await logTest(page, 'PT90', '2026-09-01', { RW1: 'WWSW', RW2: 'S', Math1: 'W..', Math2: 'W.' });
   await expect(page.locator('.pl-q[data-m="RW1"][data-n="3"]')).toHaveAttribute('data-unmapped', '1');
-  await expect(page.locator('[data-route="Math"] input[value="hard"]')).toBeDisabled();
+  // PT90 has one module-2 variant per section mapped, so no recognition check (recognition.spec.ts covers it and the radios).
+  await expect(page.locator('#plan-log-form .pl-check')).toHaveCount(0);
   await expect(page.locator('#pl-sum')).toContainText('Wrong: 5 · Slow: 2');   // marks include the unmapped position
   await expect(page.locator('#pl-warn')).toHaveCount(0);
   await shot(page, '02-log-form');

@@ -1,0 +1,1177 @@
+test,section,block,number,id,skill,difficulty,answer
+4,RW,1,1,479c7e82,Words in Context,1,B
+4,RW,1,2,c843d63c,Words in Context,2,B
+4,RW,1,3,e56b66e5,Words in Context,2,A
+4,RW,1,4,d7dccee7,Words in Context,2,B
+4,RW,1,5,e35d481c,Words in Context,3,A
+4,RW,1,6,b4c6cff6,Words in Context,2,D
+4,RW,1,7,78b265b2,Central Ideas and Details,1,A
+4,RW,1,8,b7d51f84,Central Ideas and Details,2,A
+4,RW,1,9,7ffae38a,Central Ideas and Details,2,D
+4,RW,1,10,783d1388,Command of Evidence,3,B
+4,RW,1,11,403fb4e4,Command of Evidence,3,C
+4,RW,1,12,7c1e5880,Inferences,2,B
+4,RW,1,13,123bd312,Inferences,2,B
+4,RW,1,14,d073983d,"Form, Structure, and Sense",2,D
+4,RW,1,15,267a13e2,Boundaries,2,D
+4,RW,1,16,dd428136,"Form, Structure, and Sense",2,B
+4,RW,1,17,89fbc3eb,Boundaries,2,C
+4,RW,1,18,75f49353,"Form, Structure, and Sense",2,A
+4,RW,1,19,2b512e65,Boundaries,2,D
+4,RW,1,20,3daf126e,"Form, Structure, and Sense",3,D
+4,RW,1,21,ec3d7605,Transitions,2,D
+4,RW,1,22,17ec916d,Rhetorical Synthesis,2,C
+4,RW,1,23,e2d97f10,Rhetorical Synthesis,2,D
+4,RW,1,24,86b78078,Rhetorical Synthesis,2,A
+4,RW,1,25,4f9ee1dc,Rhetorical Synthesis,2,C
+4,RW,1,26,d6dec50e,Rhetorical Synthesis,2,D
+4,RW,1,27,9e2d4ef7,Rhetorical Synthesis,2,C
+4,RW,2,1,3118ca93,Words in Context,1,D
+4,RW,2,2,e1d5d5df,Words in Context,1,D
+4,RW,2,3,84a7fbca,Words in Context,1,A
+4,RW,2,4,f7d58b53,Words in Context,1,A
+4,RW,2,5,94eb800d,Words in Context,2,B
+4,RW,2,6,79fe7550,Words in Context,3,C
+4,RW,2,7,2aaee77f,"Text, Structure, and Purpose",1,C
+4,RW,2,8,aa7fc89b,"Text, Structure, and Purpose",2,A
+4,RW,2,9,ab56a107,Cross-Text Connections,2,C
+4,RW,2,10,8af28416,Command of Evidence,1,A
+4,RW,2,11,194dd448,Command of Evidence,2,C
+4,RW,2,12,1f3be847,Command of Evidence,2,A
+4,RW,2,13,df9c5a1d,Command of Evidence,3,D
+4,RW,2,14,20583752,Command of Evidence,3,A
+4,RW,2,15,bcbcc43f,Inferences,2,D
+4,RW,2,16,3cc2eacc,Inferences,2,C
+4,RW,2,17,983d33fa,"Form, Structure, and Sense",1,B
+4,RW,2,18,96953201,Boundaries,1,A
+4,RW,2,19,6e5bf3a8,"Form, Structure, and Sense",1,A
+4,RW,2,20,1ee7b429,"Form, Structure, and Sense",2,D
+4,RW,2,21,775f3eb9,"Form, Structure, and Sense",1,C
+4,RW,2,22,ce81d0b7,Boundaries,1,D
+4,RW,2,23,c5d39bc7,"Form, Structure, and Sense",1,B
+4,RW,2,24,a773f069,Transitions,1,D
+4,RW,2,25,92fe0ed7,Transitions,1,D
+4,RW,2,26,1a8126aa,Transitions,2,A
+4,RW,2,27,13f36b03,Rhetorical Synthesis,1,B
+4,RW,3,1,98364791,Words in Context,3,B
+4,RW,3,2,b411eb09,Words in Context,3,B
+4,RW,3,3,7bc05fa2,Words in Context,3,C
+4,RW,3,4,79fe7550,Words in Context,3,C
+4,RW,3,5,570970cd,"Text, Structure, and Purpose",3,D
+4,RW,3,6,03c9f327,"Text, Structure, and Purpose",3,A
+4,RW,3,7,8963273a,"Text, Structure, and Purpose",2,A
+4,RW,3,8,3e6ad72d,"Text, Structure, and Purpose",3,C
+4,RW,3,9,5e101c70,Cross-Text Connections,3,B
+4,RW,3,10,5cf5c0d3,Command of Evidence,3,C
+4,RW,3,11,3d91c973,Command of Evidence,3,C
+4,RW,3,12,645fd11a,Command of Evidence,3,D
+4,RW,3,13,0045c234,Command of Evidence,3,C
+4,RW,3,14,94c54577,Command of Evidence,3,B
+4,RW,3,15,f39507a3,Inferences,3,D
+4,RW,3,16,cf3acc50,Inferences,3,A
+4,RW,3,17,ad046778,Boundaries,2,D
+4,RW,3,18,1ee7b429,"Form, Structure, and Sense",2,D
+4,RW,3,19,886dc9f9,Boundaries,3,B
+4,RW,3,20,329255db,"Form, Structure, and Sense",3,A
+4,RW,3,21,1b97cce9,Boundaries,3,A
+4,RW,3,22,0a114526,Boundaries,3,C
+4,RW,3,23,db24ecc9,Boundaries,3,B
+4,RW,3,24,af89fa02,Transitions,2,C
+4,RW,3,25,4d2736f0,Transitions,3,D
+4,RW,3,26,fc95a352,Transitions,3,A
+4,RW,3,27,0acc26b2,Rhetorical Synthesis,3,D
+4,Math,1,1,0d685865,Linear Equations in One Variable,1,C
+4,Math,1,2,55cfaf22,Distributions,1,B
+4,Math,1,3,d5f349b7,"Lines, Angles, and Triangles",1,B
+4,Math,1,4,fbb0ea7f,Linear Equations in One Variable,1,A
+4,Math,1,5,9db5b5c1,Systems of Linear Equations,1,C
+4,Math,1,6,686b7244,Linear Equations in Two Variables,3,5
+4,Math,1,7,1f0b582e,Area and Volume,2,D
+4,Math,1,8,1bc11c4e,Linear Functions,2,A
+4,Math,1,9,da602115,Nonlinear Equations in One or Two Variables,2,28
+4,Math,1,10,8f65cddc,Nonlinear Equations in One or Two Variables,2,C
+4,Math,1,11,f7e39fe9,Linear Functions,2,11
+4,Math,1,12,1dd13816,Equivalent Expressions,2,9
+4,Math,1,13,f2bbd43d,Linear Inequalities,2,A
+4,Math,1,14,7e5a3640,Nonlinear Functions,2,D
+4,Math,1,15,db888cd6,Nonlinear Functions,2,D
+4,Math,1,16,4eaf0a3a,Equivalent Expressions,2,B
+4,Math,1,17,121dc44f,Percentages,2,C
+4,Math,1,18,b3c7ca1d,Systems of Linear Equations,2,C
+4,Math,1,19,2c6f214f,Nonlinear Functions,3,D
+4,Math,1,20,8f0c82e2,Linear Inequalities,2,B
+4,Math,1,21,c9931030,Right Triangles and Trigonometry,3,B
+4,Math,1,22,cc3e9528,Linear Equations in Two Variables,3,59/9
+4,Math,2,1,b82a943c,Linear Equations in One Variable,1,B
+4,Math,2,2,273b7f37,Percentages,1,B
+4,Math,2,3,3c8fdc40,"Ratios, Rates, Proportions, and Units",1,2520
+4,Math,2,4,820d7a73,Distributions,1,40
+4,Math,2,5,cc2601cb,Nonlinear Functions,1,7
+4,Math,2,6,447fa970,Linear Functions,1,30
+4,Math,2,7,76670c80,Area and Volume,1,180
+4,Math,2,8,9d0396d4,Linear Equations in Two Variables,3,C
+4,Math,2,9,499cb491,Equivalent Expressions,1,A
+4,Math,2,10,de362c2f,Nonlinear Functions,1,D
+4,Math,2,11,afa3c48b,"Lines, Angles, and Triangles",1,D
+4,Math,2,12,eccbf957,Probability,1,A
+4,Math,2,13,d230e963,Models and Scatterplots,1,A
+4,Math,2,14,4626102e,Distributions,3,C
+4,Math,2,15,768b2425,Linear Equations in Two Variables,1,A
+4,Math,2,16,c8bf5313,Nonlinear Equations in One or Two Variables,1,D
+4,Math,2,17,ad376f1a,Nonlinear Functions,1,D
+4,Math,2,18,2cf7f039,Nonlinear Functions,1,C
+4,Math,2,19,9f3cb472,Linear Equations in Two Variables,2,D
+4,Math,2,20,bf4a8b6a,Systems of Linear Equations,2,C
+4,Math,2,21,2cd6b22d,Nonlinear Equations in One or Two Variables,3,D
+4,Math,2,22,e80d62c6,Circles,3,A
+4,Math,3,1,affb2315,Sample Statistics and Margin of Error,1,A
+4,Math,3,2,ebf8d2b7,Linear Equations in Two Variables,1,B
+4,Math,3,3,8baf2118,Models and Scatterplots,1,B
+4,Math,3,4,9d0396d4,Linear Equations in Two Variables,3,C
+4,Math,3,5,44076c7d,Nonlinear Functions,2,D
+4,Math,3,6,0cadb20e,Linear Functions,2,C
+4,Math,3,7,2adbf1b1,"Lines, Angles, and Triangles",2,C
+4,Math,3,8,01682aa5,Linear Equations in Two Variables,2,C
+4,Math,3,9,69f6717f,"Ratios, Rates, Proportions, and Units",3,A
+4,Math,3,10,2d1614a1,Nonlinear Functions,3,C
+4,Math,3,11,7d5d1b32,Linear Equations in One Variable,3,-14/15
+4,Math,3,12,3d73a58b,Percentages,3,4.06
+4,Math,3,13,ebb717ab,Nonlinear Equations in One or Two Variables,3,289
+4,Math,3,14,2a59eb45,Distributions,3,44
+4,Math,3,15,ffdbcad4,Equivalent Expressions,3,D
+4,Math,3,16,9cb9beec,Nonlinear Equations in One or Two Variables,3,14.5
+4,Math,3,17,4626102e,Distributions,3,C
+4,Math,3,18,4d037075,Nonlinear Functions,3,C
+4,Math,3,19,2c05d312,Nonlinear Equations in One or Two Variables,3,A
+4,Math,3,20,76c73dbf,Circles,3,10
+4,Math,3,21,f243c383,Area and Volume,3,B
+4,Math,3,22,92f812bb,Nonlinear Functions,3,D
+5,RW,1,1,c977cfcf,Words in Context,2,A
+5,RW,1,2,6c64a8f3,Words in Context,2,B
+5,RW,1,3,490b205f,Words in Context,2,B
+5,RW,1,4,0ed8f24f,Words in Context,3,B
+5,RW,1,5,d563bf65,"Text, Structure, and Purpose",1,D
+5,RW,1,6,af43b0bd,"Text, Structure, and Purpose",2,D
+5,RW,1,7,9fe7aafa,Central Ideas and Details,2,A
+5,RW,1,8,995d55fd,Central Ideas and Details,2,A
+5,RW,1,9,6540a976,Central Ideas and Details,2,D
+5,RW,1,10,800771e5,Command of Evidence,1,D
+5,RW,1,11,57303718,Command of Evidence,2,C
+5,RW,1,12,f2b3b53b,Command of Evidence,2,A
+5,RW,1,13,28dfc05a,Inferences,2,D
+5,RW,1,14,xyz00014,Inferences,3,A
+5,RW,1,15,39ac6498,Boundaries,1,C
+5,RW,1,16,eeb14722,"Form, Structure, and Sense",2,D
+5,RW,1,17,a3e87535,Boundaries,2,C
+5,RW,1,18,435809d8,Boundaries,3,B
+5,RW,1,19,b369d54c,"Form, Structure, and Sense",3,A
+5,RW,1,20,940ff6f7,Boundaries,3,C
+5,RW,1,21,911c7a87,Transitions,1,D
+5,RW,1,22,a204d618,Transitions,1,B
+5,RW,1,23,60917233,Transitions,2,D
+5,RW,1,24,273c2f12,Transitions,2,B
+5,RW,1,25,e3bbf2bf,Rhetorical Synthesis,1,C
+5,RW,1,26,4c43bf61,Rhetorical Synthesis,2,B
+5,RW,1,27,2c7dced2,Rhetorical Synthesis,2,C
+5,RW,2,1,cf9a3f34,Words in Context,1,C
+5,RW,2,2,3ec184af,Words in Context,1,B
+5,RW,2,3,d91e5499,Words in Context,1,D
+5,RW,2,4,5179fd36,Words in Context,1,A
+5,RW,2,5,683f66c9,Words in Context,1,D
+5,RW,2,6,213a25d1,"Text, Structure, and Purpose",2,A
+5,RW,2,7,2d77660e,"Text, Structure, and Purpose",2,B
+5,RW,2,8,f878693b,Cross-Text Connections,2,D
+5,RW,2,9,b470d853,Command of Evidence,1,C
+5,RW,2,10,xyz00037,Command of Evidence,1,C
+5,RW,2,11,60c6b64d,Command of Evidence,2,C
+5,RW,2,12,224428ac,Command of Evidence,2,D
+5,RW,2,13,a0203977,Command of Evidence,2,C
+5,RW,2,14,29f5c8c2,Command of Evidence,2,D
+5,RW,2,15,ca5a3fb4,Inferences,2,A
+5,RW,2,16,6d247c13,"Form, Structure, and Sense",1,A
+5,RW,2,17,c102f9b0,"Form, Structure, and Sense",1,C
+5,RW,2,18,831b55ec,Boundaries,1,C
+5,RW,2,19,a7c85001,Boundaries,1,D
+5,RW,2,20,1684b237,"Form, Structure, and Sense",1,A
+5,RW,2,21,97e7bedc,"Form, Structure, and Sense",2,D
+5,RW,2,22,d3725911,Transitions,1,D
+5,RW,2,23,5c58cec0,Transitions,1,D
+5,RW,2,24,ddb77846,Transitions,2,B
+5,RW,2,25,d8aa8ba2,Rhetorical Synthesis,2,D
+5,RW,2,26,441f0505,Rhetorical Synthesis,2,D
+5,RW,2,27,e876e395,Rhetorical Synthesis,2,B
+5,RW,3,1,xyz00055,Words in Context,2,B
+5,RW,3,2,5444db38,Words in Context,3,D
+5,RW,3,3,xyz00057,Words in Context,3,B
+5,RW,3,4,683f66c9,Words in Context,1,D
+5,RW,3,5,1455b754,Words in Context,3,D
+5,RW,3,6,cf46f239,"Text, Structure, and Purpose",3,B
+5,RW,3,7,f61c22f3,"Text, Structure, and Purpose",3,B
+5,RW,3,8,xyz00062,Cross-Text Connections,2,A
+5,RW,3,9,458b4a11,Central Ideas and Details,3,C
+5,RW,3,10,a95075c5,Command of Evidence,2,D
+5,RW,3,11,7dab4d5d,Command of Evidence,3,C
+5,RW,3,12,1281dfd5,Command of Evidence,3,B
+5,RW,3,13,66fd248a,Command of Evidence,3,D
+5,RW,3,14,e1504a2a,Inferences,2,D
+5,RW,3,15,a44c7bd4,Inferences,3,A
+5,RW,3,16,6d247c13,"Form, Structure, and Sense",1,A
+5,RW,3,17,xyz00071,"Form, Structure, and Sense",3,D
+5,RW,3,18,xyz00072,Boundaries,2,C
+5,RW,3,19,ae439895,"Form, Structure, and Sense",3,C
+5,RW,3,20,c15069eb,Boundaries,3,A
+5,RW,3,21,8772475b,Boundaries,3,D
+5,RW,3,22,ab1f424a,Transitions,2,C
+5,RW,3,23,6d883838,Transitions,2,B
+5,RW,3,24,a965c6ed,Transitions,3,D
+5,RW,3,25,3a715eca,Transitions,3,D
+5,RW,3,26,7572131d,Rhetorical Synthesis,2,B
+5,RW,3,27,xyz00081,Rhetorical Synthesis,3,C
+5,Math,1,1,520c8177,Linear Equations in Two Variables,1,D
+5,Math,1,2,8bf3f67a,"Ratios, Rates, Proportions, and Units",1,A
+5,Math,1,3,43236565,"Lines, Angles, and Triangles",1,C
+5,Math,1,4,aeaba0b6,Linear Functions,1,11
+5,Math,1,5,0adbe034,Linear Equations in One Variable,1,C
+5,Math,1,6,c256b723,Percentages,2,10
+5,Math,1,7,c3d65f93,Distributions,1,A
+5,Math,1,8,c41e5688,Linear Inequalities,2,D
+5,Math,1,9,24016dee,Equivalent Expressions,2,B
+5,Math,1,10,d7c8ba0b,Linear Equations in Two Variables,2,D
+5,Math,1,11,3d7d7534,Nonlinear Equations and Systems,2,"30, -30"
+5,Math,1,12,a04190b7,Linear Equations in Two Variables,2,"451/100, 4.51"
+5,Math,1,13,dc77e0dc,Nonlinear Functions,2,A
+5,Math,1,14,aa95fb33,Nonlinear Functions,2,D
+5,Math,1,15,40f2e601,Nonlinear Equations and Systems,2,D
+5,Math,1,16,4b7bb316,Area and Volume,2,4205
+5,Math,1,17,c9417793,Nonlinear Equations and Systems,3,18
+5,Math,1,18,244ff6c4,Right Triangles and Trigonometry,3,A
+5,Math,1,19,967ef685,Equivalent Expressions,3,D
+5,Math,1,20,e50afdd3,Circles,3,B
+5,Math,1,21,48f83c34,Area and Volume,3,D
+5,Math,1,22,d41cf4d3,Nonlinear Functions,3,D
+5,Math,2,1,ca4ee54e,Models and Scatterplots,1,B
+5,Math,2,2,3f8d5876,Nonlinear Equations and Systems,1,C
+5,Math,2,3,79e6ec70,Nonlinear Functions,1,B
+5,Math,2,4,c943acba,Probability,1,B
+5,Math,2,5,c141366d,Linear Functions,1,A
+5,Math,2,6,83fb222d,Linear Equations in One Variable,1,6
+5,Math,2,7,361f97c7,Linear Functions,1,B
+5,Math,2,8,33e4af6b,Linear Functions,1,B
+5,Math,2,9,cdec4c87,Systems of Linear Equations,1,A
+5,Math,2,10,f52123e0,Distributions,2,29
+5,Math,2,11,4b06557b,Systems of Linear Equations,1,4
+5,Math,2,12,94ff3e2d,Nonlinear Functions,1,1/2
+5,Math,2,13,979b0b8d,Linear Functions,1,D
+5,Math,2,14,9e5863bd,Linear Inequalities,2,D
+5,Math,2,15,bc638f2d,Linear Functions,1,D
+5,Math,2,16,a4ed5285,Area and Volume,2,15/2
+5,Math,2,17,bbb0359a,Linear Equations in Two Variables,2,A
+5,Math,2,18,30a07668,Nonlinear Equations and Systems,2,6
+5,Math,2,19,c3d78831,"Ratios, Rates, Proportions, and Units",2,B
+5,Math,2,20,161126cf,Nonlinear Functions,3,A
+5,Math,2,21,51f26ce8,"Lines, Angles, and Triangles",2,A
+5,Math,2,22,498d6795,Right Triangles and Trigonometry,3,B
+5,Math,3,1,379ffefb,Right Triangles and Trigonometry,1,B
+5,Math,3,2,6c5c2a81,Linear Functions,2,B
+5,Math,3,3,9bedc4a0,Sample Statistics and Margin of Error,2,B
+5,Math,3,4,dd875c97,Linear Inequalities,2,A
+5,Math,3,5,b00ad7f2,Systems of Linear Equations,2,C
+5,Math,3,6,f52123e0,Distributions,2,29
+5,Math,3,7,0c541d87,Systems of Linear Equations,2,D
+5,Math,3,8,4dc5c6f9,Nonlinear Equations and Systems,3,D
+5,Math,3,9,4fb8a648,Nonlinear Equations and Systems,3,A
+5,Math,3,10,9aaf7786,Linear Equations in Two Variables,3,-10
+5,Math,3,11,69f609b2,Linear Equations in One Variable,3,A
+5,Math,3,12,e86a06fe,Linear Equations in Two Variables,3,D
+5,Math,3,13,74473be4,Nonlinear Equations and Systems,3,D
+5,Math,3,14,161126cf,Nonlinear Functions,3,A
+5,Math,3,15,36fd6752,Systems of Linear Equations,3,10
+5,Math,3,16,09d21d79,Nonlinear Functions,3,-24
+5,Math,3,17,415ab1d2,Linear Functions,3,A
+5,Math,3,18,694b7fce,Area and Volume,3,480
+5,Math,3,19,5267c3c7,Percentages,3,A
+5,Math,3,20,196e8e6e,Circles,3,A
+5,Math,3,21,c2e7fa6d,Nonlinear Functions,3,4176
+5,Math,3,22,2e8027b0,Models and Scatterplots,3,A
+6,RW,1,1,74ee7737,Words in Context,1,D
+6,RW,1,2,85083d4d,Words in Context,2,D
+6,RW,1,3,be612a26,Words in Context,2,D
+6,RW,1,4,d3104a68,Words in Context,2,B
+6,RW,1,5,7a0e31ea,"Text, Structure, and Purpose",2,C
+6,RW,1,6,e23f50b9,"Text, Structure, and Purpose",2,C
+6,RW,1,7,xyz00154,"Text, Structure, and Purpose",1,B
+6,RW,1,8,8889d6e2,Cross-Text Connections,2,B
+6,RW,1,9,1ba5ad7a,Central Ideas and Details,3,A
+6,RW,1,10,df8caadd,Command of Evidence,2,B
+6,RW,1,11,d5d3ea31,Command of Evidence,2,C
+6,RW,1,12,95388117,Command of Evidence,2,B
+6,RW,1,13,64cd7321,Command of Evidence,3,B
+6,RW,1,14,fc57d569,Inferences,2,A
+6,RW,1,15,420b82e2,Inferences,2,B
+6,RW,1,16,a2293b3f,Boundaries,1,B
+6,RW,1,17,02913383,"Form, Structure, and Sense",1,D
+6,RW,1,18,b0115ef6,Boundaries,1,B
+6,RW,1,19,83617355,"Form, Structure, and Sense",1,B
+6,RW,1,20,2c49940e,"Form, Structure, and Sense",2,D
+6,RW,1,21,xyz00168,Boundaries,2,A
+6,RW,1,22,f735493e,Transitions,1,D
+6,RW,1,23,29ae4d48,Transitions,2,D
+6,RW,1,24,855247c7,Transitions,2,D
+6,RW,1,25,d9dad012,Transitions,2,C
+6,RW,1,26,70538b9a,Rhetorical Synthesis,2,A
+6,RW,1,27,4b99b481,Rhetorical Synthesis,2,C
+6,RW,2,1,b622fb78,Words in Context,1,A
+6,RW,2,2,95f037ad,Words in Context,1,C
+6,RW,2,3,b93428a6,Words in Context,1,C
+6,RW,2,4,2e8ab360,Words in Context,2,A
+6,RW,2,5,cf9a00e0,"Text, Structure, and Purpose",2,C
+6,RW,2,6,xyz00180,"Text, Structure, and Purpose",2,C
+6,RW,2,7,69d662af,Central Ideas and Details,1,A
+6,RW,2,8,c889e52e,Central Ideas and Details,1,D
+6,RW,2,9,c188a397,Central Ideas and Details,2,D
+6,RW,2,10,eb775f90,Command of Evidence,1,A
+6,RW,2,11,3f7f35ea,Command of Evidence,1,D
+6,RW,2,12,cebfb2c6,Command of Evidence,2,A
+6,RW,2,13,0198240a,Command of Evidence,3,D
+6,RW,2,14,a0b58ef0,Inferences,2,A
+6,RW,2,15,cd4b1a7e,"Form, Structure, and Sense",1,A
+6,RW,2,16,35ae047d,"Form, Structure, and Sense",1,A
+6,RW,2,17,8df848c1,"Form, Structure, and Sense",1,A
+6,RW,2,18,acf454af,"Form, Structure, and Sense",1,D
+6,RW,2,19,60a4c088,"Form, Structure, and Sense",1,B
+6,RW,2,20,a153ad6a,Boundaries,2,C
+6,RW,2,21,1ccfcea4,Transitions,1,C
+6,RW,2,22,a064955f,Transitions,1,C
+6,RW,2,23,6036ad0e,Transitions,1,C
+6,RW,2,24,ff1a2e5e,Transitions,1,D
+6,RW,2,25,4223d4a6,Rhetorical Synthesis,2,B
+6,RW,2,26,e2eb70b9,Rhetorical Synthesis,2,D
+6,RW,2,27,c40a1964,Rhetorical Synthesis,3,B
+6,RW,3,1,xyz00202,Words in Context,3,A
+6,RW,3,2,7b4dde72,Words in Context,3,B
+6,RW,3,3,xyz00204,Words in Context,3,B
+6,RW,3,4,be94c9fc,Words in Context,3,D
+6,RW,3,5,4c4db685,"Text, Structure, and Purpose",2,A
+6,RW,3,6,1f2d6173,"Text, Structure, and Purpose",3,C
+6,RW,3,7,64b6427a,Central Ideas and Details,2,D
+6,RW,3,8,70aacc03,Central Ideas and Details,3,C
+6,RW,3,9,8f3a200e,Central Ideas and Details,3,C
+6,RW,3,10,9e5ce27c,Command of Evidence,2,D
+6,RW,3,11,627d93e3,Command of Evidence,3,D
+6,RW,3,12,0198240a,Command of Evidence,3,D
+6,RW,3,13,010fa3f0,Command of Evidence,3,B
+6,RW,3,14,xyz00215,Inferences,3,A
+6,RW,3,15,xyz00216,"Form, Structure, and Sense",2,A
+6,RW,3,16,615f001e,Boundaries,3,B
+6,RW,3,17,fa36d803,Boundaries,3,B
+6,RW,3,18,6e071432,Boundaries,3,B
+6,RW,3,19,a2816c7f,"Form, Structure, and Sense",3,C
+6,RW,3,20,1c65db8f,"Form, Structure, and Sense",3,B
+6,RW,3,21,ff1a2e5e,Transitions,1,D
+6,RW,3,22,feb1e6da,Transitions,2,B
+6,RW,3,23,42e6cc83,Transitions,3,B
+6,RW,3,24,xyz00225,Transitions,1,B
+6,RW,3,25,114bbce6,Rhetorical Synthesis,2,A
+6,RW,3,26,xyz00227,Rhetorical Synthesis,3,D
+6,RW,3,27,3b02e88a,Rhetorical Synthesis,3,C
+6,Math,1,1,7270d642,"Ratios, Rates, Proportions, and Units",1,A
+6,Math,1,2,6fa1dc0f,Linear Equations in Two Variables,1,D
+6,Math,1,3,bdb0aa23,Equivalent Expressions,1,B
+6,Math,1,4,5518885d,Linear Equations in Two Variables,1,B
+6,Math,1,5,97631565,Sample Statistics and Margin of Error,1,B
+6,Math,1,6,baca4a4c,Linear Equations in One Variable,1,A
+6,Math,1,7,bf704c34,Nonlinear Equations and Systems,1,A
+6,Math,1,8,7a4475df,Nonlinear Functions,2,C
+6,Math,1,9,482a445b,Equivalent Expressions,2,B
+6,Math,1,10,c19d1fb0,Nonlinear Functions,2,18
+6,Math,1,11,0380bbdc,Nonlinear Equations and Systems,2,B
+6,Math,1,12,53487897,Linear Equations in One Variable,2,C
+6,Math,1,13,6bdcac03,Nonlinear Equations and Systems,2,D
+6,Math,1,14,6c9444cd,Distributions,3,4
+6,Math,1,15,e4b4e9ea,Area and Volume,2,D
+6,Math,1,16,fb866265,Models and Scatterplots,3,A
+6,Math,1,17,1bf809b5,Right Triangles and Trigonometry,3,11/28
+6,Math,1,18,88867d37,Nonlinear Equations and Systems,1,C
+6,Math,1,19,adae6543,"Lines, Angles, and Triangles",3,54
+6,Math,1,20,821e724e,Nonlinear Functions,3,336
+6,Math,1,21,54cb53cf,Percentages,3,79
+6,Math,1,22,a38c0183,Circles,3,A
+6,Math,2,1,4e375d1f,"Ratios, Rates, Proportions, and Units",1,B
+6,Math,2,2,bd9eb2b5,Linear Functions,1,B
+6,Math,2,3,8784bc84,Percentages,1,B
+6,Math,2,4,a456f28c,"Lines, Angles, and Triangles",1,A
+6,Math,2,5,51aabd93,Linear Equations in One Variable,1,A
+6,Math,2,6,c99d154a,Nonlinear Equations and Systems,1,3
+6,Math,2,7,1006cad7,Systems of Linear Equations,1,B
+6,Math,2,8,7399c3b0,Nonlinear Equations and Systems,1,D
+6,Math,2,9,aacc834b,Systems of Linear Equations,1,6
+6,Math,2,10,842cec4d,Linear Inequalities,1,D
+6,Math,2,11,dd3a910a,Nonlinear Functions,1,C
+6,Math,2,12,c1eead73,Nonlinear Functions,1,D
+6,Math,2,13,9fc31513,"Lines, Angles, and Triangles",1,C
+6,Math,2,14,2ecce641,Linear Functions,1,20
+6,Math,2,15,1fc4f47b,Probability,2,D
+6,Math,2,16,ebd457f4,Nonlinear Functions,2,774
+6,Math,2,17,f28944ff,Nonlinear Functions,2,D
+6,Math,2,18,ae33e0a1,Area and Volume,2,C
+6,Math,2,19,e0f59119,Linear Equations in Two Variables,2,44/3
+6,Math,2,20,44b2b894,Right Triangles and Trigonometry,3,66
+6,Math,2,21,e723bd67,Linear Inequalities,2,D
+6,Math,2,22,9a216c0f,Systems of Linear Equations,2,C
+6,Math,3,1,56e373b3,"Ratios, Rates, Proportions, and Units",1,B
+6,Math,3,2,b434e103,"Lines, Angles, and Triangles",1,A
+6,Math,3,3,d9733ed9,Linear Inequalities,2,A
+6,Math,3,4,1f0966db,Linear Functions,2,3
+6,Math,3,5,842cec4d,Linear Inequalities,1,D
+6,Math,3,6,95d1c344,Models and Scatterplots,2,B
+6,Math,3,7,4b0c156b,Linear Functions,2,D
+6,Math,3,8,9551cd91,Linear Equations in One Variable,2,A
+6,Math,3,9,a267bd29,Nonlinear Equations and Systems,2,D
+6,Math,3,10,9f70fd47,Linear Equations in Two Variables,3,189/5
+6,Math,3,11,3f5a3602,Systems of Linear Equations,3,D
+6,Math,3,12,3a84f885,Systems of Linear Equations,3,1677
+6,Math,3,13,358f18bc,Nonlinear Functions,3,1728
+6,Math,3,14,0393ba15,Linear Equations in One Variable,3,B
+6,Math,3,15,6e7ae9fc,Nonlinear Functions,3,25
+6,Math,3,16,e438ec3f,Probability,3,C
+6,Math,3,17,44b2b894,Right Triangles and Trigonometry,3,66
+6,Math,3,18,4aaa9c42,Percentages,3,D
+6,Math,3,19,59352689,Systems of Linear Equations,3,7/2
+6,Math,3,20,02060533,Nonlinear Functions,3,A
+6,Math,3,21,0acfddb5,Circles,3,D
+6,Math,3,22,95eeeb5b,Nonlinear Functions,3,A
+7,RW,1,1,5fe53347,Words in Context,1,D
+7,RW,1,2,37219ba2,Words in Context,1,D
+7,RW,1,3,dc234d74,Words in Context,2,D
+7,RW,1,4,c218cd98,Words in Context,2,B
+7,RW,1,5,b3e145e4,"Text, Structure, and Purpose",1,A
+7,RW,1,6,97ca2cda,"Text, Structure, and Purpose",1,B
+7,RW,1,7,a1d2c4d0,"Text, Structure, and Purpose",3,D
+7,RW,1,8,c19b2f77,Cross-Text Connections,2,D
+7,RW,1,9,16ce90d9,Central Ideas and Details,3,A
+7,RW,1,10,23ecf625,Central Ideas and Details,3,B
+7,RW,1,11,82bdf676,Command of Evidence,3,B
+7,RW,1,12,d76ea360,Command of Evidence,2,A
+7,RW,1,13,8af0c099,Command of Evidence,2,C
+7,RW,1,14,6317295c,Command of Evidence,2,A
+7,RW,1,15,d047abca,Inferences,2,C
+7,RW,1,16,100269ad,"Form, Structure, and Sense",1,B
+7,RW,1,17,f40b447c,"Form, Structure, and Sense",2,C
+7,RW,1,18,fcab3630,Boundaries,2,C
+7,RW,1,19,8a264a54,Boundaries,3,D
+7,RW,1,20,908a76b8,"Form, Structure, and Sense",3,C
+7,RW,1,21,20e4ff59,Transitions,1,B
+7,RW,1,22,290a5d77,Transitions,1,A
+7,RW,1,23,42870a4e,Transitions,1,B
+7,RW,1,24,a3bf0a9d,Transitions,2,D
+7,RW,1,25,a4366255,Rhetorical Synthesis,2,B
+7,RW,1,26,a0da8114,Rhetorical Synthesis,2,D
+7,RW,1,27,e98b1690,Rhetorical Synthesis,3,C
+7,RW,2,1,b940952c,Words in Context,1,A
+7,RW,2,2,04e4c51d,Words in Context,1,C
+7,RW,2,3,359b891c,Words in Context,1,D
+7,RW,2,4,a1139ff8,Words in Context,1,C
+7,RW,2,5,d2a90d4f,"Text, Structure, and Purpose",1,A
+7,RW,2,6,e5ca7687,"Text, Structure, and Purpose",1,C
+7,RW,2,7,cce2f8dc,"Text, Structure, and Purpose",3,A
+7,RW,2,8,bbfa2bb6,Central Ideas and Details,1,B
+7,RW,2,9,b71861fc,Command of Evidence,1,D
+7,RW,2,10,b8199d5a,Command of Evidence,1,C
+7,RW,2,11,abbea24d,Command of Evidence,1,C
+7,RW,2,12,2a5aa08a,Command of Evidence,1,D
+7,RW,2,13,fcae209f,Inferences,1,C
+7,RW,2,14,2d2983b3,Inferences,2,B
+7,RW,2,15,d1482e27,"Form, Structure, and Sense",1,A
+7,RW,2,16,e8926747,"Form, Structure, and Sense",1,D
+7,RW,2,17,028752cd,"Form, Structure, and Sense",1,D
+7,RW,2,18,36868920,Boundaries,2,A
+7,RW,2,19,77e06a09,Boundaries,2,B
+7,RW,2,20,c437dd53,"Form, Structure, and Sense",2,D
+7,RW,2,21,85b8b9c5,Boundaries,1,C
+7,RW,2,22,335bbe3e,Transitions,2,B
+7,RW,2,23,02527f43,Rhetorical Synthesis,1,A
+7,RW,2,24,4e063114,Rhetorical Synthesis,1,D
+7,RW,2,25,79c6a01e,Rhetorical Synthesis,1,D
+7,RW,2,26,3150021d,Rhetorical Synthesis,1,C
+7,RW,2,27,e8494245,Rhetorical Synthesis,3,C
+7,RW,3,1,1c7fe9be,Words in Context,2,B
+7,RW,3,2,af4300b0,Words in Context,3,D
+7,RW,3,3,7afb470b,Words in Context,3,A
+7,RW,3,4,6c9f1727,Words in Context,3,D
+7,RW,3,5,03eeecf3,"Text, Structure, and Purpose",2,C
+7,RW,3,6,cef79fb9,"Text, Structure, and Purpose",2,B
+7,RW,3,7,36e2868f,Central Ideas and Details,3,D
+7,RW,3,8,d696eafa,Command of Evidence,3,D
+7,RW,3,9,98d0a5d7,Command of Evidence,3,B
+7,RW,3,10,a16128e2,Command of Evidence,3,A
+7,RW,3,11,da438257,Command of Evidence,3,B
+7,RW,3,12,e9521fd1,Inferences,3,D
+7,RW,3,13,4b8eda0a,Inferences,3,C
+7,RW,3,14,1ffd60ce,Inferences,3,B
+7,RW,3,15,83c9c503,Boundaries,2,C
+7,RW,3,16,2b6e1c06,"Form, Structure, and Sense",3,B
+7,RW,3,17,c49e946e,Boundaries,3,C
+7,RW,3,18,0b005ae2,Boundaries,3,D
+7,RW,3,19,e3c1b4f7,Boundaries,3,A
+7,RW,3,20,5aa171de,Boundaries,3,B
+7,RW,3,21,7e37affc,Boundaries,3,D
+7,RW,3,22,4703eafb,Transitions,2,A
+7,RW,3,23,1872cd6d,Transitions,3,D
+7,RW,3,24,8b2636ee,Rhetorical Synthesis,1,D
+7,RW,3,25,bc930940,Rhetorical Synthesis,1,C
+7,RW,3,26,b44141cf,Rhetorical Synthesis,3,D
+7,RW,3,27,7d5c32e6,Rhetorical Synthesis,3,A
+7,Math,1,1,f305b5ca,Linear Equations in One Variable,1,A
+7,Math,1,2,3d1070c9,Linear Functions,1,C
+7,Math,1,3,7f2524bf,Nonlinear Functions,1,A
+7,Math,1,4,3cce51ea,Nonlinear Equations and Systems,1,B
+7,Math,1,5,9912e19f,"Lines, Angles, and Triangles",1,B
+7,Math,1,6,7fe7cf26,Nonlinear Functions,1,B
+7,Math,1,7,9fa781f8,"Ratios, Rates, Proportions, and Units",2,90
+7,Math,1,8,483d208d,Linear Equations in Two Variables,2,D
+7,Math,1,9,5ae4803e,Nonlinear Equations and Systems,2,C
+7,Math,1,10,a1262cdb,Nonlinear Equations and Systems,2,D
+7,Math,1,11,7f87deff,Nonlinear Functions,2,"14, -5, -4"
+7,Math,1,12,cbc4c163,Nonlinear Functions,2,"11/4, 2.75"
+7,Math,1,13,aa2d36fe,Circles,2,A
+7,Math,1,14,6ae1360d,Circles,2,4.41
+7,Math,1,15,e24765e6,Models and Scatterplots,2,5
+7,Math,1,16,a94ed4e0,Systems of Linear Equations,2,D
+7,Math,1,17,ae05d37b,Nonlinear Functions,2,B
+7,Math,1,18,4771a64a,Linear Equations in One Variable,3,11
+7,Math,1,19,a0b165f8,Percentages,3,A
+7,Math,1,20,fada6b03,Nonlinear Functions,3,120
+7,Math,1,21,e103300e,Linear Functions,3,A
+7,Math,1,22,16d66178,Right Triangles and Trigonometry,3,C
+7,Math,2,1,12b04e68,Linear Equations in One Variable,1,A
+7,Math,2,2,80f1f3a9,Distributions,1,B
+7,Math,2,3,23758540,Linear Equations in One Variable,1,B
+7,Math,2,4,bc59c2d9,Models and Scatterplots,1,B
+7,Math,2,5,689abc2a,Area and Volume,1,D
+7,Math,2,6,782a8a53,Nonlinear Functions,1,C
+7,Math,2,7,e3d49511,"Ratios, Rates, Proportions, and Units",1,A
+7,Math,2,8,49cd76d5,Linear Equations in One Variable,1,C
+7,Math,2,9,1b8e412e,Probability,1,B
+7,Math,2,10,5b918ebb,"Lines, Angles, and Triangles",1,162
+7,Math,2,11,772de699,Equivalent Expressions,1,C
+7,Math,2,12,075b29b0,Equivalent Expressions,1,D
+7,Math,2,13,c81f1c2f,Linear Functions,2,2850
+7,Math,2,14,dccdb20c,Percentages,2,27
+7,Math,2,15,5a74f696,Nonlinear Functions,1,C
+7,Math,2,16,ecca0603,Linear Inequalities,2,A
+7,Math,2,17,a4989860,Linear Functions,2,9
+7,Math,2,18,e4a588ca,Linear Functions,1,D
+7,Math,2,19,51568fb9,Linear Equations in Two Variables,2,D
+7,Math,2,20,79784c23,Systems of Linear Equations,2,D
+7,Math,2,21,0af701e7,Nonlinear Functions,2,C
+7,Math,2,22,4f1342d6,Linear Functions,3,87
+7,Math,3,1,29fa7970,Distributions,1,D
+7,Math,3,2,90ba8f98,Models and Scatterplots,2,D
+7,Math,3,3,05195d8a,Percentages,2,110
+7,Math,3,4,ff8c5844,Nonlinear Functions,2,D
+7,Math,3,5,49cd76d5,Linear Equations in One Variable,1,C
+7,Math,3,6,1be909aa,Equivalent Expressions,2,A
+7,Math,3,7,a2162ea1,Sample Statistics and Margin of Error,2,A
+7,Math,3,8,bf749912,Linear Equations in One Variable,2,42
+7,Math,3,9,26e83bbc,Nonlinear Equations and Systems,2,C
+7,Math,3,10,63be6c9a,Linear Functions,2,C
+7,Math,3,11,8e1da169,Nonlinear Functions,3,B
+7,Math,3,12,48fb6483,"Lines, Angles, and Triangles",3,153
+7,Math,3,13,fbd5483f,Linear Inequalities,3,A
+7,Math,3,14,571174f3,Systems of Linear Equations,3,".2857, 2/7"
+7,Math,3,15,768f3b7c,Linear Functions,3,B
+7,Math,3,16,2cb17792,Systems of Linear Equations,3,"17.5, 35/2"
+7,Math,3,17,e4a588ca,Linear Functions,1,D
+7,Math,3,18,d8e84431,Area and Volume,3,A
+7,Math,3,19,1be8b6b2,Area and Volume,3,D
+7,Math,3,20,979c6ebc,Systems of Linear Equations,3,D
+7,Math,3,21,67d63e19,Linear Functions,3,A
+7,Math,3,22,e7133228,"Ratios, Rates, Proportions, and Units",3,B
+8,RW,1,1,f773a56b,Words in Context,1,B
+8,RW,1,2,84b5125b,Words in Context,1,B
+8,RW,1,3,d5235d39,Words in Context,1,C
+8,RW,1,4,8634bf4a,Words in Context,2,C
+8,RW,1,5,441e2b9e,Words in Context,1,A
+8,RW,1,6,805e361d,"Text, Structure, and Purpose",1,C
+8,RW,1,7,c4900368,"Text, Structure, and Purpose",2,A
+8,RW,1,8,5127fc1e,"Text, Structure, and Purpose",2,D
+8,RW,1,9,b62cb782,Central Ideas and Details,2,A
+8,RW,1,10,a12a83ce,Central Ideas and Details,3,C
+8,RW,1,11,3f4ab688,Command of Evidence,3,C
+8,RW,1,12,c2c61e7d,Command of Evidence,3,D
+8,RW,1,13,b4da6aaf,Inferences,1,D
+8,RW,1,14,9391b7cc,Inferences,3,B
+8,RW,1,15,4f9f8ea6,Inferences,3,D
+8,RW,1,16,52b61716,"Form, Structure, and Sense",1,B
+8,RW,1,17,3595a991,"Form, Structure, and Sense",2,B
+8,RW,1,18,fcaff694,Boundaries,2,C
+8,RW,1,19,1ee4485c,Boundaries,3,C
+8,RW,1,20,e76e74e8,Boundaries,3,A
+8,RW,1,21,3fee46f2,Boundaries,3,B
+8,RW,1,22,9e34720b,Transitions,2,C
+8,RW,1,23,0f9ed134,Transitions,2,B
+8,RW,1,24,d2b52c50,Rhetorical Synthesis,1,A
+8,RW,1,25,5888712f,Rhetorical Synthesis,2,D
+8,RW,1,26,94f4eecb,Rhetorical Synthesis,2,D
+8,RW,1,27,bc56170b,Rhetorical Synthesis,2,C
+8,RW,2,1,a49500cc,Words in Context,1,C
+8,RW,2,2,4b8244ca,Words in Context,1,D
+8,RW,2,3,49bbe4d7,Words in Context,1,B
+8,RW,2,4,e41dfaab,Words in Context,1,A
+8,RW,2,5,9421ed62,"Text, Structure, and Purpose",1,A
+8,RW,2,6,c502943e,"Text, Structure, and Purpose",1,C
+8,RW,2,7,f653b273,Cross-Text Connections,2,A
+8,RW,2,8,baef99a5,Central Ideas and Details,1,B
+8,RW,2,9,3543e6e2,Central Ideas and Details,1,D
+8,RW,2,10,92c2564d,Central Ideas and Details,2,A
+8,RW,2,11,6177abc5,Command of Evidence,1,B
+8,RW,2,12,e18d75ea,Command of Evidence,1,C
+8,RW,2,13,0770b53d,Command of Evidence,1,A
+8,RW,2,14,0b96fa93,Command of Evidence,1,C
+8,RW,2,15,56770dda,"Form, Structure, and Sense",1,D
+8,RW,2,16,e3b72630,"Form, Structure, and Sense",1,D
+8,RW,2,17,2ee50d41,"Form, Structure, and Sense",1,A
+8,RW,2,18,50445680,"Form, Structure, and Sense",1,C
+8,RW,2,19,9902d2de,Boundaries,1,B
+8,RW,2,20,1f8cd95f,"Form, Structure, and Sense",2,A
+8,RW,2,21,2c9c6ca9,Boundaries,3,D
+8,RW,2,22,b6ebadf6,Transitions,1,D
+8,RW,2,23,129089b5,Transitions,2,D
+8,RW,2,24,0205e563,Transitions,2,C
+8,RW,2,25,601b9d18,Transitions,2,B
+8,RW,2,26,5e93039f,Transitions,2,C
+8,RW,2,27,99183985,Rhetorical Synthesis,2,B
+8,RW,3,1,81a3a607,Words in Context,2,D
+8,RW,3,2,f99847ed,Words in Context,3,B
+8,RW,3,3,571cf537,Words in Context,3,B
+8,RW,3,4,93665100,Words in Context,3,A
+8,RW,3,5,5336f2e4,"Text, Structure, and Purpose",3,D
+8,RW,3,6,f0ae0da3,Cross-Text Connections,2,C
+8,RW,3,7,303537cf,Central Ideas and Details,3,D
+8,RW,3,8,5d453dcc,Command of Evidence,2,A
+8,RW,3,9,d102706f,Command of Evidence,3,C
+8,RW,3,10,8584f3ce,Command of Evidence,3,C
+8,RW,3,11,0240d11c,Command of Evidence,3,D
+8,RW,3,12,cbdd5287,Command of Evidence,3,C
+8,RW,3,13,abcd0010,Inferences,3,B
+8,RW,3,14,086dd8cc,Inferences,3,D
+8,RW,3,15,4c06427b,"Form, Structure, and Sense",2,C
+8,RW,3,16,2c4cd76d,Boundaries,3,A
+8,RW,3,17,9579581e,Boundaries,3,C
+8,RW,3,18,f768090a,"Form, Structure, and Sense",3,A
+8,RW,3,19,1a61e2ae,"Form, Structure, and Sense",3,C
+8,RW,3,20,8a9d2f4e,"Form, Structure, and Sense",3,B
+8,RW,3,21,f114cbf0,Transitions,2,B
+8,RW,3,22,2ba97187,Transitions,3,B
+8,RW,3,23,264e7415,Rhetorical Synthesis,1,A
+8,RW,3,24,94cb8720,Rhetorical Synthesis,2,C
+8,RW,3,25,07456405,Rhetorical Synthesis,3,D
+8,RW,3,26,8d1ddd1b,Rhetorical Synthesis,3,B
+8,RW,3,27,973632d2,Rhetorical Synthesis,3,A
+8,Math,1,1,f547a8b1,Nonlinear Functions,1,D
+8,Math,1,2,a232aa96,Linear Functions,1,D
+8,Math,1,3,80ae6851,Linear Equations in Two Variables,1,D
+8,Math,1,4,1ce51655,Linear Functions,2,D
+8,Math,1,5,d94018fd,Distributions,2,B
+8,Math,1,6,5805e747,Equivalent Expressions,2,A
+8,Math,1,7,95ca2683,"Lines, Angles, and Triangles",2,C
+8,Math,1,8,fad2f98c,Nonlinear Equations and Systems,2,B
+8,Math,1,9,c5e38487,Area and Volume,2,46
+8,Math,1,10,568bc2a4,"Ratios, Rates, Proportions, and Units",2,D
+8,Math,1,11,6a87902f,Systems of Linear Equations,2,A
+8,Math,1,12,e9f4521a,Percentages,2,52
+8,Math,1,13,90bcaa61,Nonlinear Functions,2,410
+8,Math,1,14,58171b5e,Models and Scatterplots,2,C
+8,Math,1,15,ebbf23ae,Circles,3,5
+8,Math,1,16,33e29881,Right Triangles and Trigonometry,2,B
+8,Math,1,17,95ed0b69,Nonlinear Equations and Systems,2,A
+8,Math,1,18,48fb34c8,Linear Inequalities,3,D
+8,Math,1,19,00723d16,Linear Equations in Two Variables,3,".25, 1/4"
+8,Math,1,20,7e6ea718,Nonlinear Functions,3,B
+8,Math,1,21,08d03fe4,Nonlinear Functions,3,C
+8,Math,1,22,841ef26c,Nonlinear Functions,3,A
+8,Math,2,1,4a2264b3,Models and Scatterplots,1,C
+8,Math,2,2,c47256ca,"Ratios, Rates, Proportions, and Units",1,D
+8,Math,2,3,b4767bef,Linear Equations in One Variable,1,B
+8,Math,2,4,70d9516e,Linear Functions,1,C
+8,Math,2,5,c50ede6d,Linear Inequalities,1,D
+8,Math,2,6,2905ded0,Probability,1,D
+8,Math,2,7,aad7e1b9,Linear Functions,1,B
+8,Math,2,8,3ea87153,Nonlinear Functions,1,A
+8,Math,2,9,4acd05cd,Linear Equations in Two Variables,1,D
+8,Math,2,10,cf0d3050,"Lines, Angles, and Triangles",1,70
+8,Math,2,11,7760c516,Distributions,1,9
+8,Math,2,12,1480dd5c,Linear Functions,1,A
+8,Math,2,13,eac739b2,Linear Equations in One Variable,1,B
+8,Math,2,14,84e5e36c,Nonlinear Equations and Systems,1,B
+8,Math,2,15,4ec95eab,Systems of Linear Equations,1,C
+8,Math,2,16,74c98c82,Linear Inequalities,2,25
+8,Math,2,17,717a1964,Nonlinear Equations and Systems,2,"2, -12"
+8,Math,2,18,d8ace155,Nonlinear Functions,2,A
+8,Math,2,19,a4bd60a3,Right Triangles and Trigonometry,3,104
+8,Math,2,20,0815a5af,Circles,2,B
+8,Math,2,21,b4a6ed81,Equivalent Expressions,2,6
+8,Math,2,22,7700d098,Right Triangles and Trigonometry,2,C
+8,Math,3,1,e7b6f0d1,Linear Equations in One Variable,1,C
+8,Math,3,2,88e13c8c,Linear Functions,1,C
+8,Math,3,3,99ea3715,Linear Functions,2,A
+8,Math,3,4,aad7e1b9,Linear Functions,1,B
+8,Math,3,5,2e0290c3,Linear Equations in Two Variables,2,B
+8,Math,3,6,570b5a5d,Systems of Linear Equations,3,D
+8,Math,3,7,6ecdbcb4,Nonlinear Functions,2,B
+8,Math,3,8,1853bb35,Nonlinear Functions,3,C
+8,Math,3,9,f678483b,Nonlinear Functions,3,35
+8,Math,3,10,9966235e,Area and Volume,3,A
+8,Math,3,11,158591f0,Nonlinear Equations and Systems,3,"29/3, 9.667, 9.666"
+8,Math,3,12,d8539e09,Linear Inequalities,3,C
+8,Math,3,13,b0a72bdc,Circles,3,B
+8,Math,3,14,1ce9ffcd,Nonlinear Equations and Systems,3,C
+8,Math,3,15,85f1892d,Right Triangles and Trigonometry,3,338
+8,Math,3,16,040f2a84,Percentages,3,1.8
+8,Math,3,17,901c3215,"Lines, Angles, and Triangles",3,C
+8,Math,3,18,45a534d0,Systems of Linear Equations,3,-34
+8,Math,3,19,e51bf5b1,Nonlinear Functions,3,D
+8,Math,3,20,a4bd60a3,Right Triangles and Trigonometry,3,104
+8,Math,3,21,f8a322d9,Distributions,3,B
+8,Math,3,22,916ffe9b,Sample Statistics and Margin of Error,3,B
+9,RW,1,1,f6d1f735,Words in Context,1,A
+9,RW,1,2,21d95d1d,Words in Context,1,C
+9,RW,1,3,e37b9e34,Words in Context,2,D
+9,RW,1,4,4974b053,Words in Context,2,B
+9,RW,1,5,7d075fc5,"Text, Structure, and Purpose",1,D
+9,RW,1,6,a2be625e,"Text, Structure, and Purpose",2,D
+9,RW,1,7,fb8b56bc,"Text, Structure, and Purpose",1,B
+9,RW,1,8,662ebff2,"Text, Structure, and Purpose",3,A
+9,RW,1,9,835545cd,Central Ideas and Details,2,D
+9,RW,1,10,25176ff8,Command of Evidence,2,C
+9,RW,1,11,94ca8ebd,Command of Evidence,2,C
+9,RW,1,12,742fd8ba,Command of Evidence,2,D
+9,RW,1,13,cf7491c1,Command of Evidence,2,D
+9,RW,1,14,fc1259dd,Inferences,1,A
+9,RW,1,15,75208874,Inferences,3,D
+9,RW,1,16,975eda7c,"Form, Structure, and Sense",1,B
+9,RW,1,17,4565a53c,Boundaries,1,D
+9,RW,1,18,04bfd364,Boundaries,1,A
+9,RW,1,19,ecba68b5,"Form, Structure, and Sense",3,D
+9,RW,1,20,21e58a83,Boundaries,3,A
+9,RW,1,21,82ec9628,Transitions,2,D
+9,RW,1,22,8622320e,Transitions,2,A
+9,RW,1,23,0c0d50e1,Transitions,2,A
+9,RW,1,24,f6d454c1,Rhetorical Synthesis,2,C
+9,RW,1,25,d9d314d9,Rhetorical Synthesis,2,C
+9,RW,1,26,5bb7dc03,Rhetorical Synthesis,2,A
+9,RW,1,27,54c1b2dd,Rhetorical Synthesis,2,C
+9,RW,2,1,f8ca5766,Words in Context,1,B
+9,RW,2,2,daaed806,Words in Context,1,D
+9,RW,2,3,97ab5669,Words in Context,1,B
+9,RW,2,4,1ad04ea0,Words in Context,1,B
+9,RW,2,5,9c759a09,"Text, Structure, and Purpose",1,D
+9,RW,2,6,ac9a3a26,"Text, Structure, and Purpose",3,A
+9,RW,2,7,d6c77ae5,Cross-Text Connections,3,C
+9,RW,2,8,40630cef,Central Ideas and Details,1,C
+9,RW,2,9,748995b3,Central Ideas and Details,1,B
+9,RW,2,10,2573d64b,Central Ideas and Details,2,D
+9,RW,2,11,0cf13ece,Command of Evidence,1,D
+9,RW,2,12,4fc9a13a,Command of Evidence,3,A
+9,RW,2,13,6a6bbac3,Command of Evidence,3,A
+9,RW,2,14,3ae2638c,Inferences,2,B
+9,RW,2,15,166efaa2,"Form, Structure, and Sense",1,A
+9,RW,2,16,b5b74c3f,"Form, Structure, and Sense",1,C
+9,RW,2,17,29c9be28,"Form, Structure, and Sense",1,A
+9,RW,2,18,70ced8dc,Boundaries,1,A
+9,RW,2,19,988c78eb,"Form, Structure, and Sense",1,C
+9,RW,2,20,96c720af,"Form, Structure, and Sense",1,B
+9,RW,2,21,432b1ede,Boundaries,2,C
+9,RW,2,22,0fd4df40,Transitions,1,A
+9,RW,2,23,6081831f,Transitions,1,B
+9,RW,2,24,0d3ebdce,Transitions,1,B
+9,RW,2,25,54f29331,Rhetorical Synthesis,1,B
+9,RW,2,26,9922b364,Rhetorical Synthesis,1,A
+9,RW,2,27,f1631638,Rhetorical Synthesis,2,C
+9,RW,3,1,dba9eaf8,Words in Context,3,D
+9,RW,3,2,a756aa95,Words in Context,3,D
+9,RW,3,3,6017ae31,Words in Context,3,C
+9,RW,3,4,d7807ec8,Words in Context,3,A
+9,RW,3,5,749f3334,"Text, Structure, and Purpose",2,B
+9,RW,3,6,6977d22b,Cross-Text Connections,3,A
+9,RW,3,7,1c69ff20,Central Ideas and Details,3,D
+9,RW,3,8,aa0968dd,Central Ideas and Details,3,C
+9,RW,3,9,3233c162,Command of Evidence,3,B
+9,RW,3,10,5d122d45,Command of Evidence,3,A
+9,RW,3,11,02848335,Command of Evidence,3,B
+9,RW,3,12,5b74feb9,Command of Evidence,3,C
+9,RW,3,13,f2250478,Inferences,3,B
+9,RW,3,14,5632ffb4,Inferences,3,A
+9,RW,3,15,2fd05c15,Boundaries,3,C
+9,RW,3,16,59a246dc,Boundaries,3,D
+9,RW,3,17,84658166,Boundaries,3,A
+9,RW,3,18,b32eab9f,"Form, Structure, and Sense",3,D
+9,RW,3,19,aa443c4b,"Form, Structure, and Sense",3,A
+9,RW,3,20,96c720af,"Form, Structure, and Sense",1,B
+9,RW,3,21,2dd1b8bf,"Form, Structure, and Sense",3,D
+9,RW,3,22,249508d9,Transitions,2,C
+9,RW,3,23,a2bff07e,Transitions,3,D
+9,RW,3,24,88308a39,Rhetorical Synthesis,2,D
+9,RW,3,25,63a4fa29,Rhetorical Synthesis,2,B
+9,RW,3,26,a1ca7ec4,Rhetorical Synthesis,2,C
+9,RW,3,27,56b000d0,Rhetorical Synthesis,3,A
+9,Math,1,1,fd65f47f,Equivalent Expressions,1,D
+9,Math,1,2,6105234d,Linear Equations in One Variable,1,C
+9,Math,1,3,ff2c1431,Nonlinear Equations and Systems,2,A
+9,Math,1,4,369b7bb7,Nonlinear Functions,1,C
+9,Math,1,5,47624288,Probability,1,C
+9,Math,1,6,4f89e4d4,Linear Functions,1,224
+9,Math,1,7,5f3ee607,Models and Scatterplots,1,B
+9,Math,1,8,4e400635,Systems of Linear Equations,2,1
+9,Math,1,9,a456cfd2,Distributions,2,14
+9,Math,1,10,98c12e38,Circles,2,D
+9,Math,1,11,f60aa0dc,Linear Equations in One Variable,2,D
+9,Math,1,12,bcb66188,Right Triangles and Trigonometry,2,B
+9,Math,1,13,9f6f96ff,Systems of Linear Equations,2,D
+9,Math,1,14,038d87d7,Linear Equations in Two Variables,2,A
+9,Math,1,15,42f19012,Equivalent Expressions,2,B
+9,Math,1,16,d135f4bf,Nonlinear Functions,3,76
+9,Math,1,17,1362ccde,Systems of Linear Equations,3,35
+9,Math,1,18,1f353a9e,Nonlinear Functions,3,D
+9,Math,1,19,21e539a0,"Ratios, Rates, Proportions, and Units",3,D
+9,Math,1,20,d0a53ef5,Nonlinear Equations and Systems,3,-3
+9,Math,1,21,3b225698,"Lines, Angles, and Triangles",3,C
+9,Math,1,22,0e61101e,Nonlinear Functions,3,B
+9,Math,2,1,c841e8e8,Linear Equations in One Variable,1,B
+9,Math,2,2,2cdefcb1,"Ratios, Rates, Proportions, and Units",1,C
+9,Math,2,3,f6b055dc,Systems of Linear Equations,1,B
+9,Math,2,4,893c7519,Nonlinear Functions,1,3
+9,Math,2,5,15d87c0f,Distributions,1,A
+9,Math,2,6,52931bfa,Equivalent Expressions,2,B
+9,Math,2,7,eaab8bc1,Percentages,1,240
+9,Math,2,8,68f2cbaf,Linear Inequalities,1,B
+9,Math,2,9,83f2c3bf,Linear Equations in Two Variables,1,A
+9,Math,2,10,0b332f00,Linear Functions,1,9
+9,Math,2,11,b8cbe394,Linear Functions,1,C
+9,Math,2,12,3b44439b,"Lines, Angles, and Triangles",1,D
+9,Math,2,13,575f1e12,Area and Volume,1,986
+9,Math,2,14,0d5495a6,Linear Functions,2,45
+9,Math,2,15,24854644,Linear Equations in Two Variables,1,B
+9,Math,2,16,0b221d05,Linear Inequalities,2,D
+9,Math,2,17,7ba694f3,Nonlinear Functions,2,D
+9,Math,2,18,4880eecb,Nonlinear Functions,2,B
+9,Math,2,19,2926cc6d,Nonlinear Functions,2,C
+9,Math,2,20,cc7ffe02,Linear Equations in Two Variables,3,C
+9,Math,2,21,4993b828,Nonlinear Functions,2,D
+9,Math,2,22,f1c1e971,Circles,2,C
+9,Math,3,1,35bec412,Distributions,1,79
+9,Math,3,2,4ff7b652,"Lines, Angles, and Triangles",2,B
+9,Math,3,3,99269e03,Nonlinear Functions,2,B
+9,Math,3,4,5a7ab8e8,Linear Equations in One Variable,2,C
+9,Math,3,5,c048055c,Nonlinear Functions,2,D
+9,Math,3,6,548a4929,Linear Functions,2,A
+9,Math,3,7,52931bfa,Equivalent Expressions,2,B
+9,Math,3,8,f329442c,Area and Volume,3,D
+9,Math,3,9,24cec8d1,Circles,3,46
+9,Math,3,10,03503d49,Linear Inequalities,3,B
+9,Math,3,11,f811d345,Right Triangles and Trigonometry,3,113
+9,Math,3,12,993000da,Percentages,3,D
+9,Math,3,13,9b5b23fc,Models and Scatterplots,3,D
+9,Math,3,14,3008cfc3,Linear Equations in Two Variables,3,33
+9,Math,3,15,cc7ffe02,Linear Equations in Two Variables,3,C
+9,Math,3,16,4becad44,Systems of Linear Equations,3,B
+9,Math,3,17,fbb96bb1,Nonlinear Equations and Systems,3,C
+9,Math,3,18,d1f50dbe,Linear Equations in One Variable,3,D
+9,Math,3,19,a54753ca,Nonlinear Equations and Systems,3,C
+9,Math,3,20,2b1a27cd,Nonlinear Functions,3,168
+9,Math,3,21,7d093333,"Ratios, Rates, Proportions, and Units",3,A
+9,Math,3,22,a35c7164,Linear Equations in Two Variables,3,B
+10,RW,1,1,69a6d050,Words in Context,1,A
+10,RW,1,2,83687083,Words in Context,1,C
+10,RW,1,3,a4ca92fd,Words in Context,1,C
+10,RW,1,4,051d3065,Words in Context,1,A
+10,RW,1,5,3f37eb3b,Words in Context,2,B
+10,RW,1,6,be947479,"Text, Structure, and Purpose",1,B
+10,RW,1,7,0a04cac5,"Text, Structure, and Purpose",3,A
+10,RW,1,8,c8a2af72,Cross-Text Connections,2,C
+10,RW,1,9,66bef967,Central Ideas and Details,2,A
+10,RW,1,10,d73a908a,Central Ideas and Details,2,D
+10,RW,1,11,03e5cf33,Command of Evidence,2,A
+10,RW,1,12,39de2206,Command of Evidence,2,B
+10,RW,1,13,b30a2613,Command of Evidence,2,B
+10,RW,1,14,f3f444bc,Inferences,2,A
+10,RW,1,15,4a85fea6,Inferences,2,D
+10,RW,1,16,d75d57a0,Boundaries,1,C
+10,RW,1,17,cdbbbf94,Boundaries,2,D
+10,RW,1,18,9f737b2a,"Form, Structure, and Sense",2,C
+10,RW,1,19,9d4a701b,Boundaries,3,C
+10,RW,1,20,d4fe8f03,Boundaries,3,B
+10,RW,1,21,42301836,Transitions,2,A
+10,RW,1,22,4fde4454,Transitions,2,D
+10,RW,1,23,08be6347,Transitions,2,D
+10,RW,1,24,c6645cab,Rhetorical Synthesis,1,A
+10,RW,1,25,a86c0b1b,Rhetorical Synthesis,2,C
+10,RW,1,26,24014c3f,Rhetorical Synthesis,2,A
+10,RW,1,27,6351062d,Rhetorical Synthesis,2,C
+10,RW,2,1,e5e7f264,Words in Context,1,A
+10,RW,2,2,6d5ddea4,Words in Context,1,D
+10,RW,2,3,5effa190,Words in Context,1,B
+10,RW,2,4,31d0bd9a,Words in Context,1,A
+10,RW,2,5,d5600e74,"Text, Structure, and Purpose",1,D
+10,RW,2,6,97360a00,"Text, Structure, and Purpose",2,C
+10,RW,2,7,487a05f8,Central Ideas and Details,1,D
+10,RW,2,8,706046f7,Central Ideas and Details,1,A
+10,RW,2,9,ec93e52c,Command of Evidence,3,A
+10,RW,2,10,303bcc41,Command of Evidence,1,D
+10,RW,2,11,e37f79a7,Command of Evidence,1,A
+10,RW,2,12,94978129,Command of Evidence,2,B
+10,RW,2,13,9aa5efc4,Command of Evidence,2,A
+10,RW,2,14,54057e3f,Inferences,2,A
+10,RW,2,15,430d929a,"Form, Structure, and Sense",1,C
+10,RW,2,16,576b2c70,"Form, Structure, and Sense",1,A
+10,RW,2,17,4bed4658,"Form, Structure, and Sense",1,B
+10,RW,2,18,8a3998f1,Boundaries,1,C
+10,RW,2,19,0ff8477b,"Form, Structure, and Sense",1,C
+10,RW,2,20,da53d726,Boundaries,2,A
+10,RW,2,21,827afb27,Transitions,1,A
+10,RW,2,22,57bcd0d6,Transitions,1,A
+10,RW,2,23,4f2710ab,Transitions,1,B
+10,RW,2,24,dd087f31,Transitions,1,A
+10,RW,2,25,f2f6009b,Rhetorical Synthesis,2,B
+10,RW,2,26,3067723b,Rhetorical Synthesis,1,B
+10,RW,2,27,0fab0c90,Rhetorical Synthesis,3,C
+10,RW,3,1,aaa3ee7c,Words in Context,3,D
+10,RW,3,2,0462dac3,Words in Context,3,C
+10,RW,3,3,a06c434d,Words in Context,3,C
+10,RW,3,4,e26d23c4,Words in Context,3,A
+10,RW,3,5,d69bc408,"Text, Structure, and Purpose",2,A
+10,RW,3,6,39857700,"Text, Structure, and Purpose",3,D
+10,RW,3,7,df45f0eb,"Text, Structure, and Purpose",3,B
+10,RW,3,8,881ba6f1,Central Ideas and Details,3,D
+10,RW,3,9,2ef8e367,Command of Evidence,2,A
+10,RW,3,10,014b3394,Command of Evidence,3,C
+10,RW,3,11,6536183b,Command of Evidence,3,C
+10,RW,3,12,3fc06a91,Command of Evidence,3,A
+10,RW,3,13,1b9b29f1,Inferences,3,C
+10,RW,3,14,ac285054,Inferences,3,C
+10,RW,3,15,7f1df833,"Form, Structure, and Sense",2,A
+10,RW,3,16,5aae2475,Boundaries,3,C
+10,RW,3,17,c88ba1b7,"Form, Structure, and Sense",3,C
+10,RW,3,18,be37d4ae,Boundaries,3,C
+10,RW,3,19,a05cc490,Boundaries,3,C
+10,RW,3,20,5fd86f4b,"Form, Structure, and Sense",3,A
+10,RW,3,21,52b31d7b,Transitions,2,A
+10,RW,3,22,b8eec031,Transitions,2,D
+10,RW,3,23,2b08f514,Transitions,3,C
+10,RW,3,24,abcd0006,Rhetorical Synthesis,3,D
+10,RW,3,25,4b376902,Rhetorical Synthesis,1,B
+10,RW,3,26,dede8260,Rhetorical Synthesis,2,B
+10,RW,3,27,2c61e0b9,Rhetorical Synthesis,3,D
+10,Math,1,1,b8150b17,Probability,1,C
+10,Math,1,2,c4d49134,Linear Functions,1,D
+10,Math,1,3,2e8cc1c0,Linear Equations in One Variable,1,C
+10,Math,1,4,c5ee6ac0,Models and Scatterplots,1,A
+10,Math,1,5,58a71e06,Percentages,1,D
+10,Math,1,6,ba79f10f,Linear Equations in Two Variables,1,D
+10,Math,1,7,c13016f9,Nonlinear Functions,1,77
+10,Math,1,8,f5c3e3b8,Equivalent Expressions,1,B
+10,Math,1,9,055aafe7,"Lines, Angles, and Triangles",2,D
+10,Math,1,10,3726e079,"Ratios, Rates, Proportions, and Units",2,24
+10,Math,1,11,56dc8045,Linear Functions,2,D
+10,Math,1,12,cc6ccd71,Nonlinear Functions,2,C
+10,Math,1,13,4618501a,Nonlinear Functions,2,D
+10,Math,1,14,ee857afb,Nonlinear Functions,3,7
+10,Math,1,15,e5c57163,Area and Volume,3,27556
+10,Math,1,16,6ba39da5,Systems of Linear Equations,2,25
+10,Math,1,17,8490cc45,Nonlinear Functions,3,A
+10,Math,1,18,a8ae0d22,Nonlinear Functions,3,D
+10,Math,1,19,1efd7ef3,Right Triangles and Trigonometry,3,A
+10,Math,1,20,14360f84,Systems of Linear Equations,3,D
+10,Math,1,21,ba0edc30,Nonlinear Equations and Systems,3,B
+10,Math,1,22,104bff62,Nonlinear Equations and Systems,3,D
+10,Math,2,1,349a5bc1,Linear Equations in One Variable,1,40
+10,Math,2,2,ea95087d,Linear Equations in Two Variables,1,C
+10,Math,2,3,3e9eaffc,Linear Functions,2,A
+10,Math,2,4,5f46fc76,Nonlinear Functions,1,C
+10,Math,2,5,c81499e1,Linear Equations in Two Variables,1,39000
+10,Math,2,6,0d391910,Linear Functions,1,2
+10,Math,2,7,0bb39de4,"Lines, Angles, and Triangles",1,B
+10,Math,2,8,0d3f51dc,"Lines, Angles, and Triangles",1,D
+10,Math,2,9,ffb371f5,Systems of Linear Equations,1,B
+10,Math,2,10,beb86a0c,Equivalent Expressions,1,A
+10,Math,2,11,174885f8,Linear Equations in Two Variables,1,A
+10,Math,2,12,02b02213,Area and Volume,1,D
+10,Math,2,13,10c448d6,Linear Equations in Two Variables,1,D
+10,Math,2,14,c9f8d1e9,Right Triangles and Trigonometry,1,D
+10,Math,2,15,7038b587,Linear Equations in Two Variables,1,41
+10,Math,2,16,a26c29f7,Nonlinear Functions,2,D
+10,Math,2,17,a67a439d,Nonlinear Equations and Systems,1,A
+10,Math,2,18,24a1e6a7,Equivalent Expressions,2,B
+10,Math,2,19,5e08a055,Systems of Linear Equations,3,B
+10,Math,2,20,e470e19d,Linear Functions,2,D
+10,Math,2,21,f1c81b3b,Nonlinear Functions,2,11875
+10,Math,2,22,ba61d95f,Percentages,2,C
+10,Math,3,1,43744269,Models and Scatterplots,1,B
+10,Math,3,2,0451d754,Linear Equations in Two Variables,2,B
+10,Math,3,3,3e9eaffc,Linear Functions,2,C
+10,Math,3,4,cb29c54c,Nonlinear Functions,2,B
+10,Math,3,5,e3cf671f,Linear Equations in Two Variables,2,67
+10,Math,3,6,0bb39de4,"Lines, Angles, and Triangles",1,B
+10,Math,3,7,541bef2f,Linear Inequalities,3,D
+10,Math,3,8,d65b9a87,Distributions,3,A
+10,Math,3,9,752055d1,Nonlinear Functions,2,B
+10,Math,3,10,ba8ca563,Area and Volume,3,36504
+10,Math,3,11,edc1b7b7,Systems of Linear Equations,3,3
+10,Math,3,12,c7c6445f,"Ratios, Rates, Proportions, and Units",3,D
+10,Math,3,13,010243e6,"Lines, Angles, and Triangles",3,C
+10,Math,3,14,ee7b1de1,Linear Inequalities,3,182
+10,Math,3,15,ae041e52,Right Triangles and Trigonometry,3,A
+10,Math,3,16,9d159400,Circles,3,C
+10,Math,3,17,5e08a055,Systems of Linear Equations,3,B
+10,Math,3,18,20291f47,Equivalent Expressions,3,C
+10,Math,3,19,133f3e41,Equivalent Expressions,3,C
+10,Math,3,20,03ff48d2,Nonlinear Equations and Systems,3,50
+10,Math,3,21,75012ee7,Systems of Linear Equations,3,B
+10,Math,3,22,8c5e6702,Linear Functions,3,A
+11,RW,1,1,,Words in Context,,C
+11,RW,1,2,,Words in Context,,D
+11,RW,1,3,,Words in Context,,B
+11,RW,1,4,,Words in Context,,A
+11,RW,1,5,,"Text, Structure, and Purpose",,B
+11,RW,1,6,,"Text, Structure, and Purpose",,D
+11,RW,1,7,,Cross-Text Connections,,D
+11,RW,1,8,,Central Ideas and Details,,D
+11,RW,1,9,,Central Ideas and Details,,B
+11,RW,1,10,,Command of Evidence,,D
+11,RW,1,11,,Command of Evidence,,B
+11,RW,1,12,,Command of Evidence,,A
+11,RW,1,13,,Command of Evidence,,A
+11,RW,1,14,,Inferences,,D
+11,RW,1,15,,Inferences,,B
+11,RW,1,16,,"Form, Structure, and Sense",,A
+11,RW,1,17,,Boundaries,,B
+11,RW,1,18,,Boundaries,,B
+11,RW,1,19,,Boundaries,,B
+11,RW,1,20,,"Form, Structure, and Sense",,B
+11,RW,1,21,,Transitions,,C
+11,RW,1,22,,Transitions,,D
+11,RW,1,23,,Transitions,,B
+11,RW,1,24,,Rhetorical Synthesis,,C
+11,RW,1,25,,Rhetorical Synthesis,,C
+11,RW,1,26,,Rhetorical Synthesis,,A
+11,RW,1,27,,Rhetorical Synthesis,,C
+11,RW,2,1,,Words in Context,,C
+11,RW,2,2,,Words in Context,,D
+11,RW,2,3,,Words in Context,,D
+11,RW,2,4,,Words in Context,,D
+11,RW,2,5,,"Text, Structure, and Purpose",,B
+11,RW,2,6,,"Text, Structure, and Purpose",,A
+11,RW,2,7,,Central Ideas and Details,,B
+11,RW,2,8,,Central Ideas and Details,,C
+11,RW,2,9,,Central Ideas and Details,,D
+11,RW,2,10,,Command of Evidence,,C
+11,RW,2,11,,Command of Evidence,,B
+11,RW,2,12,,Command of Evidence,,C
+11,RW,2,13,,Command of Evidence,,A
+11,RW,2,14,,Inferences,,C
+11,RW,2,15,,"Form, Structure, and Sense",,C
+11,RW,2,16,,Boundaries,,D
+11,RW,2,17,,"Form, Structure, and Sense",,D
+11,RW,2,18,,"Form, Structure, and Sense",,A
+11,RW,2,19,,"Form, Structure, and Sense",,B
+11,RW,2,20,,"Form, Structure, and Sense",,B
+11,RW,2,21,,Boundaries,,B
+11,RW,2,22,,Transitions,,D
+11,RW,2,23,,Transitions,,D
+11,RW,2,24,,Transitions,,B
+11,RW,2,25,,Transitions,,C
+11,RW,2,26,,Rhetorical Synthesis,,A
+11,RW,2,27,,Rhetorical Synthesis,,A
+11,RW,3,1,,Words in Context,,D
+11,RW,3,2,,Words in Context,,B
+11,RW,3,3,,Words in Context,,B
+11,RW,3,4,,Words in Context,,B
+11,RW,3,5,,"Text, Structure, and Purpose",,B
+11,RW,3,6,,"Text, Structure, and Purpose",,C
+11,RW,3,7,,Cross-Text Connections,,B
+11,RW,3,8,,Central Ideas and Details,,A
+11,RW,3,9,,Central Ideas and Details,,D
+11,RW,3,10,,Command of Evidence,,C
+11,RW,3,11,,Command of Evidence,,A
+11,RW,3,12,,Command of Evidence,,B
+11,RW,3,13,,Inferences,,A
+11,RW,3,14,,Inferences,,A
+11,RW,3,15,,"Form, Structure, and Sense",,A
+11,RW,3,16,,"Form, Structure, and Sense",,B
+11,RW,3,17,,"Form, Structure, and Sense",,A
+11,RW,3,18,,"Form, Structure, and Sense",,A
+11,RW,3,19,,Boundaries,,A
+11,RW,3,20,,"Form, Structure, and Sense",,D
+11,RW,3,21,,"Form, Structure, and Sense",,B
+11,RW,3,22,,Transitions,,A
+11,RW,3,23,,Transitions,,B
+11,RW,3,24,,Rhetorical Synthesis,,D
+11,RW,3,25,,Rhetorical Synthesis,,D
+11,RW,3,26,,Rhetorical Synthesis,,B
+11,RW,3,27,,Rhetorical Synthesis,,A
+11,Math,1,1,,Linear Equations in One Variable,,A
+11,Math,1,2,,Nonlinear Equations and Systems,,A
+11,Math,1,3,,Distributions,,8
+11,Math,1,4,,Linear Equations in Two Variables,,13
+11,Math,1,5,,Nonlinear Functions,,B
+11,Math,1,6,,Equivalent Expressions,,C
+11,Math,1,7,,"Lines, Angles, and Triangles",,63
+11,Math,1,8,,Nonlinear Functions,,C
+11,Math,1,9,,Equivalent Expressions,,C
+11,Math,1,10,,Linear Equations in Two Variables,,A
+11,Math,1,11,,Area and Volume,,A
+11,Math,1,12,,Nonlinear Equations and Systems,,A
+11,Math,1,13,,Linear Functions,,C
+11,Math,1,14,,Linear Functions,,D
+11,Math,1,15,,Nonlinear Functions,,15000
+11,Math,1,16,,Models and Scatterplots,,A
+11,Math,1,17,,Nonlinear Functions,,B
+11,Math,1,18,,Circles,,B
+11,Math,1,19,,Linear Functions,,A
+11,Math,1,20,,Right Triangles and Trigonometry,,D
+11,Math,1,21,,Linear Functions,,3331
+11,Math,1,22,,Nonlinear Equations and Systems,,B
+11,Math,2,1,,Nonlinear Functions,,4
+11,Math,2,2,,Linear Inequalities,,A
+11,Math,2,3,,Distributions,,B
+11,Math,2,4,,Linear Functions,,A
+11,Math,2,5,,Linear Equations in One Variable,,8.6
+11,Math,2,6,,Percentages,,75
+11,Math,2,7,,Linear Functions,,C
+11,Math,2,8,,Nonlinear Equations and Systems,,A
+11,Math,2,9,,"Lines, Angles, and Triangles",,A
+11,Math,2,10,,Probability,,B
+11,Math,2,11,,Systems of Linear Equations,,D
+11,Math,2,12,,Linear Equations in Two Variables,,A
+11,Math,2,13,,Sample Statistics and Margin of Error,,C
+11,Math,2,14,,Nonlinear Functions,,3600
+11,Math,2,15,,"Lines, Angles, and Triangles",,A
+11,Math,2,16,,Equivalent Expressions,,D
+11,Math,2,17,,"Lines, Angles, and Triangles",,45
+11,Math,2,18,,Circles,,A
+11,Math,2,19,,Nonlinear Equations and Systems,,B
+11,Math,2,20,,Nonlinear Functions,,C
+11,Math,2,21,,Systems of Linear Equations,,B
+11,Math,2,22,,Equivalent Expressions,,B
+11,Math,3,1,,Linear Equations in One Variable,,B
+11,Math,3,2,,Systems of Linear Equations,,30
+11,Math,3,3,,Linear Inequalities,,A
+11,Math,3,4,,Models and Scatterplots,,C
+11,Math,3,5,,Nonlinear Functions,,B
+11,Math,3,6,,Linear Functions,,D
+11,Math,3,7,,Circles,,100
+11,Math,3,8,,Linear Functions,,A
+11,Math,3,9,,Nonlinear Equations and Systems,,29
+11,Math,3,10,,Equivalent Expressions,,A
+11,Math,3,11,,Linear Inequalities,,D
+11,Math,3,12,,Probability,,A
+11,Math,3,13,,Distributions,,B
+11,Math,3,14,,"Ratios, Rates, Proportions, and Units",,C
+11,Math,3,15,,Equivalent Expressions,,41/81
+11,Math,3,16,,Nonlinear Equations and Systems,,A
+11,Math,3,17,,"Lines, Angles, and Triangles",,A
+11,Math,3,18,,"Lines, Angles, and Triangles",,A
+11,Math,3,19,,Systems of Linear Equations,,C
+11,Math,3,20,,Area and Volume,,B
+11,Math,3,21,,Nonlinear Functions,,D
+11,Math,3,22,,Percentages,,60000

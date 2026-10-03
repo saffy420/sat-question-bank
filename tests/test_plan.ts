@@ -6,9 +6,10 @@ import assert from 'node:assert/strict';
 import * as stats from '../public/shared/stats.js';
 import {
   advanceCycle, orderSkills, logTest, resolveLog, countBySkill, modulesOf, routesOf, blockedIds, seenIds, pickSet, newRun,
-  segmentIds, closeSegment, scoreRun, nextStep, tooSoon, addDays, emptyState, nextTestNumber, SHAPES
+  segmentIds, closeSegment, scoreRun, nextStep, tooSoon, addDays, emptyState, nextTestNumber, SHAPES,
+  stemSnippet, pickPositions, versionOrder, recognize, matchExport
 } from '../lesson-ui/plan.ts';
-import type { TestMap, TestLog, BankQ, SkillCount, PlanState, PoolContext } from '../lesson-ui/plan.ts';
+import type { TestMap, TestLog, BankQ, SkillCount, PlanState, PoolContext, PracticeTest, StemQ } from '../lesson-ui/plan.ts';
 
 const count = (misses: number, slows = 0): SkillCount => ({ misses, slows, missIds: [], slowIds: [] });
 
@@ -213,4 +214,69 @@ test('segments, overtime and the score at the end of a set', () => {
   run.ans = { m1: 'A', m2: 'B', h1: 'A' };
   const r = scoreRun(run, qs, stats.isRight as never);
   assert.deepEqual(r, { right: 2, scored: 4, missed: ['m2', 'm3'] }, 'a blank is a miss on the score');
+});
+
+// ---------------- module-2 recognition check ----------------
+// One test whose Math module 2 has 20 positions. Easy e<i> and hard h<i> differ except where noted.
+const P = (text: string): StemQ => ({ stem_html: `<h3>Passage</h3><p>${text}</p><h3>Prompt</h3><p>Which choice best states the main idea?</p>` });
+const stems = new Map<string, StemQ>();
+for (let i = 0; i < 20; i++) { stems.set('e' + i, P(`Easy question ${i} opens with a sentence about rivers and long valleys.`)); stems.set('h' + i, P(`Hard question ${i} opens with a sentence about mountains and glaciers.`)); }
+const easy = Array.from({ length: 20 }, (_, i) => 'e' + i), hard = Array.from({ length: 20 }, (_, i) => 'h' + i);
+hard[4] = 'e4';                                            // Q5: the same question in both variants
+hard[5] = 'gone';                                          // Q6: hard ID not in the bank
+stems.set('e3', { stem_html: '<h3>Passage</h3><div class="qfig"><img src="/qimg/x.webp"></div><p>Which choice...</p>' });  // Q4 opens with a figure
+stems.set('h6', P('Easy question 6 opens with a sentence about rivers and long valleys, but harder.'));  // Q7: same opening as e6
+const RT: PracticeTest = { id: 'PT7', number: 7, name: 'Practice Test 7', RW: { m1: [], easy: easy.slice(), hard: null }, Math: { m1: [], easy, hard } };
+
+test('snippet: plain text from the stem only, labels and figures dropped, math as text, about 140 characters', () => {
+  assert.equal(stemSnippet('<h3>Passage</h3><p>If \\(\\frac{x}{2} \\le 3\\) and \\(x^{2} = 9\\), what is &lt;x&gt; &amp; y?</p>'), 'If x/2 \u2264 3 and x^2 = 9, what is <x> & y?');
+  assert.equal(stemSnippet('<p><img class="minl" src="/qimg/a.webp" alt=""> is the value of the expression shown here.</p>'), null);
+  assert.equal(stemSnippet('<div class="qtable"><table><tr><td>1</td></tr></table></div><p>The table shows values.</p>'), null);
+  assert.equal(stemSnippet('<p>Too short.</p>'), null);
+  assert.equal(stemSnippet('<p>If \\(x \\lt 5\\) and <b>y</b> is a positive integer, what is y?</p>'), 'If x < 5 and y is a positive integer, what is y?');
+  assert.equal(stemSnippet('<p>A serving is <img class="minl" src="/qimg/a.webp" alt=""> cup and provides 210 calories in total.</p>'), 'A serving is \u2026 cup and provides 210 calories in total.');
+  const long = stemSnippet(P('word '.repeat(80)).stem_html)!;
+  assert.ok(long.length <= 141 && long.endsWith('\u2026'), long);
+  assert.ok(!/Which choice/.test(stemSnippet(P('The prompt is never part of the opening line shown here.').stem_html)!.slice(0, 50)));
+});
+
+test('position picker: differing, in-bank, usable, distinct openings; early then late; deterministic', () => {
+  const pos = pickPositions(RT, 'Math', stems);
+  for (const bad of [3, 4, 5, 6]) assert.ok(!pos.includes(bad), `Q${bad + 1} should be skipped`);
+  assert.deepEqual(pos.slice(0, 3), [2, 14, 9]);            // nearest Q5 is Q3 (Q4-Q7 unusable), then Q15, then the middle
+  assert.equal(new Set(pos).size, pos.length);
+  assert.equal(pos.length, 16);
+  assert.deepEqual(pickPositions(RT, 'Math', stems), pos);
+  assert.deepEqual(pickPositions(RT, 'RW', stems), []);      // one variant mapped: no check, the form keeps the radios
+  assert.deepEqual(versionOrder('PT7', 'Math', 2), versionOrder('PT7', 'Math', 2));
+  const orders = Array.from({ length: 20 }, (_, i) => versionOrder('PT7', 'Math', i)[0]);
+  assert.ok(orders.includes('easy') && orders.includes('hard'), 'Version A is not always the same variant');
+});
+
+test('recognition: two agreeing answers settle it, a split asks a third, Not sure or an unbreakable split is stuck', () => {
+  assert.deepEqual(recognize([], 16), { route: null, ask: true, stuck: false });
+  assert.deepEqual(recognize(['hard'], 16), { route: null, ask: true, stuck: false });
+  assert.deepEqual(recognize(['hard', 'hard'], 16), { route: 'hard', ask: false, stuck: false });
+  assert.deepEqual(recognize(['easy', 'hard'], 16), { route: null, ask: true, stuck: false });
+  assert.deepEqual(recognize(['easy', 'hard', 'easy'], 16), { route: 'easy', ask: false, stuck: false });
+  assert.deepEqual(recognize(['easy', 'unsure'], 16), { route: null, ask: false, stuck: true });
+  assert.deepEqual(recognize(['easy', 'hard'], 2), { route: null, ask: false, stuck: true });
+  assert.deepEqual(recognize(['hard'], 1), { route: 'hard', ask: false, stuck: false });
+});
+
+test('export upload: detects the test from module 1 and each section\'s variant from module 2', () => {
+  const T = (id: string, n: number): PracticeTest => ({ id, number: n, name: id,
+    RW: { m1: [`${id}r1`, `${id}r2`], easy: [`${id}re1`, 'shared'], hard: [`${id}rh1`, 'shared'] },
+    Math: { m1: [`${id}m1`], easy: [`${id}me1`, `${id}me2`], hard: [`${id}mh1`, `${id}mh2`] } });
+  const map: TestMap = { tests: [T('PT4', 4), T('PT5', 5)] };
+  const ext = Object.fromEntries(map.tests.flatMap(t => ['RW', 'Math'].flatMap(s => ['m1', 'easy', 'hard'].flatMap(m => (t as any)[s][m] as string[])))
+    .map(id => [id, 'x-' + id]));
+  const file = (rw: string[], math: string[]) => [{ id: 'reading', items: rw.map(id => ({ section: 'Reading', externalId: 'x-' + id })) },
+    { id: 'math', items: math.map(id => ({ section: 'Math', externalId: 'x-' + id })) }];
+  assert.deepEqual(matchExport(map, ext, file(['PT5r1', 'PT5r2', 'PT5re1', 'shared'], ['PT5m1', 'PT5mh1', 'PT5mh2'])), { testId: 'PT5', route: { RW: 'easy', Math: 'hard' } });
+  assert.deepEqual(matchExport(map, ext, file(['PT4r1', 'PT4rh1', 'shared'], ['PT4m1', 'PT4me1', 'PT4me2'])), { testId: 'PT4', route: { RW: 'hard', Math: 'easy' } });
+  // module 2 missing from the file: the test is known, the route is not
+  assert.deepEqual(matchExport(map, ext, file(['PT4r1'], ['PT4m1'])), { testId: 'PT4', route: {} });
+  assert.match((matchExport(map, ext, file(['nope'], ['nada'])) as { error: string }).error, /does not match/);
+  for (const bad of [null, 42, 'text', {}, [], [{ items: [{ foo: 1 }] }], { questions: [] }]) assert.ok('error' in matchExport(map, ext, bad), JSON.stringify(bad));
 });

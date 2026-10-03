@@ -65,6 +65,121 @@ export function modulesOf(test: PracticeTest, route: Record<Section, Route>) {
   ]);
 }
 
+// ---------------- which module 2 did the student take? ----------------
+// The log form never asks "easier or harder?". It shows the opening line of one module-2 question from both variants
+// (Version A / Version B, in an order fixed per test and position) and asks which one the student saw.
+export const SNIPPET_CHARS = 140;
+// Openings that agree this far are not told apart (boilerplate such as "While researching a topic, a student...").
+export const OPENING_CHARS = 60;
+export const RECOGNITION_TARGETS = [4, 14, 9];   // 0-based: about Q5, about Q15, then the middle for a tie-break
+export type StemQ = { stem_html?: string | null };
+export type Answer = Route | 'unsure';
+
+const ENTITY: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–',
+  rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', hellip: '…', minus: '−', times: '×', le: '≤', ge: '≥', deg: '°', pi: 'π' };
+const TEX: Record<string, string> = { cdot: '·', times: '×', div: '÷', le: '≤', leq: '≤', ge: '≥', geq: '≥', ne: '≠', neq: '≠',
+  lt: '<', gt: '>', pi: 'π', theta: 'θ', alpha: 'α', beta: 'β', circ: '°', degree: '°', pm: '±', infty: '∞', approx: '≈', percent: '%' };
+// TeX source (`\( ... \)`; the bank stores no MathML) as readable plain text: x^2, a/b, √x, ≤.
+function texText(tex: string) {
+  let s = tex.replace(/\\(?:left|right|displaystyle|,|;|!|quad)/g, ' ');
+  const wrap = (x: string) => /^[A-Za-z0-9.^]+$/.test(x.trim()) ? x.trim() : `(${x.trim()})`;
+  for (let i = 0; i < 4; i++) s = s.replace(/([\^_])\{([^{}]*)\}/g, (_, op, x) => op + wrap(x))
+    .replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (_, a, b) => `${wrap(a)}/${wrap(b)}`).replace(/\\sqrt\s*\{([^{}]*)\}/g, (_, x) => '√' + wrap(x))
+    .replace(/\\(?:text|mathrm|mathit|mathbf|operatorname|overline)\s*\{([^{}]*)\}/g, '$1');
+  s = s.replace(/\\([A-Za-z]+)/g, (_, c) => TEX[c] ?? c).replace(/\\([%$&#_{}])/g, '$1').replace(/[{}]/g, '');
+  return s.replace(/\s+/g, ' ').trim();
+}
+// The opening of a question as plain text, about SNIPPET_CHARS long: section labels, figures and tables dropped, math
+// as text. null when the stem has no usable opening text (it opens with a figure or table, or says almost nothing).
+// Only the stem is read: never choices, answers or explanations.
+export function stemSnippet(html: string | null | undefined, max = SNIPPET_CHARS): string | null {
+  let h = String(html || '').replace(/<h3\b[^>]*>[\s\S]*?<\/h3>/gi, ' ').trim();
+  if (/^(?:<p\b[^>]*>\s*)?(?:<img\b|<svg\b|<table\b|<figure\b|<div\b[^>]*class="[^"]*\bq(?:fig|table)\b)/i.test(h)) return null;
+  h = h.replace(/<(svg|table|figure|script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<div\b[^>]*class="[^"]*\bq(?:fig|table)\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, ' ')
+    .replace(/<img\b[^>]*>/gi, m => /class="[^"]*\bminl\b/.test(m) ? ' … ' : ' ')   // minl: inline math image, no alt
+    // Tags go before the math: TeX's \lt becomes a bare '<' that a later tag strip would eat.
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)\\\]/g, (_, a, b) => ' ' + texText(a ?? b) + ' ')
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : +e.slice(1)) : ENTITY[e.toLowerCase()] ?? m);
+  const text = h.replace(/\s+/g, ' ').replace(/ ([,.;:?!])/g, '$1').trim();
+  if (text.length < 25) return null;
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max + 1).replace(/\s+\S*$/, '');
+  return (cut.length > max * 0.6 ? cut : text.slice(0, max)).replace(/[\s,;:.—-]+$/, '') + '…';
+}
+const opening = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, OPENING_CHARS);
+
+// Positions (0-based) of this section's module 2 that can tell the variants apart, in the order to ask them: the one
+// nearest Q5, the one nearest Q15, then the one nearest the middle, then the rest. A position qualifies when the two
+// variants hold different questions, both are in the bank, both have opening text, and the openings differ.
+export function pickPositions(test: PracticeTest, section: Section, byId: Map<string, StemQ>): number[] {
+  const easy = test[section].easy, hard = test[section].hard;
+  if (!easy || !hard) return [];
+  const ok: number[] = [];
+  for (let i = 0; i < Math.min(easy.length, hard.length); i++) {
+    const e = easy[i], h = hard[i];
+    if (!e || !h || e === h || !byId.has(e) || !byId.has(h)) continue;
+    const a = stemSnippet(byId.get(e)!.stem_html), b = stemSnippet(byId.get(h)!.stem_html);
+    if (a && b && opening(a) !== opening(b)) ok.push(i);
+  }
+  const out: number[] = [];
+  for (const t of RECOGNITION_TARGETS) {
+    const left = ok.filter(i => !out.includes(i)).sort((x, y) => Math.abs(x - t) - Math.abs(y - t) || x - y);
+    if (left.length) out.push(left[0]);
+  }
+  return [...out, ...ok.filter(i => !out.includes(i))];
+}
+// Which variant is shown as Version A at this position: fixed per test, section and position, and not always easy.
+export function versionOrder(testId: string, section: Section, pos: number): [Route, Route] {
+  return hash(`${testId}|${section}|${pos}`) & 1 ? ['hard', 'easy'] : ['easy', 'hard'];
+}
+// The student's answers so far (one per asked position, in pickPositions order) against the positions available.
+// Two agreeing answers settle it; a split asks a third and the majority settles it; "Not sure", or a split with no
+// third position, cannot be settled here (the form points to the test's review in Bluebook).
+export function recognize(answers: Answer[], available: number): { route: Route | null; ask: boolean; stuck: boolean } {
+  if (answers.includes('unsure')) return { route: null, ask: false, stuck: true };
+  const n = answers.length, e = answers.filter(a => a === 'easy').length, h = n - e;
+  if (n < Math.min(2, available)) return { route: null, ask: true, stuck: false };
+  if (e !== h && (n === 1 || Math.max(e, h) >= 2)) return { route: e > h ? 'easy' : 'hard', ask: false, stuck: false };
+  if (n < Math.min(3, available)) return { route: null, ask: true, stuck: false };
+  return { route: null, ask: false, stuck: true };
+}
+
+// A student's My Practice `questions.json` (parsed in the browser, never sent anywhere) against the map: which test it
+// is, from module 1, and per section which module 2 it holds. `ext` is public/practice-tests-ext.json (bank ID ->
+// College Board externalId). Route detection only; the export's own answer fields are not read.
+export type ExportMatch = { testId: string; route: Partial<Record<Section, Route>> } | { error: string };
+export function matchExport(map: TestMap, ext: Record<string, string>, file: unknown): ExportMatch {
+  const bad = { error: 'This file is not a My Practice questions.json export.' };
+  const groups = Array.isArray(file) ? file : file && typeof file === 'object' && Array.isArray((file as { items?: unknown }).items) ? [file] : null;
+  if (!groups) return bad;
+  const bank = new Map<string, string[]>();
+  for (const [id, x] of Object.entries(ext || {})) bank.set(x, [...(bank.get(x) || []), id]);
+  const have: Record<Section, Set<string>> = { RW: new Set(), Math: new Set() };
+  let items = 0;
+  for (const g of groups) for (const it of (g && Array.isArray(g.items) ? g.items : [])) {
+    if (!it || typeof it.externalId !== 'string') continue;
+    const sec: Section | null = it.section === 'Math' ? 'Math' : it.section === 'Reading' || it.section === 'Reading and Writing' ? 'RW' : null;
+    if (!sec) continue;
+    items++;
+    for (const id of bank.get(it.externalId) || []) have[sec].add(id);
+  }
+  if (!items) return bad;
+  let best: PracticeTest | null = null, bestN = 0;
+  for (const t of map.tests) {
+    const n = SECTIONS.reduce((k, s) => k + (t[s].m1 || []).filter(id => id && have[s].has(id)).length, 0);
+    if (n > bestN) { best = t; bestN = n; }
+  }
+  if (!best) return { error: 'This export does not match any practice test on the list.' };
+  const route: Partial<Record<Section, Route>> = {};
+  for (const s of SECTIONS) {
+    const easy = new Set((best[s].easy || []).filter(Boolean) as string[]), hard = new Set((best[s].hard || []).filter(Boolean) as string[]);
+    const ce = [...easy].filter(id => !hard.has(id) && have[s].has(id)).length, ch = [...hard].filter(id => !easy.has(id) && have[s].has(id)).length;
+    if (ce !== ch) route[s] = ce > ch ? 'easy' : 'hard';
+  }
+  return { testId: best.id, route };
+}
+
 export type LoggedItem = { module: string; number: number; id: string | null; skill: string | null; mark: Mark | null };
 // Every position of the logged modules with its bank question (null when unmapped or not in this bank) and its mark.
 export function resolveLog(test: PracticeTest, log: TestLog, byId: Map<string, BankQ>): LoggedItem[] {
