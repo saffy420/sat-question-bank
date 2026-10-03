@@ -51,3 +51,78 @@ narrow ≤980px rail), and a "Join" tile in the phone tab bar; `tests/e2e/join-b
 **Manual checks:** log a real practice test on a Chromebook; play one timed drill; read the plan on a phone.
 **Not built:** undoing or editing a logged test; an admin view of students' plans. The phone tab bar was already
 crowded at 9 tabs; with 10, its longest labels (Dashboard, Mistakes) touch.
+
+## 2026-10-03 — Every module-2 variant mapped; recognition check replaces the Easier/Harder radios
+
+Brief: `docs/plan/BRIEF-modules.md`. Research: `docs/plan/modules-research.md`. Not deployed.
+
+**Data.**
+- `tools/ptmap/extract-pdf.cjs` turns the two Bluebook answer-key PDFs into `tools/ptmap/sources/bluebook-ids.csv` (1,176 rows, 8 tests). It needs poppler's `pdftotext`.
+- `build-ptmap.cjs` merges the CSV after the exports. The exports win. The PDF fills a missing or null position only when its ID is in the bank, in the right section, and its printed answer passes `isRight` against the bank's key.
+- Bank facts come from `sources/bank-check.json`, which is tracked and holds only IDs and answer keys. Refresh it with `--bank <api dump>`.
+- Results:
+  - 329 positions were filled.
+  - Every test now has m1, easy and hard in both sections.
+  - 19 placeholders stay null.
+  - The 6 known conflicts were kept on the export side.
+  - 0 rejections.
+  - 17 skill or difficulty warnings, listed in `tools/ptmap/README.md`.
+- New output: `public/practice-tests-ext.json` (bank ID → externalId). The browser fetches it only on upload.
+
+**Log form.**
+- Each section with both variants mapped asks: "Which was question P in your second <section> module?" It shows Version A and Version B with each stem's opening line.
+  - The first question is near Q5, the second near Q15, and a split gets a third.
+  - The Version A/B order is hashed per test and position.
+- Module 2's grid and Save wait until the section is settled.
+- "Not sure", or a split that can't be broken, points to the test's review in Bluebook.
+- With one variant mapped, the section keeps the radios, with the unmapped option disabled.
+- Optional: upload My Practice `questions.json`. It is parsed in the browser and never sent. It detects the test from module 1, offers to switch tests, and detects the variant per section from module 2. It does not fill Wrong marks.
+
+**Side effects (rules unchanged).**
+- `blockedIds` now also blocks the hard modules (and PT7 Math easy) of unlogged tests: 825 → 1,133 blocked IDs.
+- Pool sizes for a student with nothing logged:
+  - Medium: 941 → 867.
+  - Hard: 1,565 → 1,356 (official only: 1,065 → 856).
+  - No skill newly drops below a drill's needs of 10 Medium or 5 Hard. "Evaluating statistical claims" Medium was already at 3.
+- A logged test unblocks wholesale. The variant a student didn't take is never recorded, so it becomes ordinary unseen pool material.
+- Logged `TestLog`s keep their `route`, and the plan JSON is unchanged, so nothing needs migrating.
+- A set already picked keeps its questions until it is played.
+
+**Tests.**
+- `tests/test_ptmap.cjs`: merge rules and a byte-identical rebuild.
+- `tests/test_plan.ts`: snippet, picker, recognition and export resolver.
+- `tests/e2e/study-plan/recognition.spec.ts`: R1–R6, run against a PT93 fixture. Screens 13–18.
+
+## 2026-10-03 — Logging a test is a step-by-step popup
+
+Brief: `docs/plan/BRIEF-log-modal.md` (the user's request, verbatim). It supersedes BRIEF-modules.md §3's "no easy or hard question". Not deployed.
+
+**Pages** (`Plan.logPages`): the progress bar shows "Step n of N".
+1. **Page 1.** The test and the date taken. Then, revealed one at a time:
+   - the second Reading and Writing module (Easy / Hard / Not sure);
+   - then the second Math module;
+   - then the Next button.
+   - A variant that isn't mapped can't be picked. "Not sure" is offered only when the recognition check can run.
+   - The My Practice export upload is a small link on this page.
+2. **One recognition page per "Not sure" section.** This is the earlier check: openings shown as Version A / Version B, a third question when the answers split, and the Bluebook-review hint.
+3. **Wrong answers, one page per section.** An explicit instruction sits at the top, with module 1 above module 2. A second click marks Slow and a third clears it.
+4. **Last page.** Goal score, this test's R&W and Math scores (multiples of 10, optional), SAT date (College Board 2026-27 dates from today on, Fall 2027 marked anticipated) and plan emphasis. Then a full-width "Create plan" button.
+
+**Data.** Stored in the plan JSON with no schema change:
+- `PlanState.profile = { goal, satDate, emphasis }`.
+- `TestLog.score = { RW, Math }`.
+
+`logTest` keeps the profile. `prioritize()` moves the emphasised subject's drill and maintenance skills ahead of the others, each subject keeping its own order. The plan screen shows a line with the goal, the last score, the SAT date and days left, and the emphasis.
+
+**Not asked**, as requested: score bars, study days, and the option to exclude Bluebook questions.
+
+**Styling.**
+- The popup animates only when it opens. Redraws happen on every click, so animating them made it flicker.
+- Its hover rules are scoped under `#plan-log-root`. The global `button:hover:not(:disabled):not(.sw)` rule otherwise greys out the blue buttons and the red/orange marks.
+- Dropdowns are restyled native selects with a CSS chevron.
+- Under 600px the popup is a bottom sheet.
+
+**Tests.**
+- `tests/test_plan.ts`: emphasis, `logTest` profile, score parsing, SAT dates, page order.
+- `tests/e2e/study-plan/recognition.spec.ts`: P1–P6, including phone width. Screens 13–20.
+- `plan.spec.ts` drives the popup through `startLog` / `markSection` / `logTest`.

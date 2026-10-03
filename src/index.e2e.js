@@ -79,13 +79,16 @@ export const claudeTarget = env => {
 // Study Plan fixture (tests/e2e/study-plan/support.js holds the matching practice-test map). Every answer is B.
 //   a* Linear functions (Math): 11 unseen medium, 5 hard, one medium the student has seen, one mapped to the untaken PT92
 //   b* Boundaries: 2 medium, 1 hard (a short drill)   c* Words in Context: 1 hard   d* Circles: 3 hard   test questions: Easy
+//   t* Transitions, p* Percentages: PT93, the one test with both module-2 variants in both sections (recognition check)
 const SKILLS = { a: ['Math', 'Algebra', 'Linear functions'], b: ['Reading & Writing', 'Standard English Conventions', 'Boundaries'],
   c: ['Reading & Writing', 'Craft and Structure', 'Words in Context'], d: ['Math', 'Geometry and Trigonometry', 'Circles'],
-  e: ['Reading & Writing', 'Expression of Ideas', 'Rhetorical Synthesis'] };
+  e: ['Reading & Writing', 'Expression of Ideas', 'Rhetorical Synthesis'],
+  t: ['Reading & Writing', 'Expression of Ideas', 'Transitions'], p: ['Math', 'Problem-Solving and Data Analysis', 'Percentages'] };
 const fixture = (k, names, difficulty) => names.map(n => ['e2e-plan-' + n, ...SKILLS[k], difficulty]);
 const PLAN_FIXTURE = [
   ...fixture('a', ['a1', 'a2', 'a3', 'a4', 'a5', 'a6'], 'Easy'), ...fixture('b', ['b1', 'b2', 'b3', 'b4', 'b5'], 'Easy'),
   ...fixture('c', ['c1', 'c2', 'c3'], 'Easy'), ...fixture('d', ['d1', 'd2', 'd3', 'd4', 'd5', 'd6'], 'Easy'), ...fixture('e', ['e1', 'e2', 'e3'], 'Easy'),
+  ...fixture('t', ['t1', 't2', 't3', 't4', 't5', 't6', 't7'], 'Easy'), ...fixture('p', ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'], 'Easy'),
   ...fixture('a', [...Array.from({ length: 11 }, (_, i) => 'am' + (i + 1)), 'aseen', 'ablk'], 'Medium'),
   ...fixture('a', Array.from({ length: 5 }, (_, i) => 'ah' + (i + 1)), 'Hard'),
   ...fixture('b', ['bm1', 'bm2'], 'Medium'), ...fixture('b', ['bh1'], 'Hard'), ...fixture('c', ['ch1'], 'Hard'), ...fixture('d', ['dh1', 'dh2', 'dh3'], 'Hard')

@@ -788,25 +788,105 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
 .plan-qs li small { color: var(--dim); font-weight: 500; }
 .plan-qs li.ok { background: var(--green-bg); color: var(--green); }
 .plan-qs li.bad { background: var(--red-bg); color: var(--red); }
-.pl-row { display: flex; flex-wrap: wrap; gap: 14px 28px; padding: 14px 20px 0; }
-.pl-row label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.pl-route { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 14px; }
-.pl-route > span { font-weight: 600; }
-.pl-help, .pl-sum, .pl-warn, .pl-err, .pl-missing { margin: 12px 20px 0; font-size: 14px; }
-.pl-help { color: var(--dim); }
-.pl-warn { color: var(--orange); background: var(--orange-bg); padding: 10px 12px; border-radius: 8px; }
-.pl-err { color: var(--red); min-height: 1px; }
+/* Log-a-test popup (docs/plan/BRIEF-log-modal.md): round corners, soft tints, roomy controls. */
+.lg-bg { position: fixed; inset: 0; z-index: 130; background: rgba(15,23,42,.42); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.lg-anim { animation: lgFade .18s ease; }
+.lg-anim .lg { animation: lgPop .24s cubic-bezier(.2,.9,.3,1.15); }
+.lg { width: 100%; max-height: min(92vh, 880px); display: flex; flex-direction: column; overflow: hidden; background: var(--panel); border-radius: 28px; box-shadow: 0 28px 70px rgba(15,23,42,.28), 0 0 0 1px rgba(37,99,235,.06); }
+.lg-s { max-width: 580px; } .lg-m { max-width: 660px; } .lg-l { max-width: 780px; }
+.lg-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 24px 26px 8px;
+  background: radial-gradient(circle at 96% -30%, #dbeafe 0, transparent 40%), radial-gradient(circle at 78% 150%, #dcfce7 0, transparent 34%); }
+.lg-kicker { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--blue); }
+.lg-head h3 { margin: 0; font-size: 23px; font-weight: 750; letter-spacing: -.01em; }
+.lg-sub { margin: 6px 0 0; font-size: 14px; color: var(--dim); line-height: 1.45; }
+.lg-x { flex: 0 0 auto; width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border-radius: 50%; border: 0; background: var(--bg2); color: var(--dim); }
+#plan-log-root .lg-x:hover { background: var(--border); color: var(--text); }
+.lg-bar { height: 7px; margin: 10px 26px 0; border-radius: 99px; background: var(--bg2); overflow: hidden; }
+.lg-bar span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #3b82f6, #22c55e); transition: width .35s ease; }
+.lg-body { flex: 1 1 auto; overflow-y: auto; padding: 20px 26px 6px; }
+.lg-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 26px 24px; }
+.lg-next, .lg-create { border: 0; border-radius: 16px; background: var(--blue); color: #fff; font-weight: 700; font-size: 15px; padding: 13px 30px; box-shadow: 0 10px 22px rgba(37,99,235,.28); }
+#plan-log-root .lg-next:hover, #plan-log-root .lg-create:hover { background: var(--blue-dark); }
+.lg-create { flex: 1; padding: 17px; font-size: 17px; text-align: center; border-radius: 20px; }
+.lg-create:disabled { opacity: .6; cursor: progress; }
+.lg-back { border: 0; background: transparent; color: var(--dim); font-weight: 600; font-size: 15px; padding: 13px 16px; border-radius: 16px; }
+#plan-log-root .lg-back:hover { background: var(--bg2); color: var(--text); }
+.lg-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.lg-grid3 { display: grid; grid-template-columns: 1fr 1fr .8fr; gap: 14px; }
+.lg-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; font-size: 13px; font-weight: 600; color: var(--dim); }
+.lg-selw { position: relative; display: block; }
+.lg-selw::after { content: ''; position: absolute; right: 18px; top: 50%; width: 8px; height: 8px; border-right: 2px solid var(--dim); border-bottom: 2px solid var(--dim); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+.lg-select, .lg-input { width: 100%; min-height: 50px; padding: 12px 16px; font: inherit; font-size: 15px; font-weight: 500; color: var(--text); background-color: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 16px; transition: border-color .15s, box-shadow .15s, background-color .15s; }
+.lg-select { appearance: none; -webkit-appearance: none; padding-right: 44px; cursor: pointer; }
+#plan-log-root .lg-select:hover, #plan-log-root .lg-input:hover { background-color: var(--panel); border-color: #cbd5e1; }
+.lg-select:focus, .lg-input:focus { outline: none; background-color: var(--panel); border-color: var(--blue); box-shadow: 0 0 0 4px rgba(37,99,235,.15); }
+.lg-q { margin-top: 18px; padding: 18px; border-radius: 22px; background: #f8fafc; border: 1.5px solid #eef2f7; }
+.lg-in { animation: lgIn .3s ease both; }
+.lg-qt { margin: 0 0 12px; font-size: 15px; font-weight: 700; color: var(--text); }
+.lg-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.lg-opt { --c: var(--blue); --cb: var(--blue-bg); display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 13px 15px; border-radius: 18px; border: 1.5px solid #e2e8f0; background: var(--panel); transition: transform .12s, border-color .12s, background .12s, box-shadow .12s; }
+.lg-opt[data-choice="easy"] { --c: #16a34a; --cb: #f0fdf4; }
+.lg-opt[data-choice="hard"] { --c: #7c3aed; --cb: #f5f3ff; }
+.lg-opt[data-choice="unsure"] { --c: #ea580c; --cb: #fff7ed; }
+.lg-opt b { font-size: 15px; }
+.lg-opt small { font-size: 12px; font-weight: 500; color: var(--dim); }
+#plan-log-root .lg-opt:hover:not(:disabled) { border-color: var(--c); background: var(--cb); transform: translateY(-1px); }
+.lg-opt[aria-checked="true"] { border-color: var(--c); background: var(--cb); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 16%, transparent); }
+.lg-opt[aria-checked="true"] b { color: var(--c); }
+.lg-opt:disabled { opacity: .5; cursor: not-allowed; }
+.lg-note { margin: 10px 0 0; font-size: 13px; color: var(--green); font-weight: 600; }
+.lg-upload { margin: 18px 2px 4px; font-size: 13px; color: var(--dim); line-height: 1.5; }
+.lg-upload label { color: var(--blue); font-weight: 600; cursor: pointer; text-decoration: underline; }
+.lg-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.lg-upload p { margin: 6px 0 0; color: var(--green); font-weight: 600; }
+.lg-upload p.bad { color: var(--red); }
+#plan-log-root .lg-link { border: 0; background: none; padding: 0; color: var(--blue); font: inherit; font-size: 13px; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.pl-vers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pl-ver { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 16px 18px; border-radius: 20px; border: 1.5px solid #e2e8f0; background: #f8fafc; color: var(--text); font: inherit; font-size: 14px; line-height: 1.5; transition: transform .12s, border-color .12s, background .12s; }
+#plan-log-root .pl-ver:hover, #plan-log-root .pl-ver:focus-visible { border-color: var(--blue); background: var(--blue-bg); transform: translateY(-1px); }
+.pl-ver b { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--blue); }
+.lg-foot-note { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 12px 0 0; font-size: 13px; color: var(--dim); }
+.lg-done { padding: 16px 18px; border-radius: 20px; background: var(--green-bg); color: #166534; font-size: 15px; line-height: 1.6; }
+.lg-hint { margin: 0 0 10px; padding: 14px 16px; border-radius: 18px; background: var(--orange-bg); color: #9a3412; font-size: 14px; line-height: 1.5; }
+.lg-instr { display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border-radius: 20px; background: var(--blue-bg); color: #1e3a8a; font-size: 13.5px; line-height: 1.5; }
+.lg-instr > b { font-size: 16px; }
+.lg-mod { margin-top: 18px; }
+.lg-mod h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 14px; font-weight: 700; }
+.lg-tag { padding: 2px 10px; border-radius: 99px; background: var(--bg2); color: var(--dim); font-size: 12px; font-weight: 600; }
+.lg-tally { margin: 14px 0 0; font-size: 14px; color: var(--dim); }
+.lg-label { margin: 20px 0 8px; font-size: 13px; font-weight: 700; color: var(--dim); }
+.lg-small { font-weight: 500; color: var(--blue); min-height: 1em; }
+.lg-total { display: flex; align-items: center; min-height: 50px; padding: 12px 16px; border-radius: 16px; background: var(--bg2); color: var(--text); font-size: 18px; font-weight: 750; }
+.lg-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.lg-seg-b { padding: 13px 10px; border-radius: 16px; border: 1.5px solid #e2e8f0; background: var(--panel); font-size: 15px; font-weight: 600; color: var(--dim); }
+#plan-log-root .lg-seg-b:not([aria-checked="true"]):hover { border-color: #93c5fd; color: var(--text); }
+#plan-log-root .lg-seg-b[aria-checked="true"] { border-color: var(--blue); background: var(--blue-bg); color: var(--blue); box-shadow: 0 0 0 4px rgba(37,99,235,.12); }
+.lg-sum { margin: 18px 0 0; font-size: 14px; color: var(--dim); }
+.pl-warn, .pl-err, .pl-missing { margin: 12px 0 0; font-size: 14px; }
+.pl-warn { color: #9a3412; background: var(--orange-bg); padding: 12px 14px; border-radius: 16px; }
+.pl-err { color: var(--red); min-height: 1px; font-weight: 600; }
 .pl-err:empty { margin: 0; }
 .pl-missing { color: var(--dim); }
-.pl-mod { padding: 14px 20px 0; }
-.pl-mod h4 { margin: 0 0 8px; font-size: 14px; }
-.pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; max-width: 760px; }
-.pl-q { height: 40px; padding: 0; border-radius: 8px; font-weight: 700; border: 1.5px dashed var(--border2); background: var(--panel); color: var(--text); }
-#plan-body .pl-q[data-mark="W"], .pl-k[data-mark="W"] { background: var(--red-bg); color: var(--red); border: 1.5px solid var(--red); }
-#plan-body .pl-q[data-mark="S"], .pl-k[data-mark="S"] { background: var(--orange-bg); color: var(--orange); border: 1.5px solid var(--orange); }
-.pl-k { padding: 1px 7px; border-radius: 6px; }
-.pl-q[data-unmapped] { opacity: .55; }
-#plan-log-form .frow { padding: 14px 20px 18px; }
+.pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 8px; }
+.pl-q { height: 44px; padding: 0; border-radius: 14px; font-size: 15px; font-weight: 700; border: 1.5px solid #e2e8f0; background: #f8fafc; color: var(--text); transition: transform .1s, border-color .1s, background .1s; }
+#plan-log-root .pl-q[data-mark="."]:hover { border-color: #93c5fd; background: var(--panel); transform: translateY(-1px); }
+#plan-log-root .pl-q[data-mark="W"], .pl-k[data-mark="W"] { background: var(--red-bg); color: var(--red); border: 1.5px solid var(--red); }
+#plan-log-root .pl-q[data-mark="S"], .pl-k[data-mark="S"] { background: var(--orange-bg); color: var(--orange); border: 1.5px solid var(--orange); }
+.pl-k { padding: 1px 7px; border-radius: 8px; }
+.pl-q[data-unmapped] { opacity: .55; border-style: dashed; }
+.plan-goal { margin: 0 20px 12px; font-size: 14px; color: var(--dim); }
+.plan-goal b { color: var(--text); }
+@keyframes lgFade { from { opacity: 0; } }
+@keyframes lgPop { from { opacity: 0; transform: translateY(12px) scale(.97); } }
+@keyframes lgIn { from { opacity: 0; transform: translateY(8px); } }
+@media (max-width: 600px) {
+  .lg-bg { padding: 8px; align-items: flex-end; }
+  .lg { border-radius: 24px; max-height: 94vh; }
+  .lg-head, .lg-body, .lg-foot { padding-left: 16px; padding-right: 16px; }
+  .lg-bar { margin: 10px 16px 0; }
+  .lg-grid2, .lg-grid3, .lg-opts, .pl-vers { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .lg-anim, .lg-anim .lg, .lg-in { animation: none; } }
 #plan-skills td, #plan-skills th { padding-left: 20px; }
 @media (max-width: 760px) {
   .plan-step { grid-template-columns: 30px minmax(0, 1fr) auto; }
@@ -3296,7 +3376,9 @@ async function reloadPlan() {
   if (TAB === 'plan') drawPlan();
 }
 
-function drawPlan() {
+// The plan screen, with the log-a-test popup over it while one is open.
+function drawPlan() { drawPlanBody(); drawLog(); }
+function drawPlanBody() {
   const el = $('plan-body'); if (!el) return;
   if (!authToken) { el.innerHTML = '<div class="panel"><div class="empty">Sign in to build a study plan.</div></div>'; return; }
   if (!PLAN.loaded) {
@@ -3306,7 +3388,6 @@ function drawPlan() {
     if ($('plan-retry')) $('plan-retry').onclick = reloadPlan;
     return;
   }
-  if (PLOG) return drawLog();
   const st = planState(), plan = st.plan;
   if (!plan) {
     el.innerHTML = `<div class="panel plan-hero" id="plan-empty">
@@ -3325,6 +3406,7 @@ function drawPlan() {
   el.innerHTML = (result ? resultHTML(result, plan) : '') + `<div class="panel" id="plan-panel">
       <div class="panel-h"><div><h3>Your plan</h3><span class="sub plan-sub">From ${esc(testName(plan.testId))} · taken ${esc(fmtDay(plan.date))} · ${done} of ${sets.length} sets done</span></div>
         <button class="btn-p" id="plan-start">Start practicing</button></div>
+      ${goalLine(st)}
       ${nx ? `<p class="plan-next">Next up: <b id="plan-next">${esc(Plan.stepTitle(nx))}</b></p>` : ''}
       <ol class="plan-steps" id="plan-steps">${rows}</ol>
       ${plan.slowOnly.length ? `<p class="plan-note" id="plan-slow">Right but slow on the test (no drill, watch the clock): ${plan.slowOnly.map(k => `<b>${esc(k)}</b> (${plan.counts[k].slows})`).join(', ')}</p>` : ''}
@@ -3338,6 +3420,17 @@ function drawPlan() {
     $('plan-result-x').onclick = () => { PLAN_RESULT = null; drawPlan(); };
     if ($('plan-review')) $('plan-review').onclick = () => planReview(result);
   }
+}
+
+// Goal, last logged score, SAT date (with the days left) and emphasis, from the log popup's last page.
+function goalLine(st) {
+  const p = st.profile, last = st.tests[st.tests.length - 1], sc = last && last.score;
+  const bits = [];
+  if (p && p.goal) bits.push(`Goal <b>${p.goal}</b>`);
+  if (sc && sc.RW && sc.Math) bits.push(`Last test <b>${sc.RW + sc.Math}</b>`);
+  if (p && p.satDate && p.satDate >= localDay()) bits.push(`SAT <b>${esc(fmtDay(p.satDate))}</b> (${satDays(p.satDate).toLowerCase()})`);
+  if (p && p.emphasis && p.emphasis !== 'balanced') bits.push(`${Plan.SECTION_NAME[p.emphasis]} first`);
+  return bits.length ? `<p class="plan-goal" id="plan-goal">${bits.join(' · ')}</p>` : '';
 }
 
 function stepRow(s, i, nx) {
@@ -3520,83 +3613,263 @@ function planReview(s) {
 }
 
 // ---- logging a test ----
+// A step-by-step popup (docs/plan/BRIEF-log-modal.md): the test and each section's second module (Easy / Hard / Not
+// sure), a recognition page per "Not sure" section, the wrong answers per section, then the goal, this test's scores,
+// the SAT date and the plan emphasis. Pages come from Plan.logPages; the open popup's state is PLOG.
 function openLog(number) {
   const logged = new Set(planState().tests.map(t => t.testId));
   const open = PTMAP.tests.filter(t => !logged.has(t.id));
-  const t = open.find(x => x.number === number) || open[0];
-  PLOG = t ? { testId: t.id, date: localDay(), route: defaultRoute(t), marks: {}, error: '' } : { none: true };
+  const t = number ? open.find(x => x.number === number) : null;
+  const prof = planState().profile || {};
+  PLOG = open.length ? { page: 'start', testId: t ? t.id : null, date: localDay(), ...freshRoute(), marks: {}, error: '', shown: {},
+    goal: prof.goal ? String(prof.goal) : '', score: { RW: '', Math: '' },
+    satDate: prof.satDate && prof.satDate >= localDay() ? prof.satDate : '', emphasis: prof.emphasis || 'balanced' } : { none: true };
   PLAN_RESULT = null;
   setTab('plan');
 }
-const defaultRoute = t => ({ RW: Plan.routesOf(t, 'RW')[0] || 'easy', Math: Plan.routesOf(t, 'Math')[0] || 'easy' });
+// With both variants mapped, "Not sure" opens a recognition page (Plan.pickPositions); with one, only it can be picked.
+const checkPositions = (t, sec) => Plan.routesOf(t, sec).length === 2 ? Plan.pickPositions(t, sec, QBY) : [];
+const freshRoute = () => ({ choice: {}, route: { RW: null, Math: null }, check: { RW: [], Math: [] }, fromFile: {}, upload: null });
+// A resolved route that changes clears that section's module-2 marks.
+const setRoute = (sec, r) => { if (PLOG.route[sec] !== r) delete PLOG.marks[Plan.moduleKey(sec, 2)]; PLOG.route[sec] = r; };
+function resolveRoutes(t) {
+  for (const sec of Plan.SECTIONS) {
+    const c = PLOG.choice[sec];
+    if (c === 'easy' || c === 'hard') setRoute(sec, c);
+    else if (c === 'unsure') setRoute(sec, Plan.recognize(PLOG.check[sec], checkPositions(t, sec).length).route);
+    else setRoute(sec, null);
+  }
+}
+function pickChoice(sec, c) {
+  if (PLOG.choice[sec] === c) return;   // re-tapping the current choice keeps its recognition answers and marks
+  PLOG.choice[sec] = c; PLOG.check[sec] = []; delete PLOG.fromFile[sec];
+  drawLog();
+}
+let PTEXT = null;          // public/practice-tests-ext.json, fetched only when a student picks an export file
+async function readExport(file) {
+  let json;
+  try { json = JSON.parse(await file.text()); } catch (e) { return { error: 'This file is not a My Practice questions.json export.' }; }
+  if (!PTEXT) {
+    try { PTEXT = await (await fetch('/practice-tests-ext.json')).json(); } catch (e) { return { error: 'The practice-test list could not be loaded. Try again.' }; }
+  }
+  return Plan.matchExport(PTMAP, PTEXT, json);
+}
+function applyExport(m) {
+  if (!PLOG || PLOG.none) return;
+  if (m.error) { PLOG.upload = { msg: m.error, bad: true }; return drawLog(); }
+  if (m.testId !== PLOG.testId) {
+    const logged = planState().tests.some(x => x.testId === m.testId);
+    if (!PLOG.testId && !logged) { Object.assign(PLOG, { testId: m.testId, ...freshRoute(), marks: {} }); return applyExport(m); }
+    PLOG.upload = { msg: `This export is from ${testName(m.testId)}${logged ? ', which you have already logged.' : ', not the test chosen above.'}`, bad: true, switchTo: logged ? null : m };
+    return drawLog();
+  }
+  const t = PTMAP.tests.find(x => x.id === m.testId);
+  const found = Plan.SECTIONS.filter(sec => m.route[sec] && Plan.routesOf(t, sec).includes(m.route[sec]));
+  for (const sec of found) { PLOG.choice[sec] = m.route[sec]; PLOG.fromFile[sec] = true; PLOG.check[sec] = []; }
+  PLOG.upload = found.length ? { msg: `Found your second ${found.map(s => Plan.SECTION_NAME[s]).join(' and ')} module${found.length > 1 ? 's' : ''} in the export.` }
+    : { msg: 'The export does not show which second modules you took. Pick them below instead.', bad: true };
+  drawLog();
+}
 const MARK_NEXT = { '.': 'W', W: 'S', S: '.' };
 const MARK_NAME = { '.': 'right', W: 'wrong', S: 'slow' };
+const LG_X = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const LG_TITLE = { start: 'Log a Bluebook practice test', 'check-RW': 'Which Reading and Writing module 2?', 'check-Math': 'Which Math module 2?',
+  'marks-RW': 'Reading and Writing', 'marks-Math': 'Math', details: 'Your goal and your plan' };
+const ROUTE_NAME = { easy: 'Easy', hard: 'Hard' };
 
 function drawLog() {
-  const el = $('plan-body');
-  const cancel = () => { PLOG = null; drawPlan(); };
+  let root = $('plan-log-root');
+  if (!PLOG) { if (root) root.remove(); return; }
+  // Only a newly opened popup animates in; redraws (every click) must not replay it.
+  const opening = !root;
+  if (!root) { root = document.createElement('div'); root.id = 'plan-log-root'; document.body.appendChild(root); }
+  const close = () => { PLOG = null; drawLog(); };
   if (PLOG.none || !PTMAP.tests.length) {
-    el.innerHTML = `<div class="panel" id="plan-log-form"><div class="empty">${PTMAP.tests.length ? 'Every mapped practice test is already logged.' : 'The practice-test list could not be loaded. Reload the page to try again.'}
-      <button id="pl-cancel">Back</button></div></div>`;
-    $('pl-cancel').onclick = cancel;
+    root.innerHTML = `<div class="lg-bg"><div class="lg lg-s" id="plan-log-form" role="dialog" aria-modal="true" aria-labelledby="lg-title">
+      <div class="lg-head"><h3 id="lg-title">Log a Bluebook practice test</h3><button class="lg-x" id="pl-cancel" aria-label="Close">${LG_X}</button></div>
+      <div class="lg-body"><p class="lg-sub">${PTMAP.tests.length ? 'Every mapped practice test is already logged.' : 'The practice-test list could not be loaded. Reload the page to try again.'}</p></div>
+      <div class="lg-foot"><span></span><button class="lg-next" id="pl-close">Close</button></div></div></div>`;
+    $('pl-cancel').onclick = $('pl-close').onclick = close;
     return;
   }
-  const t = PTMAP.tests.find(x => x.id === PLOG.testId);
+  const t = PLOG.testId ? PTMAP.tests.find(x => x.id === PLOG.testId) : null;
+  if (t) resolveRoutes(t);
+  const pages = Plan.logPages(PLOG.choice);
+  if (!pages.includes(PLOG.page)) PLOG.page = 'start';
+  const page = PLOG.page, at = pages.indexOf(page);
+  const prev = root.querySelector('.lg-body'), keepScroll = prev && prev.dataset.page === page ? prev.scrollTop : 0;
   const logged = new Set(planState().tests.map(x => x.testId));
-  const mods = Plan.modulesOf(t, PLOG.route);
-  const soon = Plan.tooSoon(planState(), PLOG.date);
-  let wrong = 0, slow = 0, counted = 0;
-  const grid = m => {
-    if (!m.ids) return `<p class="pl-missing">This module is not mapped to the question bank yet, so it cannot be logged.</p>`;
-    return `<div class="pl-grid">${m.ids.map((id, n) => {
-      const c = (PLOG.marks[m.key] || '')[n] || '.', known = !!(id && QBY.has(id));
-      if (c === 'W') wrong++; if (c === 'S') slow++; if (known) counted++;
-      return `<button class="pl-q" data-m="${m.key}" data-n="${n}" data-mark="${c}"${known ? '' : ' data-unmapped="1" title="Not in the question bank: it can be marked but does not count toward the plan"'} aria-label="Question ${n + 1}, ${MARK_NAME[c]}">${n + 1}</button>`;
-    }).join('')}</div>`;
-  };
-  const body = mods.map(m => `<div class="pl-mod"><h4>${Plan.SECTION_NAME[m.section]} · Module ${m.module}</h4>${grid(m)}</div>`).join('');
-  el.innerHTML = `<div class="panel" id="plan-log-form">
-    <div class="panel-h"><h3>Log a Bluebook practice test</h3></div>
-    <div class="pl-row">
-      <label>Practice test <select id="pl-test">${PTMAP.tests.map(x => `<option value="${esc(x.id)}"${x.id === t.id ? ' selected' : ''}${logged.has(x.id) ? ' disabled' : ''}>${esc(x.name)}${logged.has(x.id) ? ' (logged)' : ''}</option>`).join('')}</select></label>
-      <label>Date taken <input type="date" id="pl-date" value="${esc(PLOG.date)}" max="${localDay()}"></label>
-    </div>
-    <div class="pl-row">${Plan.SECTIONS.map(sec => `<div class="pl-route" data-route="${sec}"><span>${Plan.SECTION_NAME[sec]} module 2</span>${['easy', 'hard'].map(r =>
-      `<label><input type="radio" name="pl-${sec}" value="${r}"${PLOG.route[sec] === r ? ' checked' : ''}${t[sec][r] ? '' : ' disabled'}> ${r === 'easy' ? 'Easier' : 'Harder'}${t[sec][r] ? '' : ' (not mapped yet)'}</label>`).join('')}</div>`).join('')}</div>
-    <p class="pl-help">Click a question once for <b class="pl-k" data-mark="W">Wrong</b>, again for <b class="pl-k" data-mark="S">Slow</b> (right, but it took you too long), and a third time to clear it. Unmarked questions count as right.</p>
-    ${body}
-    ${soon === null ? '' : soon < 0 ? `<p class="pl-warn" id="pl-warn">This date is before your last logged test. Plans are built in the order tests are logged, so log tests oldest first. You can still log it.</p>`
-      : `<p class="pl-warn" id="pl-warn">Your last logged test was ${soon === 0 ? 'the same day' : `${soon} day${soon === 1 ? '' : 's'} before this one`}. Practice tests work best 5–7 days apart, with a week of drilling in between. You can still log it.</p>`}
-    <p class="pl-sum" id="pl-sum">Wrong: <b>${wrong}</b> · Slow: <b>${slow}</b> · ${counted} questions in the bank</p>
-    <p class="pl-err" id="pl-error" role="alert">${esc(PLOG.error || '')}</p>
-    <div class="frow" style="justify-content:flex-end"><button id="pl-cancel">Cancel</button><button class="btn-p" id="pl-save">Save and build my plan</button></div>
-  </div>`;
-  $('pl-cancel').onclick = cancel;
-  $('pl-test').onchange = e => { const nt = PTMAP.tests.find(x => x.id === e.target.value); Object.assign(PLOG, { testId: nt.id, route: defaultRoute(nt), marks: {}, error: '' }); drawLog(); };
-  $('pl-date').onchange = e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) PLOG.date = e.target.value; drawLog(); };
-  el.querySelectorAll('.pl-route input').forEach(r => r.onchange = () => {
-    const sec = r.closest('[data-route]').dataset.route;
-    PLOG.route[sec] = r.value; delete PLOG.marks[Plan.moduleKey(sec, 2)]; drawLog();
+  let body = '', canNext = false, sub = '';
+
+  if (page === 'start') {
+    sub = 'Tell us which test you took and which second modules you got.';
+    const q = sec => {
+      const routes = t ? Plan.routesOf(t, sec) : [], unsure = t ? checkPositions(t, sec).length > 0 : false, fresh = !PLOG.shown[sec];
+      PLOG.shown[sec] = true;
+      const opt = (c, label, note, ok) => `<button class="lg-opt" role="radio" data-choice="${c}" aria-checked="${PLOG.choice[sec] === c}"${ok ? '' : ' disabled'}>
+        <b>${label}</b><small>${ok ? note : c === 'unsure' ? 'Not available for this test' : 'Not mapped yet'}</small></button>`;
+      return `<div class="lg-q${fresh ? ' lg-in' : ''}" data-route="${sec}">
+        <p class="lg-qt">Which second ${Plan.SECTION_NAME[sec]} module did you get?</p>
+        <div class="lg-opts" role="radiogroup" aria-label="Second ${Plan.SECTION_NAME[sec]} module">
+          ${opt('easy', 'Easy', 'The easier second module', routes.includes('easy'))}
+          ${opt('hard', 'Hard', 'The harder second module', routes.includes('hard'))}
+          ${opt('unsure', 'Not sure', 'See a question from each', unsure)}
+        </div>${PLOG.fromFile[sec] ? '<p class="lg-note" data-resolved="file">Filled in from your export.</p>' : ''}</div>`;
+    };
+    if (!t) PLOG.shown = {};
+    else if (!PLOG.choice.RW) delete PLOG.shown.Math;
+    body = `<div class="lg-grid2">
+        <label class="lg-field"><span>Practice test</span><span class="lg-selw"><select id="pl-test" class="lg-select">${t ? '' : '<option value="" selected disabled>Choose a test</option>'}${PTMAP.tests.map(x =>
+          `<option value="${esc(x.id)}"${t && x.id === t.id ? ' selected' : ''}${logged.has(x.id) ? ' disabled' : ''}>${esc(x.name)}${logged.has(x.id) ? ' (logged)' : ''}</option>`).join('')}</select></span></label>
+        <label class="lg-field"><span>Date taken</span><input type="date" id="pl-date" class="lg-input" value="${esc(PLOG.date)}" max="${localDay()}"></label>
+      </div>
+      ${t ? q('RW') : ''}${t && PLOG.choice.RW ? q('Math') : ''}
+      <div class="lg-upload">Have your Bluebook export? <label for="pl-file">Upload your My Practice questions.json</label> to fill this in. It stays in your browser.
+        <input type="file" id="pl-file" accept=".json,application/json">
+        ${PLOG.upload ? `<p id="pl-upload-msg" class="${PLOG.upload.bad ? 'bad' : ''}" role="status">${esc(PLOG.upload.msg)}${PLOG.upload.switchTo ? ` <button class="lg-link" id="pl-switch">Switch to ${esc(testName(PLOG.upload.switchTo.testId))}</button>` : ''}</p>` : ''}</div>`;
+    canNext = !!(t && PLOG.choice.RW && PLOG.choice.Math);
+  } else if (page.startsWith('check-')) {
+    const sec = page.slice(6), name = Plan.SECTION_NAME[sec], pos = checkPositions(t, sec), asked = PLOG.check[sec].length;
+    const r = Plan.recognize(PLOG.check[sec], pos.length);
+    sub = `We'll show how a question opens in each version of the second ${name} module. Pick the one you saw.`;
+    if (r.route) body = `<div class="lg-done" data-route="${sec}" data-resolved="check"><b>Matched.</b> You had the <b>${ROUTE_NAME[r.route]}</b> second ${name} module.
+        <button class="lg-link" data-redo>Change my answers</button></div>`;
+    else if (r.stuck) body = `<div data-route="${sec}"><p class="lg-hint" id="pl-hint-${sec}">Not sure? In Bluebook, open ${esc(t.name)} from My Practice and look at its review. Find question ${pos[Math.max(0, asked - 1)] + 1} of your second ${name} module, then start over here.</p>
+        <button class="lg-link" data-redo>Start over</button></div>`;
+    else {
+      const p = pos[asked], order = Plan.versionOrder(t.id, sec, p);
+      const card = (rt, v) => `<button class="pl-ver" data-version="${v}"><b>Version ${v}</b><span>${esc(Plan.stemSnippet(QBY.get(t[sec][rt][p]).stem_html) || '')}</span></button>`;
+      body = `<div class="pl-check" data-route="${sec}" data-pos="${p + 1}">
+        <p class="lg-qt">Which was question ${p + 1} in your second ${name} module?</p>
+        <div class="pl-vers">${card(order[0], 'A')}${card(order[1], 'B')}</div>
+        <p class="lg-foot-note"><button class="lg-link pl-unsure">Not sure</button>${asked ? `<span>Question ${asked + 1} of ${Math.min(asked < 2 ? 2 : 3, pos.length)}</span>` : ''}</p></div>`;
+    }
+    canNext = !!r.route;
+  } else if (page.startsWith('marks-')) {
+    const sec = page.slice(6);
+    let wrong = 0, slow = 0;
+    const mods = Plan.modulesOf(t, PLOG.route).filter(m => m.section === sec);
+    const grid = m => !m.ids ? '<p class="pl-missing">This module is not mapped to the question bank yet, so it cannot be logged.</p>'
+      : `<div class="pl-grid">${m.ids.map((id, n) => {
+        const c = (PLOG.marks[m.key] || '')[n] || '.', known = !!(id && QBY.has(id));
+        if (c === 'W') wrong++; if (c === 'S') slow++;
+        return `<button class="pl-q" data-m="${m.key}" data-n="${n}" data-mark="${c}"${known ? '' : ' data-unmapped="1" title="Not in the question bank: it can be marked but does not count toward the plan"'} aria-label="Question ${n + 1}, ${MARK_NAME[c]}">${n + 1}</button>`;
+      }).join('')}</div>`;
+    const blocks = mods.map(m => `<div class="lg-mod"><h4>Module ${m.module}${m.module === 2 ? ` <span class="lg-tag">${ROUTE_NAME[PLOG.route[sec]]}</span>` : ''}</h4>${grid(m)}</div>`).join('');
+    body = `<div class="lg-instr"><b>Click the number of every question you got wrong.</b>
+        <span>Click it again if you got it right but it took too long (<b class="pl-k" data-mark="S">Slow</b>); a third click clears it. Unmarked questions count as right.</span></div>
+      ${blocks}<p class="lg-tally" id="pl-tally-${sec}">Wrong: <b>${wrong}</b> · Slow: <b>${slow}</b></p>`;
+    sub = `${t.name}: mark your ${Plan.SECTION_NAME[sec]} questions.`;
+    canNext = true;
+  } else {
+    let wrong = 0, slow = 0, counted = 0;
+    for (const m of Plan.modulesOf(t, PLOG.route)) (m.ids || []).forEach((id, n) => {
+      const c = (PLOG.marks[m.key] || '')[n] || '.'; if (c === 'W') wrong++; if (c === 'S') slow++; if (id && QBY.has(id)) counted++;
+    });
+    const soon = Plan.tooSoon(planState(), PLOG.date);
+    const dates = Plan.upcomingSatDates(localDay());
+    sub = 'Last step. Your plan puts the subject you choose first.';
+    const emph = [['balanced', 'Balanced'], ['Math', 'Math'], ['RW', 'Reading and Writing']];
+    body = `<div class="lg-grid2">
+        <label class="lg-field"><span>Goal score</span><input id="pl-goal" class="lg-input" inputmode="numeric" placeholder="400–1600" value="${esc(PLOG.goal)}"></label>
+        <label class="lg-field"><span>SAT date</span><span class="lg-selw"><select id="pl-sat" class="lg-select"><option value="">Not scheduled yet</option>${dates.map(d =>
+          `<option value="${d.date}"${PLOG.satDate === d.date ? ' selected' : ''}>${esc(fmtDay(d.date))}${d.anticipated ? ' (anticipated)' : ''}</option>`).join('')}</select></span>
+          <small class="lg-small" id="pl-sat-days">${satDays(PLOG.satDate)}</small></label>
+      </div>
+      <p class="lg-label">Your scores on ${esc(t.name)}</p>
+      <div class="lg-grid3">
+        <label class="lg-field"><span>Reading and Writing</span><input id="pl-score-RW" class="lg-input" inputmode="numeric" placeholder="200–800" value="${esc(PLOG.score.RW)}"></label>
+        <label class="lg-field"><span>Math</span><input id="pl-score-Math" class="lg-input" inputmode="numeric" placeholder="200–800" value="${esc(PLOG.score.Math)}"></label>
+        <div class="lg-field"><span>Total</span><div class="lg-total" id="pl-total">${scoreTotal()}</div></div>
+      </div>
+      <p class="lg-label">Plan emphasis</p>
+      <div class="lg-seg" role="radiogroup" aria-label="Plan emphasis">${emph.map(([v, l]) => `<button class="lg-seg-b" role="radio" data-emph="${v}" aria-checked="${PLOG.emphasis === v}">${l}</button>`).join('')}</div>
+      <p class="lg-sum" id="pl-sum">From this test: Wrong: <b>${wrong}</b> · Slow: <b>${slow}</b> · ${counted} questions in the bank</p>
+      ${soon === null ? '' : soon < 0 ? `<p class="pl-warn" id="pl-warn">This date is before your last logged test. Plans are built in the order tests are logged, so log tests oldest first. You can still log it.</p>`
+        : `<p class="pl-warn" id="pl-warn">Your last logged test was ${soon === 0 ? 'the same day' : `${soon} day${soon === 1 ? '' : 's'} before this one`}. Practice tests work best 5–7 days apart, with a week of drilling in between. You can still log it.</p>`}
+      <p class="pl-err" id="pl-error" role="alert">${esc(PLOG.error || '')}</p>`;
+  }
+  const last = page === 'details';
+  const size = page === 'start' || page.startsWith('check-') ? 'lg-s' : last ? 'lg-m' : 'lg-l';
+  root.innerHTML = `<div class="lg-bg${opening ? ' lg-anim' : ''}"><div class="lg ${size}" id="plan-log-form" role="dialog" aria-modal="true" aria-labelledby="lg-title" data-page="${page}">
+    <div class="lg-head"><div><p class="lg-kicker">Step ${at + 1} of ${pages.length}</p><h3 id="lg-title">${LG_TITLE[page]}</h3><p class="lg-sub">${esc(sub)}</p></div>
+      <button class="lg-x" id="pl-cancel" aria-label="Close">${LG_X}</button></div>
+    <div class="lg-bar" aria-hidden="true"><span style="width:${Math.round((at + 1) / pages.length * 100)}%"></span></div>
+    <div class="lg-body" data-page="${page}">${body}</div>
+    <div class="lg-foot${last ? ' lg-foot-final' : ''}">${at ? '<button class="lg-back" id="pl-back">Back</button>' : '<span></span>'}
+      ${last ? `<button class="lg-create" id="pl-save">Create plan</button>` : canNext ? '<button class="lg-next" id="pl-next">Next</button>' : ''}</div>
+  </div></div>`;
+  root.querySelector('.lg-body').scrollTop = keepScroll;
+  const go = d => { PLOG.page = pages[at + d]; PLOG.error = ''; drawLog(); root.querySelector('.lg-body').scrollTop = 0; };
+  $('pl-cancel').onclick = close;
+  if ($('pl-back')) $('pl-back').onclick = () => go(-1);
+  if ($('pl-next')) $('pl-next').onclick = () => go(1);
+  if ($('pl-save')) $('pl-save').onclick = saveTestLog;
+  if ($('pl-test')) $('pl-test').onchange = e => { Object.assign(PLOG, { testId: e.target.value, ...freshRoute(), marks: {}, error: '' }); drawLog(); };
+  if ($('pl-date')) $('pl-date').onchange = e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) PLOG.date = e.target.value; drawLog(); };
+  root.querySelectorAll('.lg-opt').forEach(b => b.onclick = () => {
+    const sec = b.closest('[data-route]').dataset.route;
+    pickChoice(sec, b.dataset.choice);
+    root.querySelector(`[data-route="${sec}"] .lg-opt[data-choice="${b.dataset.choice}"]`)?.focus();
   });
-  el.querySelectorAll('.pl-q').forEach(b => b.onclick = () => {
-    const m = b.dataset.m, n = +b.dataset.n, len = mods.find(x => x.key === m).ids.length;
+  const answer = (b, a) => { const sec = b.closest('[data-route]').dataset.route; PLOG.check[sec].push(a); drawLog(); root.querySelector('.pl-ver, [data-redo], #pl-next')?.focus(); };
+  root.querySelectorAll('.pl-ver').forEach(b => b.onclick = () => {
+    const sec = b.closest('[data-route]').dataset.route, p = +b.closest('[data-pos]').dataset.pos - 1;
+    answer(b, Plan.versionOrder(t.id, sec, p)[b.dataset.version === 'A' ? 0 : 1]);
+  });
+  root.querySelectorAll('.pl-unsure').forEach(b => b.onclick = () => answer(b, 'unsure'));
+  root.querySelectorAll('[data-redo]').forEach(b => b.onclick = () => { PLOG.check[b.closest('[data-route]').dataset.route] = []; drawLog(); });
+  if ($('pl-file')) $('pl-file').onchange = async e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (f) applyExport(await readExport(f));
+  };
+  if ($('pl-switch')) $('pl-switch').onclick = () => {
+    const m = PLOG.upload.switchTo;
+    Object.assign(PLOG, { testId: m.testId, ...freshRoute(), marks: {}, error: '' });
+    applyExport(m);
+  };
+  root.querySelectorAll('.pl-q').forEach(b => b.onclick = () => {
+    const m = b.dataset.m, n = +b.dataset.n, len = Plan.modulesOf(t, PLOG.route).find(x => x.key === m).ids.length;
     const cur = (PLOG.marks[m] || '').padEnd(len, '.').split('');
     cur[n] = MARK_NEXT[cur[n]] || 'W';
     PLOG.marks[m] = cur.join('');
     drawLog();
-    el.querySelector(`.pl-q[data-m="${m}"][data-n="${n}"]`)?.focus();
+    root.querySelector(`.pl-q[data-m="${m}"][data-n="${n}"]`)?.focus();
   });
-  $('pl-save').onclick = saveTestLog;
+  // Details: typed values are kept as typed (checked on Create plan); only the derived text updates in place.
+  const edited = () => { if (PLOG.error) { PLOG.error = ''; $('pl-error').textContent = ''; } };
+  if ($('pl-goal')) $('pl-goal').oninput = e => { PLOG.goal = e.target.value; edited(); };
+  for (const sec of Plan.SECTIONS) if ($('pl-score-' + sec)) $('pl-score-' + sec).oninput = e => { PLOG.score[sec] = e.target.value; $('pl-total').textContent = scoreTotal(); edited(); };
+  if ($('pl-sat')) $('pl-sat').onchange = e => { PLOG.satDate = e.target.value; $('pl-sat-days').textContent = satDays(PLOG.satDate); };
+  root.querySelectorAll('.lg-seg-b').forEach(b => b.onclick = () => { PLOG.emphasis = b.dataset.emph; drawLog(); root.querySelector(`.lg-seg-b[data-emph="${b.dataset.emph}"]`)?.focus(); });
+  if (!root.contains(document.activeElement)) (root.querySelector('#pl-test, .pl-ver, .lg-instr ~ .lg-mod .pl-q, #pl-goal') || $('pl-cancel')).focus({ preventScroll: true });
+}
+function scoreTotal() {
+  const rw = Plan.readScore(PLOG.score.RW, 200, 800, ''), m = Plan.readScore(PLOG.score.Math, 200, 800, '');
+  return rw.value && m.value ? String(rw.value + m.value) : '—';
+}
+function satDays(date) {
+  if (!date) return '';
+  const n = Plan.daysBetween(localDay(), date);
+  return n === 0 ? 'Today' : `${n} day${n === 1 ? '' : 's'} away`;
 }
 
 // Logging: the plan is saved first (one row); only then are the test's answers recorded, through the shared record path
 // and tagged with the test, so a failed save records nothing and a retry cannot record twice. Each mapped question is
 // marked done (progress + attempt, dated the day of the test); a Wrong is a miss and goes to the mistake log.
 async function saveTestLog() {
-  if (planBusy || !PLOG) return;
+  if (planBusy || !PLOG || PLOG.none) return;
   const t = PTMAP.tests.find(x => x.id === PLOG.testId);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(PLOG.date) || PLOG.date > localDay()) { PLOG.error = 'Choose the date you took the test (not in the future).'; return drawLog(); }
+  if (!t || Plan.SECTIONS.some(sec => !PLOG.route[sec])) { PLOG.page = 'start'; return drawLog(); }
+  const fail = msg => { PLOG.error = msg; drawLog(); };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(PLOG.date) || PLOG.date > localDay()) return fail('Choose the date you took the test (not in the future); go Back to step 1.');
+  const goal = Plan.readScore(PLOG.goal, 400, 1600, 'Your goal score'), rw = Plan.readScore(PLOG.score.RW, 200, 800, 'Your Reading and Writing score'),
+    math = Plan.readScore(PLOG.score.Math, 200, 800, 'Your Math score');
+  const bad = [goal, rw, math].find(r => 'error' in r);
+  if (bad) return fail(bad.error);
   const log = { testId: t.id, number: t.number, date: PLOG.date, route: { ...PLOG.route }, marks: {}, at: new Date().toISOString() };
+  if (rw.value || math.value) log.score = { ...(rw.value ? { RW: rw.value } : {}), ...(math.value ? { Math: math.value } : {}) };
   for (const m of Plan.modulesOf(t, log.route)) if (m.ids) log.marks[m.key] = m.ids.map((_, n) => (PLOG.marks[m.key] || '')[n] || '.').join('');
   const items = Plan.resolveLog(t, log, QBY).filter(it => it.id && scorable(QBY.get(it.id)));
   const ts = log.date + 'T12:00:00.000Z';
@@ -3605,12 +3878,13 @@ async function saveTestLog() {
   items.forEach(it => { after[it.id] = Stats.nextProgress(after[it.id], it.id, it.mark !== 'W', ts, 0); });
   const t2 = Stats.tally(QS, after);
   const acc = new Map(Object.entries(t2.skill).map(([k, v]) => [k, v.a ? v.c / v.a : null]));
-  const { state } = Plan.logTest(planState(), PTMAP, log, QBY, acc, skillRank);
+  const profile = { goal: goal.value, satDate: PLOG.satDate || null, emphasis: PLOG.emphasis };
+  const { state } = Plan.logTest({ ...planState(), profile }, PTMAP, log, QBY, acc, skillRank);
   planBusy = true;
   $('pl-save').disabled = true;
   let ok = false;
   try { ok = await savePlan(state); } finally { planBusy = false; }
-  if (!ok) { if (PLOG) { PLOG.error = 'Your log could not be saved. Check your connection and try again.'; drawLog(); } return; }
+  if (!ok) { if (PLOG) fail('Your log could not be saved. Check your connection and try again.'); return; }
   PLAN_TAG = 'test:' + t.id;
   try {
     items.forEach(it => {

@@ -17,8 +17,15 @@ export const MAP = { tests: [
     Math: { m1: ids('a4', 'd3'), easy: ids('a5', 'd4'), hard: ids('a5', 'd4') } },
   { id: 'PT92', number: 92, name: 'Practice Test 92',
     RW: { m1: ids('b5', 'c3'), easy: ids('e3'), hard: null },
-    Math: { m1: ids('ablk', 'd5'), easy: ids('d6', 'a6'), hard: null } }
+    Math: { m1: ids('ablk', 'd5'), easy: ids('d6', 'a6'), hard: null } },
+  // Both module-2 variants mapped in both sections: the log form asks the recognition check (recognition.spec.ts).
+  { id: 'PT93', number: 93, name: 'Practice Test 93',
+    RW: { m1: ids('t1'), easy: ids('t2', 't3', 't4'), hard: ids('t5', 't6', 't7') },
+    Math: { m1: ids('p1'), easy: ids('p2', 'p3', 'p4'), hard: ids('p5', 'p6', 'p7') } }
 ] };
+// public/practice-tests-ext.json for the map above (bank ID -> College Board externalId), read when an export is uploaded.
+export const EXT = Object.fromEntries(MAP.tests.flatMap(t => (['RW', 'Math'] as const).flatMap(s =>
+  (['m1', 'easy', 'hard'] as const).flatMap(m => (t[s][m] || []) as (string | null)[]))).filter(Boolean).map(id => [id, 'ext-' + id]));
 export const SKILL = { a: 'Linear functions', b: 'Boundaries', c: 'Words in Context', d: 'Circles', e: 'Rhetorical Synthesis' };
 
 export const SHOTS = 'docs/plan/screens';
@@ -36,6 +43,7 @@ export async function fixture(action: 'fixture' | 'cleanup') {
 export async function student(browser): Promise<{ context: BrowserContext; page: Page }> {
   const context = await newUserContext(browser, STUDENT);
   await context.route('**/practice-tests.json', route => route.fulfill({ json: MAP }));
+  await context.route('**/practice-tests-ext.json', route => route.fulfill({ json: EXT }));
   const page = await context.newPage();
   await page.clock.install();
   return { context, page };
@@ -49,14 +57,22 @@ export async function openApp(page: Page) {
 export const api = async (context: BrowserContext, path: string) => (await (await context.request.get(path)).json());
 export const planOf = async (context: BrowserContext) => (await api(context, '/api/plan')).state;
 
-// Log a test: marks maps a module key (RW1, RW2, Math1, Math2) to its marks string ('.', 'W', 'S' per question).
-export async function logTest(page: Page, testId: string, date: string, marks: Record<string, string>, route: Record<string, string> = {}) {
+// The log popup (docs/plan/BRIEF-log-modal.md). Page 1: the test, the date and each section's second module; route
+// defaults to the first mapped variant. It ends on the next page (marks-RW, or a check page for "Not sure").
+const firstRoute = (testId: string, sec: 'RW' | 'Math') => { const t = MAP.tests.find(x => x.id === testId)!; return t[sec].easy ? 'easy' : 'hard'; };
+export async function startLog(page: Page, testId: string, date: string, route: Record<string, string> = {}) {
   const form = page.locator('#plan-log-form');
-  await expect(form).toBeVisible();
+  await expect(form).toHaveAttribute('data-page', 'start');
   await page.locator('#pl-test').selectOption(testId);
   await page.locator('#pl-date').fill(date);
   await page.locator('#pl-date').dispatchEvent('change');
-  for (const [sec, r] of Object.entries(route)) await form.locator(`[data-route="${sec}"] input[value="${r}"]`).check();
+  for (const sec of ['RW', 'Math'] as const) await form.locator(`[data-route="${sec}"] .lg-opt[data-choice="${route[sec] || firstRoute(testId, sec)}"]`).click();
+  await page.locator('#pl-next').click();
+}
+// On a marks page: marks maps a module key (RW1, RW2 / Math1, Math2) to its marks string ('.', 'W', 'S' per question).
+export async function markSection(page: Page, sec: 'RW' | 'Math', marks: Record<string, string>, next = true) {
+  const form = page.locator('#plan-log-form');
+  await expect(form).toHaveAttribute('data-page', 'marks-' + sec);
   for (const [key, s] of Object.entries(marks)) {
     for (let n = 0; n < s.length; n++) {
       const clicks = s[n] === 'W' ? 1 : s[n] === 'S' ? 2 : 0;
@@ -64,9 +80,19 @@ export async function logTest(page: Page, testId: string, date: string, marks: R
       if (clicks) await expect(form.locator(`.pl-q[data-m="${key}"][data-n="${n}"]`)).toHaveAttribute('data-mark', s[n]);
     }
   }
+  if (next) await page.locator('#pl-next').click();
+}
+const only = (marks: Record<string, string>, sec: string) => Object.fromEntries(Object.entries(marks).filter(([k]) => k.startsWith(sec)));
+// Log a test through the popup up to its last page (goal, scores, SAT date, emphasis); saveLog creates the plan.
+export async function logTest(page: Page, testId: string, date: string, marks: Record<string, string>, route: Record<string, string> = {}) {
+  await startLog(page, testId, date, route);
+  await markSection(page, 'RW', only(marks, 'RW'));
+  await markSection(page, 'Math', only(marks, 'Math'));
+  await expect(page.locator('#plan-log-form')).toHaveAttribute('data-page', 'details');
 }
 export async function saveLog(page: Page) {
   await page.locator('#pl-save').click();
+  await expect(page.locator('#plan-log-form')).toHaveCount(0);
   await expect(page.locator('#plan-panel')).toBeVisible();
 }
 export const stepTitles = (page: Page) => page.locator('#plan-steps .plan-st b').allTextContents();
