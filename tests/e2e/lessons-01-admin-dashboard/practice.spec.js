@@ -11,7 +11,7 @@ test('C4 practice MC and SPR choices persist exact history and admin direction; 
     const directionBefore = (await (await admin.request.get('/api/admin/students/e2e-student-3')).json()).directions;
     const page = await student.newPage();
     await page.goto('/app');
-    await expect(page.locator('#home-stats .v').first()).toHaveText('9'); // 9 bank questions since the figure-viewer math figure fixture
+    await expect(page.locator('#start-count')).toHaveText('9 matching questions'); // 9 bank questions since the figure-viewer math figure fixture
     await page.locator('[data-tab="practice"]').click();
     await page.locator('#btn-start').click();
     await expect(page.locator('#bank-live')).toBeVisible();
@@ -65,8 +65,16 @@ test('C4 practice MC and SPR choices persist exact history and admin direction; 
     await page.locator('#bank-exit-confirm').click();
     await expect(page.locator('#view-home')).toBeVisible();
     const progress = (await (await student.request.get('/api/progress')).json()).filter(x => x.attempts > 0);
-    const correct = progress.filter(x => ['Green', 'Orange'].includes(x.marker)).length;
-    await expect(page.locator('#home-stats .v').nth(1)).toHaveText(String(progress.length));
-    await expect(page.locator('#home-stats .v').nth(2)).toHaveText(`${Math.round(correct / progress.length * 100)}%`);
+    // The question bank home's column headers: attempted/total and accuracy per section.
+    const sections = await page.evaluate(() => Object.fromEntries(window.__qa().QS.map(q => [q.id, q.section])));
+    await page.locator('[data-tab="practice"]').click();
+    for (const name of ['Reading & Writing', 'Math']) {
+      const rows = progress.filter(x => sections[x.question_id] === name);
+      const total = Object.values(sections).filter(s => s === name).length;
+      const right = rows.filter(x => ['Green', 'Orange'].includes(x.marker)).length;
+      const header = page.locator(`#bank-home .qb-sec[data-section="${name}"]`);
+      await expect(header.locator('.qb-num')).toHaveText(`${rows.length}/${total} done`);
+      await expect(header.locator('.qb-acc')).toHaveText(rows.length ? `${Math.round(right / rows.length * 100)}%` : '—');
+    }
   } finally { await admin.close(); await student.close(); }
 });

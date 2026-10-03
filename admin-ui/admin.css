@@ -1191,9 +1191,26 @@ body {
   gap: 4px;
   overflow-wrap: anywhere;
 }
+:where(#admin-root) .item-title {
+  cursor: pointer;
+  min-width: 0;
+}
+:where(#admin-root) .item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+:where(#admin-root) .item-top small {
+  margin-left: auto;
+}
 :where(#admin-root) .item-title small {
   font-size: 11px;
   color: var(--muted);
+}
+:where(#admin-root) .item-title .item-notes {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 :where(#admin-root) #lesson-items button {
   padding: 5px;
@@ -1397,6 +1414,82 @@ body {
   color: #1f7a45;
   font-weight: 600;
 }
+:where(#admin-root) .iv-body {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+}
+:where(#admin-root) .iv-side {
+  overflow: auto;
+  padding: 20px 22px 28px;
+}
+:where(#admin-root) .iv-side h3 {
+  margin: 18px 0 8px;
+  font-size: 14px;
+}
+:where(#admin-root) .iv-side h3:first-child {
+  margin-top: 0;
+}
+:where(#admin-root) .iv-outline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+:where(#admin-root) .iv-outline button {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+  font-size: 12px;
+}
+:where(#admin-root) .iv-outline button[aria-current="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+:where(#admin-root) .iv-row-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+:where(#admin-root) .iv-row-top small {
+  margin-left: auto;
+}
+:where(#admin-root) .iv-snippet {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+:where(#admin-root) .iv-reveal {
+  margin: 22px 0 12px;
+}
+:where(#admin-root) .iv-side label {
+  display: block;
+  margin: 12px 0;
+  font-size: 12px;
+}
+:where(#admin-root) .iv-side textarea {
+  width: 100%;
+  min-height: 90px;
+}
+:where(#admin-root) .iv-side .time-chips button {
+  font-size: 12px;
+}
+@media (max-width: 860px) {
+  :where(#admin-root) .iv-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :where(#admin-root) .iv-side {
+    overflow: visible;
+  }
+}
 @media (max-width: 860px) {
   :where(#admin-root) .qv-body {
     grid-template-columns: minmax(0, 1fr);
@@ -1523,6 +1616,125 @@ body {
 }
 :where(#admin-root) .past-sessions .badge-ui {
   margin-left: 8px;
+}
+:where(#admin-root) .past-sessions > .past-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  padding: 12px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  justify-content: flex-start;
+  cursor: pointer;
+}
+:where(#admin-root) .past-sessions > .past-session:hover {
+  background: var(--soft);
+}
+:where(#admin-root) .past-session > span:last-child {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+/* Session results (SessionResults.tsx): a wider slide-over. */
+:where(#admin-root) dialog.slide-over:has(.session-results) {
+  width: min(980px, 94vw);
+}
+:where(#admin-root) .results-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+:where(#admin-root) .results-back {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 13px;
+  gap: 4px;
+}
+:where(#admin-root) .results-back svg {
+  width: 14px;
+  height: 14px;
+}
+:where(#admin-root) .results-rows,
+:where(#admin-root) .results-questions {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 13px;
+}
+:where(#admin-root) .results-rows li {
+  display: grid;
+  grid-template-columns: 44px minmax(120px, 1.4fr) minmax(110px, 1fr) 28px minmax(110px, auto);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+:where(#admin-root) .results-rows li.missed {
+  background: #fdecee;
+}
+:where(#admin-root) .results-rows li.absent {
+  color: var(--muted);
+}
+:where(#admin-root) .results-mark svg {
+  width: 16px;
+  height: 16px;
+}
+:where(#admin-root) .results-topic {
+  color: var(--muted);
+}
+:where(#admin-root) .results-questions li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+:where(#admin-root) .results-questions header,
+:where(#admin-root) .results-qfacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 6px;
+}
+:where(#admin-root) .results-dist {
+  display: flex;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #e2e6ed;
+  font-size: 11px;
+}
+:where(#admin-root) .results-dist > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  overflow: hidden;
+  white-space: nowrap;
+  background: #f2b8bf;
+  border-right: 1px solid #fff;
+}
+:where(#admin-root) .results-dist > span.correct {
+  background: #9fd8b3;
+}
+:where(#admin-root) .results-dist > span.blank {
+  background: #d5dae3;
+}
+@media (max-width: 700px) {
+  :where(#admin-root) .results-rows li {
+    grid-template-columns: 40px 1fr 24px;
+  }
+  :where(#admin-root) .results-rows li > .results-topic,
+  :where(#admin-root) .results-rows li > [data-fact="time"] {
+    grid-column: 2 / -1;
+  }
 }
 :where(#admin-root) .student-search {
   max-width: 400px;
@@ -2032,3 +2244,26 @@ body {
 :where(#admin-root) .report-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 :where(#admin-root) .suggestion-filter { display: inline-flex; align-items: center; gap: 8px; }
 @media (max-width: 1100px) { :where(#admin-root) .report-diff { grid-template-columns: 1fr; } }
+
+/* Projector window (Projector.tsx): the class view only, light, no admin chrome. */
+:where(#admin-root) .projector-screen { min-height: 100%; display: grid; place-items: center; padding: 4vh 4vw; background: #f5f6fa; }
+:where(#admin-root) .projector-card { width: min(1100px, 100%); padding: 5vh 4vw; border-radius: 24px; background: #fff; box-shadow: 0 18px 60px rgba(23, 23, 23, .12); text-align: center; color: #171717; }
+:where(#admin-root) .projector-card h1 { margin: 0 0 2vh; font-size: clamp(28px, 4.5vw, 64px); line-height: 1.15; }
+:where(#admin-root) .projector-card p { margin: 1.5vh 0; font-size: clamp(18px, 2.4vw, 34px); }
+:where(#admin-root) .projector-title { display: block; color: var(--muted); font-size: clamp(16px, 1.8vw, 26px); font-weight: 600; }
+:where(#admin-root) .projector-join-line { color: #303441; }
+:where(#admin-root) .projector-code { display: block; margin: 3vh 0; font-size: clamp(64px, 13vw, 220px); line-height: 1; font-weight: 800; letter-spacing: .14em; padding-left: .14em; font-variant-numeric: tabular-nums; color: #304fc5; }
+:where(#admin-root) .projector-count { display: inline-flex; align-items: center; gap: .4em; font-weight: 700; }
+:where(#admin-root) .projector-count svg { width: 1.1em; height: 1.1em; }
+:where(#admin-root) .projector-wait { color: var(--muted); }
+:where(#admin-root) .projector-big { font-size: clamp(48px, 9vw, 150px) !important; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* The student Player, read-only: no student controls or own verdict on the class screen. */
+#lesson-live.projector-live :is(.lesson-tools, #lesson-lock, .lesson-timer button, .stage-report, .stage-strike-toggle, .stage-strike, .lesson-verdict, .lesson-reconnect) { display: none; }
+:where(#admin-root) .projector-badge { position: fixed; right: 16px; bottom: 16px; z-index: 210; display: flex; flex-direction: column; align-items: center; padding: 6px 14px; border-radius: 12px; background: #171717; color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); pointer-events: none; }
+:where(#admin-root) .projector-badge span { font-size: 13px; opacity: .8; }
+:where(#admin-root) .projector-badge strong { font-size: 26px; letter-spacing: .12em; padding-left: .12em; }
+:where(#admin-root) .projector-badge.locked { opacity: .45; }
+:where(#admin-root) .projector-reconnect { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 220; padding: 4px 14px; border-radius: 999px; background: #fff0bd; color: #171717; font-size: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, .15); }
+:where(#admin-root) .projector-fullscreen { position: fixed; top: 12px; right: 12px; z-index: 220; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: #171717; font: 600 13px/1.2 system-ui, sans-serif; cursor: pointer; opacity: .75; }
+:where(#admin-root) .projector-fullscreen:hover { opacity: 1; }
+:where(#admin-root) .projector-fullscreen svg { width: 16px; height: 16px; }

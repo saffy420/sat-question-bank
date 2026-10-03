@@ -10,4 +10,4 @@ Written by `tests/e2e/bank-bluebook/bank.spec.ts` (local `wrangler dev`, seeded 
 | `C3-wrong-*`, `C3-solved-*` | Wrong pick red and disabled, nothing revealed; then the right answer, both misses still red. |
 | `C4-show-answer-*`, `C4-answer-shown-*` | Grid-in after 3 wrong Checks (Show answer offered), then the answer shown. |
 | `C5-navigator-*`, `C5-results-*` | Navigator mid-retry (question marked wrong); results (first-try 0 of 1, retry solved = Corrected). |
-| `C6-dark-1366x768.png`, `C6-phone-390x780.png` | Dark theme; phone width. |
+| `C6-phone-390x780.png` | Phone width. |

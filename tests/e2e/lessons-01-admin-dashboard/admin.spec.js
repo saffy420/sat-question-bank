@@ -104,18 +104,19 @@ test('C2 seeded student all eight tabs and real mistake previews', async ({ brow
     } else await expect(page.locator('#tab-content')).toContainText('No lessons attended yet.');
     expect(await (await observed.request.get('/api/progress')).json()).toEqual(progressBefore);
     expect(await (await observed.request.get('/api/attempts')).json()).toEqual(attemptsBefore);
+    // The student app no longer has a Browse list; the admin Question Bank viewer shows the same preview.
     const browse = await context.newPage();
-    await browse.goto('/app');
-    await browse.locator('[data-tab="browse"]').click();
-    await browse.locator('#browse-body tr[data-id="e2e-core-math"]').click();
-    await expect(browse.locator('#modal-root .choice')).toHaveText(['A 5', 'B 6', 'C 7', 'D 8']);
-    await expect(browse.locator('#modal-root .katex')).toHaveCount(1);
-    await expect(browse.locator('#modal-root')).toContainText('E2E_EXPL_MARKER_MATH');
-    await browse.locator('#modal-root').getByRole('button', { name: 'Close' }).click();
-    await browse.locator('#browse-body tr[data-id="e2e-core-spr"]').click();
-    await expect(browse.locator('#modal-root .choice')).toHaveCount(0);
-    await expect(browse.locator('#modal-root')).toContainText('Answer: 3');
-    await expect(browse.locator('#modal-root')).toContainText('E2E_EXPL_MARKER_SPR');
+    await browse.goto('/admin/questions');
+    const viewer = browse.locator('dialog.question-viewer');
+    await browse.locator('[data-preview="e2e-core-math"]').click();
+    await expect(viewer.locator('.choice')).toHaveText(['A 5', 'B 6', 'C 7', 'D 8']);
+    await expect(viewer.locator('.qv-question .katex')).toHaveCount(1);
+    await expect(viewer).toContainText('E2E_EXPL_MARKER_MATH');
+    await viewer.getByRole('button', { name: 'Close' }).click();
+    await browse.locator('[data-preview="e2e-core-spr"]').click();
+    await expect(viewer.locator('.choice')).toHaveCount(0);
+    await expect(viewer).toContainText('The correct answer is 3.');
+    await expect(viewer).toContainText('E2E_EXPL_MARKER_SPR');
   } finally { await observed.close(); await context.close(); }
 });
 

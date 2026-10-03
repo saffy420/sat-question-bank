@@ -8,6 +8,8 @@
 .bank-timer-actions { display:flex; align-items:center; gap:calc(var(--u) * .4); }
 #bank-live .lesson-timer .bank-timer-actions button { padding:0 calc(var(--u) * .7); }
 #bank-clock.over { color:#bd2424; }
+#bank-clock.late { color:#b45f06; }
+.bank-target { font-size:calc(var(--u) * .8); line-height:1.2; color:#666; }
 
 .bank-main { position:relative; }
 .bank-main.paused .bank-stage { visibility:hidden; }
@@ -19,6 +21,10 @@
 .bank-reveal .lesson-verdict { font:500 calc(var(--u) * 1.25)/1.4 'Lesson Sans',sans-serif; }
 .bank-reveal .lesson-verdict svg { color:#26783d; }
 .bank-reveal .lesson-verdict.shown svg { color:#bd2424; }
+.bank-desmos { margin:12px 0; }
+.bank-desmos-calc { height:min(420px, 60vh); border:1px solid #c6c6c6; border-radius:8px; overflow:hidden; }
+.bank-desmos-credit { margin:6px 0 0; font-size:13px; color:#555; }
+.bank-desmos-error { color:#bd2424; }
 .bank-info { display:grid; grid-template-columns:max-content 1fr; gap:6px 18px; margin:16px 0 0; font:calc(var(--u) * 1.05)/1.4 'Lesson Sans',sans-serif; }
 .bank-info>div { display:contents; }
 .bank-info dt { color:#555; }
@@ -62,7 +68,7 @@
 .self-key.corrected { border-top-color:#a35a00; }
 
 /* Calculator dock, College Board embed (Graphing / Scientific). The embed draws its own 50 px title strip that cannot be
-   restyled across origins: the frame clips it and the iframe grows by the same amount. The embed has no dark mode. */
+   restyled across origins: the frame clips it and the iframe grows by the same amount. */
 .lesson-calc-embed { flex:1; min-height:0; display:flex; flex-direction:column; background:#fff; }
 .lesson-calc-tabs { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid #cfcfcf; }
 #bank-live .lesson-calc-tabs button { padding:3px 12px; border-radius:8px; font-size:calc(var(--u) * .9); color:#444; }
@@ -71,18 +77,3 @@
 .lesson-calc-frame iframe { position:absolute; left:0; top:calc(-1 * var(--crop)); width:100%; height:calc(100% + var(--crop)); border:0; }
 .bank-export textarea { width:100%; height:40vh; margin-top:12px; padding:12px; border:1px solid #777; border-radius:12px; font:13px/1.5 ui-monospace,monospace; background:#f7f7f7; color:#171717; }
 #bank-live #bank-exit-confirm { border:0; color:#fff; background:#304fc5; border-radius:999px; font-size:calc(var(--u) * 1.1); padding:calc(var(--u) * .6) calc(var(--u) * 2.2); }
-
-/* Dark theme. The screen is authored light (like Bluebook); when the page theme is dark each part of the screen is inverted and
-   rotated 180° in hue, so text, rules and accents keep their hue on a dark ground (92 % invert: a soft #141414 ground, not
-   pure black). The filter goes on the parts, never on #bank-live: a filter would make it the containing block of the fixed
-   header, footer and docks and they would scroll away with the page. Pictures are turned back the right way up and set on a
-   light plate (colored figures keep their colors); notation crops (.minl) are black ink on white and stay inverted; the
-   figure viewer (which has its own dark styling), the calculator embed and its bar and the ink layer are restored. Dialogs are filtered too, so they come out dark. */
-:root[data-theme="dark"] #bank-live, :root[data-theme="dark"] #bank-content { background:#141414; }
-:root[data-theme="dark"] #bank-content > * { filter:invert(.92) hue-rotate(180deg); }
-:root[data-theme="dark"] #bank-live .lesson-stage img:not(.minl) { filter:invert(1) hue-rotate(180deg)!important; background:#fff; }
-:root[data-theme="dark"] #bank-live .fv { filter:invert(1) hue-rotate(180deg); }
-:root[data-theme="dark"] #bank-live .lesson-stage .fv img { filter:none!important; background:none; }
-:root[data-theme="dark"] #bank-live .lesson-calc-frame iframe,
-:root[data-theme="dark"] #bank-live .lesson-calc-bar,
-:root[data-theme="dark"] #bank-live .lesson-ink { filter:invert(1) hue-rotate(180deg); }

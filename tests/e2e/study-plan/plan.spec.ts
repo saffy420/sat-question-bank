@@ -206,11 +206,7 @@ test('C6 two cycles: consolidation, next test (warned when too soon), maintenanc
   expect(state.skills[SKILL.e]).toMatchObject({ status: 'maintenance', clean: 0, misses: 1 });
   expect(state.tests.map(t => t.testId)).toEqual(['PT90', 'PT91', 'PT92']);
   await shot(page, '10-cycle3-plan');
-  // Dark theme and a phone-width screen: the plan stays readable, with no sideways scroll.
-  await page.locator('#view-home [data-theme-toggle]').click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await shot(page, '11-dark');
-  await page.locator('#view-home [data-theme-toggle]').click();
+  // A phone-width screen: the plan stays readable, with no sideways scroll.
   await page.setViewportSize({ width: 390, height: 780 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await shot(page, '12-phone');

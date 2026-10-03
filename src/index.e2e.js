@@ -131,7 +131,7 @@ export default {
       let body; try { body = await req.json(); } catch { return reply({ error: 'invalid body' }, 400); }
       if (!['fixture', 'cleanup'].includes(body?.action)) return reply({ error: 'invalid body' }, 400);
       const who = 'e2e-student-7';
-      const statements = ['progress', 'attempts', 'study_plans', 'sessions', 'notes', 'settings'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(who));
+      const statements = ['progress', 'attempts', 'study_plans', 'sessions', 'notes', 'saved_questions', 'settings'].map(t => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(who));
       statements.push(env.DB.prepare("DELETE FROM questions WHERE id LIKE 'e2e-plan-%'"));
       // The account exists only while a plan spec runs: the admin specs count the club's members.
       if (body.action === 'cleanup') statements.push(env.DB.prepare('DELETE FROM membership WHERE user_id = ?').bind(who), env.DB.prepare('DELETE FROM users WHERE id = ?').bind(who));

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Check,
   X,
   PenLine,
   Highlighter,
   Strikethrough,
+  Type,
   Eraser,
   Trash2,
   Focus,
@@ -22,11 +23,14 @@ import {
   ChevronRight,
   NotebookText,
   EyeOff,
+  Presentation,
+  TextCursorInput,
 } from "lucide-react";
 import { Stage } from "../lesson-ui/Stage";
 import { DesmosLeader } from "../lesson-ui/Desmos";
 import { SelfGrid, type SelfRoom } from "./SelfLive";
 import { Overview, PollPanel, ResultPanel } from "./Review";
+import { SessionResults } from "./SessionResults";
 import type { Snapshot, Mark } from "../lesson-ui/types";
 import * as Ink from "/shared/annotations.js";
 import { isRight } from "/shared/stats.js";
@@ -66,6 +70,8 @@ const tools = {
   pen: PenLine,
   highlight: Highlighter,
   strike: Strikethrough,
+  text: Type,
+  edit: TextCursorInput,
   erase: Eraser,
   clear: Trash2,
   laser: Focus,
@@ -74,6 +80,8 @@ const labels = {
   pen: "Pen",
   highlight: "Highlight",
   strike: "Strikethrough",
+  text: "Text",
+  edit: "Edit text",
   erase: "Erase",
   clear: "Clear all",
   laser: "Laser",
@@ -168,6 +176,15 @@ export function Live({
   const collapsed = useRef(false);
   // Cross-out mode is local; crossed-out choices are shared with the class.
   const [strikeMode, setStrikeMode] = useState(false);
+  // Session results open by themselves once this tab's End session has ended the session.
+  const ending = useRef(false);
+  const [results, setResults] = useState(false);
+  useEffect(() => {
+    if (s?.status === "ended" && ending.current) {
+      ending.current = false;
+      setResults(true);
+    }
+  }, [s?.status]);
   const send: Send = (type, fields = {}) => {
     if (socket.current?.readyState === WebSocket.OPEN)
       socket.current.send(JSON.stringify({ type, ...fields }));
@@ -367,6 +384,19 @@ export function Live({
       {connected ? "Connected" : "Reconnecting…"}
     </span>
   );
+  // A second window for the classroom screen (Projector.tsx); the same name reuses an open one.
+  const projector = (
+    <button
+      id="live-projector"
+      title="Open the class view in a window for the projector"
+      onClick={() =>
+        window.open(`/admin/live/${id}/projector`, `r1600-projector-${id}`, "popup,width=1280,height=720")
+      }
+    >
+      <Presentation />
+      Projector
+    </button>
+  );
   const roster = (
     <div id="live-roster" className="roster">
       {rows.map((r) => (
@@ -424,13 +454,21 @@ export function Live({
     </div>
   );
   const endSession = (
-    <button
-      data-live="endSession"
-      disabled={s.phase === "ENDED"}
-      onClick={() => send("endSession")}
-    >
-      End session
-    </button>
+    <>
+      <button
+        data-live="endSession"
+        disabled={s.phase === "ENDED"}
+        onClick={() => {
+          ending.current = true;
+          send("endSession");
+        }}
+      >
+        End session
+      </button>
+      {results && (
+        <SessionResults id={s.sessionId} close={() => setResults(false)} />
+      )}
+    </>
   );
   const errorLine = (
     <p id="live-error" className="error" role="alert">
@@ -462,6 +500,7 @@ export function Live({
               Submitted {Object.keys(self.submitted).length}
             </span>
             {clock}
+            {projector}
           </div>
         </header>
         {s.status === "lobby" ? (
@@ -860,6 +899,7 @@ export function Live({
           <NotebookText />
           Notes
         </button>
+        {projector}
         {connection}
         {endSession}
       </footer>
@@ -931,6 +971,210 @@ function InstructorStage({
   const resting = useRef<[number, number] | null>(null);
   const hidden = hiddenLayer(s);
   const annotating = canAnnotate(s);
+  // Edit text: committed fixes are shown until the room echoes them, so the block never flashes the old text,
+  // and the marks the room will drop from an edited block (see src/lesson-room.js) are not repainted meanwhile.
+  const [pending, setPending] = useState<Mark[]>([]);
+  const [editNote, setEditNote] = useState("");
+  useEffect(() => setPending([]), [s.questionId]);
+  useEffect(() => {
+    setPending((old) => {
+      const left = old.filter(
+        (p) => !s.annotations?.some((m) => m.id === p.id && m.text === p.text),
+      );
+      return left.length === old.length ? old : left;
+    });
+  }, [s.annotations]);
+  useEffect(() => {
+    if (!editNote) return;
+    const timer = setTimeout(() => setEditNote(""), 4000);
+    return () => clearTimeout(timer);
+  }, [editNote]);
+  const shown = useMemo(
+    () =>
+      pending.length
+        ? [
+            ...(s.annotations || []).filter(
+              (m) =>
+                !pending.some(
+                  (p) =>
+                    p.id === m.id ||
+                    (m.type !== "edit" &&
+                      (m.nodeId === p.nodeId ||
+                        !!m.a?.startsWith(`${p.nodeId}~`) ||
+                        !!m.a?.startsWith(`${p.nodeId}@`))),
+                ),
+            ),
+            ...pending,
+          ]
+        : s.annotations,
+    [s.annotations, pending],
+  );
+  // Edit text: one passage/stem block or choice text at a time becomes editable. KaTeX (and any image) is
+  // locked; the block's text nodes must come back the same in number and the markup the same in shape, so
+  // only prose changes. Each changed text node goes out as one `edit` mark, counted on the clean block.
+  useEffect(() => {
+    if (!card || !annotating || tool !== "edit") return;
+    let block: HTMLElement | null = null,
+      saved: Node[] = [],
+      before: string[] = [],
+      shape = 0;
+    // Choice text sits in the choice buttons, disabled on this screen (the presenter never selects). Clicks
+    // never reach a disabled button's text, so they are enabled while the tool is on; with no `active`
+    // Stage prop a click still selects nothing.
+    const buttons = [...card.querySelectorAll<HTMLButtonElement>("button[data-lesson-choice]")];
+    for (const b of buttons) b.disabled = false;
+    const shapeOf = (el: HTMLElement) => el.getElementsByTagName("*").length;
+    const locked = (el: HTMLElement) => [
+      ...el.querySelectorAll<HTMLElement>(".katex, img, svg, .fv"),
+    ].filter((n) => !n.parentElement?.closest(".katex, .fv"));
+    const end = (commit: boolean) => {
+      const el = block;
+      if (!el) return;
+      block = null;
+      el.removeEventListener("keydown", key);
+      el.removeEventListener("focusout", away);
+      el.removeEventListener("beforeinput", guard);
+      el.removeEventListener("input", check);
+      const nodes = Ink.textNodes(el) as Text[];
+      const same = nodes.length === before.length && shapeOf(el) === shape;
+      const changed = nodes
+        .map((n, i) => ({ i, text: n.data }))
+        .filter(({ i, text }) => same && text !== before[i]);
+      const ops = changed.map(({ i, text }) => ({
+        type: "edit" as const,
+        id: `edit:${el.dataset.annNode}:${i}`,
+        nodeId: el.dataset.annNode,
+        i,
+        text,
+      }));
+      // The room closes a socket on a frame over MAX_FRAME (2048 bytes), so a long fix is refused here.
+      const fits = ops.every(
+        (op) =>
+          op.text.length <= 1500 &&
+          new TextEncoder().encode(
+            JSON.stringify({ type: "annotate", questionId: latest.current.s.questionId, op }),
+          ).length < 2000,
+      );
+      const keep = commit && same && fits;
+      if (!keep) {
+        if (same) nodes.forEach((n, i) => (n.data = before[i]));
+        else el.replaceChildren(...saved);
+        if (commit && !same)
+          setEditNote("Only text can be changed — math and formatting are locked");
+        else if (commit) setEditNote("That edit is too long to send at once");
+      }
+      el.removeAttribute("contenteditable");
+      el.spellcheck = true;
+      delete el.dataset.annEditing;
+      for (const n of locked(el)) {
+        n.removeAttribute("contenteditable");
+        n.classList.remove("ann-locked");
+        if (n.classList.contains("katex")) n.removeAttribute("title");
+      }
+      if (keep && ops.length) {
+        setPending((old) => [
+          ...old.filter((p) => !ops.some((op) => op.id === p.id)),
+          ...ops,
+        ]);
+        for (const op of ops)
+          latest.current.send("annotate", {
+            questionId: latest.current.s.questionId,
+            op,
+          });
+      } else Ink.paint(card, latest.current.s.annotations || []);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        end(true);
+      } else if (e.key === "Escape") {
+        // Esc only cancels the edit; the tool stays selected.
+        e.preventDefault();
+        e.stopPropagation();
+        end(false);
+      }
+    };
+    const away = () => end(true);
+    // Markup can't be typed: Enter commits (handled on keydown), a line break is refused. The caret is noted
+    // so a refused input (below) can put it back.
+    const guard = (e: InputEvent) => {
+      if (e.inputType === "insertParagraph" || e.inputType === "insertLineBreak") e.preventDefault();
+      const el = block, at = window.getSelection();
+      if (el && at?.anchorNode) {
+        const nodes = Ink.textNodes(el) as Node[];
+        caret = [nodes.indexOf(at.anchorNode), at.anchorOffset];
+      }
+    };
+    // Browsers delete a locked inline (KaTeX) as one unit and report it inconsistently beforehand, so each
+    // input is checked after the fact: anything that changed the block's shape is put back at once.
+    let good: Node[] = [],
+      caret: [number, number] = [-1, 0];
+    const check = () => {
+      const el = block;
+      if (!el) return;
+      if (Ink.textNodes(el).length === before.length && shapeOf(el) === shape) {
+        good = [...el.childNodes].map((n) => n.cloneNode(true));
+        return;
+      }
+      el.replaceChildren(...good.map((n) => n.cloneNode(true)));
+      const node = (Ink.textNodes(el) as Text[])[caret[0]];
+      if (node) {
+        const range = document.createRange();
+        range.setStart(node, Math.min(caret[1], node.length));
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
+      setEditNote("Only text can be changed — math and formatting are locked");
+    };
+    const start = (el: HTMLElement, x: number, y: number) => {
+      if (el.closest("table") || el.querySelector("table")) return;
+      Ink.unpaint(card);
+      el.dataset.annEditing = "true";
+      // Repaint every other block's marks; this one stays clean while it is edited.
+      Ink.paint(card, latest.current.s.annotations || []);
+      saved = [...el.childNodes].map((n) => n.cloneNode(true));
+      before = (Ink.textNodes(el) as Text[]).map((n) => n.data);
+      shape = shapeOf(el);
+      for (const n of locked(el)) {
+        n.contentEditable = "false";
+        n.classList.add("ann-locked");
+        if (n.classList.contains("katex")) n.title = "Math can't be edited";
+      }
+      try {
+        el.contentEditable = "plaintext-only";
+      } catch {
+        el.contentEditable = "true";
+      }
+      el.spellcheck = false;
+      good = [...el.childNodes].map((n) => n.cloneNode(true));
+      block = el;
+      el.addEventListener("keydown", key);
+      el.addEventListener("focusout", away);
+      el.addEventListener("beforeinput", guard);
+      el.addEventListener("input", check);
+      el.focus();
+      const point = document.caretRangeFromPoint?.(x, y);
+      if (point && el.contains(point.startContainer)) {
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(point);
+      }
+    };
+    const click = (e: MouseEvent) => {
+      const el = (e.target as Element).closest<HTMLElement>("[data-ann-node]");
+      if (!el || el === block || !card.contains(el) || (e.target as Element).closest(".badge, .fv-bar"))
+        return;
+      e.preventDefault();
+      end(true);
+      start(el, e.clientX, e.clientY);
+    };
+    card.addEventListener("click", click, true);
+    return () => {
+      card.removeEventListener("click", click, true);
+      end(false);
+      for (const b of buttons) b.disabled = true;
+    };
+  }, [card, tool, annotating, s.questionId]);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setTool("");
@@ -938,6 +1182,57 @@ function InstructorStage({
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, []);
+  // Presenter fit (live-fit): once revealed, students lay their stage out at this stage's width, type size,
+  // chrome unit and viewport width, then scale it to their window, so their line breaks match these. Sent
+  // with every phase change (the reveal included) and stage resize, so it is already there at the reveal;
+  // the room drops an unchanged view.
+  useEffect(() => {
+    if (!card) return;
+    let last: { w: number; fs: number; u: number; vw: number } | null = null,
+      timer: ReturnType<typeof setTimeout> | undefined;
+    const exact = (v: number) => Math.round(v * 1e4) / 1e4;
+    const measure = () => {
+      // --u and 1vw only resolve on an element; a hidden probe in the stage reads both in px.
+      const probe = document.createElement("div");
+      probe.style.cssText =
+        "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;width:var(--u);height:100vw";
+      card.parentElement!.append(probe);
+      const box = getComputedStyle(probe);
+      const view = {
+        w: Math.round(card.getBoundingClientRect().width),
+        fs: exact(parseFloat(getComputedStyle(card).fontSize)),
+        u: exact(parseFloat(box.width)),
+        vw: exact(parseFloat(box.height)),
+      };
+      probe.remove();
+      return view;
+    };
+    const update = () => {
+      if (!card.isConnected) return;
+      const view = measure();
+      if (view.w < 320) return;
+      if (
+        last &&
+        Math.abs(view.w - last.w) < 2 &&
+        view.fs === last.fs &&
+        view.u === last.u &&
+        view.vw === last.vw
+      )
+        return;
+      last = view;
+      latest.current.send("view", view);
+    };
+    update();
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(update, 300);
+    });
+    observer.observe(card);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [card, s.phase]);
   useEffect(() => {
     if (!card || !annotating) return;
     // Pen points are kept in client px and converted per chunk: each ~50 ms chunk anchors to the glyph
@@ -1030,6 +1325,64 @@ function InstructorStage({
         });
       raw = drawing ? [chunk[chunk.length - 1]] : [];
     };
+    // Text tool: a floating textarea at the click. Enter commits (Shift+Enter is a newline), Esc cancels, and
+    // leaving the field commits when something was typed. The place is resolved at the click, like a pen point.
+    // Editing a box erases it and sends a new one in its place, so every frame stays one small mark.
+    let closeEditor: (() => void) | null = null;
+    const openEditor = (cx: number, cy: number, boxId: string | null) => {
+      closeEditor?.();
+      const old = boxId
+        ? latest.current.s.annotations?.find((m) => m.id === boxId && m.type === "text")
+        : undefined;
+      const place = old
+        ? { a: old.a, x: old.x as number, y: old.y as number }
+        : (Ink.locate(card, cx, cy) as { a?: string; x: number; y: number });
+      const ta = document.createElement("textarea");
+      ta.className = "lesson-textbox-input";
+      ta.maxLength = 280;
+      ta.rows = 2;
+      ta.value = old?.text || "";
+      ta.setAttribute("aria-label", "Text box");
+      document.body.append(ta);
+      ta.style.left = `${Math.max(8, Math.min(cx, innerWidth - ta.offsetWidth - 8))}px`;
+      ta.style.top = `${Math.max(8, Math.min(cy, innerHeight - ta.offsetHeight - 8))}px`;
+      ta.focus();
+      if (old) ta.select();
+      let done = false;
+      const finish = (commit: boolean) => {
+        if (done) return;
+        done = true;
+        closeEditor = null;
+        const text = ta.value.replace(/\r\n?/g, "\n").trim();
+        ta.remove();
+        if (!commit || !text || text === old?.text) return;
+        if (old) mark({ type: "erase", id: old.id });
+        mark({
+          type: "text",
+          id: crypto.randomUUID(),
+          ...(place.a ? { a: place.a } : {}),
+          x: place.x,
+          y: place.y,
+          text,
+          color: old?.color || color,
+        });
+      };
+      closeEditor = () => finish(false);
+      ta.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") finish(false);
+        else if (e.key === "Enter") {
+          e.preventDefault();
+          if (!e.shiftKey) finish(true);
+          else if (ta.value.split("\n").length < 6) ta.setRangeText("\n", ta.selectionStart, ta.selectionEnd, "end");
+        }
+      });
+      ta.addEventListener("input", () => {
+        const lines = ta.value.split("\n");
+        if (lines.length > 6) ta.value = lines.slice(0, 6).join("\n");
+      });
+      ta.addEventListener("blur", () => finish(true));
+    };
     const down = (e: PointerEvent) => {
       // The figure toolbar keeps working while the pen is out (capturing here would swallow its clicks).
       if (tool !== "pen" || (e.target as Element).closest(".fv-bar")) return;
@@ -1056,6 +1409,7 @@ function InstructorStage({
       }
     };
     const up = (e: PointerEvent) => {
+      if (tool === "edit") return;
       if (interval) {
         clearInterval(interval);
         interval = undefined;
@@ -1074,9 +1428,17 @@ function InstructorStage({
         if (range)
           mark({ type: tool, id: crypto.randomUUID(), ...range, color });
         window.getSelection()?.removeAllRanges();
+      } else if (
+        tool === "text" &&
+        e.type === "pointerup" &&
+        !(e.target as Element).closest(".fv-bar")
+      ) {
+        openEditor(e.clientX, e.clientY, Ink.textBoxAt(e.target));
       } else if (tool === "erase") {
-        const id = (e.target as Element).closest<HTMLElement>("[data-ann-mark]")
-          ?.dataset.annMark;
+        const id =
+          Ink.textBoxAt(e.target) ||
+          (e.target as Element).closest<HTMLElement>("[data-ann-mark]")
+            ?.dataset.annMark;
         if (id) mark({ type: "erase", id });
         else {
           const r = card.getBoundingClientRect(),
@@ -1109,6 +1471,7 @@ function InstructorStage({
       frame = requestAnimationFrame(pump);
     }
     return () => {
+      closeEditor?.();
       clearInterval(interval);
       clearInterval(heartbeat);
       laserOff();
@@ -1160,11 +1523,16 @@ function InstructorStage({
             <span>Desmos</span>
           </button>
         )}
+        {editNote && (
+          <span id="live-edit-note" className="live-hidden" role="alert">
+            {editNote}
+          </span>
+        )}
         {hidden && (
           <span
             className="live-hidden"
             role="status"
-            title="Students see your annotations, cross-outs and laser when the question is revealed"
+            title="Students see your annotations, cross-outs and laser when the question is revealed. Text edits reach them at once."
           >
             <EyeOff aria-hidden="true" />
             Hidden until reveal
@@ -1190,7 +1558,7 @@ function InstructorStage({
             number={s.index + 1}
             id="live-card"
             revealed
-            marks={s.annotations}
+            marks={shown}
             mathify={mathify}
             onReady={setCard}
             strikeMode={strikeMode}
@@ -1222,7 +1590,9 @@ function InstructorStage({
           title="Clear all shared annotations?"
           close={() => setClear(false)}
         >
-          <p>This clears the shared layer for this question.</p>
+          <p>
+            This clears the shared layer for this question. Text edits stay.
+          </p>
           <div className="actions">
             <button onClick={() => setClear(false)}>Cancel</button>
             <button

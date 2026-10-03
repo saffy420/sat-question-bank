@@ -1,21 +1,23 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { Check, X, Highlighter, House, Calculator, NotebookPen, Moon, Sun, Copy, Eraser, Lightbulb, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
+import { Check, X, Highlighter, House, Calculator, NotebookPen, Copy, Eraser, Lightbulb, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
 import { Stage } from './Stage';
 import { CalculatorShell, useCalculator } from './Calculator';
 import { HideButton, More, PositionPill, QuestionGrid } from './Chrome';
+import { DesmosSolution } from './Desmos';
+import { targetOf } from '/shared/stats.js';
 import { SHOW_ANSWER_AFTER } from './record';
 import type { BankBridge, BankModel, Mark } from './types';
 import './bank.css';
 
-type Clock = { text: string; over: boolean };
+type Clock = { text: string; over: boolean; late: boolean };
 function createClock() {
-  let value: Clock = { text: '', over: false };
+  let value: Clock = { text: '', over: false, late: false };
   const subs = new Set<() => void>();
   return {
     get: () => value,
-    set(text: string, over: boolean) { if (value.text === text && value.over === over) return; value = { text, over }; subs.forEach(f => f()); },
+    set(text: string, over: boolean, late = false) { if (value.text === text && value.over === over && value.late === late) return; value = { text, over, late }; subs.forEach(f => f()); },
     subscribe(f: () => void) { subs.add(f); return () => { subs.delete(f); }; }
   };
 }
@@ -157,6 +159,7 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
   const exportDialog = useModal(!!exported, () => setExported(''));
   const endDialog = useModal(ending, () => setEnding(false));
   const over = time.over ? '#bd2424' : undefined;
+  const targetSec = Math.round(targetOf(q) / 1000);
   const info: [string, string | undefined][] = [['Domain', q.domain], ['Skill', q.skill], ['Difficulty', q.difficulty], ['Source', q.source || 'CollegeBoard'], ['ID', q.id]];
   const missedNote = model.missed.length > 0;
   // The clock re-renders this screen every second; the navigator cells (one per question in the set) only when the model changes.
@@ -173,7 +176,8 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
           {q.ai && <span className="bank-chip">AI · Level {q.level}</span>}
         </div>
       </div>
-      <div className="lesson-timer"><strong id="bank-clock" style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: over }}>{time.text}</strong>
+      <div className="lesson-timer"><strong id="bank-clock" className={time.late && !time.over ? 'late' : undefined} style={{ visibility: hiddenClock ? 'hidden' : 'visible', color: over }}>{time.text}</strong>
+        {!set && <span id="bank-target" className="bank-target" style={{ visibility: hiddenClock ? 'hidden' : 'visible' }}>Target {Math.floor(targetSec / 60)}:{String(targetSec % 60).padStart(2, '0')}</span>}
         <span className="bank-timer-actions"><HideButton hidden={hiddenClock} onToggle={() => hideClock(!hiddenClock)}/>{!set && <button id="bank-pause" onClick={bridge.pause}>{model.paused ? 'Resume' : 'Pause'}</button>}</span></div>
       <nav className="lesson-tools" aria-label="Practice tools">
         <button id="bank-dashboard" onClick={() => setExit(true)}><House aria-hidden="true"/><span>Dashboard</span></button>
@@ -187,7 +191,6 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
           <button id="bank-export" onClick={copy}><Copy aria-hidden="true"/>{copied ? '✓ Copied' : 'Copy for AI'}</button>
           <button id="bank-suggest" onClick={() => { closeMore(); bridge.suggest(); }}><Lightbulb aria-hidden="true"/>Suggest a feature</button>
         </More>
-        <button id="bank-theme" onClick={bridge.theme}>{model.dark ? <Sun aria-hidden="true"/> : <Moon aria-hidden="true"/>}<span>{model.dark ? 'Light' : 'Dark'}</span></button>
       </nav>
     </header>
     <main className={`lesson-main bank-main${notesOpen ? ' with-desmos' : ''}${calc.math && calc.open ? ' with-calc' : ''}${model.paused ? ' paused' : ''}`}>
@@ -210,6 +213,8 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
             : <><Check aria-label="Correct"/><span>Correct</span></>}
         </div>
         <details open={explOpen} onToggle={e => setExplOpen(e.currentTarget.open)}><summary>Official explanation</summary><div ref={explanation}/></details>
+        {/* Inside the closed-question section only: it never shows before the question is answered or revealed. */}
+        {q.has_desmos ? <DesmosSolution key={q.id} questionId={q.id} load={bridge.desmosSolution}/> : null}
         <details><summary>Question info</summary><dl className="bank-info">{info.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v || '—'}</dd></div>)}</dl></details>
       </section>}
       {model.note && <button className="bank-note-chip" id="bank-note-chip" onClick={() => setNotesOpen(true)}><b>Your note</b>{model.note}</button>}
@@ -260,7 +265,7 @@ export function mountBank(root: HTMLElement, bridge: BankBridge) {
     : null));
   return {
     update(next: BankModel) { model = next; render(); },
-    clock(text: string, over: boolean) { clock.set(text, over); },
+    clock(text: string, over: boolean, late = false) { clock.set(text, over, late); },
     reset() { model = null; render(); },
     destroy() { react.unmount(); }
   };

@@ -240,6 +240,74 @@ test('annotation protocol gates role, shape, sizes and phase; laser never persis
   await room.webSocketMessage(again.ws,'é'.repeat(1100));
   assert.equal(again.ws.code,1008);
 });
+test('projector: student-shaped, uncounted, read-only, beside the presenter; hidden layer stays hidden until reveal', async () => {
+  const { LessonRoom } = await roomModule();
+  const f = fixture(), room = new LessonRoom(f.ctx,f.env);
+  f.s.responses.alice = { q: { answer:'B', locked:true } }; f.s.annotations = { q: [{ type:'strike', id:'early', nodeId:'s:0', startOffset:0, endOffset:4, color:'#ffe066' }] };
+  const view = room.snapshot(f.s,{role:'projector',userId:'teacher'}), text = JSON.stringify(view);
+  for (const secret of ['PRIVATE_NOTE','SECRET_EXPLANATION','TRAP_SECRET','Alice','Bob','"answer":"B"','early','alice']) assert.equal(text.includes(secret),false,secret);
+  assert.equal(view.role,'projector'); assert.equal(view.code,'ABCDEF'); assert.equal(view.lockedJoin,false); assert.equal(view.count,2);
+  assert.equal(view.roster,undefined); assert.equal(view.responses,undefined); assert.equal(view.ownSelection,null); assert.equal(view.locked,false);
+  assert.equal(view.assignedQuestionIds,undefined); assert.equal(view.question.stem_html.includes('Stem'),true);
+  f.s.annotations = {};
+  await room.save(f.s);
+  const teacher = f.socket('teacher','admin'), alice = f.socket('alice');
+  // Upgrade: owner only, socket only, and the presenter's admin socket stays open.
+  const upgrade = (userId, ws = true) => room.fetch(new Request('https://lesson.internal/', ws ? { headers:{ 'X-Lesson-Internal':'room', Upgrade:'websocket',
+    'X-Lesson-Context':JSON.stringify({ sessionId:7, userId, role:'projector', ws:true, clientId:null }) } } : { method:'POST', headers:{ 'X-Lesson-Internal':'room' },
+    body: JSON.stringify({ sessionId:7, userId, role:'projector', ws:false }) }));
+  assert.equal((await upgrade('alice')).status,403);
+  assert.equal((await upgrade('teacher',false)).status,400);
+  try { await upgrade('teacher'); assert.fail('Node Response cannot accept status 101'); }
+  catch (e) { assert.match(String(e), /init\["status"\] must be in the range of 200 to 599/); }
+  assert.equal(teacher.ws.code,undefined); assert.equal(f.sockets.includes(teacher.ws),true);
+  // The stub server socket from the aborted upgrade stands in for nothing; use a fixture socket instead.
+  f.sockets.splice(0, f.sockets.length, ...f.sockets.filter(ws => ws.deserializeAttachment));
+  const projector = f.socket('teacher','projector');
+  assert.deepEqual(room.connected(await room.state()),['alice']);
+  // Every action but ping is refused, and nothing changes.
+  for (const m of [{type:'select',questionId:'q',answer:'A'},{type:'lock',questionId:'q'},{type:'endNow'},{type:'annotate',questionId:'q',op:{type:'clear',id:'c'}},{type:'laser',questionId:'q',x:.5,y:.5}]) {
+    await room.webSocketMessage(projector.ws,JSON.stringify(m)); assert.equal(projector.sent.at(-1).error,'invalid action');
+  }
+  assert.deepEqual((await room.state()).responses,{ alice:{ q:{ answer:'B', locked:true } }, bob:{} });
+  await room.webSocketMessage(projector.ws,JSON.stringify({type:'ping',sentAt:5})); assert.equal(projector.sent.at(-1).type,'pong');
+  // Before the reveal the instructor's layer reaches admin sockets only.
+  const mark = {type:'stroke',id:'pen1',color:'#ff7676',points:[[.1,.1],[.2,.2]]};
+  projector.sent.length = 0;
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'annotate',questionId:'q',op:mark}));
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'laser',questionId:'q',x:.5,y:.5}));
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'eliminate',questionId:'q',letter:'A',on:true}));
+  await new Promise(r => setTimeout(r,40));
+  assert.deepEqual(projector.sent,[]); assert.equal(alice.sent.some(m => ['annotate','laser'].includes(m.type)),false);
+  // Revealed: the same frames reach students and the projector alike.
+  f.s = await room.state(); f.s.phase = 'REVEALED'; await room.save(f.s);
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'annotate',questionId:'q',op:{...mark,id:'pen2'}}));
+  assert.equal(projector.sent.at(-1).op.id,'pen2');
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'laser',questionId:'q',x:.4,y:.4}));
+  await new Promise(r => setTimeout(r,40));
+  assert.equal(projector.sent.filter(m => m.type === 'laser').at(-1).x,.4);
+  await room.webSocketMessage(teacher.ws,JSON.stringify({type:'eliminate',questionId:'q',letter:'B',on:true}));
+  assert.deepEqual(projector.sent.at(-1),{...projector.sent.at(-1),type:'eliminations',letters:['A','B']});
+  const revealed = room.snapshot(await room.state(),{role:'projector',userId:'teacher'});
+  assert.equal(revealed.question.answer,'B'); assert.deepEqual(revealed.annotations.map(x => x.id),['pen1','pen2']);
+  assert.equal(JSON.stringify(revealed).includes('PRIVATE_NOTE'),false); assert.equal(revealed.ownSelection,null);
+  // Presenter gone: the dot leaves the projector too.
+  await room.webSocketClose(teacher.ws,1000,'bye');
+  assert.deepEqual(projector.sent.at(-1),{type:'laser',questionId:'q',hide:true});
+});
+test('self-paced projector shows class status only, and review as students see it', async () => {
+  const { LessonRoom } = await roomModule();
+  const f = fixture(), room = new LessonRoom(f.ctx,f.env);
+  Object.assign(f.s, { mode:'self', assigned:{ alice:['q'], bob:['q'] }, positions:{ alice:'q', bob:'q' }, submitted:{ alice:Date.now() }, clock:{}, joinRemaining:{}, reviewed:[], poll:null, pollResult:null,
+    responses:{ alice:{ q:{ answer:'B' } }, bob:{} } });
+  const live = room.snapshot(f.s,{role:'projector',userId:'teacher'}), text = JSON.stringify(live);
+  assert.equal(live.submittedCount,1); assert.equal(live.takers,2); assert.equal(live.code,'ABCDEF');
+  for (const secret of ['PRIVATE_NOTE','Alice','alice','"answer"','Stem']) assert.equal(text.includes(secret),false,secret);
+  Object.assign(f.s, { status:'review', phase:'REVEALED', classResults:true });
+  const review = room.snapshot(f.s,{role:'projector',userId:'teacher'});
+  assert.equal(review.reviewMode,true); assert.equal(review.notInSet,false); assert.equal(review.ownSelection,null);
+  assert.equal(review.distribution.find(g => g.label === 'B').count,1); assert.equal(JSON.stringify(review).includes('Alice'),false);
+});
 test('laser floor holds a burst\'s newest frame and sends it, so the resting position always arrives', async () => {
   const { LessonRoom } = await roomModule();
   const f = fixture(), room = new LessonRoom(f.ctx,f.env), teacher=f.socket('teacher','admin'), student=f.socket('alice');
@@ -790,3 +858,137 @@ test('lessons-11d: instructor layer, eliminations and laser stay on instructor s
   await say(teacher, { type: 'annotate', questionId: 'q', op: { ...mark, id: 'h3' } });
   assert.equal(alice.sent.at(-1).op.id, 'h3', 'new marks on a revisit are live');
 }));
+// Session results timing: s.timing[questionId] = { explainMs, answerMs }, written once with the ended UPDATE.
+const endedTiming = f => f.writes.filter(([sql]) => sql.includes("status='ended'")).map(([sql, args]) => (assert.match(sql, /timing_json=COALESCE\(\?,timing_json\)/), JSON.parse(args[0])));
+test('session timing: explain time accumulates over reveals and revisits, answering time recorded, written once at the end', async () => withClock(async tick => {
+  const { GRACE_MS } = await protocol();
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.items = ['q', 'q2', 'q3'].map(id => ({ question_id: id, time_limit_sec: 5, notes: '' }));
+  for (const id of ['q2', 'q3']) f.s.questions[id] = { ...f.s.questions.q, id };
+  Object.assign(f.s, { reached: 0, played: 0, startedAt: Date.now(), endsAt: Date.now() + 5000 });
+  await room.save(f.s);
+  const teacher = f.socket('teacher', 'admin');
+  const say = m => room.webSocketMessage(teacher.ws, JSON.stringify(m));
+  const timing = async () => (await room.state()).timing;
+  // Q1: End now after 3 s; the reveal lands after the grace.
+  tick(3000); await say({ type: 'endNow' });
+  tick(GRACE_MS + 1); await room.alarm();
+  assert.equal((await room.state()).phase, 'REVEALED');
+  assert.deepEqual(await timing(), { q: { answerMs: 3000 } });
+  tick(4000); await say({ type: 'next' });
+  assert.deepEqual((await timing()).q, { answerMs: 3000, explainMs: 4000 }, 'REVEALED → next closes the interval');
+  assert.equal((await room.state()).revealedAt, null);
+  // Q2 runs its full clock.
+  await say({ type: 'startQuestion' });
+  tick(5000 + GRACE_MS + 1); await room.alarm();
+  assert.equal((await timing()).q2.answerMs, 5000, 'answering time stops at the clock, not the grace');
+  tick(2000); await say({ type: 'goto', questionId: 'q' });
+  tick(1500); await say({ type: 'goto', questionId: 'q2' });
+  assert.equal((await timing()).q.explainMs, 5500, 'a revisit adds to the question');
+  assert.equal((await timing()).q2.explainMs, 2000);
+  assert.equal(f.writes.some(([sql]) => sql.includes('timing_json')), false, 'no timing writes during the session');
+  // End session while REVEALED closes the open interval.
+  tick(1000); await say({ type: 'endSession' });
+  const s = await room.state();
+  assert.deepEqual(s.timing, { q: { answerMs: 3000, explainMs: 5500 }, q2: { answerMs: 5000, explainMs: 3000 } });
+  assert.deepEqual(endedTiming(f), [s.timing], 'written once, with the ended UPDATE');
+  assert.equal(f.writes.filter(([sql]) => sql.includes('timing_json')).length, 1);
+}));
+test('session timing: End session during answering reveals and closes at once; a lobby end writes an empty map', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule();
+  let f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { reached: 0, played: 0 });
+  await room.save(f.s);
+  const teacher = f.socket('teacher', 'admin');
+  tick(2000); await room.webSocketMessage(teacher.ws, JSON.stringify({ type: 'endSession' }));
+  const s = await room.state();
+  assert.equal(s.status, 'ended');
+  assert.deepEqual(s.timing, { q: { answerMs: 2000, explainMs: 0 } }, 'answering ran until End session, not to the pulled-back endsAt');
+  assert.equal(s.revealedAt, null);
+  assert.deepEqual(endedTiming(f), [s.timing]);
+  f = fixture(); room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { status: 'lobby', phase: 'READY', startedAt: undefined, endsAt: null });
+  await room.save(f.s);
+  await room.webSocketMessage(f.socket('teacher', 'admin').ws, JSON.stringify({ type: 'endSession' }));
+  assert.deepEqual(endedTiming(f), [{}]);
+}));
+test('session timing: self-paced explain time is the time each question spent under review', async () => withClock(async tick => {
+  const { LessonRoom } = await roomModule(); const f = selfFixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { status: 'review', phase: 'FINISHED', reviewed: [] });
+  await room.save(f.s);
+  const teacher = f.socket('teacher', 'admin');
+  const say = m => room.webSocketMessage(teacher.ws, JSON.stringify(m));
+  await say({ type: 'goto', questionId: 'q1' }); tick(4000); await say({ type: 'next' });
+  assert.equal((await room.state()).phase, 'FINISHED');
+  await say({ type: 'goto', questionId: 'q1' }); tick(1000); await say({ type: 'next' });
+  await say({ type: 'goto', questionId: 'q2' }); tick(2000);
+  await say({ type: 'endSession' });
+  const s = await room.state();
+  assert.equal(s.status, 'ended');
+  assert.deepEqual(s.timing, { q1: { explainMs: 5000 }, q2: { explainMs: 2000 } });
+  assert.deepEqual(endedTiming(f), [s.timing]);
+}));
+test('live-fit: view protocol is admin only with bounded w/fs/u/vw and exact fields', async () => {
+  const { validAction } = await protocol();
+  const view = { type: 'view', w: 1200, fs: 19.2448, u: 15.66, vw: 1920 };
+  assert.equal(validAction(view, 'admin'), true);
+  assert.equal(validAction(view, 'student'), false);
+  assert.equal(validAction({ ...view, extra: 1 }, 'admin'), false);
+  for (const bad of [{ w: 319 }, { w: 4001 }, { w: 1200.5 }, { w: '1200' }, { fs: 9.9 }, { fs: 40.1 }, { fs: NaN }, { u: 7.9 }, { u: 30.1 }, { vw: 319 }, { vw: 8001 }, { vw: undefined }])
+    assert.equal(validAction({ ...view, ...bad }, 'admin'), false, JSON.stringify(bad));
+  for (const ok of [{ w: 320 }, { w: 4000 }, { fs: 10 }, { fs: 40 }, { u: 8 }, { u: 30 }, { vw: 320 }, { vw: 8000 }])
+    assert.equal(validAction({ ...view, ...ok }, 'admin'), true, JSON.stringify(ok));
+});
+test('live-fit: the room keeps the presenter view for the session, relays it to students once, and snapshots carry it', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  f.s.items.push({ question_id: 'q2', time_limit_sec: 60 }); f.s.questions.q2 = { ...f.s.questions.q, id: 'q2' };
+  Object.assign(f.s, { phase: 'REVEALED', reached: 0, played: 1 });
+  await room.save(f.s);
+  const alice = f.socket('alice'), teacher = f.socket('teacher', 'admin');
+  const say = (who, m) => room.webSocketMessage(who.ws, JSON.stringify(m));
+  assert.equal(room.snapshot(await room.state(), { role: 'student', userId: 'alice' }).view, null);
+  const view = { w: 1200, fs: 19.2448, u: 15.66, vw: 1920 };
+  await say(teacher, { type: 'view', ...view });
+  assert.deepEqual((await room.state()).view, view);
+  const { serverNow, ...relayed } = alice.sent.at(-1);
+  assert.deepEqual(relayed, { type: 'view', ...view });
+  assert.equal(teacher.sent.some(m => m.type === 'view'), false, 'the presenter does not get its own view back');
+  const count = alice.sent.length;
+  await say(teacher, { type: 'view', ...view });
+  assert.equal(alice.sent.length, count, 'an unchanged view is not resent');
+  // A student cannot send one.
+  await say(alice, { type: 'view', ...view, w: 400 });
+  assert.equal(alice.sent.at(-1).error, 'invalid action');
+  assert.deepEqual((await room.state()).view, view);
+  // Session-wide: it survives moving to the next question (answering snapshots carry it too).
+  await say(teacher, { type: 'next' }); await say(teacher, { type: 'startQuestion' });
+  const answering = room.snapshot(await room.state(), { role: 'student', userId: 'alice' });
+  assert.deepEqual([answering.questionId, answering.phase, answering.view], ['q2', 'ANSWERING', view]);
+});
+test('live-fit: self-paced review snapshots carry the presenter view', async () => {
+  const { LessonRoom } = await roomModule(); const f = reviewFixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { phase: 'REVEALED', index: 0, view: { w: 1000, fs: 18, u: 14, vw: 1600 } });
+  await room.save(f.s);
+  const snap = room.snapshot(await room.state(), { role: 'student', userId: 'alice' });
+  assert.deepEqual([snap.reviewMode, snap.view], [true, { w: 1000, fs: 18, u: 14, vw: 1600 }]);
+});
+test('text marks: stored, erased, cleared, counted toward the layer limit, instructor-only before the reveal', async () => {
+  const { LessonRoom } = await roomModule(); const f = fixture(), room = new LessonRoom(f.ctx, f.env);
+  Object.assign(f.s, { reached: 0, played: 0, endsAt: Date.now() + 60000 }); await room.save(f.s);
+  const alice = f.socket('alice'), teacher = f.socket('teacher', 'admin');
+  const say = (who, m) => room.webSocketMessage(who.ws, JSON.stringify(m));
+  const box = id => ({ type: 'text', id, a: 's:0~3', x: 0.5, y: 0, text: 'note ' + id, color: '#ffe066' });
+  const send = op => say(teacher, { type: 'annotate', questionId: 'q', op });
+  await send(box('t1'));
+  assert.deepEqual((await room.state()).annotations.q.map(m => m.id), ['t1'], 'stored without a highlight offset check');
+  assert.deepEqual(alice.sent.filter(m => m.type === 'annotate'), [], 'nothing reaches a student before the reveal');
+  assert.deepEqual(room.snapshot(await room.state(), { role: 'student', userId: 'alice' }).annotations, []);
+  assert.deepEqual(room.snapshot(await room.state(), { role: 'admin', userId: 'teacher' }).annotations.map(m => m.id), ['t1']);
+  await send(box('t1')); assert.equal(teacher.sent.at(-1).error, 'layer full or duplicate mark');
+  await send({ type: 'erase', id: 't1' }); assert.deepEqual((await room.state()).annotations.q, []);
+  await send(box('t2')); await send({ type: 'clear' }); assert.deepEqual((await room.state()).annotations.q, []);
+  const state = await room.state(); state.annotations.q = Array.from({ length: 512 }, (_, i) => ({ ...box('f' + i), text: 'x' })); await room.save(state);
+  await send(box('over')); assert.equal(teacher.sent.at(-1).error, 'layer full or duplicate mark', 'boxes count toward the 512 marks');
+  assert.equal((await room.state()).annotations.q.length, 512);
+  await send({ ...box('bad'), text: '' }); assert.equal(teacher.sent.at(-1).error, 'invalid action', 'an empty box is refused');
+});

@@ -5,6 +5,7 @@ export { LessonRoom } from './lesson-room.js';
 export { LessonSync } from './lesson-sync.js';
 import { traceEnv } from './budget.js';
 import { submitReport, submitSuggestion, adminReportRoute, MAX_REPORT_BODY } from './reports.js';
+import { sessionResults, classAverage } from './session-results.js';
 
 export const validLessonUpgrade = (req, url) => req.method === 'GET' &&
   req.headers.get('Upgrade')?.toLowerCase() === 'websocket' &&
@@ -42,14 +43,17 @@ async function lessonAccess(req, env, url, p, u) {
   const owner = session.created_by || (await env.DB.prepare('SELECT l.created_by FROM lessons l JOIN lesson_sessions s ON s.lesson_id=l.id WHERE s.id=?').bind(session.id).first())?.created_by;
   const admin = role.role === 'admin' && owner === u.id;
   if (!join && !admin && role.role !== 'student') return json({ error: 'forbidden' }, 403);
+  // The classroom projector window (admin-only) holds its own read-only socket beside the presenter's.
+  const projector = !!ws && url.searchParams.get('view') === 'projector';
+  if (projector && !admin) return json({ error: 'forbidden' }, 403);
   if (ws && !admin && !clientId) return json({ error: 'invalid client' }, 400);
   if (join && role.role !== 'student') return json({ error: 'student only' }, 403);
   if (role.role === 'student' && !join) {
     const participant = await env.DB.prepare('SELECT 1 FROM session_participants WHERE session_id=? AND user_id=? AND left_at IS NULL').bind(session.id,u.id).first();
     if (!participant) return json({ error: 'not joined' }, 403);
   }
-  const body = { sessionId: session.id, userId: u.id, role: admin ? 'admin' : 'student',
-    name: String(u.user_metadata?.full_name || u.email || u.id).slice(0, 200), ws: !!ws, join, clientId, desmosKey: desmosApiKey(env, url) };
+  const body = { sessionId: session.id, userId: u.id, role: projector ? 'projector' : admin ? 'admin' : 'student',
+    name: String(u.user_metadata?.full_name || u.email || u.id).slice(0, 200), ws: !!ws, join, clientId: projector ? null : clientId, desmosKey: desmosApiKey(env, url) };
   return env.LESSON_ROOM.getByName(String(session.id)).fetch(ws
     ? new Request('https://lesson.internal/', { headers: { Upgrade: 'websocket', 'X-Lesson-Internal': 'room', 'X-Lesson-Context': JSON.stringify(body) } })
     : new Request('https://lesson.internal/', { method: 'POST', headers: { 'X-Lesson-Internal': 'room', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
@@ -240,12 +244,16 @@ async function syncRole(env, u) {
   return role;
 }
 const BANK_COLS = 'id, external_id, section, domain, difficulty, skill, stem_html, choices_json, correct_answer, explanation_html, source, source_page, has_figure';
+// has_desmos marks the core questions with a community Desmos solution (desmos_solutions, main DB only).
+// It rides in the cached bank body, so the screen never reads D1 to decide whether to offer one.
 async function bank(env) {
-  const [core, ai] = await Promise.all([
+  const [core, ai, desmos] = await Promise.all([
     env.DB.prepare(`SELECT ${BANK_COLS} FROM questions`).all(),
-    env.AI_DB.prepare(`SELECT ${BANK_COLS}, level FROM questions`).all()
+    env.AI_DB.prepare(`SELECT ${BANK_COLS}, level FROM questions`).all(),
+    env.DB.prepare('SELECT question_id FROM desmos_solutions').all()
   ]);
-  return [...(core.results || []), ...(ai.results || [])];
+  const solved = new Set((desmos.results || []).map(r => r.question_id));
+  return [...(core.results || []).map(q => solved.has(q.id) ? { ...q, has_desmos: 1 } : q), ...(ai.results || [])];
 }
 // What the shared stats read from a question: taxonomy, level, answer and each choice's letter and
 // trap, not its HTML (free-plan CPU, docs/perf/free-plan-budget.md). normalizeQuestion still runs on
@@ -296,10 +304,11 @@ const BANK_CACHE = 'https://bank-cache.internal/v1/', BANK_TTL = 3600;
 // and hands them to the caches and memos below.
 // An approved question fix edits a row in place, so the count of applied fixes (src/reports.js) is part of the
 // bank key too: without it the cached body would keep serving the broken question for up to BANK_TTL.
+// A Desmos-solution import adds rows, so its max rowid moves the key and the new has_desmos flags show at once.
 const stamps = env => Promise.all([
-  env.DB.prepare("SELECT (SELECT MAX(rowid) FROM questions) AS q, (SELECT MAX(rowid) FROM question_lesson_usage) AS u, (SELECT COUNT(*) FROM question_triage WHERE status='applied') AS f").all(),
+  env.DB.prepare("SELECT (SELECT MAX(rowid) FROM questions) AS q, (SELECT MAX(rowid) FROM question_lesson_usage) AS u, (SELECT COUNT(*) FROM question_triage WHERE status='applied') AS f, (SELECT MAX(rowid) FROM desmos_solutions) AS d").all(),
   env.AI_DB.prepare('SELECT MAX(rowid) AS q FROM questions').all()
-]).then(([core, ai]) => ({ bank: `${core.results?.[0]?.q ?? ''}-${ai.results?.[0]?.q ?? ''}-${core.results?.[0]?.f ?? 0}`, usage: core.results?.[0]?.u ?? '' }));
+]).then(([core, ai]) => ({ bank: `${core.results?.[0]?.q ?? ''}-${ai.results?.[0]?.q ?? ''}-${core.results?.[0]?.f ?? 0}-${core.results?.[0]?.d ?? ''}`, usage: core.results?.[0]?.u ?? '' }));
 async function questionsResponse(env) {
   const st = await stamps(env);
   const key = BANK_CACHE + st.bank + '-' + st.usage;
@@ -528,8 +537,15 @@ async function lessonRoutes(req, env, url, p, u) {
   if (m && !id) return json({ error: 'invalid lesson ID' }, 400);
   if (m && m[2] === 'sessions' && method === 'GET') {
     if (!await env.DB.prepare('SELECT id FROM lessons WHERE id=?').bind(id).first()) return json({ error: 'not found' }, 404);
-    const rows = await env.DB.prepare('SELECT id, join_code, status, created_at, started_at, ends_at, ended_at FROM lesson_sessions WHERE lesson_id=? ORDER BY id DESC').bind(id).all();
-    return json((rows.results || []).map(r => ({ ...r, paddedId: padSessionId(r.id) })));
+    const [rows, joined, scores] = await Promise.all([
+      env.DB.prepare('SELECT id, join_code, status, created_at, started_at, ends_at, ended_at FROM lesson_sessions WHERE lesson_id=? ORDER BY id DESC').bind(id).all(),
+      env.DB.prepare('SELECT p.session_id, COUNT(*) AS n FROM session_participants p JOIN lesson_sessions s ON s.id=p.session_id WHERE s.lesson_id=? GROUP BY p.session_id').bind(id).all(),
+      env.DB.prepare(`SELECT r.session_id, r.user_id, SUM(r.is_correct=1) AS "right", COUNT(r.is_correct) AS scorable
+        FROM session_responses r JOIN lesson_sessions s ON s.id=r.session_id WHERE s.lesson_id=? GROUP BY r.session_id, r.user_id`).bind(id).all()]);
+    // Past sessions row: joined count and the class average (session results' classAverage).
+    const count = new Map((joined.results || []).map(r => [r.session_id, r.n]));
+    return json((rows.results || []).map(r => ({ ...r, paddedId: padSessionId(r.id), joined: count.get(r.id) || 0,
+      average: classAverage((scores.results || []).filter(x => x.session_id === r.id)) })));
   }
   if (m && !m[2] && method === 'GET') {
     const detail = await lessonDetail(env, id);
@@ -648,12 +664,13 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
     const apiMethods = {
       '/api/auth/session': ['POST'], '/api/questions': ['GET'], '/api/account': ['GET'],
       '/api/progress': ['GET', 'POST'], '/api/attempts': ['GET', 'POST'],
-      '/api/notes': ['GET', 'POST'], '/api/settings': ['GET', 'POST'], '/api/sessions': ['GET', 'POST'],
+      '/api/notes': ['GET', 'POST'], '/api/saved': ['GET', 'POST'], '/api/settings': ['GET', 'POST'], '/api/sessions': ['GET', 'POST'],
       '/api/reports': ['POST'], '/api/suggestions': ['POST'], '/api/plan': ['GET', 'POST']
     };
     const isAPI = p === '/api' || p.startsWith('/api/');
     const knownAPI = apiMethods[p]?.includes(req.method) ||
-      (/^\/api\/sessions\/[^/]+$/.test(p) && req.method === 'DELETE');
+      (/^\/api\/sessions\/[^/]+$/.test(p) && req.method === 'DELETE') ||
+      (/^\/api\/desmos\/[^/]+$/.test(p) && req.method === 'GET');
     if (isAPI && !knownAPI && !adminAPI(p) && !lessonRoute && !historyRoute) return json({ error: 'not found' }, 404);
     const restrictedAsset = ['GET', 'HEAD'].includes(req.method) &&
       (p === '/app' || adminPath(p) || p === '/admin.js' || p === '/exams.json' || p === '/practice-tests.json' || /^\/qimg\/[^/]+\.(?:png|jpg|jpeg|webp|svg)$/i.test(p));
@@ -742,6 +759,11 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
         } catch { return json({ error: 'service unavailable' }, 503); }
       }
       if (req.method !== 'GET') return json({ error: 'not found' }, 404);
+      const results = /^\/api\/admin\/sessions\/(\d{1,10})\/results$/.exec(p);
+      if (results) {
+        try { const r = await sessionResults(env.DB, env.AI_DB, Number(results[1])); return json(r.body, r.status); }
+        catch { return json({ error: 'service unavailable' }, 503); }
+      }
       if (p === '/api/admin/students') {
         const page = pageOf(url); if (!page) return json({ error: 'invalid page' }, 400);
         const search = (url.searchParams.get('search') || '').trim();
@@ -828,7 +850,7 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
     if (restrictedAsset) return p === '/app' ? asset(env, new Request(new URL('/index.html', url), req), LESSON_CSP) : asset(env, req);
 
     let rows;
-    if (req.method === 'POST' && ['/api/progress', '/api/attempts', '/api/notes', '/api/sessions'].includes(p)) {
+    if (req.method === 'POST' && ['/api/progress', '/api/attempts', '/api/notes', '/api/saved', '/api/sessions'].includes(p)) {
       const b = await req.json().catch(() => null);
       rows = Array.isArray(b) ? b : [b];
       if (rows.length > MAX_ROWS) return json({ error: 'too many rows', limit: MAX_ROWS }, 413);
@@ -944,6 +966,32 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
         acknowledged: rows.filter((r, i) => results[i].meta.changes > 0 || !str(r.body, MAX_NOTE).trim()) });
     }
 
+    // Saved questions: the player's Mark for Review flag, kept so it outlives the session.
+    // A row means saved, so un-saving deletes it. Bounded by the primary key, like notes.
+    if (p === '/api/saved' && req.method === 'GET') {
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      const r = await env.DB.prepare(
+        'SELECT question_id FROM saved_questions WHERE user_id = ? ORDER BY created_at, question_id').bind(u.id).all();
+      return json((r.results || []).map(x => x.question_id));
+    }
+
+    if (p === '/api/saved' && req.method === 'POST') {
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      if (rows.some(r => typeof r.saved !== 'boolean')) return json({ error: 'invalid row or missing saved flag' }, 400);
+      const del = env.DB.prepare('DELETE FROM saved_questions WHERE user_id = ? AND question_id = ?');
+      const put = env.DB.prepare(
+        `INSERT INTO saved_questions (user_id, question_id)
+           SELECT ?,? WHERE EXISTS(SELECT 1 FROM questions WHERE id = ?)
+                          OR EXISTS(SELECT 1 FROM ai_ids   WHERE id = ?)
+         ON CONFLICT(user_id, question_id) DO NOTHING`
+      );
+      const results = await env.DB.batch(rows.map(r => r.saved
+        ? put.bind(u.id, r.question_id, r.question_id, r.question_id)
+        : del.bind(u.id, r.question_id)));
+      // Saving an id that is already saved changes nothing but is satisfied; unknown ids never get here.
+      return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0), acknowledged: rows });
+    }
+
     // Preferences, one JSON blob per account, so they follow the user across
     // devices. Resolved from the token like everything else here: a client that
     // names someone else's id gets its own row, not theirs.
@@ -1025,6 +1073,21 @@ export async function handleRequest(req, env, resolveIdentity = whoami, ctx = nu
       }
       const results = await env.DB.batch(binds);
       return json({ saved: results.reduce((n, r) => n + r.meta.changes, 0), acknowledged: rows });
+    }
+
+    // One question's community Desmos solution, read only when the student asks for it (the bank body's
+    // has_desmos says which questions have one). Same identity and membership checks as the bank.
+    if (p.startsWith('/api/desmos/') && req.method === 'GET') {
+      if (!u) return json({ error: 'unauthorized' }, 401);
+      let id;
+      try { id = decodeURIComponent(p.slice('/api/desmos/'.length)); }
+      catch { return json({ error: 'invalid question ID' }, 400); }
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return json({ error: 'invalid question ID' }, 400);
+      let r;
+      try { r = await env.DB.prepare('SELECT state_json, credit_name FROM desmos_solutions WHERE question_id = ?').bind(id).first(); }
+      catch { return json({ error: 'solution unavailable' }, 503); }
+      if (!r) return json({ error: 'not found' }, 404);
+      return json({ state_json: r.state_json, credit_name: r.credit_name, desmosKey: desmosApiKey(env, url) });
     }
 
     if (p.startsWith('/api/sessions/') && req.method === 'DELETE') {

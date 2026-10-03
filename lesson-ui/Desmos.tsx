@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { loadDesmos, syncOut, serialize, FOLLOW_OPTIONS, EDIT_OPTIONS } from '/shared/desmos.js';
+import type { DesmosSolution as Solution } from './types';
 
 type Calculator = {
   setState: (state: object, options?: object) => void;
@@ -113,4 +114,36 @@ export function DesmosLeader({ apiKey, initial, live, send, resize }: { apiKey?:
     {!live && !error ? <p className="live-desmos-note">Students see your graph after the reveal.</p> : null}
     <div className="live-desmos-calc" ref={host} data-ready={calc ? 'true' : undefined}/>
   </aside>;
+}
+
+// Practice bank (Bank.tsx): a community solution graph from Prepzy, shown under the explanation once the
+// question is closed. The state and key are fetched only when the student asks; the graph can be panned and
+// explored, and nothing done to it is saved.
+const SOLUTION_OPTIONS = Object.freeze({ keypad: false, expressionsTopbar: false, settingsMenu: false, zoomButtons: true, lockViewport: false, border: false });
+function SolutionGraph({ apiKey, state }: { apiKey: string | null; state: object }) {
+  const { host, calc, error } = useCalculator(apiKey, SOLUTION_OPTIONS);
+  useLayoutEffect(() => { calc?.setState(state, { allowUndo: false }); }, [calc, state]);
+  return <>
+    {error ? <p role="alert">{error}</p> : null}
+    <div className="bank-desmos-calc" id="bank-desmos-calc" ref={host} data-ready={calc ? 'true' : undefined}/>
+  </>;
+}
+export function DesmosSolution({ questionId, load }: { questionId: string; load: (questionId: string) => Promise<Solution> }) {
+  const [solution, setSolution] = useState<Solution | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const open = () => {
+    setLoading(true); setError('');
+    load(questionId).then(s => { if (alive.current) setSolution(s); })
+      .catch((e: Error) => { if (alive.current) setError(e.message || 'Could not load the Desmos solution.'); })
+      .finally(() => { if (alive.current) setLoading(false); });
+  };
+  return <div className="bank-desmos" id="bank-desmos">
+    {solution ? <SolutionGraph apiKey={solution.key} state={solution.state}/>
+      : <button id="bank-desmos-open" onClick={open} disabled={loading}>{loading ? 'Loading Desmos solution…' : 'Desmos solution'}</button>}
+    {error ? <p role="alert" className="bank-desmos-error">{error}</p> : null}
+    {solution ? <p className="bank-desmos-credit" id="bank-desmos-credit">{solution.credit ? `Solution by ${solution.credit} via Prepzy` : 'Solution via Prepzy'}</p> : null}
+  </div>;
 }
