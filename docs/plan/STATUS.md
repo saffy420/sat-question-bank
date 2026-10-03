@@ -92,3 +92,37 @@ Brief: `docs/plan/BRIEF-modules.md`. Research: `docs/plan/modules-research.md`. 
 - `tests/test_ptmap.cjs`: merge rules and a byte-identical rebuild.
 - `tests/test_plan.ts`: snippet, picker, recognition and export resolver.
 - `tests/e2e/study-plan/recognition.spec.ts`: R1–R6, run against a PT93 fixture. Screens 13–18.
+
+## 2026-10-03 — Logging a test is a step-by-step popup
+
+Brief: `docs/plan/BRIEF-log-modal.md` (the user's request, verbatim). It supersedes BRIEF-modules.md §3's "no easy or hard question". Not deployed.
+
+**Pages** (`Plan.logPages`): the progress bar shows "Step n of N".
+1. **Page 1.** The test and the date taken. Then, revealed one at a time:
+   - the second Reading and Writing module (Easy / Hard / Not sure);
+   - then the second Math module;
+   - then the Next button.
+   - A variant that isn't mapped can't be picked. "Not sure" is offered only when the recognition check can run.
+   - The My Practice export upload is a small link on this page.
+2. **One recognition page per "Not sure" section.** This is the earlier check: openings shown as Version A / Version B, a third question when the answers split, and the Bluebook-review hint.
+3. **Wrong answers, one page per section.** An explicit instruction sits at the top, with module 1 above module 2. A second click marks Slow and a third clears it.
+4. **Last page.** Goal score, this test's R&W and Math scores (multiples of 10, optional), SAT date (College Board 2026-27 dates from today on, Fall 2027 marked anticipated) and plan emphasis. Then a full-width "Create plan" button.
+
+**Data.** Stored in the plan JSON with no schema change:
+- `PlanState.profile = { goal, satDate, emphasis }`.
+- `TestLog.score = { RW, Math }`.
+
+`logTest` keeps the profile. `prioritize()` moves the emphasised subject's drill and maintenance skills ahead of the others, each subject keeping its own order. The plan screen shows a line with the goal, the last score, the SAT date and days left, and the emphasis.
+
+**Not asked**, as requested: score bars, study days, and the option to exclude Bluebook questions.
+
+**Styling.**
+- The popup animates only when it opens. Redraws happen on every click, so animating them made it flicker.
+- Its hover rules are scoped under `#plan-log-root`. The global `button:hover:not(:disabled):not(.sw)` rule otherwise greys out the blue buttons and the red/orange marks.
+- Dropdowns are restyled native selects with a CSS chevron.
+- Under 600px the popup is a bottom sheet.
+
+**Tests.**
+- `tests/test_plan.ts`: emphasis, `logTest` profile, score parsing, SAT dates, page order.
+- `tests/e2e/study-plan/recognition.spec.ts`: P1–P6, including phone width. Screens 13–20.
+- `plan.spec.ts` drives the popup through `startLog` / `markSection` / `logTest`.

@@ -32,7 +32,9 @@ export type TestMap = { tests: PracticeTest[] };
 
 // One logged test. `marks` has one string per module ('RW1', 'RW2', 'Math1', 'Math2'), one character per question in
 // display order: '.' right, 'W' wrong, 'S' right but slow.
-export type TestLog = { testId: string; number: number; date: string; route: Record<Section, Route>; marks: Record<string, string>; at: string };
+export type TestLog = { testId: string; number: number; date: string; route: Record<Section, Route>; marks: Record<string, string>; at: string;
+  // The student's section scores on this test (200-800), when they gave them.
+  score?: Partial<Record<Section, number>> };
 export type Mark = 'W' | 'S';
 
 export type BankQ = { id: string; skill?: string; difficulty?: string; ai?: boolean; section?: string };
@@ -48,7 +50,10 @@ export type SetRun = {
 export type StepKind = 'drill' | 'consolidate' | 'maintain' | 'test';
 export type Step = { id: string; kind: StepKind; skill?: string; misses?: number; slows?: number; number?: number; date?: string; run?: SetRun; done?: boolean };
 export type Plan = { testId: string; number: number; date: string; counts: Record<string, SkillCount>; slowOnly: string[]; steps: Step[] };
-export type PlanState = { v: 1; tests: TestLog[]; skills: Record<string, SkillState>; plan: Plan | null };
+// The student's goal, SAT date and the subject to put first, asked when a test is logged. Optional: older plans lack it.
+export type Emphasis = 'balanced' | Section;
+export type Profile = { goal: number | null; satDate: string | null; emphasis: Emphasis };
+export type PlanState = { v: 1; tests: TestLog[]; skills: Record<string, SkillState>; plan: Plan | null; profile?: Profile };
 
 export const emptyState = (): PlanState => ({ v: 1, tests: [], skills: {}, plan: null });
 
@@ -279,13 +284,51 @@ export function logTest(state: PlanState, map: TestMap, log: TestLog, byId: Map<
   const items = resolveLog(test, log, byId);
   const counts = countBySkill(items);
   const cycle = advanceCycle(state.skills, counts, slowsAsMisses);
-  const drillOrder = orderSkills(cycle.drill, counts, accuracy, rank, slowsAsMisses);
-  const dueOrder = orderSkills(cycle.due, counts, accuracy, rank, slowsAsMisses);
+  const sectionOf = skillSections(byId.values());
+  const emphasis = state.profile?.emphasis || 'balanced';
+  const drillOrder = prioritize(orderSkills(cycle.drill, counts, accuracy, rank, slowsAsMisses), sectionOf, emphasis);
+  const dueOrder = prioritize(orderSkills(cycle.due, counts, accuracy, rank, slowsAsMisses), sectionOf, emphasis);
   const logged = [...state.tests.map(t => t.testId), log.testId];
   const steps = buildSteps(log, drillOrder, dueOrder, counts, nextTestNumber(map, logged, test.number));
   const slowOnly = orderSkills(Object.keys(counts).filter(k => counts[k].slows && !effective(counts[k], slowsAsMisses)), counts, accuracy, rank, slowsAsMisses);
   const plan: Plan = { testId: log.testId, number: test.number, date: log.date, counts, slowOnly, steps };
-  return { state: { v: 1 as const, tests: [...state.tests, log], skills: cycle.skills, plan }, items };
+  const next: PlanState = { v: 1 as const, tests: [...state.tests, log], skills: cycle.skills, plan };
+  if (state.profile) next.profile = state.profile;
+  return { state: next, items };
+}
+
+// The section each skill belongs to, as the bank stores it ('Math' or anything else = Reading and Writing).
+export function skillSections(questions: Iterable<BankQ>): Map<string, Section> {
+  const out = new Map<string, Section>();
+  for (const q of questions) if (q.skill && !out.has(q.skill)) out.set(q.skill, q.section === 'Math' ? 'Math' : 'RW');
+  return out;
+}
+// Plan emphasis: the chosen subject's skills move ahead of the other's, each keeping its own order. Balanced keeps all.
+export function prioritize(skills: string[], sectionOf: Map<string, Section>, emphasis: Emphasis): string[] {
+  if (emphasis === 'balanced') return skills.slice();
+  return [...skills.filter(k => sectionOf.get(k) === emphasis), ...skills.filter(k => sectionOf.get(k) !== emphasis)];
+}
+
+// ---------------- the log form's details page ----------------
+// SAT dates (College Board, 2026-27; the Fall 2027 ones are anticipated). Only dates from today on are offered.
+export const SAT_DATES: { date: string; anticipated?: boolean }[] = [
+  { date: '2026-10-03' }, { date: '2026-11-07' }, { date: '2026-12-05' }, { date: '2027-03-06' }, { date: '2027-05-01' }, { date: '2027-06-05' },
+  { date: '2027-08-28', anticipated: true }, { date: '2027-09-18', anticipated: true }, { date: '2027-10-09', anticipated: true },
+  { date: '2027-11-06', anticipated: true }, { date: '2027-12-04', anticipated: true }
+];
+export const upcomingSatDates = (today: string) => SAT_DATES.filter(d => d.date >= today);
+// A typed score: '' is "not given" (null); otherwise a multiple of 10 in range, or an error message.
+export function readScore(raw: string, min: number, max: number, what: string): { value: number | null } | { error: string } {
+  const t = String(raw ?? '').trim();
+  if (!t) return { value: null };
+  const n = Number(t);
+  if (!Number.isInteger(n) || n < min || n > max || n % 10) return { error: `${what} must be a multiple of 10 from ${min} to ${max}.` };
+  return { value: n };
+}
+// The pages of the log popup, in order: a recognition check only for a section marked "Not sure".
+export type LogChoice = Route | 'unsure';
+export function logPages(choice: Partial<Record<Section, LogChoice>>): string[] {
+  return ['start', ...SECTIONS.filter(s => choice[s] === 'unsure').map(s => 'check-' + s), ...SECTIONS.map(s => 'marks-' + s), 'details'];
 }
 
 // ---------------- sets ----------------

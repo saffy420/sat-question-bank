@@ -7,7 +7,7 @@ import * as stats from '../public/shared/stats.js';
 import {
   advanceCycle, orderSkills, logTest, resolveLog, countBySkill, modulesOf, routesOf, blockedIds, seenIds, pickSet, newRun,
   segmentIds, closeSegment, scoreRun, nextStep, tooSoon, addDays, emptyState, nextTestNumber, SHAPES,
-  stemSnippet, pickPositions, versionOrder, recognize, matchExport
+  stemSnippet, pickPositions, versionOrder, recognize, matchExport, prioritize, skillSections, readScore, upcomingSatDates, logPages
 } from '../lesson-ui/plan.ts';
 import type { TestMap, TestLog, BankQ, SkillCount, PlanState, PoolContext, PracticeTest, StemQ } from '../lesson-ui/plan.ts';
 
@@ -279,4 +279,41 @@ test('export upload: detects the test from module 1 and each section\'s variant 
   assert.deepEqual(matchExport(map, ext, file(['PT4r1'], ['PT4m1'])), { testId: 'PT4', route: {} });
   assert.match((matchExport(map, ext, file(['nope'], ['nada'])) as { error: string }).error, /does not match/);
   for (const bad of [null, 42, 'text', {}, [], [{ items: [{ foo: 1 }] }], { questions: [] }]) assert.ok('error' in matchExport(map, ext, bad), JSON.stringify(bad));
+});
+
+// ---------------- the log popup's details page and plan emphasis ----------------
+test('plan emphasis puts the chosen subject\'s skills first, each subject keeping its order; balanced changes nothing', () => {
+  const sec = skillSections([{ id: '1', skill: 'Boundaries', section: 'Reading & Writing' }, { id: '2', skill: 'Circles', section: 'Math' },
+    { id: '3', skill: 'Inferences', section: 'Reading & Writing' }, { id: '4', skill: 'Percentages', section: 'Math' }]);
+  const order = ['Boundaries', 'Circles', 'Inferences', 'Percentages'];
+  assert.deepEqual(prioritize(order, sec, 'Math'), ['Circles', 'Percentages', 'Boundaries', 'Inferences']);
+  assert.deepEqual(prioritize(order, sec, 'RW'), ['Boundaries', 'Inferences', 'Circles', 'Percentages']);
+  assert.deepEqual(prioritize(order, sec, 'balanced'), order);
+});
+
+test('logTest orders drills by the stored emphasis and keeps the profile', () => {
+  const bankS: BankQ[] = [Q('r1', 'Alpha', 'Medium', { section: 'Reading & Writing' }), Q('r2', 'Alpha', 'Medium', { section: 'Reading & Writing' }),
+    Q('m1', 'Beta', 'Medium', { section: 'Math' })];
+  const by = new Map(bankS.map(q => [q.id, q]));
+  const map: TestMap = { tests: [{ id: 'PT1', number: 1, name: 'PT1', RW: { m1: ['r1', 'r2'], easy: [], hard: null }, Math: { m1: ['m1'], easy: [], hard: null } }] };
+  const l = log('PT1', '2026-10-01', { RW1: 'WW', Math1: 'W' });
+  const titles = (st: PlanState) => logTest(st, map, l, by, new Map()).state.plan!.steps.filter(s => s.kind === 'drill').map(s => s.skill);
+  assert.deepEqual(titles(emptyState()), ['Alpha', 'Beta']);                  // 2 misses before 1
+  const profile = { goal: 1400, satDate: '2026-11-07', emphasis: 'Math' as const };
+  assert.deepEqual(titles({ ...emptyState(), profile }), ['Beta', 'Alpha']);
+  assert.deepEqual(logTest({ ...emptyState(), profile }, map, l, by, new Map()).state.profile, profile);
+  assert.equal('profile' in logTest(emptyState(), map, l, by, new Map()).state, false);
+});
+
+test('details page: scores are blank or a multiple of 10 in range; SAT dates from today on; pages follow Not sure', () => {
+  assert.deepEqual(readScore('', 200, 800, 'Math'), { value: null });
+  assert.deepEqual(readScore(' 650 ', 200, 800, 'Math'), { value: 650 });
+  for (const bad of ['655', '150', '810', 'abc', '6.5e2x']) assert.ok('error' in readScore(bad, 200, 800, 'Math'), bad);
+  assert.deepEqual(readScore('1600', 400, 1600, 'Goal'), { value: 1600 });
+  assert.deepEqual(upcomingSatDates('2026-10-04').map(d => d.date).slice(0, 2), ['2026-11-07', '2026-12-05']);
+  assert.equal(upcomingSatDates('2026-10-03')[0].date, '2026-10-03');
+  assert.ok(upcomingSatDates('2027-08-01').every(d => d.anticipated));
+  assert.deepEqual(logPages({ RW: 'easy', Math: 'hard' }), ['start', 'marks-RW', 'marks-Math', 'details']);
+  assert.deepEqual(logPages({ RW: 'unsure', Math: 'unsure' }), ['start', 'check-RW', 'check-Math', 'marks-RW', 'marks-Math', 'details']);
+  assert.deepEqual(logPages({ RW: 'hard', Math: 'unsure' }), ['start', 'check-Math', 'marks-RW', 'marks-Math', 'details']);
 });

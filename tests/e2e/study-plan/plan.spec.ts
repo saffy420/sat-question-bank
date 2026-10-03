@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page, BrowserContext } from '@playwright/test';
-import { STUDENT, P, SKILL, fixture, student, openApp, api, planOf, logTest, saveLog, stepTitles, setState, current, choice,
+import { STUDENT, P, SKILL, fixture, student, openApp, api, planOf, logTest, startLog, markSection, saveLog, stepTitles, setState, current, choice,
   answerSection, endSection, playNext, shot } from './support';
 
 // Study Plan checkpoints (docs/plan/BRIEF.md), one student through three logged practice tests at 1366x768.
@@ -25,13 +25,16 @@ test('C2 logging a test: plan order with the slows tie-break; questions done; mi
   await page.locator('#plan-log').click();
   // PT90. Linear functions: 2 misses. Boundaries: 1 miss + 1 slow. Words in Context: 1 miss. Rhetorical Synthesis: slow only.
   // Circles: clean. RW1 #4 has no bank question: it can be marked and counts for nothing.
-  await logTest(page, 'PT90', '2026-09-01', { RW1: 'WWSW', RW2: 'S', Math1: 'W..', Math2: 'W.' });
+  // PT90 maps one module-2 variant per section, so no "Not sure" recognition page (recognition.spec.ts covers it).
+  await startLog(page, 'PT90', '2026-09-01');
+  await markSection(page, 'RW', { RW1: 'WWSW', RW2: 'S' }, false);
   await expect(page.locator('.pl-q[data-m="RW1"][data-n="3"]')).toHaveAttribute('data-unmapped', '1');
-  // PT90 has one module-2 variant per section mapped, so no recognition check (recognition.spec.ts covers it and the radios).
-  await expect(page.locator('#plan-log-form .pl-check')).toHaveCount(0);
+  await expect(page.locator('#pl-tally-RW')).toContainText('Wrong: 3 · Slow: 2');
+  await shot(page, '02-log-form');
+  await page.locator('#pl-next').click();
+  await markSection(page, 'Math', { Math1: 'W..', Math2: 'W.' });
   await expect(page.locator('#pl-sum')).toContainText('Wrong: 5 · Slow: 2');   // marks include the unmapped position
   await expect(page.locator('#pl-warn')).toHaveCount(0);
-  await shot(page, '02-log-form');
   await saveLog(page);
   expect(await stepTitles(page)).toEqual([
     `Drill · ${SKILL.a}`, `Drill · ${SKILL.b}`, `Drill · ${SKILL.c}`,
