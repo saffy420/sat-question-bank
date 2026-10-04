@@ -316,7 +316,18 @@ select:hover { border-color: var(--border2); }
 td .tag.t-used { margin-left: 6px; font-family: inherit; }
 .tag.t-fixed { color: var(--green); background: var(--green-bg); border-color: transparent; }
 .tag.t-skill { margin-left: auto; }
-.mk-stem { font-size: 14px; line-height: 1.55; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tag.t-saved { color: var(--gold); background: #fff8e1; border-color: transparent; }
+.mk-row { display: flex; align-items: flex-start; gap: 12px; }
+.mk-stem { flex: 1; min-width: 0; font-size: 14px; line-height: 1.55; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* the teaser is a run of text: paragraphs and display math flow inline so two lines hold two lines */
+.mk-stem-in p, .mk-stem-in div, .mk-stem-in ul, .mk-stem-in ol, .mk-stem-in li, .mk-stem-in blockquote, .mk-stem-in h1, .mk-stem-in h2, .mk-stem-in h3, .mk-stem-in h4 { display: inline; margin: 0; padding: 0; }
+.mk-stem-in .katex-display { display: inline; margin: 0; }
+.mk-stem-in .katex-display > .katex { display: inline-block; }
+.mk-none { color: var(--dim2); }
+.mk-save { flex: none; width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: var(--dim2); fill: none; }
+.mk-save:hover { background: var(--bg2); color: var(--text); }
+.mk-save.on { color: var(--orange); fill: currentColor; }
+.mk-save svg { fill: inherit; }
 
 @media (max-width: 980px) {
   .nav { flex-basis: 66px; padding: 16px 8px; }
@@ -906,7 +917,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
 
     <button class="nav-i" data-tab="plan"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Study Plan</span></button>
     <button class="nav-i" data-tab="dash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19V11M12 19V5M19 19v-6"/></svg><span>Dashboard</span></button>
-    <button class="nav-i" data-tab="mistakes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l8 15H4z"/><path d="M12 9v4M12 16.2v.1"/></svg><span>Mistakes</span></button>
+    <button class="nav-i" data-tab="mistakes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l8 15H4z"/><path d="M12 9v4M12 16.2v.1"/></svg><span>Mistakes &amp; Saved</span></button>
     <button class="nav-i" data-tab="practice"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v6H4z"/><path d="M4 15h9v4H4z"/></svg><span>Question Bank</span></button>
     <button class="nav-i" data-tab="exams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg><span>Practice Exams</span></button>
     <button class="nav-i" data-tab="history"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>History</span></button>
@@ -968,15 +979,22 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
       <div id="tab-mistakes" class="hide">
         <div class="panel">
           <div class="panel-h">
-            <div class="seg" id="mk-status">
-              <button data-s="wrong" class="on">Needs work</button>
-              <button data-s="fixed">Corrected</button>
-              <button data-s="all">All</button>
+            <div class="seg" id="mk-view">
+              <button data-v="wrong" class="on">Incorrect</button>
+              <button data-v="saved">Saved</button>
+              <button data-v="both">Both</button>
             </div>
             <div class="startbar">
               <span id="mk-count" class="sub" style="color:var(--dim);font-size:13px"></span>
               <button id="mk-export" title="Download every note you have written">⬇ Export notes</button>
               <button class="btn-p" id="mk-drill">Drill these</button>
+            </div>
+          </div>
+          <div class="panel-h" id="mk-sub">
+            <div class="seg" id="mk-status">
+              <button data-s="wrong" class="on">Needs work</button>
+              <button data-s="fixed">Corrected</button>
+              <button data-s="all">All</button>
             </div>
           </div>
           <div class="ctrls" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
@@ -1121,7 +1139,7 @@ import * as Figure from '/shared/figure.js';
 import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
 import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome, Plan } from '/lesson-ui/lesson.js';
 import { mountBankHome, applyExtraFilters, EXTRA_FILTERS, migrateSection } from '/lesson-ui/lesson.js';
-import { loadSaved, setSaved, savedIds } from '/lesson-ui/lesson.js';
+import { loadSaved, setSaved, savedIds, subscribeSaved } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -2191,7 +2209,7 @@ document.querySelectorAll('#db-range button').forEach(b => b.onclick = () => {
 });
 
 // ---------------- mistakes ----------------
-const MK = { sec:null, diff:null, skills:null, status:'wrong', bank:null };
+const MK = { sec:null, diff:null, skills:null, status:'wrong', bank:null, view:'wrong' };
 // Tags out, then entities decoded, or the preview prints "Wigan&#x27;s". The
 // decode goes through a textarea because its content is raw text: no elements are
 // built and no <img> in the stem gets fetched just to read a two-line preview.
@@ -2213,22 +2231,75 @@ const lessonTag = id => id ? `<span class="tag t-lesson">Lesson ${String(id).pad
 const testMisses = () => new Map(LOG.filter(x => !x.correct && /^test:/.test(x.plan_step || '')).map(x => [x.question_id, x.plan_step.slice(5)]));
 const testTag = id => id ? `<span class="tag t-test">${esc((PTMAP.tests.find(t => t.id === id) || { name: id }).name)}</span>` : '';
 
-// Everything you have ever got wrong, before the page's own dropdowns narrow it.
-// Section and difficulty come off the question; status comes off the marker.
-function wrongSet() { return QS.filter(wrongSet.one); }
-wrongSet.one = (q) => {
-  if (!everWrong(q.id)) return false;
-  const fixed = PROG[q.id].marker === 'Orange';
-  if (MK.status === 'wrong' && fixed) return false;
-  if (MK.status === 'fixed' && !fixed) return false;
+// The page lists one of three views. The dropdowns narrow all of them; the Needs
+// work / Corrected / All filter narrows only the incorrect part. Section and
+// difficulty come off the question; status comes off the marker.
+const mkDropdowns = (q) => {
   if (MK.bank && !MK.bank.includes(q.ai ? 'ai' : 'official')) return false;
   if (MK.sec && !MK.sec.includes(q.section)) return false;
   if (MK.diff && !MK.diff.map(d => d.toLowerCase()).includes((q.difficulty||'').toLowerCase())) return false;
   if (MK.skills && !MK.skills.includes(q.skill || 'Other')) return false;
   return true;
 };
+const mkIncorrect = (q, st = MK.status) => {
+  if (!everWrong(q.id)) return false;
+  const fixed = PROG[q.id].marker === 'Orange';
+  return st === 'all' || (st === 'fixed') === fixed;
+};
+const mkSaved = q => savedIds.has(q.id);
+const MK_VIEWS = { wrong: q => mkIncorrect(q), saved: mkSaved, both: q => mkIncorrect(q) || mkSaved(q) };
+// Saved can hold a question never answered, or answered right; the id of one the bank no longer has is skipped.
+function mkSet() { return QS.filter(mkSet.one); }
+mkSet.one = (q) => MK_VIEWS[MK.view](q) && mkDropdowns(q);
 
 const MK_LABEL = { wrong: 'Needs work', fixed: 'Corrected', all: 'All' };
+const MK_VIEW_LABEL = { wrong: 'Incorrect', saved: 'Saved', both: 'Both' };
+const MK_RESULT = { Red: ['t-wrong', 'Incorrect'], Orange: ['t-fixed', 'Corrected'], Green: ['t-fixed', 'Correct'] };
+const mkResult = id => { const [c, l] = MK_RESULT[PROG[id] && PROG[id].marker] || ['', 'Not answered']; return `<span class="tag ${c}">${l}</span>`; };
+
+// What the card shows of a question: Math, the question without its tables and
+// figures (flattened table cells read as noise); Reading and Writing, the passage
+// opening, because most prompts are the same "Which choice completes the text..."
+// and cannot tell two questions apart. Parsed in a <template>, whose content is
+// inert, so no image in the stem is fetched for a preview.
+const MK_DROP = '.qtable, .qfig, .qimg, table, img, svg, figure, script, style';
+const MK_CHARS = 400;       // the card clamps to two lines; no need to carry more
+const TEASERS = new Map();
+function teaser(q) {
+  let t = TEASERS.get(q.id);
+  if (t !== undefined) return t;
+  const strip = (html) => {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = (html || '').replace(H3_LABEL, ' ').replace(/<br\s*\/?>|<\/(?:p|div|li|h\d|blockquote)>/gi, '$& ');
+    tpl.content.querySelectorAll(MK_DROP).forEach(n => n.remove());
+    let n = 0;
+    [...tpl.content.childNodes].forEach(c => { if (n >= MK_CHARS) c.remove(); else n += c.textContent.length; });
+    return tpl.content.textContent.trim() ? tpl.innerHTML.trim() : '';
+  };
+  const raw = q.stem_html || '';
+  const at = q.section === 'Math' ? -1 : raw.indexOf('<h3>Prompt</h3>');
+  t = at >= 0 ? strip(SharedRenderer.renderStem({ stem_html: raw.slice(0, at) })) || strip(SharedRenderer.renderStem({ stem_html: raw.slice(at + 15) }))
+    : strip(q.section === 'Math' ? raw : SharedRenderer.renderStem(q));
+  t = t || '<span class="mk-none">(no text)</span>';
+  TEASERS.set(q.id, t);
+  return t;
+}
+
+const MK_MARK = '<svg width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z"/></svg>';
+
+// The player's flag, from a card: the store applies it at once (the counts redraw
+// through the subscription) and a refusal puts it back.
+async function mkToggleSaved(id) {
+  const on = !savedIds.has(id);
+  const live = S && S.bank && S.items.some(x => x.id === id);
+  if (live) S.flags[id] = on;
+  let ok = false;
+  try { ok = await setSaved(id, on, authToken ? await sbHeaders() : null); } catch (e) {}
+  if (!ok) {
+    warnSync('Could not save that question. Try again.');
+    if (live && S && S.flags[id] === on) S.flags[id] = !on;
+  }
+}
 
 function drawMistakes() {
   // Built with every filter except the topic one, so choosing a topic does not
@@ -2236,7 +2307,7 @@ function drawMistakes() {
   // behind it. Picks the other filters have made impossible are dropped.
   const pool = QS.filter(q => {
     const save = MK.skills; MK.skills = null;
-    const ok = wrongSet.one(q); MK.skills = save; return ok;
+    const ok = mkSet.one(q); MK.skills = save; return ok;
   });
   const groups = {};
   pool.forEach(q => (groups[q.domain || 'Other'] = groups[q.domain || 'Other'] || new Set()).add(q.skill || 'Other'));
@@ -2263,44 +2334,64 @@ function drawMistakes() {
   // A mistake you have since got right becomes Orange and moves to Corrected, so
   // the default view legitimately stops showing it. The counts say that out loud;
   // without them a corrected question reads as a mistake that never arrived.
-  const nAt = (st) => { const was = MK.status; MK.status = st; const n = QS.filter(wrongSet.one).length; MK.status = was; return n; };
+  const inView = (v) => QS.filter(q => MK_VIEWS[v](q) && mkDropdowns(q)).length;
+  document.querySelectorAll('#mk-view button').forEach(b => {
+    b.textContent = `${MK_VIEW_LABEL[b.dataset.v]} (${inView(b.dataset.v).toLocaleString()})`;
+    b.classList.toggle('on', b.dataset.v === MK.view);
+  });
+  $('mk-sub').classList.toggle('hide', MK.view === 'saved');
   document.querySelectorAll('#mk-status button').forEach(b => {
-    b.textContent = `${MK_LABEL[b.dataset.s]} (${nAt(b.dataset.s).toLocaleString()})`;
+    b.textContent = `${MK_LABEL[b.dataset.s]} (${QS.filter(q => mkIncorrect(q, b.dataset.s) && mkDropdowns(q)).length.toLocaleString()})`;
+    b.classList.toggle('on', b.dataset.s === MK.status);
   });
 
-  const list = wrongSet();
+  const list = mkSet();
   $('mk-count').textContent = `${list.length.toLocaleString()} question${list.length === 1 ? '' : 's'}`;
   $('mk-drill').disabled = list.length === 0;
   $('mk-export').disabled = !Object.keys(NOTES).length;
   const lessonOf = latestLesson(), testOf = testMisses();
   $('mk-list').innerHTML = list.slice(0, 200).map(q => {
-    const fixed = PROG[q.id].marker === 'Orange';
-    const d = q.difficulty || '';
+    const d = q.difficulty || '', on = savedIds.has(q.id);
     return `<div class="mk-card" data-id="${esc(q.id)}">
       <div class="mk-tags">
-        <span class="tag">${esc(q.section || '\u2014')}</span>
+        <span class="tag">${esc(q.section || '—')}</span>
         ${d ? `<span class="tag t-${esc(d.toLowerCase())}">${esc(d)}</span>` : ''}
-        <span class="tag ${fixed ? 't-fixed' : 't-wrong'}">${fixed ? 'Corrected' : 'Incorrect'}</span>
-        <span class="tag t-skill">${esc(q.skill || 'Other')}</span>
+        ${on ? '<span class="tag t-saved">Saved</span>' : ''}
+        ${mkResult(q.id)}
         ${lessonTag(lessonOf.get(q.id))}${testTag(testOf.get(q.id))}${usedBadge(q)}
+        <span class="tag t-skill">${esc(q.skill || 'Other')}</span>
       </div>
-      <div class="mk-stem">${esc(plain(q.stem_html).slice(0, 220)) || '(no text)'}</div>
+      <div class="mk-row">
+        <div class="mk-stem"><div class="mk-stem-in">${teaser(q)}</div></div>
+        <button class="mk-save${on ? ' on' : ''}" data-save="${esc(q.id)}" aria-pressed="${on}" aria-label="${on ? 'Remove from saved' : 'Save question'}" title="${on ? 'Remove from saved' : 'Save question'}">${MK_MARK}</button>
+      </div>
       ${NOTES[q.id] ? `<div class="mk-note">${esc(NOTES[q.id])}</div>` : ''}
     </div>`;
-  }).join('') || '<div class="empty">Nothing here \u2014 answer some questions and the ones you miss collect on this page.</div>';
+  }).join('') || `<div class="empty">${MK.view === 'saved'
+    ? 'Nothing saved — tap the bookmark on a question to keep it here.'
+    : 'Nothing here — answer some questions and the ones you miss collect on this page.'}</div>`;
   if (list.length > 200)
     $('mk-list').insertAdjacentHTML('beforeend',
       `<div class="empty">Showing the first 200 of ${list.length.toLocaleString()}. Drill them to work through the rest.</div>`);
+  mathify($('mk-list'));
 
-  $('mk-list').querySelectorAll('.mk-card').forEach(c => c.onclick = () => {
+  $('mk-list').querySelectorAll('.mk-card').forEach(c => c.onclick = (e) => {
+    if (e.target.closest('.mk-save')) return;
     const q = QS.find(x => x.id === c.dataset.id);
     if (q) start([q]);
   });
+  $('mk-list').querySelectorAll('.mk-save').forEach(b => b.onclick = () => mkToggleSaved(b.dataset.save));
 }
 
+// Saving from the player, a card or another tab changes the counts here.
+subscribeSaved(() => { if (TAB === 'mistakes' && QS.length) drawMistakes(); });
+
+document.querySelectorAll('#mk-view button').forEach(b => b.onclick = () => {
+  MK.view = b.dataset.v;
+  drawMistakes();
+});
 document.querySelectorAll('#mk-status button').forEach(b => b.onclick = () => {
   MK.status = b.dataset.s;
-  document.querySelectorAll('#mk-status button').forEach(x => x.classList.toggle('on', x === b));
   drawMistakes();
 });
 // --- notesMd
@@ -2338,7 +2429,7 @@ $('mk-export').onclick = () => {
 };
 
 $('mk-drill').onclick = () => {
-  const a = wrongSet();
+  const a = mkSet();
   for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; }
   if (a.length) start(a);
 };
