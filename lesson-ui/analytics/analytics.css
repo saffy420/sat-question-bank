@@ -1,0 +1,105 @@
+/* Analytics (Analytics.tsx). Light only, Bluebook blue. Scoped under #analytics; the overview tiles (.cards/.card),
+   the range control (.seg), the activity chart, the heat map and the tooltip keep their public/index.html rules and
+   are only recoloured here. */
+#analytics { --an-blue: #2345be; --an-blue-bg: #eef1fb; --an-ink: #111827; --an-dim: #6b7280; --an-dim2: #9ca3af; --an-line: #e5e7eb; }
+#analytics .an { padding-top: 2px; }
+#analytics .an-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 16px; }
+#analytics .an-range { font-size: 13px; color: var(--an-dim); }
+#analytics .seg button.on { color: var(--an-blue); }
+
+#analytics .card .v { color: var(--an-ink); }
+#analytics .card .s { margin-top: 4px; font-size: 12.5px; color: var(--an-dim); }
+
+#analytics .an-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+#analytics .an-card { background: #fff; border: 1px solid var(--an-line); border-radius: var(--r, 18px); margin-bottom: 18px; overflow: hidden; }
+#analytics .an-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 18px 22px 0; }
+#analytics .an-h h3 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.015em; color: var(--an-ink); }
+#analytics .an-sub { margin: 3px 0 0; font-size: 12.5px; color: var(--an-dim); }
+#analytics .an-take { margin: 12px 22px 4px; padding: 9px 12px; border-radius: 10px; background: var(--an-blue-bg); color: #1c2a5e; font-size: 14px; font-weight: 500; line-height: 1.4; }
+#analytics .an-empty { padding: 16px 22px 20px; font-size: 13.5px; color: var(--an-dim); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#analytics .an-foot { margin: 0; padding: 8px 22px 16px; font-size: 12.5px; color: var(--an-dim); }
+
+#analytics .an-need { display: inline-flex; align-items: baseline; gap: 6px; color: var(--an-dim); font-size: 12.5px; white-space: nowrap; }
+#analytics .an-need b { color: var(--an-ink); font-size: 15px; font-weight: 600; }
+
+/* rings */
+#analytics .an-dial { position: relative; flex: 0 0 auto; }
+#analytics .an-dial svg { display: block; }
+#analytics .an-dial-c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+#analytics .an-dial-c b { font-size: 24px; font-weight: 600; letter-spacing: -.02em; color: var(--an-ink); }
+#analytics .an-dial-c span { font-size: 11.5px; color: var(--an-dim); }
+#analytics .an-dials { display: flex; flex-wrap: wrap; justify-content: space-around; gap: 18px; padding: 14px 22px 20px; }
+#analytics .an-fig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+#analytics .an-fig figcaption { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 14px; font-weight: 600; color: var(--an-ink); }
+#analytics .an-split { display: flex; align-items: center; gap: 26px; padding: 14px 22px 20px; }
+#analytics .an-legend { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+#analytics .an-lrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--an-line); }
+#analytics .an-lrow:last-child { border-bottom: 0; }
+#analytics .an-lk { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--an-ink); }
+#analytics .an-lk em { font-style: normal; font-size: 12.5px; color: var(--an-dim); }
+#analytics .an-lv { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+#analytics .an-lv b { font-size: 18px; font-weight: 600; color: var(--an-ink); }
+#analytics .an-lv > span { font-size: 12px; color: var(--an-dim); white-space: nowrap; }
+#analytics .an-sw { display: inline-block; flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+#analytics .an-over { color: #b42318; font-weight: 600; }
+#analytics .an-under { color: #067647; font-weight: 600; }
+
+/* top-5 lists */
+#analytics .an-list { list-style: none; margin: 8px 0 0; padding: 0; }
+#analytics .an-item { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 13px 22px; border-top: 1px solid var(--an-line); }
+#analytics .an-rank { font-size: 20px; font-weight: 300; color: var(--an-dim2); font-variant-numeric: tabular-nums; }
+#analytics .an-name { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+#analytics .an-name b { font-size: 15px; font-weight: 600; color: var(--an-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#analytics .an-meta { font-size: 12px; color: var(--an-dim); }
+#analytics .an-pct { display: inline-flex; align-items: center; gap: 8px; }
+#analytics .an-pct b { font-size: 20px; font-weight: 600; color: var(--an-ink); min-width: 48px; text-align: right; }
+#analytics .an-mini { display: block; }
+#analytics .an-times { display: grid; grid-template-columns: auto auto auto; align-items: baseline; gap: 14px; font-size: 12.5px; color: var(--an-dim); white-space: nowrap; }
+#analytics .an-times b { font-size: 17px; font-weight: 600; color: var(--an-ink); }
+#analytics .an-go { padding: 7px 12px; border: 1px solid var(--an-line); border-radius: 999px; background: #fff; color: var(--an-blue); font-size: 13px; font-weight: 600; white-space: nowrap; }
+#analytics .an-go:hover:not(:disabled) { background: var(--an-blue-bg); border-color: #c9d2f1; }
+#analytics .an-go:focus-visible { outline: 2px solid var(--an-blue); outline-offset: 1px; }
+
+/* bar rows (domain, skill, traps, pacing, guessing, level) */
+#analytics .an-card > .an-row:first-of-type, #analytics .an-group:first-of-type { margin-top: 6px; }
+#analytics .an-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(60px, 140px) 150px; align-items: center; gap: 14px; padding: 9px 22px; font-size: 13.5px; }
+#analytics .an-grid .an-row { grid-template-columns: minmax(0, 1fr) minmax(40px, 90px) auto; gap: 12px; }
+#analytics .an-row > b { font-weight: 500; color: var(--an-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#analytics .an-group > .an-row:first-child > b { font-weight: 700; }
+#analytics .an-group { padding-bottom: 6px; }
+#analytics .an-group + .an-group { border-top: 1px solid var(--an-line); padding-top: 6px; }
+#analytics .an-bar { height: 6px; border-radius: 3px; background: #e7ebf6; overflow: hidden; }
+#analytics .an-bar i { display: block; height: 100%; border-radius: 3px; background: var(--an-blue); }
+#analytics .an-val { text-align: right; font-size: 12.5px; color: var(--an-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+#analytics .an-val b { color: var(--an-ink); font-weight: 600; }
+#analytics .an-card > .an-row:last-child, #analytics .an-card > .an-group:last-child { padding-bottom: 16px; }
+
+/* activity chart and heat map: Bluebook blue for right answers and busier days */
+#analytics .cbar .ok, #analytics .legend i:first-child { background: var(--an-blue); }
+#analytics .heat i.l1, #analytics .heat-key i.l1 { background: #c9d3f4; }
+#analytics .heat i.l2, #analytics .heat-key i.l2 { background: #8ea2e6; }
+#analytics .heat i.l3, #analytics .heat-key i.l3 { background: #5a77d8; }
+#analytics .heat i.l4, #analytics .heat-key i.l4 { background: #2345be; }
+#analytics .an-card .legend { padding-top: 4px; }
+
+@media (max-width: 980px) {
+  #analytics .an-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+@media (max-width: 760px) {
+  #analytics .an-h { padding: 14px 16px 0; }
+  #analytics .an-h h3 { font-size: 17px; }
+  #analytics .an-take { margin: 10px 16px 4px; font-size: 13.5px; }
+  #analytics .an-card { margin-bottom: 14px; }
+  #analytics .an-split { flex-direction: column; align-items: stretch; gap: 12px; padding: 12px 16px 16px; }
+  #analytics .an-split .an-dial { align-self: center; }
+  #analytics .an-dials { padding: 12px 16px 16px; }
+  #analytics .an-item { grid-template-columns: 26px minmax(0, 1fr) auto; gap: 6px 12px; padding: 12px 16px; }
+  #analytics .an-rank { font-size: 16px; }
+  #analytics .an-pct b { font-size: 17px; min-width: 0; }
+  #analytics .an-times { grid-column: 2 / -1; grid-template-columns: auto auto auto; justify-content: start; }
+  #analytics .an-go { grid-column: 2 / -1; justify-self: start; }
+  #analytics .an-row { grid-template-columns: minmax(0, 1fr) auto; padding: 9px 16px; }
+  #analytics .an-row .an-bar { display: none; }
+  #analytics .an-empty, #analytics .an-foot { padding-left: 16px; padding-right: 16px; }
+  #analytics .an-need { white-space: normal; }
+}

@@ -905,7 +905,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
     <a class="nav-brand" href="/app"><span class="brand-mark" aria-hidden="true">r.</span><span class="nav-brand-t">Road to 1600</span></a>
 
     <button class="nav-i" data-tab="plan"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Study Plan</span></button>
-    <button class="nav-i" data-tab="dash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19V11M12 19V5M19 19v-6"/></svg><span>Dashboard</span></button>
+    <button class="nav-i" data-tab="dash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg><span>Analytics</span></button>
     <button class="nav-i" data-tab="mistakes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l8 15H4z"/><path d="M12 9v4M12 16.2v.1"/></svg><span>Mistakes</span></button>
     <button class="nav-i" data-tab="practice"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v6H4z"/><path d="M4 15h9v4H4z"/></svg><span>Question Bank</span></button>
     <button class="nav-i" data-tab="exams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg><span>Practice Exams</span></button>
@@ -935,35 +935,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
 
       <div id="tab-practice"><div id="bank-home"></div></div>
 
-      <div id="tab-dash" class="hide">
-        <div class="frow" style="justify-content:space-between;margin-bottom:16px">
-          <div class="seg" id="db-range">
-            <button data-r="1">Today</button>
-            <button data-r="7">7 days</button>
-            <button data-r="30" class="on">30 days</button>
-            <button data-r="365">12 months</button>
-            <button data-r="0">All time</button>
-          </div>
-          <div class="legend"><span><i style="background:var(--mint)"></i>Correct</span><span><i style="background:var(--red)"></i>Wrong</span></div>
-        </div>
-        <div class="cards" id="db-overview"></div>
-        <div class="panel">
-          <div class="panel-h"><h3>Questions answered</h3><span class="sub" id="db-act-sub" style="color:var(--dim);font-size:13px"></span></div>
-          <div id="db-activity"></div>
-        </div>
-        <div class="panel">
-          <div class="panel-h"><h3>Practice activity</h3><span class="sub" id="db-heat-sub" style="color:var(--dim);font-size:13px"></span></div>
-          <div id="db-heat"></div>
-        </div>
-        <div class="panel"><div class="panel-h"><h3>Accuracy by difficulty</h3><span class="sub" style="color:var(--dim);font-size:13px">Bar is accuracy &middot; right / answered</span></div><div id="db-diffs"></div></div>
-        <div class="panel"><div class="panel-h"><h3>Accuracy by section</h3><span class="sub" style="color:var(--dim);font-size:13px">Bar is accuracy &middot; right / answered</span></div><div id="db-sections"></div></div>
-        <div class="panel"><div class="panel-h"><h3>Accuracy by domain</h3><span class="sub" style="color:var(--dim);font-size:13px">Bar is accuracy &middot; right / answered</span></div><div id="db-domains"></div></div>
-        <div class="panel"><div class="panel-h"><h3>Accuracy by skill</h3><span class="sub" style="color:var(--dim);font-size:13px">Bar is accuracy &middot; right / answered</span></div><div id="db-skills"></div></div>
-        <div class="panel"><div class="panel-h"><h3>Traps you fall for</h3><span class="sub" id="db-trap-sub" style="color:var(--dim);font-size:13px"></span></div><div id="db-traps"></div></div>
-        <div class="panel"><div class="panel-h"><h3>Pacing</h3><span class="sub" id="db-pace-sub" style="color:var(--dim);font-size:13px"></span></div><div id="db-pace"></div></div>
-        <div class="panel"><div class="panel-h"><h3>Second-guessing</h3><span class="sub" id="db-guess-sub" style="color:var(--dim);font-size:13px"></span></div><div id="db-guess"></div></div>
-        <div class="panel"><div class="panel-h"><h3>Accuracy by level</h3><span class="sub" style="color:var(--dim);font-size:13px">Levels 4 and 5 are the AI bank</span></div><div id="db-levels"></div></div>
-      </div>
+      <div id="tab-dash" class="hide"><div id="analytics"></div></div>
 
       <div id="tab-mistakes" class="hide">
         <div class="panel">
@@ -1122,6 +1094,7 @@ import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
 import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome, Plan } from '/lesson-ui/lesson.js';
 import { mountBankHome, applyExtraFilters, EXTRA_FILTERS, migrateSection } from '/lesson-ui/lesson.js';
 import { loadSaved, setSaved, savedIds } from '/lesson-ui/lesson.js';
+import { mountAnalytics } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1944,251 +1917,13 @@ const bankHome = mountBankHome($('bank-home'), {
 });
 
 // ---------------- dashboard ----------------
-// Dates are bucketed on the local calendar, not UTC: a question answered at
-// 11pm belongs to the day you were sitting there, not to tomorrow.
-const pad2 = (n) => String(n).padStart(2, '0');
-const dkey = (d) => d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
-const mkey = (d) => d.getFullYear() + '-' + pad2(d.getMonth()+1);
-
-let DBR = 30;
-
-// Days for the short ranges, months once a year of them would not fit on screen.
-function buckets(range) {
-  const now = new Date(), out = [], byMonth = range === 0 || range > 90;
-  if (!byMonth) {
-    for (let i = range - 1; i >= 0; i--) {
-      const d = new Date(now); d.setDate(d.getDate() - i);
-      out.push({ k: dkey(d), lab: range <= 7
-        ? d.toLocaleDateString(undefined, { weekday: 'short' })
-        : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-        full: d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
-        ok: 0, no: 0, ms: 0 });
-    }
-  } else {
-    const months = range ? Math.round(range / 30) : 0;
-    let first = new Date(now.getFullYear(), now.getMonth(), 1);
-    if (months) { first.setMonth(first.getMonth() - (months - 1)); }
-    else if (LOG.length) {
-      const e = LOG.reduce((m, x) => (x.ts < m ? x.ts : m), LOG[0].ts);
-      const d = new Date(e); first = new Date(d.getFullYear(), d.getMonth(), 1);
-    }
-    for (const d = new Date(first); d <= now; d.setMonth(d.getMonth() + 1))
-      out.push({ k: mkey(d), lab: d.toLocaleDateString(undefined, { month: 'short' }),
-        full: d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }), ok: 0, no: 0, ms: 0 });
-  }
-  const idx = new Map(out.map(x => [x.k, x]));
-  LOG.forEach(x => {
-    const t = new Date(x.ts), slot = idx.get(byMonth ? mkey(t) : dkey(t));
-    if (!slot) return;
-    x.correct ? slot.ok++ : slot.no++;
-    slot.ms += x.time_taken_ms || 0;
-  });
-  return out;
-}
-
-// A bar's height has to stand for a number, so the axis runs to a rounded
-// ceiling rather than to whatever the tallest day happened to be.
-function niceMax(n) {
-  if (n <= 4) return 4;
-  const p = 10 ** Math.floor(Math.log10(n));
-  return p * ([1, 2, 3, 4, 5, 6, 8, 10].find(m => p * m >= n) || 10);
-}
-
-// Correct sits at the bottom of the column, wrong stacks on top of it. Three
-// gridlines (0, half, max) are drawn in CSS; the labels here name them.
-function chartHTML(bs, unit) {
-  const max = niceMax(Math.max(1, ...bs.map(x => x.ok + x.no)));
-  const h = (n) => (n / max * 100).toFixed(2);
-  const step = Math.ceil(bs.length / 12);
-  const span = bs.length > 1 ? `${bs[0].full} \u2013 ${bs[bs.length - 1].full}` : bs[0].full;
-  const cols = bs.map(x => {
-    const tot = x.ok + x.no;
-    const body = tot
-      ? `<i class="no" style="height:${h(x.no)}%"></i><i class="ok" style="height:${h(x.ok)}%"></i>`
-      : '<i class="zero"></i>';
-    const tip = tot
-      ? `${tot} answered &middot; ${x.ok} right &middot; ${x.no} wrong<br>${Math.round(x.ok / tot * 100)}% accuracy`
-      : 'No practice';
-    return `<span class="cbar" data-tip="<b>${esc(x.full)}</b><br>${tip}">${body}</span>`;
-  }).join('');
-  return `<div class="chart-wrap">
-    <div class="chart-y"><span>${max}</span><span>${max / 2}</span><span>0</span></div>
-    <div class="chart-plot">
-      <div class="chart">${cols}</div>
-      <div class="chart-x">${bs.map((x, i) => `<span>${i % step ? '' : esc(x.lab)}</span>`).join('')}</div>
-    </div>
-  </div>
-  <div class="chart-cap">Up: questions answered &nbsp;&middot;&nbsp; across: one bar per ${unit} &nbsp;&middot;&nbsp; ${esc(span)}</div>`;
-}
-
-// Half a year of squares, seven rows to a column so each column is one week.
-// The grid runs to the end of this week, so it starts on a Sunday and row 0 is
-// Sunday: that is what lets the weekday strip down the left line up.
-const HEAT_WEEKS = 26;
-function heatHTML() {
-  const per = {};
-  LOG.forEach(x => {
-    const k = dkey(new Date(x.ts)), v = per[k] = per[k] || { ok: 0, no: 0 };
-    x.correct ? v.ok++ : v.no++;
-  });
-  const today = new Date(), end = new Date(today);
-  end.setDate(end.getDate() + (6 - end.getDay()));   // run to the end of this week
-  const lvl = (n) => !n ? '' : n < 3 ? 'l1' : n < 8 ? 'l2' : n < 20 ? 'l3' : 'l4';
-  let cells = '', months = '', lastM = -1;
-  for (let j = 0; j < HEAT_WEEKS * 7; j++) {
-    const d = new Date(end); d.setDate(d.getDate() - (HEAT_WEEKS * 7 - 1 - j));
-    if (j % 7 === 0 && d.getMonth() !== lastM) {
-      lastM = d.getMonth();
-      months += `<span style="grid-column:${j / 7 + 1}">${d.toLocaleDateString(undefined, { month: 'short' })}</span>`;
-    }
-    if (d > today) { cells += '<i class="fut"></i>'; continue; }
-    const v = per[dkey(d)] || { ok: 0, no: 0 }, n = v.ok + v.no;
-    const day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    const tip = n ? `${n} answered &middot; ${v.ok} right &middot; ${v.no} wrong` : 'No practice';
-    cells += `<i class="${lvl(n)}" data-tip="<b>${day}</b><br>${tip}"></i>`;
-  }
-  return `<div class="heat-wrap">
-    <div class="heat-d"><span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span></div>
-    <div>
-      <div class="heat-m" style="grid-template-columns:repeat(${HEAT_WEEKS},11px)">${months}</div>
-      <div class="heat">${cells}</div>
-    </div>
-  </div>
-  <div class="heat-key">One square is one day &nbsp;&middot;&nbsp; last ${HEAT_WEEKS} weeks
-    <span style="flex:1"></span>Fewer <i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i> More</div>`;
-}
-
-// Days in a row, counting back. Today being empty does not break yesterday's run
-// until the day is actually over, so the number does not flicker each morning.
-function streak() {
-  const days = new Set(LOG.map(x => dkey(new Date(x.ts))));
-  const d = new Date();
-  if (!days.has(dkey(d))) d.setDate(d.getDate() - 1);
-  let n = 0;
-  while (days.has(dkey(d))) { n++; d.setDate(d.getDate() - 1); }
-  return n;
-}
-
-// The bar is accuracy and so is the number beside it. It used to draw coverage
-// (attempted out of the bank) next to an accuracy percentage, so the bar and the
-// number disagreed and the scale read as broken. Rows with no attempt are out:
-// an empty bar for a skill you have never touched says nothing about accuracy.
-const bars = (map) => cbSort(Object.keys(map).filter(k => map[k].a))
-  .map(k => [k, map[k]])
-  .map(([k, v]) => `<div class="prog-item"><b>${esc(k)}</b>
-    <span class="bar"><i style="width:${pctOf(v) || 0}%"></i></span>
-    <span class="tl-a mono">${accHTML(pctOf(v))} &middot; ${v.c}/${v.a}</span></div>`)
-  .join('') || '<div class="empty">No attempts yet.</div>';
-
-function drawDash() {
-  const t = tally();
-  const bs = buckets(DBR);
-  const win = bs.reduce((o, x) => ({ ok: o.ok + x.ok, no: o.no + x.no, ms: o.ms + x.ms }), { ok:0, no:0, ms:0 });
-  const done = win.ok + win.no;
-  const label = DBR === 0 ? 'all time' : DBR === 1 ? 'today'
-    : DBR === 7 ? 'the last 7 days' : DBR === 30 ? 'the last 30 days' : 'the last 12 months';
-
-  $('db-overview').innerHTML = `
-    <div class="card"><div class="k">Answered</div><div class="v mono">${done.toLocaleString()}</div></div>
-    <div class="card"><div class="k">Accuracy</div><div class="v mono">${done ? Math.round(win.ok/done*100) : 0}%</div></div>
-    <div class="card"><div class="k">Avg time / question</div><div class="v mono">${done ? Math.round(win.ms/done/1000) : 0}s</div></div>
-    <div class="card"><div class="k">Day streak</div><div class="v mono">${streak()}</div></div>`;
-  $('db-act-sub').textContent = `${done.toLocaleString()} answered over ${label}`;
-  $('db-activity').innerHTML = LOG.length
-    ? chartHTML(bs, DBR === 0 || DBR > 90 ? 'month' : 'day')
-    : '<div class="empty">Answer a question and this fills in.</div>';
-
-  const uniq = new Set(LOG.map(x => dkey(new Date(x.ts))));
-  $('db-heat-sub').textContent = `${LOG.length.toLocaleString()} answered across ${uniq.size} day${uniq.size===1?'':'s'}`;
-  $('db-heat').innerHTML = heatHTML();
-
-  // Difficulty is read off the log, not off PROG, so answering a question twice
-  // counts twice here the same way it counts twice in the chart above it.
-  const summary = Stats.breakdown(QS, PROG, LOG);
-  const dm = summary.diff;
-  const order = ['Easy','Medium','Hard','Unknown'];
-  const ds = Object.keys(dm).sort((x, y) => order.indexOf(x) - order.indexOf(y));
-  $('db-diffs').innerHTML = ds.map(k => {
-    const v = dm[k];
-    return `<div class="prog-item"><b>${esc(k)}</b>
-      <span class="bar"><i style="width:${pctOf(v) || 0}%"></i></span>
-      <span class="tl-a mono">${accHTML(pctOf(v))} &middot; ${v.c}/${v.a}</span></div>`;
-  }).join('') || '<div class="empty">No attempts yet.</div>';
-
-  $('db-sections').innerHTML = bars(t.sec);
-  $('db-domains').innerHTML = bars(t.dom);
-  $('db-skills').innerHTML = bars(t.skill);
-
-  // Which distractor a miss walked into. The bar is that trap's share of the worst
-  // one, so the ranking is readable without a second axis.
-  const traps = trapCounts();
-  $('db-trap-sub').textContent = traps.length
-    ? `${traps.reduce((n, x) => n + x[1], 0)} miss${traps.reduce((n, x) => n + x[1], 0) === 1 ? '' : 'es'} tagged · worst: ${traps[0][0]}`
-    : '';
-  $('db-traps').innerHTML = traps.length
-    ? traps.slice(0, 10).map(([name, n]) => `<div class="prog-item"><b>${esc(name)}</b>
-        <span class="bar"><i style="width:${Math.round(n / traps[0][1] * 100)}%"></i></span>
-        <span class="tl-a mono">${n}</span></div>`).join('')
-    : '<div class="empty">Nothing yet. Miss a question and the trap it used shows up here.</div>';
-
-  const pc = pacing(), pn = pc.rushed + pc.onPace + pc.slow;
-  $('db-pace-sub').textContent = pn ? `${Math.round(pc.onPace / pn * 100)}% on pace` : '';
-  $('db-pace').innerHTML = pn
-    ? [['rushed', 'Rushed'], ['onPace', 'On pace'], ['slow', 'Slow']].map(([k, lab]) =>
-        `<div class="prog-item"><b>${lab}</b>
-          <span class="bar"><i style="width:${Math.round(pc[k] / pn * 100)}%"></i></span>
-          <span class="tl-a mono">${Math.round(pc[k] / pn * 100)}% &middot; ${pc[k]}</span></div>`).join('')
-      + Object.keys(pc.n).sort().map(sec =>
-        `<div class="prog-item"><b>${esc(sec)} mean</b>
-          <span class="bar"><i style="width:${Math.min(100, Math.round(pc.ms[sec] / pc.n[sec] / (TARGET_MS[sec] || 85000) * 100))}%"></i></span>
-          <span class="tl-a mono">${Math.round(pc.ms[sec] / pc.n[sec] / 1000)}s vs ${Math.round((TARGET_MS[sec] || 85000) / 1000)}s</span></div>`).join('')
-    : '<div class="empty">No timed answers yet.</div>';
-
-  const g = guessing();
-  $('db-guess-sub').textContent = g.n ? `${g.mean.toFixed(2)} switches per question` : '';
-  $('db-guess').innerHTML = g.n
-    ? `<div class="prog-item"><b>Changed answer</b>
-         <span class="bar"><i style="width:${g.changedAcc || 0}%"></i></span>
-         <span class="tl-a mono">${accHTML(g.changedAcc)} &middot; ${g.changedN}</span></div>
-       <div class="prog-item"><b>Kept first pick</b>
-         <span class="bar"><i style="width:${g.steadyAcc || 0}%"></i></span>
-         <span class="tl-a mono">${accHTML(g.steadyAcc)} &middot; ${g.n - g.changedN}</span></div>`
-    : '<div class="empty">No answers logged since switch tracking shipped.</div>';
-
-  // Accuracy by level, over the log rather than the marker, so a re-drill counts
-  // twice here exactly as it does in the chart above.
-  const lv = summary.level;
-  const lks = Object.keys(lv).sort();
-  $('db-levels').innerHTML = lks.length
-    ? lks.map(k => `<div class="prog-item"><b>Level ${k}${k >= 4 ? ' &middot; AI' : ''}</b>
-        <span class="bar"><i style="width:${pctOf(lv[k]) || 0}%"></i></span>
-        <span class="tl-a mono">${accHTML(pctOf(lv[k]))} &middot; ${lv[k].c}/${lv[k].a}</span></div>`).join('')
-    : '<div class="empty">No attempts yet.</div>';
-}
-
-// One tooltip node for the whole dashboard, following the pointer. Delegated
-// from the panels, so a redraw of their contents rebinds nothing.
-const TIP = document.createElement('div');
-TIP.className = 'tip';
-document.body.appendChild(TIP);
-['db-activity', 'db-heat'].forEach(id => {
-  const el = $(id);
-  el.addEventListener('mousemove', (e) => {
-    const t = e.target.closest('[data-tip]');
-    if (!t) { TIP.classList.remove('on'); return; }
-    TIP.innerHTML = t.dataset.tip;
-    TIP.style.left = e.clientX + 'px';
-    TIP.style.top = (e.clientY - 14) + 'px';
-    TIP.classList.add('on');
-  });
-  el.addEventListener('mouseleave', () => TIP.classList.remove('on'));
+// The Analytics tab (lesson-ui/analytics): the island keeps the range and draws every card from the bank, the
+// progress rows and the attempt log. "Practice →" on a top-5 row hands back that skill's set, which plays as a
+// Review practice set with the student's saved review timing.
+const analytics = mountAnalytics($('analytics'), {
+  practice: items => start(items, { focus: true, timing: FX.timing, mult: FX.mult, auto: FX.auto })
 });
-
-document.querySelectorAll('#db-range button').forEach(b => b.onclick = () => {
-  DBR = parseInt(b.dataset.r);
-  document.querySelectorAll('#db-range button').forEach(x => x.classList.toggle('on', x === b));
-  drawDash();
-});
+function drawDash() { analytics.update({ questions: QS, progress: PROG, log: LOG }); }
 
 // ---------------- mistakes ----------------
 const MK = { sec:null, diff:null, skills:null, status:'wrong', bank:null };
