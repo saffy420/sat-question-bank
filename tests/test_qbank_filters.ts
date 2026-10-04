@@ -7,8 +7,8 @@ import { applyExtraFilters } from '../lesson-ui/qbank/filterTypes.ts';
 import type { FilterCtx, FilterDef, FilterQuestion } from '../lesson-ui/qbank/filterTypes.ts';
 import { savedIds, setSaved, loadSaved, subscribe } from '../lesson-ui/qbank/saved.ts';
 import {
-  BLUEBOOK_INITIAL, RESULT_INITIAL, SAVED_INITIAL, TIME_EDGES_S, TIME_INITIAL, TIME_LABELS,
-  bluebookActive, bluebookIds, bluebookTest, resultActive, resultOf, resultTest, savedActive, savedTest,
+  BLUEBOOK_INITIAL, COMPLETED_INITIAL, RESULT_INITIAL, SAVED_INITIAL, TIME_EDGES_S, TIME_INITIAL, TIME_LABELS,
+  bluebookActive, bluebookIds, bluebookTest, completedActive, completedMode, completedTest, resultActive, resultOf, resultTest, savedActive, savedTest,
   timeActive, timeInRange, timeRange, timeSummary, timeTest
 } from '../lesson-ui/qbank/filters/predicates.ts';
 
@@ -18,12 +18,13 @@ const PTMAP = { tests: [
   { id: 'PT2', RW: { m1: null, easy: null, hard: null }, Math: { m1: ['m1', 'm3'], easy: [], hard: [] } }
 ] };
 const ctx = (prog: FilterCtx['prog'] = {}, ptmap: FilterCtx['ptmap'] = PTMAP): FilterCtx => ({ prog, log: [], ptmap });
-// The four defs as the page builds them, minus the JSX controls (predicates.ts is JSX-free).
+// The defs as the page builds them, minus the JSX controls (predicates.ts is JSX-free).
 const defs = [
   { key: 'bluebook', initial: BLUEBOOK_INITIAL, isActive: bluebookActive, test: bluebookTest },
   { key: 'timeSpent', initial: TIME_INITIAL, isActive: timeActive, test: timeTest },
   { key: 'result', initial: RESULT_INITIAL, isActive: resultActive, test: resultTest },
-  { key: 'saved', initial: SAVED_INITIAL, isActive: savedActive, test: savedTest }
+  { key: 'saved', initial: SAVED_INITIAL, isActive: savedActive, test: savedTest },
+  { key: 'completed', initial: COMPLETED_INITIAL, isActive: completedActive, test: completedTest }
 ] as unknown as FilterDef<any>[];
 
 test('bluebookIds: every non-null id across both sections and all three modules, memoised per map', () => {
@@ -99,6 +100,25 @@ test('result: Green is correct; Red and Orange (ever missed) are incorrect; no m
   assert.equal(resultTest(q('missing'), 'all', c), true, 'All keeps the unattempted');
   assert.equal(resultActive('all'), false);
   assert.equal(resultActive('correct') && resultActive('incorrect'), true);
+});
+
+test('completed: hide drops every question with a Green, Red or Orange marker; show keeps all', () => {
+  const prog = { g: { marker: 'Green' }, r: { marker: 'Red' }, o: { marker: 'Orange' }, none: {}, odd: { marker: 'Purple' } };
+  const c = ctx(prog);
+  assert.deepEqual(['g', 'r', 'o', 'none', 'odd', 'missing'].map(id => completedTest(q(id), 'hide', c)), [false, false, false, true, true, true]);
+  assert.deepEqual(['g', 'r', 'none'].map(id => completedTest(q(id), 'show', c)), [true, true, true]);
+  assert.equal(completedActive('show'), false);
+  assert.equal(completedActive('hide'), true);
+  assert.equal(completedMode('garbage'), 'show');
+});
+
+test('completed combined with result can leave nothing, without error', () => {
+  const prog = { g: { marker: 'Green' }, r: { marker: 'Red' }, none: {} };
+  const ids = ['g', 'r', 'none'];
+  const left = (values: Record<string, unknown>) => ids.filter(id => applyExtraFilters(defs, q(id), values, ctx(prog)));
+  assert.deepEqual(left({ completed: 'hide' }), ['none']);
+  assert.deepEqual(left({ completed: 'hide', result: 'correct' }), []);
+  assert.deepEqual(left({ result: 'correct' }), ['g']);
 });
 
 test('saved: only keeps the questions in the saved store', async () => {

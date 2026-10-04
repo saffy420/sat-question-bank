@@ -29,7 +29,8 @@ async function openHome(page: Page) {
   await page.locator('[data-tab="practice"]').click();
   await expect(page.locator('#bank-home .qb-cols')).toBeVisible();
 }
-const matching = async (page: Page) => Number((await page.locator('#start-count').innerText()).match(/^([\d,]+)/)![1].replace(/,/g, ''));
+const matching = async (page: Page) => Number(await page.locator('#start-count [data-matching]').getAttribute('data-matching'));
+const questions = (n: number) => `${n.toLocaleString()} question${n === 1 ? '' : 's'}`;
 
 test('question bank home: layout, selection, Review and Start', async ({ browser }) => {
   const context = await newUserContext(browser, STUDENT);
@@ -59,9 +60,10 @@ test('question bank home: layout, selection, Review and Start', async ({ browser
     await expect(skill).toHaveAttribute('aria-pressed', 'true');
     await page.mouse.move(0, 0); // off the row: hover is its own, darker state
     await expect.poll(() => skill.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(232, 239, 255)');
-    expect(await skill.locator('svg, input[type="checkbox"]').count()).toBe(0);
+    await expect(skill.locator('.qb-check')).toHaveAttribute('data-state', 'on');
     const one = await page.evaluate(n => window.__qa().QS.filter((q: { skill?: string }) => q.skill === n).length, name);
-    await expect(page.locator('#start-count')).toHaveText(`${one} matching question${one === 1 ? '' : 's'}`);
+    await expect(page.locator('#start-count')).toContainText(`1 skill · ${questions(one)}`);
+    await expect(page.locator('#btn-start')).toHaveText(`Practice ${one}`);
     expect(one).toBeLessThan(all);
     // Un-picking the last skill is every topic again.
     await skill.click();
@@ -73,6 +75,8 @@ test('question bank home: layout, selection, Review and Start', async ({ browser
     const domain = page.locator('#bank-home .qb-col[data-section="Math"] .qb-dom').first();
     await domain.click();
     await expect(domain).toHaveAttribute('aria-pressed', 'true');
+    await expect(domain.locator('.qb-check')).toHaveAttribute('data-state', 'on');
+    await expect(page.locator('#bank-home .qb-col[data-section="Math"] .qb-sec .qb-check')).toHaveAttribute('data-state', /on|part/);
     const domSkills = await page.evaluate(d => [...new Set(window.__qa().QS.filter((q: { domain?: string }) => q.domain === d).map((q: { skill?: string }) => q.skill))], await domain.getAttribute('data-domain'));
     for (const s of domSkills) await expect(page.locator(`#bank-home .qb-skill[data-skill="${s}"]`)).toHaveAttribute('aria-pressed', 'true');
     await shot(page, 'home-domain-picked');
@@ -82,7 +86,7 @@ test('question bank home: layout, selection, Review and Start', async ({ browser
     // A section header selects the whole section; Start practice opens the player on exactly that set.
     await page.locator('#bank-home .qb-sec[data-section="Math"]').click();
     const mathIds = await page.evaluate(() => window.__qa().QS.filter((q: { section: string }) => q.section === 'Math').map((q: { id: string }) => q.id));
-    await expect(page.locator('#start-count')).toHaveText(`${mathIds.length} matching questions`);
+    await expect(page.locator('#start-count')).toContainText(questions(mathIds.length));
     await page.locator('#qb-count').click();
     await page.locator('#bank-home [data-opt="count"][data-v="0"]').click();
     await expect(page.locator('#qb-count')).toContainText('Questions: All');
@@ -104,19 +108,27 @@ test('question bank home: layout, selection, Review and Start', async ({ browser
     await shot(page, 'home-review-modal');
     await page.locator('#modal-root [data-x]').click();
     await page.locator('#bank-home .qb-seg [data-mode="all"]').click();
-    await expect(page.locator('#btn-start')).toHaveText('Start practice');
+    await expect(page.locator('#btn-start')).toHaveText(/^Practice [\d,]+$/);
 
-    // The Filters card: question set and lesson questions, a count badge, Reset filters.
-    await page.locator('#qb-filters').click();
-    await page.locator('#bank-home [data-filter="bank"]').click();
+    // One row of filter chips, no Filters popover; each chip shows its value; Reset filters ends the row.
+    await expect(page.locator('#qb-filters')).toHaveCount(0);
+    for (const [key, label] of [['diff', 'Difficulty'], ['bank', 'Question set'], ['lesson', 'Lesson questions'], ['bluebook', 'Bluebook tests'], ['timeSpent', 'Time spent'], ['result', 'Result'], ['saved', 'Saved'], ['completed', 'Completed']])
+      await expect(page.locator(`#bank-home .qb-chips [data-filter="${key}"]`)).toHaveText(label);
+    await expect(page.locator('#qb-reset')).toBeDisabled();
+    await page.locator('#qb-diff').click();
+    await page.locator('#bank-home [data-opt="diff"][data-v="Medium"]').click();
+    await page.locator('#bank-home [data-opt="diff"][data-v="Hard"]').click();
+    await expect(page.locator('#qb-diff')).toContainText('Difficulty: Medium, Hard');
+    await page.locator('#qb-f-bank').click();
     await page.locator('#bank-home [data-opt="bank"][data-v="ai"]').click();
-    await expect(page.locator('#qb-filters .qb-badge')).toHaveText('1');
     await expect(page.locator('#bank-home [data-filter="bank"]')).toContainText('Question set: AI');
-    const ai = await page.evaluate(() => window.__qa().QS.filter((q: { ai?: boolean; section: string }) => q.ai && q.section === 'Math').length);
-    await expect(page.locator('#start-count')).toHaveText(`${ai} matching question${ai === 1 ? '' : 's'}`);
+    await expect(page.locator('#qb-reset')).toBeEnabled();
+    const ai = await page.evaluate(() => window.__qa().QS.filter((q: { ai?: boolean; section: string; difficulty?: string }) => q.ai && q.section === 'Math' && q.difficulty !== 'Easy').length);
+    await expect.poll(() => matching(page)).toBe(ai);
     await shot(page, 'home-filters');
     await page.locator('#qb-reset').click();
-    await expect(page.locator('#qb-filters .qb-badge')).toHaveCount(0);
+    await expect(page.locator('#qb-diff')).toHaveText('Difficulty');
+    await expect(page.locator('#qb-reset')).toBeDisabled();
     await page.keyboard.press('Escape');
     await expect(page.locator('#bank-home .qb-pop')).toHaveCount(0);
     expect(errors).toEqual([]);
@@ -165,7 +177,7 @@ for (const [size, viewport] of Object.entries(SIZES)) {
   });
 }
 
-test('combined Filters popover changes counts and Saved only opens the flagged question', async ({ browser }) => {
+test('combined filter chips change counts and Saved only opens the flagged question', async ({ browser }) => {
   const context = await newUserContext(browser, STUDENT);
   const clearSaved = async () => {
     for (const id of await (await context.request.get('/api/saved')).json()) {
@@ -186,10 +198,7 @@ test('combined Filters popover changes counts and Saved only opens the flagged q
     await openHome(page);
     const all = await matching(page);
     expect(all).toBeGreaterThan(3);
-    await page.locator('#qb-filters').click();
-    for (const [key, label] of [['bluebook', 'Bluebook tests'], ['timeSpent', 'Time spent'], ['result', 'Result'], ['saved', 'Saved']])
-      await expect(page.locator(`#bank-home [data-filter="${key}"]`)).toHaveText(label);
-    await page.locator('[data-filter="bluebook"]').click();
+        await page.locator('[data-filter="bluebook"]').click();
     await page.getByRole('radiogroup', { name: 'Bluebook tests' }).getByRole('radio', { name: 'Only', exact: true }).click();
     await expect.poll(() => matching(page)).toBe(1);
     await page.getByRole('radiogroup', { name: 'Bluebook tests' }).getByRole('radio', { name: 'Hide', exact: true }).click();
@@ -205,6 +214,16 @@ test('combined Filters popover changes counts and Saved only opens the flagged q
     await expect.poll(() => matching(page)).toBe(1);
     await page.getByRole('radio', { name: 'Incorrect only', exact: true }).click();
     await expect.poll(() => matching(page)).toBe(2);
+    // Completed: hide the three with a marker; with Result: Correct only nothing is left, and the combination is allowed.
+    await page.locator('[data-filter="completed"]').click();
+    await page.getByRole('radio', { name: 'Hide completed', exact: true }).click();
+    await expect(page.locator('[data-filter="completed"]')).toContainText('Completed: Hide completed');
+    await expect.poll(() => matching(page)).toBe(0);
+    await expect(page.locator('#btn-start')).toBeDisabled();
+    await expect(page.locator('#bank-home .qb-empty').first()).toBeVisible();
+    await page.locator('[data-filter="result"]').click();
+    await page.getByRole('radio', { name: 'All', exact: true }).click();
+    await expect.poll(() => matching(page)).toBe(all - 3);
     await page.locator('#qb-reset').click();
     await expect.poll(() => matching(page)).toBe(all);
     await page.keyboard.press('Escape');
@@ -216,7 +235,6 @@ test('combined Filters popover changes counts and Saved only opens the flagged q
     await page.locator('#bank-dashboard').click();
     await page.locator('#bank-exit-confirm').click();
     await page.locator('[data-tab="practice"]').click();
-    await page.locator('#qb-filters').click();
     await page.locator('[data-filter="saved"]').click();
     await page.getByRole('radio', { name: 'Saved only', exact: true }).click();
     await expect.poll(() => matching(page)).toBe(1);

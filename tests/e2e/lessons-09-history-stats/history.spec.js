@@ -49,9 +49,8 @@ async function selectText(page, text) {
 const record = async context => ({ progress: await (await context.request.get('/api/progress')).json(), attempts: await (await context.request.get('/api/attempts')).json() });
 const history = (context, id) => context.request.get(`/api/lesson-history/${id}`);
 // "Lesson questions" is a three-way choice; clicking an option makes it the only one.
-// It sits in the question bank home's Filters card; the card closes again with Escape.
+// It is a chip in the question bank home's filter row; its card closes again with Escape.
 async function usage(page, value, label) {
-  await page.locator('#qb-filters').click();
   await page.locator('#bank-home [data-filter="lesson"]').click();
   await page.locator(`#bank-home [data-opt="lesson"][data-v="${value}"]`).click();
   await expect(page.locator('#bank-home [data-opt="lesson"][aria-pressed="true"]')).toHaveText(label);
@@ -225,8 +224,8 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
       ['hide-all', 'Hide all lesson questions', { Transitions: 0, 'Rhetorical Synthesis': 0, Boundaries: 1 }],
       ['show-all', 'Show all', { Transitions: 1, 'Rhetorical Synthesis': 1, Boundaries: 1 }]]) {
       await usage(student, mode, label);
-      await expect(student.locator('#qb-filters .qb-badge')).toHaveCount(mode === 'show-all' ? 0 : 1);
-      await expect(student.locator('#start-count')).toHaveText(`${expected[mode].length} matching questions`);
+      await expect(student.locator('#qb-reset')).toBeEnabled({ enabled: mode !== 'show-all' });
+      await expect(student.locator('#start-count')).toContainText(`${expected[mode].length.toLocaleString()} question${expected[mode].length === 1 ? '' : 's'}`);
       for (const [skill, n] of Object.entries(topics)) await expect(student.locator(`#bank-home .qb-skill[data-skill="${skill}"]`)).toHaveCount(n);
       const skills = [...new Set(expected[mode].map(q => q.skill))].sort();
       expect((await student.locator('#bank-home .qb-skill').evaluateAll(rows => rows.map(r => r.dataset.skill))).sort()).toEqual(skills);

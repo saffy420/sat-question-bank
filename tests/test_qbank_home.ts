@@ -3,7 +3,7 @@
 //   node --test tests/test_qbank_home.ts        (Node 22.18+ strips the types)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toggleSkills, toggleOption, normalizeSkills, migrateSection, allPicked } from '../lesson-ui/qbank/selection.ts';
+import { toggleSkills, toggleOption, normalizeSkills, migrateSection, allPicked, pickState, accuracy, levelOf, MIN_ATTEMPTS } from '../lesson-ui/qbank/selection.ts';
 import { applyExtraFilters } from '../lesson-ui/qbank/filterTypes.ts';
 import type { FilterDef, FilterCtx } from '../lesson-ui/qbank/filterTypes.ts';
 
@@ -74,4 +74,23 @@ test('applyExtraFilters runs active filters only, with the stored value or the i
   assert.equal(applyExtraFilters([wrongOnly], q1, { wrong: true }, ctx), true);
   assert.equal(applyExtraFilters([wrongOnly], q2, { wrong: true }, ctx), false);
   assert.equal(applyExtraFilters([], q2, { wrong: true }, ctx), true, 'no defs, no filtering');
+});
+
+test('pickState: on when every skill of the group is picked, part when some are, off otherwise', () => {
+  assert.equal(pickState(null, RW_DOMAIN), 'off');
+  assert.equal(pickState(['Circles'], RW_DOMAIN), 'off');
+  assert.equal(pickState(['Inferences'], RW_DOMAIN), 'part');
+  assert.equal(pickState([...RW_DOMAIN, 'Circles'], RW_DOMAIN), 'on');
+  assert.equal(pickState(['Inferences'], ['Inferences']), 'on');
+  assert.equal(pickState(['Inferences'], []), 'off');
+  assert.equal(pickState(['Inferences'], SECTION_SKILLS['Reading & Writing']), 'part', 'a section with one skill picked');
+});
+
+test('accuracy waits for 5 attempts and uses the dashboard thresholds', () => {
+  assert.equal(MIN_ATTEMPTS, 5);
+  assert.equal(accuracy({ a: 0, c: 0 }), null);
+  assert.equal(accuracy({ a: 4, c: 0 }), null, 'one miss is not a red 0%');
+  assert.equal(accuracy({ a: 5, c: 0 }), 0);
+  assert.equal(accuracy({ a: 7, c: 5 }), 71);
+  assert.deepEqual([100, 80, 79, 60, 59, 0].map(levelOf), ['good', 'good', 'ok', 'ok', 'low', 'low']);
 });

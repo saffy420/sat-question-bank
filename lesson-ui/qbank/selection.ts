@@ -35,3 +35,19 @@ export function migrateSection(f: { sec?: unknown; skills?: unknown }, sectionSk
   if (!skills) return normalizeSkills([...inSec]);
   return normalizeSkills(skills.filter(s => inSec.has(s)));
 }
+
+export type PickState = 'on' | 'part' | 'off';
+// A section, domain or skill row's checkbox: every skill of the group picked, some of them, or none.
+export function pickState(current: Skills, group: string[]): PickState {
+  if (!current || !group.length) return 'off';
+  const n = group.filter(s => current.includes(s)).length;
+  return n === 0 ? 'off' : n === group.length ? 'on' : 'part';
+}
+
+// Accuracy on the home page waits for this many attempted questions, so one miss is not a red 0%.
+export const MIN_ATTEMPTS = 5;
+export type Level = 'good' | 'ok' | 'low';
+// Percent correct, or null while fewer than MIN_ATTEMPTS questions have been attempted.
+export const accuracy = (t: { a: number; c: number }): number | null => t.a >= MIN_ATTEMPTS ? Math.round(t.c / t.a * 100) : null;
+// The dashboard's thresholds.
+export const levelOf = (pct: number): Level => pct >= 80 ? 'good' : pct >= 60 ? 'ok' : 'low';
