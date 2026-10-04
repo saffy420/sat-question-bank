@@ -4,6 +4,7 @@ import { padSessionId, progressStatement, attemptStatement, attendedSessions, le
 export { LessonRoom } from './lesson-room.js';
 export { LessonSync } from './lesson-sync.js';
 import { traceEnv } from './budget.js';
+import { accountName, cleanName } from './name.js';
 import { submitReport, submitSuggestion, adminReportRoute, MAX_REPORT_BODY } from './reports.js';
 import { sessionResults, classAverage } from './session-results.js';
 
@@ -53,7 +54,7 @@ async function lessonAccess(req, env, url, p, u) {
     if (!participant) return json({ error: 'not joined' }, 403);
   }
   const body = { sessionId: session.id, userId: u.id, role: projector ? 'projector' : admin ? 'admin' : 'student',
-    name: String(u.user_metadata?.full_name || u.email || u.id).slice(0, 200), ws: !!ws, join, clientId: projector ? null : clientId, desmosKey: desmosApiKey(env, url) };
+    name: String(cleanName(u.user_metadata?.full_name) || u.email || u.id).slice(0, 200), ws: !!ws, join, clientId: projector ? null : clientId, desmosKey: desmosApiKey(env, url) };
   return env.LESSON_ROOM.getByName(String(session.id)).fetch(ws
     ? new Request('https://lesson.internal/', { headers: { Upgrade: 'websocket', 'X-Lesson-Internal': 'room', 'X-Lesson-Context': JSON.stringify(body) } })
     : new Request('https://lesson.internal/', { method: 'POST', headers: { 'X-Lesson-Internal': 'room', 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
@@ -188,7 +189,7 @@ async function whoami(req, env) {
 const TOUCHED = new Set();
 async function touchUser(env, u) {
   if (TOUCHED.has(u.id)) return;
-  const name = u.user_metadata?.full_name || u.user_metadata?.name || '';
+  const name = accountName(u);
   await env.DB.prepare(
     `INSERT INTO users (id, email, name) VALUES (?,?,?)
      ON CONFLICT(id) DO UPDATE SET email=excluded.email,
@@ -234,7 +235,7 @@ const validHistory = r => {
 };
 // Only the session POST synchronizes env promotion/demotion. Existing roles remain until next sign-in.
 async function syncRole(env, u) {
-  const name = u.user_metadata?.full_name || u.user_metadata?.name || '';
+  const name = accountName(u);
   const emails = String(env.ADMIN_EMAILS || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
   const role = emails.includes(u.email.toLowerCase()) ? 'admin' : 'student';
   await env.DB.prepare(`INSERT INTO users (id, email, name, role) VALUES (?,?,?,?)

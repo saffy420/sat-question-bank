@@ -84,7 +84,7 @@ test('H3 target and current score: validated inline, saved to the plan, shown on
   await saveLog(page);
 });
 
-test('H4 logging a test updates Home; the button starts the next step', async () => {
+test('H4 logging a test updates Home', async () => {
   await tab('home');
   await expect(home('home-current-value')).toHaveText('1350');
   await expect(home('home-goal-value')).toHaveText('1450');
@@ -95,6 +95,43 @@ test('H4 logging a test updates Home; the button starts the next step', async ()
   expect(await page.evaluate(() => document.querySelector('.board-b')!.scrollWidth <= document.querySelector('.board-b')!.clientWidth)).toBe(true);
   await shot(page, 'home-4-phone');
   await page.setViewportSize({ width: 1366, height: 768 });
+});
+
+test('H5 phone tab bar: five tiles that do not overlap; More opens the rest of the rail', async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const tiles = page.locator('.nav > :visible');
+  expect(await tiles.evaluateAll(els => els.map(el => el.id || (el as HTMLElement).dataset.tab)))
+    .toEqual(['home', 'plan', 'practice', 'join-lesson', 'nav-more']);
+  // No label is wider than its tile, so no two labels run into each other.
+  expect(await tiles.evaluateAll(els => els.every(el => { const s = el.querySelector('span')!; return s.scrollWidth <= el.clientWidth; }))).toBe(true);
+  const menu = page.locator('#nav-more-menu');
+  await expect(menu).toBeHidden();
+  await page.locator('#nav-more').click();
+  await expect(page.locator('#nav-more')).toHaveAttribute('aria-expanded', 'true');
+  await expect(menu.locator('.nav-more-i')).toHaveText(['Dashboard', 'Mistakes', 'Practice Exams', 'History', 'My Lessons', 'Settings', 'Sign out']);
+  await shot(page, 'home-8-phone-more');
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await page.locator('#nav-more').click();
+  await menu.locator('[data-more="mistakes"]').click();
+  await expect(menu).toBeHidden();
+  await expect(page.locator('#tab-mistakes')).toBeVisible();
+  await expect(page.locator('#nav-more')).toHaveClass(/\bon\b/);
+  // A click outside closes it.
+  await page.locator('#nav-more').click();
+  await expect(menu).toBeVisible();
+  await page.locator('.board-b').click({ position: { x: 20, y: 20 } });
+  await expect(menu).toBeHidden();
+  await page.locator('[data-tab="home"]').click();
+  await expect(page.locator('#nav-more')).not.toHaveClass(/\bon\b/);
+  await page.setViewportSize({ width: 1366, height: 768 });
+  // The rail is unchanged on a laptop: every tab is on it and More is not.
+  await expect(page.locator('.nav-i[data-tab="mistakes"]')).toBeVisible();
+  await expect(page.locator('#nav-more')).toBeHidden();
+});
+
+test('H6 Home edits and the plan start from Home', async () => {
+  await tab('home');
   await home('home-goal-edit').click();
   await home('home-goal-input').fill('1500');
   await home('home-goal-save').click();
