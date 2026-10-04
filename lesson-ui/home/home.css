@@ -1,0 +1,69 @@
+/* Home (Home.tsx). Light only, the Bluebook look: white cards, #2345be for actions. Every rule is scoped under #home-root. */
+#home-root { color:#1c2333; font:14px/1.35 "Roboto Variable", Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+#home-root *, #home-root *::before, #home-root *::after { box-sizing:border-box; }
+#home-root .hm { max-width:1080px; margin:0 auto; padding:28px 0 8px; display:flex; flex-direction:column; gap:28px; }
+#home-root button { font:inherit; cursor:pointer; }
+#home-root button:disabled { cursor:default; opacity:.6; }
+#home-root button:focus-visible, #home-root input:focus-visible, #home-root select:focus-visible { outline:2px solid #2345be; outline-offset:2px; }
+#home-root .hm-k { font-size:13.5px; color:#4a5263; }
+#home-root .hm-num { font-size:30px; font-weight:500; letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:#1c2333; }
+
+/* greeting, actions and the countdown */
+#home-root .hm-top { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:24px 40px; }
+#home-root .hm-hello h1 { margin:0 0 18px; font-size:30px; font-weight:500; letter-spacing:-.02em; }
+#home-root .hm-name { color:#5b6474; font-weight:400; }
+#home-root .hm-actions { display:flex; flex-wrap:wrap; gap:10px; }
+#home-root .hm-primary { display:inline-flex; align-items:center; gap:8px; min-height:38px; padding:8px 16px; border:1px solid #2345be; border-radius:8px; background:#2345be; color:#fff; font-weight:600; }
+#home-root .hm-primary:hover:not(:disabled) { background:#1b3797; border-color:#1b3797; }
+#home-root .hm-secondary { display:inline-flex; align-items:center; gap:4px; min-height:38px; padding:8px 12px 8px 16px; border:1px solid #d5dae3; border-radius:8px; background:#fff; color:#1c2333; }
+#home-root .hm-secondary:hover { background:#f6f7f9; border-color:#9aa4b5; }
+
+#home-root .hm-count { display:flex; align-items:center; gap:32px; min-width:min(100%, 420px); }
+#home-root .hm-count-l { display:flex; flex-direction:column; gap:6px; }
+#home-root .hm-date { display:flex; align-items:center; gap:6px; color:#4a5263; }
+#home-root .hm-count select { height:34px; padding:0 8px; border:1px solid #d5dae3; border-radius:8px; background:#fff; color:#1c2333; font:inherit; }
+#home-root .hm-clock { display:flex; gap:22px; margin-left:auto; }
+#home-root .hm-unit { display:flex; flex-direction:column; align-items:center; min-width:44px; }
+#home-root .hm-unit b { font-size:26px; font-weight:500; font-variant-numeric:tabular-nums; }
+#home-root .hm-unit span { font-size:13px; color:#5b6474; }
+#home-root .hm-note p { margin:0; color:#4a5263; max-width:420px; }
+
+/* sections and cards */
+#home-root .hm-sec h2 { display:flex; align-items:center; gap:8px; margin:0 0 12px; font-size:18px; font-weight:500; color:#1c2333; }
+#home-root .hm-sec h2 svg { color:#5b6474; }
+#home-root .hm-stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); border:1px solid #dfe3ea; border-radius:14px; background:#fff; overflow:hidden; }
+#home-root .hm-stat { display:flex; flex-direction:column; gap:10px; padding:18px 20px; border-left:1px solid #dfe3ea; }
+#home-root .hm-stat:first-child { border-left:0; }
+#home-root .hm-stat-v { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#home-root .hm-chip { padding:5px 14px; border:1px solid #d5dae3; border-radius:999px; background:#fff; color:#1c2333; font-size:13.5px; }
+#home-root .hm-chip:hover { background:#f3f5f8; border-color:#9aa4b5; }
+
+#home-root .hm-scores { position:relative; display:flex; flex-wrap:wrap; gap:16px 48px; padding:20px 24px; min-height:150px; border:1px solid #dfe3ea; border-radius:14px; background:#fff; overflow:hidden; }
+#home-root .hm-score { position:relative; z-index:1; display:flex; flex-direction:column; gap:8px; min-width:180px; }
+#home-root .hm-val { display:flex; align-items:center; gap:8px; }
+#home-root .hm-sub { font-size:12.5px; color:#5b6474; }
+#home-root .hm-target { position:absolute; right:24px; bottom:-28px; width:150px; height:150px; }
+#home-root .hm-pencil { display:inline-grid; place-items:center; width:28px; height:28px; padding:0; border:0; border-radius:6px; background:none; color:#5b6474; }
+#home-root .hm-pencil:hover { background:#eef1f6; color:#2345be; }
+#home-root .hm-set { align-self:flex-start; padding:5px 12px; border:0; border-radius:8px; background:#eef1f6; color:#1c2333; font-size:13.5px; }
+#home-root .hm-set:hover { background:#e2e7f0; }
+#home-root .hm-edit { display:flex; flex-wrap:wrap; align-items:center; gap:6px; max-width:300px; }
+#home-root .hm-edit input { width:96px; height:36px; padding:0 10px; border:1px solid #9aa4b5; border-radius:8px; font:inherit; font-size:16px; font-variant-numeric:tabular-nums; }
+#home-root .hm-save { height:36px; padding:0 14px; border:1px solid #2345be; border-radius:8px; background:#2345be; color:#fff; font-weight:600; }
+#home-root .hm-cancel { height:36px; padding:0 12px; border:1px solid #d5dae3; border-radius:8px; background:#fff; color:#1c2333; }
+#home-root .hm-err { flex-basis:100%; margin:0; color:#b42318; font-size:13px; }
+
+@media (max-width: 860px) {
+  #home-root .hm { padding-top:8px; gap:22px; }
+  #home-root .hm-hello h1 { font-size:24px; }
+  #home-root .hm-stats { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  #home-root .hm-stat:nth-child(3) { border-left:0; }
+  #home-root .hm-stat:nth-child(n+3) { border-top:1px solid #dfe3ea; }
+  #home-root .hm-count { min-width:0; width:100%; gap:16px; }
+  #home-root .hm-target { display:none; }
+}
+@media (max-width: 420px) {
+  #home-root .hm-stat { padding:14px; }
+  #home-root .hm-num { font-size:24px; }
+  #home-root .hm-clock { gap:12px; }
+}

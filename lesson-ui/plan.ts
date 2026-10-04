@@ -52,7 +52,8 @@ export type Step = { id: string; kind: StepKind; skill?: string; misses?: number
 export type Plan = { testId: string; number: number; date: string; counts: Record<string, SkillCount>; slowOnly: string[]; steps: Step[] };
 // The student's goal, SAT date and the subject to put first, asked when a test is logged. Optional: older plans lack it.
 export type Emphasis = 'balanced' | Section;
-export type Profile = { goal: number | null; satDate: string | null; emphasis: Emphasis };
+// `current` is the student's current total score and the day it was set (typed on Home, or a logged test's scores).
+export type Profile = { goal: number | null; satDate: string | null; emphasis: Emphasis; current?: { score: number; date: string } };
 export type PlanState = { v: 1; tests: TestLog[]; skills: Record<string, SkillState>; plan: Plan | null; profile?: Profile };
 
 export const emptyState = (): PlanState => ({ v: 1, tests: [], skills: {}, plan: null });
@@ -324,6 +325,33 @@ export function readScore(raw: string, min: number, max: number, what: string): 
   const n = Number(t);
   if (!Number.isInteger(n) || n < min || n > max || n % 10) return { error: `${what} must be a multiple of 10 from ${min} to ${max}.` };
   return { value: n };
+}
+// The current score shown on Home and the plan: whichever is newer of the latest logged test with both section scores
+// and `profile.current`. A tie goes to the profile (it is either that test's own total or a later edit the same day).
+export type CurrentScore = { score: number; date: string; from: 'test' | 'profile' };
+export function currentScore(state: PlanState): CurrentScore | null {
+  let test: CurrentScore | null = null;
+  for (const t of state.tests) {
+    const s = t.score;
+    if (s && s.RW && s.Math && (!test || t.date >= test.date)) test = { score: s.RW + s.Math, date: t.date, from: 'test' };
+  }
+  const c = state.profile?.current;
+  const own: CurrentScore | null = c ? { score: c.score, date: c.date, from: 'profile' } : null;
+  return !own ? test : !test || own.date >= test.date ? own : test;
+}
+const NO_PROFILE: Profile = { goal: null, satDate: null, emphasis: 'balanced' };
+// A profile with some fields changed (Home's edits); a null current clears it. Fields not named are kept.
+export type ProfilePatch = Partial<Omit<Profile, 'current'>> & { current?: Profile['current'] | null };
+export function editProfile(prev: Profile | undefined, patch: ProfilePatch): Profile {
+  const { current, ...rest } = { ...NO_PROFILE, ...prev, ...patch };
+  return current ? { ...rest, current } : rest;
+}
+// The profile after logging a test from the log popup's last page: its goal, SAT date and emphasis, and, when the test has
+// both section scores and is not older than the stored current score, that test's total as the current score.
+export function logProfile(prev: Profile | undefined, fields: Pick<Profile, 'goal' | 'satDate' | 'emphasis'>, log: TestLog): Profile {
+  const s = log.score, cur = prev?.current;
+  const current = s && s.RW && s.Math && (!cur || log.date >= cur.date) ? { score: s.RW + s.Math, date: log.date } : cur;
+  return editProfile(prev, { ...fields, current });
 }
 // The pages of the log popup, in order: a recognition check only for a section marked "Not sure".
 export type LogChoice = Route | 'unsure';

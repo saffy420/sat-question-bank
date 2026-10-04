@@ -51,6 +51,9 @@ export async function student(browser): Promise<{ context: BrowserContext; page:
 export async function openApp(page: Page) {
   await page.goto('/app');
   await expect(page.locator('#user-name')).toContainText('E2E Student 7');
+  // Home is the first screen; the plan is one click away.
+  await expect(page.locator('#tab-home #home-next')).toBeEnabled();
+  await page.locator('[data-tab="plan"]').click();
   await expect(page.locator('#tab-plan')).toBeVisible();
   await expect(page.locator('#plan-body .panel').first()).toBeVisible();
 }

@@ -183,6 +183,7 @@ export { mountBank } from './Bank';
 export { createRecorder, pick, commit, remember, firstTry, outcome, SHOW_ANSWER_AFTER } from './record';
 export * as Plan from './plan';
 export { mountBankHome } from './qbank/BankHome';
+export { mountHome } from './home/Home';
 export { applyExtraFilters } from './qbank/filterTypes';
 export { EXTRA_FILTERS } from './qbank/extraFilters';
 export { migrateSection } from './qbank/selection';

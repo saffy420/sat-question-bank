@@ -904,6 +904,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
   <aside class="nav">
     <a class="nav-brand" href="/app"><span class="brand-mark" aria-hidden="true">r.</span><span class="nav-brand-t">Road to 1600</span></a>
 
+    <button class="nav-i" data-tab="home"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5L12 4l8 6.5V20h-5.5v-6h-5v6H4z"/></svg><span>Home</span></button>
     <button class="nav-i" data-tab="plan"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Study Plan</span></button>
     <button class="nav-i" data-tab="dash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19V11M12 19V5M19 19v-6"/></svg><span>Dashboard</span></button>
     <button class="nav-i" data-tab="mistakes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l8 15H4z"/><path d="M12 9v4M12 16.2v.1"/></svg><span>Mistakes</span></button>
@@ -931,6 +932,8 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
     </header>
 
     <div class="board-b">
+      <div id="tab-home" class="hide"><div id="home-root"></div></div>
+
       <div id="tab-plan" class="hide"><div id="plan-body"></div></div>
 
       <div id="tab-practice"><div id="bank-home"></div></div>
@@ -1122,6 +1125,7 @@ import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
 import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome, Plan } from '/lesson-ui/lesson.js';
 import { mountBankHome, applyExtraFilters, EXTRA_FILTERS, migrateSection } from '/lesson-ui/lesson.js';
 import { loadSaved, setSaved, savedIds } from '/lesson-ui/lesson.js';
+import { mountHome } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1141,8 +1145,8 @@ let LESSONS = { attended: new Set(), sessions: [] };
 let SESS = {}, QBY = new Map(), EXAMS = [];
 let F;
 let S = null;
-// The Study Plan is the first screen after login (docs/plan/BRIEF.md §3).
-let TAB = 'plan';
+// Home is the first screen after login; it leads into the Study Plan (docs/plan/BRIEF.md §3).
+let TAB = 'home';
 
 // ---------------- settings ----------------
 // One object, one storage key. These change shape often; a column per toggle is
@@ -1656,16 +1660,17 @@ window.__dd = dd;   // reachable for the DOM assertions; harmless in production
 window.__qa = () => ({ QS, PROG, LOG, S, renderStem, isRight, focusSet, weakness, levelOf, pacing, trapCounts, guessing });
 
 const NAV = document.querySelectorAll('.nav-i');
-const TABS = ['plan','practice','dash','mistakes','exams','history','lessons','settings'];
+const TABS = ['home','plan','practice','dash','mistakes','exams','history','lessons','settings'];
 
 // One entry point, so the boot-time tab and a rail click cannot drift apart.
 function setTab(t) {
-  if (!TABS.includes(t)) t = 'plan';   // a tab that no longer exists (Browse) lands on the default
+  if (!TABS.includes(t)) t = 'home';   // a tab that no longer exists (Browse) lands on the default
   TAB = t;
   NAV.forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   TABS.forEach(k => $('tab-'+k).classList.toggle('hide', k !== t));
-  // The question bank home fits the screen; the greeting header would push it into a scroll.
-  document.querySelector('.board-h').classList.toggle('hide', t === 'practice');
+  // The question bank home fits the screen; the greeting header would push it into a scroll. Home has its own greeting.
+  document.querySelector('.board-h').classList.toggle('hide', t === 'practice' || t === 'home');
+  if (t === 'home') drawHome();
   if (t === 'plan') drawPlan();
   if (t === 'dash') drawDash();
   if (t === 'mistakes') drawMistakes();
@@ -3381,6 +3386,7 @@ async function reloadPlan() {
     PLAN = { state: b.state, rev: b.rev, loaded: true, error: false };
   } catch (e) { if (!PLAN.loaded) PLAN.error = true; }
   if (TAB === 'plan') drawPlan();
+  if (TAB === 'home') drawHome();
 }
 
 // The plan screen, with the log-a-test popup over it while one is open.
@@ -3400,6 +3406,7 @@ function drawPlanBody() {
     el.innerHTML = `<div class="panel plan-hero" id="plan-empty">
       <h3>Your study plan</h3>
       <p>Take a full Bluebook practice test, then mark the questions you got wrong or found slow. Your plan is built from them, skill by skill.</p>
+      ${goalLine(st)}
       <button class="btn-p" id="plan-log">Log a Bluebook practice test</button></div>`;
     $('plan-log').onclick = () => openLog();
     return;
@@ -3429,15 +3436,50 @@ function drawPlanBody() {
   }
 }
 
-// Goal, last logged score, SAT date (with the days left) and emphasis, from the log popup's last page.
+// Goal, current score (Plan.currentScore), SAT date (with the days left) and emphasis, from the log popup's last page.
 function goalLine(st) {
-  const p = st.profile, last = st.tests[st.tests.length - 1], sc = last && last.score;
+  const p = st.profile, cur = Plan.currentScore(st);
   const bits = [];
   if (p && p.goal) bits.push(`Goal <b>${p.goal}</b>`);
-  if (sc && sc.RW && sc.Math) bits.push(`Last test <b>${sc.RW + sc.Math}</b>`);
+  if (cur) bits.push(`Current <b>${cur.score}</b>`);
   if (p && p.satDate && p.satDate >= localDay()) bits.push(`SAT <b>${esc(fmtDay(p.satDate))}</b> (${satDays(p.satDate).toLowerCase()})`);
   if (p && p.emphasis && p.emphasis !== 'balanced') bits.push(`${Plan.SECTION_NAME[p.emphasis]} first`);
   return bits.length ? `<p class="plan-goal" id="plan-goal">${bits.join(' · ')}</p>` : '';
+}
+
+// ---- Home (lesson-ui/home) ----
+// Home reads and edits the same plan JSON as this screen: goal, current score and SAT date live in `profile`, saved through
+// savePlan (one row, rev-checked), so the plan and the log popup see an edit at once. Guests get the plan's guest path.
+const homeUI = mountHome($('home-root'), {
+  startNext() { const st = planState(); openStep(Plan.nextStep(st.plan)); },
+  openLog: () => openLog(),
+  weekly: () => setTab('plan'),
+  mistakes: () => setTab('mistakes'),
+  signIn: () => $('btn-auth').click(),
+  retry: reloadPlan,
+  saveProfile
+});
+async function saveProfile(patch) {
+  if (!authToken || !PLAN.loaded || planBusy) return false;
+  const st = planState();
+  const ok = await savePlan({ ...st, profile: Plan.editProfile(st.profile, patch) });
+  drawHome();
+  return ok;
+}
+function drawHome() {
+  if (TAB !== 'home') return;
+  const st = planState(), p = st.profile || {}, nx = Plan.nextStep(st.plan);
+  const t = tally(), cur = Plan.currentScore(st);
+  homeUI.update({
+    name: $('user-name').textContent || '',
+    plan: !authToken ? 'guest' : PLAN.loaded ? 'ready' : PLAN.error ? 'error' : 'loading',
+    next: nx ? { kind: nx.kind, skill: nx.skill, number: nx.number } : null,
+    goal: p.goal || null,
+    current: cur ? { score: cur.score, date: cur.date } : null,
+    satDate: p.satDate || null,
+    stats: { attempted: t.att, accuracy: t.att ? Math.round(t.corr / t.att * 100) : null, saved: savedIds.size,
+      recent: buckets(7).reduce((n, b) => n + b.no, 0) }
+  });
 }
 
 function stepRow(s, i, nx) {
@@ -3885,7 +3927,7 @@ async function saveTestLog() {
   items.forEach(it => { after[it.id] = Stats.nextProgress(after[it.id], it.id, it.mark !== 'W', ts, 0); });
   const t2 = Stats.tally(QS, after);
   const acc = new Map(Object.entries(t2.skill).map(([k, v]) => [k, v.a ? v.c / v.a : null]));
-  const profile = { goal: goal.value, satDate: PLOG.satDate || null, emphasis: PLOG.emphasis };
+  const profile = Plan.logProfile(planState().profile, { goal: goal.value, satDate: PLOG.satDate || null, emphasis: PLOG.emphasis }, log);
   const { state } = Plan.logTest({ ...planState(), profile }, PTMAP, log, QBY, acc, skillRank);
   planBusy = true;
   $('pl-save').disabled = true;
