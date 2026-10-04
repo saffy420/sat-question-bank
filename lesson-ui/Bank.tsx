@@ -220,7 +220,7 @@ function Player({ model, bridge, clock }: { model: BankModel; bridge: BankBridge
       <div className="lesson-desmos-bar bank-expl-bar">
         <strong>{desmosView ? 'Desmos solution' : 'Explanation'}</strong>
         <span>
-          {q.has_desmos ? <button id="bank-desmos-open" onClick={() => setDesmosView(!desmosView)}>{desmosView ? 'Explanation' : 'Desmos'}</button> : null}
+          {q.has_desmos ? <button id="bank-desmos-open" className={desmosView ? 'bank-solution-explain' : 'bank-solution-desmos'} onClick={() => setDesmosView(!desmosView)}>{desmosView ? 'Explanation' : 'Desmos'}</button> : null}
           <button id="bank-expl-close" className="bank-expl-x" aria-label="Close explanation" onClick={() => setExplOpen(false)}><X aria-hidden="true"/></button>
         </span>
       </div>
