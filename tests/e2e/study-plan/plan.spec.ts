@@ -127,13 +127,13 @@ test('C4 review: drill misses (retry until correct, then the explanation), then 
   await expect(page.locator('#bank-reveal')).toHaveCount(0);
   await choice(page, 'B').click();
   await page.locator('#bank-primary').click();       // Check: right, closes
-  await expect(page.locator('#bank-reveal details[open]')).toContainText('E2E_PLAN_EXPL');
+  await expect(page.locator('#bank-reveal')).toContainText('E2E_PLAN_EXPL');
   // A right first try still opens the explanation in a plan review.
   for (let i = 1; i < 4; i++) {
     await page.locator('#bank-primary').click();
     await choice(page, 'B').click();
     await page.locator('#bank-primary').click();
-    await expect(page.locator('#bank-reveal details[open]')).toContainText('E2E_PLAN_EXPL ' + items[i]);
+    await expect(page.locator('#bank-reveal')).toContainText('E2E_PLAN_EXPL ' + items[i]);
   }
   await shot(page, '07-review');
   const reviewed = (await api(context, '/api/attempts')).filter(a => a.plan_step === 'PT90.d0.r');

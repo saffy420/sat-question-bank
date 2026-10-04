@@ -106,7 +106,8 @@ img { max-width: 100%; height: auto; }
 .nav-brand .brand-mark { flex: 0 0 34px; display: grid; place-items: center; width: 34px; height: 34px; background: #2563eb; color: #fff; border-radius: 10px; font-size: 20px; }
 .nav-grp { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--nav-dim); padding: 18px 10px 7px; }
 .nav-i { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; border: 0; background: transparent; color: var(--nav-txt); font-size: 14px; font-weight: 500; padding: 10px; border-radius: 11px; margin-bottom: 2px; }
-.nav-i:hover:not(:disabled) { background: var(--nav-2); border-color: transparent; color: var(--nav-on); }
+/* .nav in front: the page-wide light button:hover outranks a bare .nav-i:hover and left a pale tile on the dark rail. */
+.nav .nav-i:hover:not(:disabled) { background: var(--nav-2); border-color: transparent; color: var(--nav-on); }
 .nav-i.on { background: var(--nav-2); color: var(--nav-on); font-weight: 600; }
 .nav-i.on svg { color: var(--mint); }
 .nav-i svg { flex: 0 0 18px; }
@@ -120,6 +121,8 @@ img { max-width: 100%; height: auto; }
 #join-lesson:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { #join-lesson { transition: none; } #join-lesson:hover:not(:disabled) { transform: none; } }
 .nav-user { display: flex; align-items: center; gap: 10px; padding: 12px 10px 10px; border-top: 1px solid var(--nav-line); }
+/* The phone tab bar's More button and its menu (the rest of the rail); the rail itself never shows them. */
+.nav-more, .nav-more-menu { display: none; }
 .nav-av { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%; background: var(--nav-2); color: var(--nav-on); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
 .nav-um { min-width: 0; }
 .nav-gear { width: auto; flex: 0 0 auto; margin: 0 0 0 auto; padding: 8px; }
@@ -620,28 +623,38 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
   /* A bottom nav is an icon over its label, and the labels have to come back:
      they are hidden at 980px because the rail is a 66px strip there, but here
      there is a whole row for them and a bare glyph row reads as a toolbar.
-     Five equal tabs plus the sign-in button; "Question Bank" does not fit in a
-     fifth of 375px and the gear has no label in the markup at all, so those two
-     carry a short one of their own. */
+     Five tiles: Home, Plan, Practice, Join and More; everything else on the rail
+     (Dashboard, Mistakes, Exams, History, My Lessons, Settings, Admin, sign in
+     or out) is in the More menu. "Question Bank" does not fit in a fifth of
+     375px, so it carries a short label of its own. */
   .nav-i, .nav-user { flex: 1 1 0; min-width: 0; }
   .nav-i { flex-direction: column; justify-content: center; gap: 3px;
            margin: 0; padding: 6px 2px; border-radius: 12px; }
-  .nav-i > span, .nav-gear::after { display: block; font-size: 10px; font-weight: 600;
+  .nav-i > span { display: block; font-size: 10px; font-weight: 600;
                                     line-height: 1.2; white-space: nowrap; }
   .nav-i[data-tab="practice"] > span { font-size: 0; }
   .nav-i[data-tab="practice"] > span::after { content: "Practice"; font-size: 10px; }
   .nav-i[data-tab="plan"] > span { font-size: 0; }
   .nav-i[data-tab="plan"] > span::after { content: "Plan"; font-size: 10px; }
-  .nav-i[data-tab="exams"] > span { font-size: 0; }
-  .nav-i[data-tab="exams"] > span::after { content: "Exams"; font-size: 10px; }
-  .nav-gear::after { content: "Settings"; }
+  .nav-i[data-tab="dash"], .nav-i[data-tab="mistakes"], .nav-i[data-tab="exams"], .nav-i[data-tab="history"],
+  .nav-i[data-tab="lessons"], #admin-link, .nav-user { display: none; }
+  .nav-more { display: flex; }
+  .nav-more.on > span { color: var(--mint); }
+  .nav-more.on svg { color: var(--mint); }
+  .nav-more-menu:not([hidden]) { display: flex; flex-direction: column; position: fixed; z-index: 60; right: 8px;
+    bottom: calc(68px + env(safe-area-inset-bottom)); min-width: 210px; padding: 6px; border: 1px solid var(--nav-line);
+    border-radius: 14px; background: var(--nav); box-shadow: 0 12px 32px rgba(10, 15, 30, .35); }
+  .nav-more-i { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 12px; border: 0; border-radius: 10px;
+    background: transparent; color: var(--nav-txt); font-size: 14.5px; font-weight: 500; text-align: left; text-decoration: none; }
+  .nav-more-menu .nav-more-i:hover:not(:disabled) { background: var(--nav-2); color: var(--nav-on); }
+  .nav-more-i.on { background: var(--nav-2); color: var(--nav-on); font-weight: 600; }
+  .nav-more-i.on svg { color: var(--mint); }
+  .nav-more-i svg { flex: 0 0 18px; }
   #join-lesson { margin: 0; padding: 6px 2px; border-radius: 14px; box-shadow: 0 3px 10px rgba(53, 208, 127, .35); }
   #join-lesson > span { color: var(--mint-ink); font-size: 0; }
   #join-lesson > span::after { content: "Join"; font-size: 10px; }
   .nav-i.on > span, .nav-i.on::after { color: var(--mint); }
   .nav-brand, .nav-sp, .nav-av { display: none; }
-  .nav-user { border-top: 0; padding: 0; gap: 0; }
-  .nav-gear { width: 100%; margin: 0; }
   #btn-auth { display: none; }
 
   .board-h { padding: 16px 16px 12px; }
@@ -764,9 +777,8 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
    was clipped off the side. 375px fits the word with 27px to spare, so only the
    smallest phones lose it; "Show explanation" is spelled out in the More menu. */
 @media (max-width: 360px) {
-  .nav-i > span, .nav-gear::after { display: none; }
+  .nav-i > span { display: none; }
   .nav-i[data-tab="practice"] > span::after { content: none; }
-  .nav-i[data-tab="exams"] > span::after { content: none; }
   #btn-expl { min-width: 0; padding: 9px 11px; font-size: 0; }
   #btn-note { min-width: 0; padding: 9px 11px; font-size: 15px; }
   #btn-expl::after { content: "\24D8"; font-size: 17px; }
@@ -915,6 +927,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
   <aside class="nav">
     <a class="nav-brand" href="/app"><span class="brand-mark" aria-hidden="true">r.</span><span class="nav-brand-t">Road to 1600</span></a>
 
+    <button class="nav-i" data-tab="home"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5L12 4l8 6.5V20h-5.5v-6h-5v6H4z"/></svg><span>Home</span></button>
     <button class="nav-i" data-tab="plan"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Study Plan</span></button>
     <button class="nav-i" data-tab="dash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19V11M12 19V5M19 19v-6"/></svg><span>Dashboard</span></button>
     <button class="nav-i" data-tab="mistakes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l8 15H4z"/><path d="M12 9v4M12 16.2v.1"/></svg><span>Mistakes &amp; Saved</span></button>
@@ -932,6 +945,8 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
       <button class="nav-i nav-gear" data-tab="settings" title="Settings" aria-label="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.3 5.3l1.9 1.9M16.8 16.8l1.9 1.9M18.7 5.3l-1.9 1.9M7.2 16.8l-1.9 1.9"/></svg></button>
     </div>
     <button id="btn-auth">Sign in</button>
+    <button class="nav-i nav-more" id="nav-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>More</span></button>
+    <div class="nav-more-menu" id="nav-more-menu" role="menu" aria-label="More" hidden></div>
   </aside>
 
   <main class="board">
@@ -942,6 +957,8 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
     </header>
 
     <div class="board-b">
+      <div id="tab-home" class="hide"><div id="home-root"></div></div>
+
       <div id="tab-plan" class="hide"><div id="plan-body"></div></div>
 
       <div id="tab-practice"><div id="bank-home"></div></div>
@@ -1140,6 +1157,7 @@ import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
 import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome, Plan } from '/lesson-ui/lesson.js';
 import { mountBankHome, applyExtraFilters, EXTRA_FILTERS, migrateSection } from '/lesson-ui/lesson.js';
 import { loadSaved, setSaved, savedIds, subscribeSaved } from '/lesson-ui/lesson.js';
+import { mountHome } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -1159,8 +1177,8 @@ let LESSONS = { attended: new Set(), sessions: [] };
 let SESS = {}, QBY = new Map(), EXAMS = [];
 let F;
 let S = null;
-// The Study Plan is the first screen after login (docs/plan/BRIEF.md §3).
-let TAB = 'plan';
+// Home is the first screen after login; it leads into the Study Plan (docs/plan/BRIEF.md §3).
+let TAB = 'home';
 
 // ---------------- settings ----------------
 // One object, one storage key. These change shape often; a column per toggle is
@@ -1674,16 +1692,18 @@ window.__dd = dd;   // reachable for the DOM assertions; harmless in production
 window.__qa = () => ({ QS, PROG, LOG, S, renderStem, isRight, focusSet, weakness, levelOf, pacing, trapCounts, guessing });
 
 const NAV = document.querySelectorAll('.nav-i');
-const TABS = ['plan','practice','dash','mistakes','exams','history','lessons','settings'];
+const TABS = ['home','plan','practice','dash','mistakes','exams','history','lessons','settings'];
 
 // One entry point, so the boot-time tab and a rail click cannot drift apart.
 function setTab(t) {
-  if (!TABS.includes(t)) t = 'plan';   // a tab that no longer exists (Browse) lands on the default
+  if (!TABS.includes(t)) t = 'home';   // a tab that no longer exists (Browse) lands on the default
   TAB = t;
   NAV.forEach(x => x.classList.toggle('on', x.dataset.tab === t));
+  $('nav-more').classList.toggle('on', MORE_TABS.includes(t));   // the phone bar's More stands for the tabs inside it
   TABS.forEach(k => $('tab-'+k).classList.toggle('hide', k !== t));
-  // The question bank home fits the screen; the greeting header would push it into a scroll.
-  document.querySelector('.board-h').classList.toggle('hide', t === 'practice');
+  // The question bank home fits the screen; the greeting header would push it into a scroll. Home has its own greeting.
+  document.querySelector('.board-h').classList.toggle('hide', t === 'practice' || t === 'home');
+  if (t === 'home') drawHome();
   if (t === 'plan') drawPlan();
   if (t === 'dash') drawDash();
   if (t === 'mistakes') drawMistakes();
@@ -1692,7 +1712,35 @@ function setTab(t) {
   if (t === 'history') drawHistory();
   if (t === 'lessons') drawLessons();
 }
-NAV.forEach(b => b.onclick = () => setTab(b.dataset.tab));
+NAV.forEach(b => { if (b.dataset.tab) b.onclick = () => setTab(b.dataset.tab); });
+
+// Phone tab bar: Home, Plan, Practice and Join stay on the bar; the rest of the rail opens from More. The menu is
+// built from the rail's own buttons when it opens, so it has the same icons and the current Admin / sign-in state.
+const MORE_TABS = ['dash','mistakes','exams','history','lessons','settings'];
+const SHIELD = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/></svg>';
+const $more = $('nav-more'), $moreMenu = $('nav-more-menu');
+function closeMore() { $moreMenu.hidden = true; $more.setAttribute('aria-expanded', 'false'); }
+function openMore() {
+  const icon = el => el.querySelector('svg').outerHTML;
+  const items = MORE_TABS.map(t => {
+    const b = document.querySelector(`.nav-i[data-tab="${t}"]`);
+    const label = t === 'settings' ? 'Settings' : b.querySelector('span').textContent;
+    return `<button class="nav-more-i${TAB === t ? ' on' : ''}" role="menuitem" data-more="${t}">${icon(b)}<span>${label}</span></button>`;
+  });
+  if (!$('admin-link').classList.contains('hide')) items.push(`<a class="nav-more-i" role="menuitem" href="/admin">${SHIELD}<span>Admin</span></a>`);
+  items.push(`<button class="nav-more-i" role="menuitem" data-more="auth">${icon($('join-lesson'))}<span>${esc($('btn-auth').textContent)}</span></button>`);
+  $moreMenu.innerHTML = items.join('');
+  $moreMenu.querySelectorAll('[data-more]').forEach(b => b.onclick = () => {
+    closeMore();
+    if (b.dataset.more === 'auth') $('btn-auth').click(); else setTab(b.dataset.more);
+  });
+  $moreMenu.hidden = false;
+  $more.setAttribute('aria-expanded', 'true');
+  $moreMenu.querySelector('.nav-more-i')?.focus();
+}
+$more.onclick = (e) => { e.stopPropagation(); $moreMenu.hidden ? openMore() : closeMore(); };
+document.addEventListener('click', (e) => { if (!$moreMenu.hidden && !$moreMenu.contains(e.target)) closeMore(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$moreMenu.hidden) { closeMore(); $more.focus(); } });
 
 // ---------------- legal ----------------
 const LEGAL_CONTACT = 'chakrabortyleon@gmail.com';
@@ -3472,6 +3520,7 @@ async function reloadPlan() {
     PLAN = { state: b.state, rev: b.rev, loaded: true, error: false };
   } catch (e) { if (!PLAN.loaded) PLAN.error = true; }
   if (TAB === 'plan') drawPlan();
+  if (TAB === 'home') drawHome();
 }
 
 // The plan screen, with the log-a-test popup over it while one is open.
@@ -3491,6 +3540,7 @@ function drawPlanBody() {
     el.innerHTML = `<div class="panel plan-hero" id="plan-empty">
       <h3>Your study plan</h3>
       <p>Take a full Bluebook practice test, then mark the questions you got wrong or found slow. Your plan is built from them, skill by skill.</p>
+      ${goalLine(st)}
       <button class="btn-p" id="plan-log">Log a Bluebook practice test</button></div>`;
     $('plan-log').onclick = () => openLog();
     return;
@@ -3520,15 +3570,50 @@ function drawPlanBody() {
   }
 }
 
-// Goal, last logged score, SAT date (with the days left) and emphasis, from the log popup's last page.
+// Goal, current score (Plan.currentScore), SAT date (with the days left) and emphasis, from the log popup's last page.
 function goalLine(st) {
-  const p = st.profile, last = st.tests[st.tests.length - 1], sc = last && last.score;
+  const p = st.profile, cur = Plan.currentScore(st);
   const bits = [];
   if (p && p.goal) bits.push(`Goal <b>${p.goal}</b>`);
-  if (sc && sc.RW && sc.Math) bits.push(`Last test <b>${sc.RW + sc.Math}</b>`);
+  if (cur) bits.push(`Current <b>${cur.score}</b>`);
   if (p && p.satDate && p.satDate >= localDay()) bits.push(`SAT <b>${esc(fmtDay(p.satDate))}</b> (${satDays(p.satDate).toLowerCase()})`);
   if (p && p.emphasis && p.emphasis !== 'balanced') bits.push(`${Plan.SECTION_NAME[p.emphasis]} first`);
   return bits.length ? `<p class="plan-goal" id="plan-goal">${bits.join(' · ')}</p>` : '';
+}
+
+// ---- Home (lesson-ui/home) ----
+// Home reads and edits the same plan JSON as this screen: goal, current score and SAT date live in `profile`, saved through
+// savePlan (one row, rev-checked), so the plan and the log popup see an edit at once. Guests get the plan's guest path.
+const homeUI = mountHome($('home-root'), {
+  startNext() { const st = planState(); openStep(Plan.nextStep(st.plan)); },
+  openLog: () => openLog(),
+  weekly: () => setTab('plan'),
+  mistakes: () => setTab('mistakes'),
+  signIn: () => $('btn-auth').click(),
+  retry: reloadPlan,
+  saveProfile
+});
+async function saveProfile(patch) {
+  if (!authToken || !PLAN.loaded || planBusy) return false;
+  const st = planState();
+  const ok = await savePlan({ ...st, profile: Plan.editProfile(st.profile, patch) });
+  drawHome();
+  return ok;
+}
+function drawHome() {
+  if (TAB !== 'home') return;
+  const st = planState(), p = st.profile || {}, nx = Plan.nextStep(st.plan);
+  const t = tally(), cur = Plan.currentScore(st);
+  homeUI.update({
+    name: $('user-name').textContent || '',
+    plan: !authToken ? 'guest' : PLAN.loaded ? 'ready' : PLAN.error ? 'error' : 'loading',
+    next: nx ? { kind: nx.kind, skill: nx.skill, number: nx.number } : null,
+    goal: p.goal || null,
+    current: cur ? { score: cur.score, date: cur.date } : null,
+    satDate: p.satDate || null,
+    stats: { attempted: t.att, accuracy: t.att ? Math.round(t.corr / t.att * 100) : null, saved: savedIds.size,
+      recent: buckets(7).reduce((n, b) => n + b.no, 0) }
+  });
 }
 
 function stepRow(s, i, nx) {
@@ -3976,7 +4061,7 @@ async function saveTestLog() {
   items.forEach(it => { after[it.id] = Stats.nextProgress(after[it.id], it.id, it.mark !== 'W', ts, 0); });
   const t2 = Stats.tally(QS, after);
   const acc = new Map(Object.entries(t2.skill).map(([k, v]) => [k, v.a ? v.c / v.a : null]));
-  const profile = { goal: goal.value, satDate: PLOG.satDate || null, emphasis: PLOG.emphasis };
+  const profile = Plan.logProfile(planState().profile, { goal: goal.value, satDate: PLOG.satDate || null, emphasis: PLOG.emphasis }, log);
   const { state } = Plan.logTest({ ...planState(), profile }, PTMAP, log, QBY, acc, skillRank);
   planBusy = true;
   $('pl-save').disabled = true;
@@ -4779,7 +4864,9 @@ function applySession(session) {
   uid = owner;
   authToken = session?.access_token || null;
   const u = session?.user;
-  const nm = u ? (u.user_metadata?.full_name || u.email || 'Signed in') : 'Guest';
+  // Our identity provider prefixes names with '/' ("/Leon Chakraborty"); src/name.js drops it the same way.
+  const clean = x => String(x ?? '').replace(/\//g, '').replace(/\s+/g, ' ').trim();
+  const nm = u ? (clean(u.user_metadata?.full_name) || u.email || 'Signed in') : 'Guest';
   $userName.textContent = nm;
   $('nav-av').textContent = nm[0].toUpperCase();
   $('nav-sub').textContent = u ? (u.email || 'Signed in') : 'Not signed in';

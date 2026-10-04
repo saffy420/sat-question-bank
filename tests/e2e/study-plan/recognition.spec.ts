@@ -177,13 +177,13 @@ test('P6 the last page: goal, scores, SAT date and emphasis; Create plan saves t
   await saveLog(page);
 
   const st = await planOf(context);
-  expect(st.profile).toEqual({ goal: 1450, satDate: '2026-12-05', emphasis: 'Math' });
+  expect(st.profile).toEqual({ goal: 1450, satDate: '2026-12-05', emphasis: 'Math', current: { score: 1350, date: '2026-09-01' } });
   const log = st.tests.find(t => t.testId === 'PT93');
   expect(log.route).toEqual({ RW: 'hard', Math: 'easy' });
   expect(log.score).toEqual({ RW: 650, Math: 700 });
   expect(log.marks).toEqual({ RW1: 'W', RW2: '.W.', Math1: '.', Math2: 'W..' });
   expect((await stepTitles(page)).filter(t => t.startsWith('Drill'))).toEqual(['Drill · Percentages', 'Drill · Transitions']);
-  await expect(page.locator('#plan-goal')).toContainText('Goal 1450 · Last test 1350 · SAT Dec 5, 2026');
+  await expect(page.locator('#plan-goal')).toContainText('Goal 1450 · Current 1350 · SAT Dec 5, 2026');
   await expect(page.locator('#plan-goal')).toContainText('Math first');
   await shot(page, '19-plan-with-goal');
   // The attempts go through the page's retry queue after the popup closes, so wait for that write to land.

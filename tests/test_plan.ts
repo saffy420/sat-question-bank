@@ -7,7 +7,8 @@ import * as stats from '../public/shared/stats.js';
 import {
   advanceCycle, orderSkills, logTest, resolveLog, countBySkill, modulesOf, routesOf, blockedIds, seenIds, pickSet, newRun,
   segmentIds, closeSegment, scoreRun, nextStep, tooSoon, addDays, emptyState, nextTestNumber, SHAPES,
-  stemSnippet, pickPositions, versionOrder, recognize, matchExport, prioritize, skillSections, readScore, upcomingSatDates, logPages
+  stemSnippet, pickPositions, versionOrder, recognize, matchExport, prioritize, skillSections, readScore, upcomingSatDates, logPages,
+  currentScore, editProfile, logProfile
 } from '../lesson-ui/plan.ts';
 import type { TestMap, TestLog, BankQ, SkillCount, PlanState, PoolContext, PracticeTest, StemQ } from '../lesson-ui/plan.ts';
 
@@ -303,6 +304,46 @@ test('logTest orders drills by the stored emphasis and keeps the profile', () =>
   assert.deepEqual(titles({ ...emptyState(), profile }), ['Beta', 'Alpha']);
   assert.deepEqual(logTest({ ...emptyState(), profile }, map, l, by, new Map()).state.profile, profile);
   assert.equal('profile' in logTest(emptyState(), map, l, by, new Map()).state, false);
+});
+
+test('current score: the newer of the latest logged test with both scores and profile.current', () => {
+  const scored = (testId: string, date: string, score?: TestLog['score']): TestLog => ({ ...log(testId, date, {}), ...(score ? { score } : {}) });
+  const st = (tests: TestLog[], current?: { score: number; date: string }): PlanState =>
+    ({ ...emptyState(), tests, ...(current ? { profile: { goal: null, satDate: null, emphasis: 'balanced' as const, current } } : {}) });
+  assert.equal(currentScore(emptyState()), null);
+  // A test with one section score has no total.
+  assert.equal(currentScore(st([scored('PT1', '2026-09-01', { RW: 600 })])), null);
+  assert.deepEqual(currentScore(st([scored('PT1', '2026-09-01', { RW: 600, Math: 650 })])), { score: 1250, date: '2026-09-01', from: 'test' });
+  // The latest dated test, whatever order it was logged in.
+  assert.deepEqual(currentScore(st([scored('PT2', '2026-09-10', { RW: 700, Math: 700 }), scored('PT1', '2026-09-01', { RW: 600, Math: 650 })])),
+    { score: 1400, date: '2026-09-10', from: 'test' });
+  const tests = [scored('PT1', '2026-09-01', { RW: 600, Math: 650 })];
+  assert.deepEqual(currentScore(st(tests, { score: 1300, date: '2026-09-05' })), { score: 1300, date: '2026-09-05', from: 'profile' });
+  assert.deepEqual(currentScore(st(tests, { score: 1100, date: '2026-08-20' })), { score: 1250, date: '2026-09-01', from: 'test' });
+  assert.deepEqual(currentScore(st(tests, { score: 1300, date: '2026-09-01' })), { score: 1300, date: '2026-09-01', from: 'profile' });
+  assert.deepEqual(currentScore(st([], { score: 1100, date: '2026-08-20' })), { score: 1100, date: '2026-08-20', from: 'profile' });
+});
+
+test('writing current: Home edits keep the other fields; logging a test with both scores sets it unless it is older', () => {
+  const base = { goal: 1400, satDate: '2026-11-07', emphasis: 'Math' as const };
+  assert.deepEqual(editProfile(undefined, { goal: 1500 }), { goal: 1500, satDate: null, emphasis: 'balanced' });
+  assert.deepEqual(editProfile(base, { current: { score: 1300, date: '2026-10-03' } }), { ...base, current: { score: 1300, date: '2026-10-03' } });
+  assert.deepEqual(editProfile({ ...base, current: { score: 1300, date: '2026-10-03' } }, { satDate: '2026-12-05' }),
+    { ...base, satDate: '2026-12-05', current: { score: 1300, date: '2026-10-03' } });
+  assert.deepEqual(editProfile({ ...base, current: { score: 1300, date: '2026-10-03' } }, { current: undefined }), base);
+
+  const fields = { goal: 1450, satDate: '2026-12-05', emphasis: 'balanced' as const };
+  const scoredLog = { ...log('PT1', '2026-09-20', {}), score: { RW: 650, Math: 700 } };
+  assert.deepEqual(logProfile(undefined, fields, scoredLog), { ...fields, current: { score: 1350, date: '2026-09-20' } });
+  assert.deepEqual(logProfile({ ...base, current: { score: 1200, date: '2026-09-01' } }, fields, scoredLog), { ...fields, current: { score: 1350, date: '2026-09-20' } });
+  // Not over a newer current score, and not from a test without both section scores.
+  assert.deepEqual(logProfile({ ...base, current: { score: 1500, date: '2026-10-01' } }, fields, scoredLog), { ...fields, current: { score: 1500, date: '2026-10-01' } });
+  assert.deepEqual(logProfile({ ...base, current: { score: 1200, date: '2026-09-01' } }, fields, { ...scoredLog, score: { RW: 650 } }),
+    { ...fields, current: { score: 1200, date: '2026-09-01' } });
+  assert.deepEqual(logProfile(undefined, fields, log('PT1', '2026-09-20', {})), fields);
+  // What logTest stores, Home reads back.
+  const st = { ...emptyState(), tests: [scoredLog], profile: logProfile(undefined, fields, scoredLog) };
+  assert.deepEqual(currentScore(st), { score: 1350, date: '2026-09-20', from: 'profile' });
 });
 
 test('details page: scores are blank or a multiple of 10 in range; SAT dates from today on; pages follow Not sure', () => {
