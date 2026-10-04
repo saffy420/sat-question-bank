@@ -33,7 +33,9 @@
 @font-face{font-family:'Source Serif 4';font-style:normal;font-display:swap;font-weight:600;src:url(https://cdn.jsdelivr.net/npm/@fontsource/source-serif-4@5.3.0/files/source-serif-4-latin-ext-600-normal.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:'Source Serif 4';font-style:normal;font-display:swap;font-weight:600;src:url(https://cdn.jsdelivr.net/npm/@fontsource/source-serif-4@5.3.0/files/source-serif-4-latin-600-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 body{margin:0;background:#F6EEDB}
-#lessons,#plan,#practice,#desmos,#analytics,#summit{scroll-margin-top:16px}
+:root{--header-height:84px}
+#top,#main,#lessons,#plan,#practice,#desmos,#analytics,#summit{scroll-margin-top:calc(var(--header-height) + 24px)}
+.site-header{position:sticky;top:0;z-index:10;background:rgba(207,230,247,.94);backdrop-filter:blur(16px);border-bottom:1px solid rgba(27,31,59,.16);box-shadow:0 6px 24px rgba(27,31,59,.1)}
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
 a{color:#1D4ED8}a:hover{color:#1E3A8A}
 .rt a:focus-visible,.rt button:focus-visible{outline:3px solid #B45309;outline-offset:4px}
@@ -44,7 +46,10 @@ a{color:#1D4ED8}a:hover{color:#1E3A8A}
 .btn-discord:hover{background:#4752C4 !important;color:#fff}
 .hero-h1{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0}
 @media (max-width:900px){
-  .nav-links{display:none !important}
+  .nav-links{order:3;flex:1 1 100%;min-width:0;overflow-x:auto;padding:4px 0;white-space:nowrap;gap:24px !important}
+  .site-header nav{gap:12px !important;padding-top:12px !important;padding-bottom:12px !important}
+  .site-header nav>a:first-child{font-size:16px !important}
+  .site-header .btn{padding:0 12px !important;font-size:14px !important}
 }
 .hero-cta{position:absolute;left:0;right:0;bottom:2.4%;z-index:2;display:flex;flex-direction:column;align-items:center;gap:14px;padding:0 16px}
 .scene{container-type:inline-size}
@@ -112,8 +117,8 @@ a{color:#1D4ED8}a:hover{color:#1E3A8A}
   .type3{display:inline-block;animation:typein .4s steps(7,end) 1.9s both}
   .nudge{animation:nudge 1.6s ease-in-out infinite}
   .smoke{transform-box:fill-box;transform-origin:center;animation:smoke 3.4s ease-out infinite}
-  .reveal{transition:opacity .8s ease,transform .8s cubic-bezier(.2,.7,.2,1)}
-  .rv .rt:not(.still) .reveal:not(.shown){opacity:0;transform:translateY(40px)}
+  .reveal{transition:opacity 1s ease,transform 1s cubic-bezier(.2,.7,.2,1)}
+  .rv .rt:not(.still) .reveal:not(.shown){opacity:0;transform:translateY(48px)}
   .bar-i{transition:transform 1s cubic-bezier(.2,.7,.2,1) .35s}
   .rv .rt:not(.still) .reveal:not(.shown) .bar-i{transform:scaleX(0)}
   .ring-in{transition:stroke-dasharray 1.2s ease .3s}
@@ -126,11 +131,9 @@ a{color:#1D4ED8}a:hover{color:#1E3A8A}
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<div class="rt" style="font-family: 'Figtree', system-ui, sans-serif; color: #1B1F3B; background: #F6EEDB; overflow-x: hidden; line-height: 1.5">
+<div class="rt" style="font-family: 'Figtree', system-ui, sans-serif; color: #1B1F3B; background: #F6EEDB; overflow-x: clip; line-height: 1.5">
 
-<!-- ======================= HERO: the whole mountain (one SVG) ======================= -->
-<header id="top" style="position: relative; overflow: hidden; background: #CFE6F7">
-
+<header class="site-header">
   <nav aria-label="Main" style="position: relative; z-index: 3; max-width: 1240px; margin: 0 auto; padding: 18px clamp(16px, 4vw, 32px); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
     <a href="#top" style="display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: #1B1F3B; font-size: 18px; font-weight: 800; white-space: nowrap">
       <span aria-hidden="true" style="display: grid; place-items: center; width: 36px; height: 36px; background: #2563EB; color: #FFFFFF; border-radius: 10px; font-size: 20px; font-weight: 750; border: 3px solid #1B1F3B">r.</span>Road to 1600
@@ -144,6 +147,10 @@ a{color:#1D4ED8}a:hover{color:#1E3A8A}
     </div>
     <a class="btn btn-blue" href="/login" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; background: #2563EB; color: #FFFFFF; border: 3px solid #1B1F3B; border-radius: 12px; font-weight: 800; font-size: 15px; text-decoration: none; box-shadow: 0 4px 0 #1B1F3B">Get started</a>
   </nav>
+</header>
+
+<!-- ======================= HERO: the whole mountain (one SVG) ======================= -->
+<section id="top" style="position: relative; overflow: hidden; background: #CFE6F7">
 
   <div class="scene" style="position: relative; width: 100%; max-width: max(560px, calc((100svh - 96px) * 1.125), min(100%, 66vw)); margin: 0 auto">
     <svg viewBox="0 -60 1440 1280" width="100%" style="display: block; overflow: visible" role="img" aria-label="Three students stand at a gate marked Start your journey now and look up a switchback mountain trail. A two-headed hydra, a troll, a goblin, a dragon and a ghost guard the turns, and a castle flying a gold 1600 flag waits at the summit.">
@@ -152,12 +159,12 @@ a{color:#1D4ED8}a:hover{color:#1E3A8A}
       <g>
         <circle cx="1150" cy="130" r="70" fill="#FFF3C4" opacity=".7"></circle>
         <circle cx="1150" cy="130" r="46" fill="#FFE08A" stroke="#1B1F3B" stroke-width="4"></circle>
-        <g transform="translate(120 96)"><g class="drift" style="--a: -1120px; --b: 2280px; animation-duration: 55s; animation-delay: -18.1s"><path transform="scale(1.2)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
-        <g transform="translate(520 196)"><g class="drift" style="--a: -1520px; --b: 1880px; animation-duration: 70s; animation-delay: -31.3s"><path transform="scale(.8)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
-        <g transform="translate(860 70)"><g class="drift" style="--a: -1860px; --b: 1540px; animation-duration: 50s; animation-delay: -27.4s"><path transform="scale(1.05)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
-        <g transform="translate(1290 236)"><g class="drift" style="--a: -2290px; --b: 1110px; animation-duration: 80s; animation-delay: -53.9s"><path transform="scale(.7)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
-        <g transform="translate(-420 150)"><g class="drift" style="--a: -580px; --b: 2820px; animation-duration: 65s; animation-delay: -11.5s"><path d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
-        <g transform="translate(1800 130)"><g class="drift" style="--a: -2800px; --b: 600px; animation-duration: 60s; animation-delay: -49.4s"><path transform="scale(.9)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
+        <g transform="translate(120 96)"><g class="drift" style="--a: -1120px; --b: 2280px; animation-duration: 165s; animation-delay: -54.3s"><path transform="scale(1.2)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
+        <g transform="translate(520 196)"><g class="drift" style="--a: -1520px; --b: 1880px; animation-duration: 210s; animation-delay: -93.9s"><path transform="scale(.8)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
+        <g transform="translate(860 70)"><g class="drift" style="--a: -1860px; --b: 1540px; animation-duration: 150s; animation-delay: -82.2s"><path transform="scale(1.05)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
+        <g transform="translate(1290 236)"><g class="drift" style="--a: -2290px; --b: 1110px; animation-duration: 240s; animation-delay: -161.7s"><path transform="scale(.7)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
+        <g transform="translate(-420 150)"><g class="drift" style="--a: -580px; --b: 2820px; animation-duration: 195s; animation-delay: -34.5s"><path d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
+        <g transform="translate(1800 130)"><g class="drift" style="--a: -2800px; --b: 600px; animation-duration: 180s; animation-delay: -148.2s"><path transform="scale(.9)" d="M30 80 C10 80 5 58 24 52 C22 30 50 22 64 36 C72 14 110 10 120 34 C132 20 162 26 160 50 C182 50 190 80 168 80 Z" fill="#FFFFFF" stroke="#1B1F3B" stroke-width="4" stroke-linejoin="round"></path></g></g>
       </g>
 
       <g>
@@ -668,7 +675,7 @@ a{color:#1D4ED8}a:hover{color:#1E3A8A}
   <svg aria-hidden="true" viewBox="0 0 1440 60" preserveAspectRatio="none" style="position: relative; z-index: 3; width: 100%; height: 56px; display: block; margin-top: -1px; background: #A9D18E">
     <path d="M0 60 L0 34 C240 4 480 52 720 30 C960 10 1200 50 1440 22 L1440 60 Z" fill="#F6EEDB" stroke="#1B1F3B" stroke-width="4" vector-effect="non-scaling-stroke"></path>
   </svg>
-</header>
+</section>
 
 <main id="main">
 
@@ -1597,12 +1604,18 @@ a{color:#1D4ED8}a:hover{color:#1E3A8A}
 (() => {
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // Keep section headings below the header, including its wrapped mobile navigation.
+  const header = document.querySelector('.site-header');
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--header-height', header.offsetHeight + 'px');
+  }).observe(header);
+
   // Sections fade up as they scroll into view. Without IntersectionObserver nothing is hidden.
-  if ('IntersectionObserver' in window) {
+  if (!calm && 'IntersectionObserver' in window) {
     document.documentElement.classList.add('rv');
     const io = new IntersectionObserver(entries => entries.forEach(e => {
       if (e.isIntersecting) { e.target.classList.add('shown'); io.unobserve(e.target); }
-    }), { rootMargin: '0px 0px -6% 0px', threshold: 0.08 });
+    }), { rootMargin: '0px 0px -12% 0px', threshold: 0 });
     document.querySelectorAll('.reveal').forEach(el => io.observe(el));
   }
 
