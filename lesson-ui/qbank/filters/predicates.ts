@@ -80,3 +80,11 @@ export const SAVED_INITIAL: SavedMode = 'all';
 export const savedMode = (v: unknown): SavedMode => v === 'only' ? 'only' : SAVED_INITIAL;
 export const savedActive = (v: unknown) => savedMode(v) !== 'all';
 export const savedTest = (q: FilterQuestion, value: unknown, _ctx: FilterCtx) => savedMode(value) === 'all' || savedIds.has(q.id);
+
+// ---- Completed: hide questions that already carry a progress marker (Green, Red or Orange).
+export type CompletedMode = 'show' | 'hide';
+export const COMPLETED_INITIAL: CompletedMode = 'show';
+export const completedMode = (v: unknown): CompletedMode => v === 'hide' ? 'hide' : COMPLETED_INITIAL;
+export const completedActive = (v: unknown) => completedMode(v) !== 'show';
+export const isCompleted = (prog: FilterCtx['prog'], id: string) => resultOf(prog, id) !== null;
+export const completedTest = (q: FilterQuestion, value: unknown, ctx: FilterCtx) => completedMode(value) === 'show' || !isCompleted(ctx.prog, q.id);
