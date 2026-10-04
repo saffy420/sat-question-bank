@@ -97,6 +97,17 @@ test('H4 logging a test updates Home', async () => {
   await page.setViewportSize({ width: 1366, height: 768 });
 });
 
+test('H4a Home stat links open the Saved and Incorrect views', async () => {
+  await home('home-saved').getByRole('button', { name: 'View' }).click();
+  await expect(page.locator('#tab-mistakes')).toBeVisible();
+  await expect(page.locator('#mk-view [data-v="saved"]')).toHaveClass(/\bon\b/);
+  await tab('home');
+  await home('home-recent').getByRole('button', { name: 'Review' }).click();
+  await expect(page.locator('#mk-view [data-v="wrong"]')).toHaveClass(/\bon\b/);
+  await expect(page.locator('#mk-status [data-s="wrong"]')).toHaveClass(/\bon\b/);
+  await tab('home');
+});
+
 test('H5 phone tab bar: five tiles that do not overlap; More opens the rest of the rail', async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   const tiles = page.locator('.nav > :visible');
@@ -108,7 +119,7 @@ test('H5 phone tab bar: five tiles that do not overlap; More opens the rest of t
   await expect(menu).toBeHidden();
   await page.locator('#nav-more').click();
   await expect(page.locator('#nav-more')).toHaveAttribute('aria-expanded', 'true');
-  await expect(menu.locator('.nav-more-i')).toHaveText(['Dashboard', 'Mistakes', 'Practice Exams', 'History', 'My Lessons', 'Settings', 'Sign out']);
+  await expect(menu.locator('.nav-more-i')).toHaveText(['Analytics', 'Mistakes & Saved', 'Practice Exams', 'History', 'My Lessons', 'Settings', 'Sign out']);
   await shot(page, 'home-8-phone-more');
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();

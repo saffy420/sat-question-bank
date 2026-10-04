@@ -1130,7 +1130,7 @@ import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswe
 import { mountBankHome, applyExtraFilters, EXTRA_FILTERS, migrateSection } from '/lesson-ui/lesson.js';
 import { loadSaved, setSaved, savedIds, subscribeSaved } from '/lesson-ui/lesson.js';
 import { mountHome } from '/lesson-ui/lesson.js';
-import { mountAnalytics } from '/lesson-ui/lesson.js';
+import { mountAnalytics, analyticsBuckets } from '/lesson-ui/lesson.js';
 (function(){
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -3323,7 +3323,8 @@ const homeUI = mountHome($('home-root'), {
   startNext() { const st = planState(); openStep(Plan.nextStep(st.plan)); },
   openLog: () => openLog(),
   weekly: () => setTab('plan'),
-  mistakes: () => setTab('mistakes'),
+  saved: () => { MK.view = 'saved'; setTab('mistakes'); },
+  mistakes: () => { MK.view = 'wrong'; MK.status = 'wrong'; setTab('mistakes'); },
   signIn: () => $('btn-auth').click(),
   retry: reloadPlan,
   saveProfile
@@ -3347,7 +3348,7 @@ function drawHome() {
     current: cur ? { score: cur.score, date: cur.date } : null,
     satDate: p.satDate || null,
     stats: { attempted: t.att, accuracy: t.att ? Math.round(t.corr / t.att * 100) : null, saved: savedIds.size,
-      recent: buckets(7).reduce((n, b) => n + b.no, 0) }
+      recent: analyticsBuckets(LOG, 7, new Date()).reduce((n, b) => n + b.no, 0) }
   });
 }
 

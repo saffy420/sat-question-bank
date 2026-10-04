@@ -20,7 +20,7 @@ export type HomeModel = {
   stats: { attempted: number; accuracy: number | null; saved: number; recent: number };
 };
 export type HomeBridge = {
-  startNext(): void; openLog(): void; weekly(): void; mistakes(): void; signIn(): void; retry(): void;
+  startNext(): void; openLog(): void; weekly(): void; saved(): void; mistakes(): void; signIn(): void; retry(): void;
   saveProfile(patch: ProfilePatch): Promise<boolean>;
 };
 
@@ -151,7 +151,7 @@ function Home({ model: m, bridge }: { model: HomeModel; bridge: HomeBridge }) {
       <div className="hm-stats">
         <Stat id="home-attempted" label="Questions attempted" value={s.attempted.toLocaleString()}/>
         <Stat id="home-accuracy" label="Accuracy" value={s.accuracy === null ? '—' : s.accuracy + '%'}/>
-        <Stat id="home-saved" label="Saved questions" value={s.saved.toLocaleString()} action="View" onClick={bridge.mistakes}/>
+        <Stat id="home-saved" label="Saved questions" value={s.saved.toLocaleString()} action="View" onClick={bridge.saved}/>
         <Stat id="home-recent" label="Errors, last 7 days" value={s.recent.toLocaleString()} action="Review" onClick={bridge.mistakes}/>
       </div>
     </section>
