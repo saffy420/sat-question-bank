@@ -72,11 +72,13 @@ test('H3 target and current score: validated inline, saved to the plan, shown on
 
   await tab('plan');
   await expect(page.locator('#plan-goal')).toHaveText('Goal 1450 · Current 1210 · SAT Nov 7, 2026 (7 days away)');
+  await shot(page, 'home-5-plan-empty-goal');
   await page.locator('#plan-log').click();
   // PT90 as in plan.spec C2, taken today: drills Linear functions first.
   await logTest(page, 'PT90', '2026-10-31', { RW1: 'WWSW', RW2: 'S', Math1: 'W..', Math2: 'W.' });
   await expect(page.locator('#pl-goal')).toHaveValue('1450');
   await expect(page.locator('#pl-sat')).toHaveValue('2026-11-07');
+  await shot(page, 'home-6-log-prefilled');
   await page.locator('#pl-score-RW').fill('650');
   await page.locator('#pl-score-Math').fill('700');
   await saveLog(page);
@@ -99,6 +101,7 @@ test('H4 logging a test updates Home; the button starts the next step', async ()
   await expect(home('home-goal-value')).toHaveText('1500');
   await tab('plan');
   await expect(page.locator('#plan-goal')).toContainText('Goal 1500 · Current 1350');
+  await shot(page, 'home-7-plan-current');
   await tab('home');
   await home('home-next').click();
   await expect(page.locator('#bank-live')).toBeVisible();
