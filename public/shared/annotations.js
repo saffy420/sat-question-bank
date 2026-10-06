@@ -141,6 +141,25 @@ export function strokePoints(card, mark) {
   const f = frame(card, mark.a);
   return f ? mark.points.map(f.toCard) : [];
 }
+// Hit the rendered line segments, including dots, rather than just sampled pointer positions.
+export function strokeAt(card, layer, cx, cy) {
+  const rect = card.getBoundingClientRect(), scale = scaleOf(card, rect);
+  const x = (cx - rect.left) / scale, y = (cy - rect.top) / scale, radius = 12 / scale;
+  for (let i = layer.length - 1; i >= 0; i--) {
+    const mark = layer[i];
+    if (mark.type !== 'stroke') continue;
+    const f = frame(card, mark.a);
+    if (!f || !inClip(f.clip, [x, y])) continue;
+    const points = mark.points.map(f.toCard);
+    for (let j = 0; j < points.length; j++) {
+      const [ax, ay] = points[j], [bx, by] = points[j + 1] || points[j];
+      const dx = bx - ax, dy = by - ay, length = dx * dx + dy * dy;
+      const t = length ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / length)) : 0;
+      if (Math.hypot(x - ax - t * dx, y - ay - t * dy) <= radius) return mark;
+    }
+  }
+  return null;
+}
 // Unwraps painted highlights/strikes and rejoins the text they split, so the block is clean again: the
 // same text nodes it was rendered with (edit marks count them). A block being edited live is left alone.
 const editing = n => !!n.closest('[data-ann-editing]');

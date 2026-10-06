@@ -15,6 +15,8 @@ export type Mark = {
   id: string;
   color?: string;
   points?: number[][];
+  // Streaming chunks from one pen gesture share this ID for whole-stroke erasing.
+  strokeId?: string;
   // `text` marks: a typed box at (x, y) of anchor `a`, like one pen point, holding `text` or math (`tex`).
   text?: string;
   tex?: string;

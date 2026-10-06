@@ -1512,6 +1512,7 @@ function InstructorStage({
       drawing = false,
       interval: ReturnType<typeof setInterval> | undefined,
       anchor: string | undefined,
+      strokeId: string,
       glyphMode = false;
     for (const name of Object.keys(tools))
       card.classList.toggle(`tool-${name}`, tool === name);
@@ -1588,18 +1589,39 @@ function InstructorStage({
         mark({
           type: "stroke",
           id: crypto.randomUUID(),
+          strokeId,
           points,
           color,
           ...(anchor ? { a: anchor } : {}),
         });
       raw = drawing ? [chunk[chunk.length - 1]] : [];
     };
+    const erased = new Set<string>();
+    const erase = (e: PointerEvent) => {
+      const layer = latest.current.s.annotations || [];
+      const stroke = Ink.strokeAt(card, layer.filter((m) => !erased.has(m.id)), e.clientX, e.clientY);
+      const id = Ink.textBoxAt(e.target) ||
+        (e.target as Element).closest<HTMLElement>("[data-ann-mark]")?.dataset.annMark;
+      const targets = stroke
+        ? layer.filter((m) => m.type === "stroke" && (stroke.strokeId ? m.strokeId === stroke.strokeId : m.id === stroke.id))
+        : layer.filter((m) => m.id === id);
+      for (const m of targets) {
+        if (erased.has(m.id)) continue;
+        erased.add(m.id);
+        mark({ type: "erase", id: m.id });
+      }
+    };
     const down = (e: PointerEvent) => {
       // The figure toolbar keeps working while the pen is out (capturing here would swallow its clicks).
-      if (tool !== "pen" || (e.target as Element).closest(".fv-bar")) return;
+      if ((tool !== "pen" && tool !== "erase") || (e.target as Element).closest(".fv-bar")) return;
       e.preventDefault();
       card.setPointerCapture(e.pointerId);
+      if (tool === "erase") {
+        erase(e);
+        return;
+      }
       drawing = true;
+      strokeId = crypto.randomUUID();
       const start = Ink.locate(card, e.clientX, e.clientY);
       anchor = "a" in start ? start.a : undefined;
       // Only a stroke that started on a figure keeps one anchor; anywhere else it may pick up a glyph anchor.
@@ -1610,6 +1632,7 @@ function InstructorStage({
       }, 50);
     };
     const move = (e: PointerEvent) => {
+      if (tool === "erase" && card.hasPointerCapture(e.pointerId)) erase(e);
       if (tool === "pen" && card.hasPointerCapture(e.pointerId)) {
         raw.push([e.clientX, e.clientY]);
         if (raw.length >= 32) flush();
@@ -1621,6 +1644,10 @@ function InstructorStage({
     };
     const up = (e: PointerEvent) => {
       if (tool === "edit") return;
+      if (tool === "erase") {
+        if (card.hasPointerCapture(e.pointerId)) card.releasePointerCapture(e.pointerId);
+        return;
+      }
       if (interval) {
         clearInterval(interval);
         interval = undefined;
@@ -1645,26 +1672,6 @@ function InstructorStage({
         !(e.target as Element).closest(".fv-bar")
       ) {
         openBox.current?.(e.clientX, e.clientY, Ink.textBoxAt(e.target));
-      } else if (tool === "erase") {
-        const id =
-          Ink.textBoxAt(e.target) ||
-          (e.target as Element).closest<HTMLElement>("[data-ann-mark]")
-            ?.dataset.annMark;
-        if (id) mark({ type: "erase", id });
-        else {
-          const r = card.getBoundingClientRect(),
-            scale = Ink.scaleOf(card, r),
-            x = (e.clientX - r.left) / scale,
-            y = (e.clientY - r.top) / scale;
-          const stroke = latest.current.s.annotations?.find(
-            (m) =>
-              m.type === "stroke" &&
-              Ink.strokePoints(card, m).some(
-                ([px, py]: number[]) => Math.hypot(px - x, py - y) < 12,
-              ),
-          );
-          if (stroke) mark({ type: "erase", id: stroke.id });
-        }
       }
     };
     card.addEventListener("pointerdown", down);

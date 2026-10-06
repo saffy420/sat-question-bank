@@ -12,7 +12,9 @@
 - Record discoveries outside this standing guide; verify the cause before treating a changed count as data loss.
 - Use file read/write/edit tools for content changes, especially LaTeX and regexes; shell quoting has corrupted backslashes into control characters.
 - Prefix shell commands with `rtk`. Use Windows `git.exe` for this checkout; WSL Git can report CRLF-only phantom diffs. Do not change Git configuration or normalize unrelated files.
-- Do not deploy, mutate remote data, or commit without explicit authorization.
+- At the start of every new session, pull the latest changes for the branch the agent is working on. Preserve existing local work and resolve conflicts before continuing.
+- After completing code changes and checks, always commit and push the agent's changes to that same branch. A deployment does not replace a Git push; leave unrelated local work out of the commit.
+- Do not deploy or mutate remote application data without explicit authorization.
 
 ## Architecture and conventions
 

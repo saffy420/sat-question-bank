@@ -36,8 +36,50 @@ async function revealedRoom(browser, adminOptions, students, title, questions = 
   await expect(teacher.locator('.live-view')).toHaveAttribute('data-phase', 'REVEALED');
   await expect(teacher.locator('#live-card[data-ready="true"]')).toBeVisible();
   for (const page of pages) await expect(page.locator('#lesson-card[data-ready="true"]')).toBeVisible();
-  return { admin, contexts, teacher, pages, sessionId, close: () => Promise.all([admin.close(), ...contexts.map(c => c.close())]) };
+  return { admin, contexts, teacher, pages, sessionId, joinCode, close: () => Promise.all([admin.close(), ...contexts.map(c => c.close())]) };
 }
+
+test('stroke eraser removes a whole streamed gesture and leaves other strokes on both screens', async ({ browser }) => {
+  const room = await revealedRoom(browser, INSTRUCTOR, [['e2e-student-1', undefined]], 'Stroke eraser');
+  const { teacher, admin, sessionId, pages: [student] } = room;
+  try {
+    const errors = [];
+    teacher.on('pageerror', e => errors.push(e.message));
+    student.on('pageerror', e => errors.push(e.message));
+    await student.locator('#lesson-follow').uncheck();
+    await teacher.locator('[data-tool="pen"]').click();
+    const at = await wordCenter(teacher, PASSAGE, 'seedling');
+    await trace(teacher, [[at.x, at.y], ...line([at.x, at.y], [at.x + 180, at.y])]);
+    const layer = () => admin.request.get(`/api/lessons/${sessionId}`).then(r => r.json()).then(s => s.annotations.filter(m => m.type === 'stroke'));
+    await expect.poll(async () => (await layer()).length).toBeGreaterThan(1);
+    const first = await layer();
+    expect(first.every(m => m.strokeId === first[0].strokeId)).toBe(true);
+    await trace(teacher, [[at.x, at.y + 50], ...line([at.x, at.y + 50], [at.x + 180, at.y + 50])]);
+    await expect.poll(async () => new Set((await layer()).map(m => m.strokeId)).size).toBe(2);
+    const second = (await layer()).filter(m => m.strokeId !== first[0].strokeId);
+    await teacher.locator('[data-tool="erase"]').click();
+    await teacher.mouse.click(at.x + 90, at.y);
+    await expect.poll(async () => (await layer()).map(m => m.id)).toEqual(second.map(m => m.id));
+    // Probe the canvas using each screen's own anchor mapping so the student fit is included.
+    for (const [page, selector] of [[teacher, '#live-card'], [student, '#lesson-card']]) {
+      await expect.poll(() => page.locator(selector).evaluate(async (card, mark) => {
+        const Ink = await import('/shared/annotations.js');
+        const [x, y] = Ink.strokePoints(card, mark)[0], canvas = card.querySelector('.lesson-ink');
+        const ctx = canvas.getContext('2d'), sx = canvas.width / card.clientWidth, sy = canvas.height / card.clientHeight;
+        return ctx.getImageData(Math.round(x * sx) - 3, Math.round(y * sy) - 3, 7, 7).data.some((v, i) => i % 4 === 3 && v > 0);
+      }, first[0])).toBe(false);
+    }
+    // Dragging across the remaining gesture also removes all of it.
+    await teacher.mouse.move(at.x + 90, at.y + 25);
+    await teacher.mouse.down();
+    await teacher.mouse.move(at.x + 90, at.y + 50, { steps: 10 });
+    await teacher.mouse.up();
+    await expect.poll(async () => (await layer()).length).toBe(0);
+    await student.reload();
+    await join(student, room.joinCode);
+    expect(errors).toEqual([]);
+  } finally { await room.close(); }
+});
 
 // Words of a phrase that sit on one line on the presenter's screen but on two lines on some student's screen (or the
 // other way round), so the stroke has to follow the words, not the pixels.

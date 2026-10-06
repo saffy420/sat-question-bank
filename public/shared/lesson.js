@@ -67,7 +67,7 @@ export const MAX_TEX = 1400;
 const validTex = tex => typeof tex === 'string' && tex.trim().length > 0 && !/[\u0000-\u001f]/.test(tex) && new TextEncoder().encode(JSON.stringify(tex)).length <= MAX_TEX;
 export function validMark(op) {
   if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','erase','clear','text','edit','edit-math'].includes(op.type)) return false;
-  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color','a'], erase:['type','id'], clear:['type'], text:['type','id','a','x','y','text','tex','color'], edit:['type','id','nodeId','i','text'], 'edit-math':['type','id','nodeId','k','tex'] };
+  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','strokeId','points','color','a'], erase:['type','id'], clear:['type'], text:['type','id','a','x','y','text','tex','color'], edit:['type','id','nodeId','i','text'], 'edit-math':['type','id','nodeId','k','tex'] };
   if (Object.keys(op).some(k => !fields[op.type].includes(k))) return false;
   if (op.type === 'clear') return true;
   if (!validId(op.id)) return false;
@@ -84,7 +84,7 @@ export function validMark(op) {
   // 6 lines) or math (`tex`, drawn with KaTeX), never both.
   if (op.type === 'text') return anchored(op.a, [op.x, op.y]) && ('tex' in op ? !('text' in op) && validTex(op.tex)
     : typeof op.text === 'string' && op.text.trim().length > 0 && op.text.length <= 280 && op.text.split('\n').length <= 6);
-  if (op.type === 'stroke') return Array.isArray(op.points) && op.points.length >= 1 && op.points.length <= 32 && op.points.every(p => Array.isArray(p) && p.length === 2 && anchored(op.a, p));
+  if (op.type === 'stroke') return (op.strokeId === undefined || validId(op.strokeId)) && Array.isArray(op.points) && op.points.length >= 1 && op.points.length <= 32 && op.points.every(p => Array.isArray(p) && p.length === 2 && anchored(op.a, p));
   return /^([ps]:\d+|c:[A-D])$/.test(op.nodeId) && Number.isSafeInteger(op.startOffset) && Number.isSafeInteger(op.endOffset) && op.startOffset >= 0 && op.endOffset > op.startOffset && op.endOffset <= 20000;
 }
 // Never project by copying a full normalized bank row or choices (trap tags).
