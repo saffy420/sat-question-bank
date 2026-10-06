@@ -34,12 +34,15 @@ import { SessionResults } from "./SessionResults";
 import type { Snapshot, Mark } from "../lesson-ui/types";
 import * as Ink from "/shared/annotations.js";
 import { isRight } from "/shared/stats.js";
+import { validMark } from "/shared/lesson.js";
+import { mathField, sameMath, type MathField } from "./mathField";
 import {
   api,
   formatTime,
   mathify,
   notesHTML,
   time,
+  upsert,
   type LessonCard,
   type Session,
 } from "./helpers";
@@ -247,7 +250,7 @@ export function Live({
                       ? []
                       : m.op.type === "erase"
                         ? old.annotations?.filter((x) => x.id !== m.op.id)
-                        : [...(old.annotations || []), m.op],
+                        : upsert(old.annotations || [], m.op),
                 },
           );
         else if (m.type === "error") {
@@ -571,6 +574,7 @@ export function Live({
               key={s.questionId}
               s={s}
               send={send}
+              connected={connected}
               strikeMode={strikeMode}
               struck={s.eliminations}
               onStrikeMode={() => setStrikeMode(!strikeMode)}
@@ -922,6 +926,7 @@ const storedDesmosWidth = () => {
 function InstructorStage({
   s,
   send,
+  connected,
   strikeMode,
   struck,
   onStrikeMode,
@@ -930,6 +935,7 @@ function InstructorStage({
 }: {
   s: Room;
   send: Send;
+  connected: boolean;
   strikeMode: boolean;
   struck?: string[];
   onStrikeMode: () => void;
@@ -980,7 +986,7 @@ function InstructorStage({
   useEffect(() => {
     setPending((old) => {
       const left = old.filter(
-        (p) => !s.annotations?.some((m) => m.id === p.id && m.text === p.text),
+        (p) => !s.annotations?.some((m) => m.id === p.id && m.text === p.text && m.tex === p.tex),
       );
       return left.length === old.length ? old : left;
     });
@@ -999,7 +1005,9 @@ function InstructorStage({
                 !pending.some(
                   (p) =>
                     p.id === m.id ||
-                    (m.type !== "edit" &&
+                    (p.type === "edit" &&
+                      m.type !== "edit" &&
+                      m.type !== "edit-math" &&
                       (m.nodeId === p.nodeId ||
                         !!m.a?.startsWith(`${p.nodeId}~`) ||
                         !!m.a?.startsWith(`${p.nodeId}@`))),
@@ -1013,6 +1021,8 @@ function InstructorStage({
   // Edit text: one passage/stem block or choice text at a time becomes editable. KaTeX (and any image) is
   // locked; the block's text nodes must come back the same in number and the markup the same in shape, so
   // only prose changes. Each changed text node goes out as one `edit` mark, counted on the clean block.
+  // A click on a formula opens it in the math editor instead (Desmos keys, Enter commits, Esc cancels) and
+  // sends one `edit-math` mark for it; a formula the editor can't take without loss stays locked.
   useEffect(() => {
     if (!card || !annotating || tool !== "edit") return;
     let block: HTMLElement | null = null,
@@ -1139,7 +1149,7 @@ function InstructorStage({
       for (const n of locked(el)) {
         n.contentEditable = "false";
         n.classList.add("ann-locked");
-        if (n.classList.contains("katex")) n.title = "Math can't be edited";
+        if (n.classList.contains("katex")) n.title = "Click to edit the math";
       }
       try {
         el.contentEditable = "plaintext-only";
@@ -1161,21 +1171,279 @@ function InstructorStage({
         selection?.addRange(point);
       }
     };
+    // Formula k of a block in a math editor laid over it.
+    let formula: ((commit: boolean) => void) | null = null;
+    const openFormula = (el: HTMLElement, k: number) => {
+      const math = Ink.formulas(el)[k] as HTMLElement | undefined,
+        nodeId = el.dataset.annNode!,
+        tex = math ? Ink.texOf(math) || "" : "";
+      if (!math) return;
+      const host = document.createElement("div");
+      host.className = "lesson-mathbox-input lesson-formula-input";
+      host.style.fontSize = getComputedStyle(el).fontSize;
+      const span = document.createElement("span");
+      host.append(span);
+      document.body.append(host);
+      const field = mathField(span, tex, () => {});
+      const loaded = field.latex();
+      if (!sameMath(tex, loaded)) {
+        host.remove();
+        math.title = "This formula can't be edited here";
+        setEditNote("This formula can't be edited here");
+        return;
+      }
+      const r = math.getBoundingClientRect();
+      host.style.minWidth = `${Math.ceil(r.width) + 16}px`;
+      host.style.left = `${Math.max(8, Math.min(r.left - 8, innerWidth - host.offsetWidth - 8))}px`;
+      host.style.top = `${Math.max(8, Math.min(r.top + r.height / 2 - host.offsetHeight / 2, innerHeight - host.offsetHeight - 8))}px`;
+      let done = false;
+      const close = (commit: boolean) => {
+        if (done) return;
+        done = true;
+        formula = null;
+        const next = field.latex().trim();
+        host.remove();
+        if (!commit || !next || next === loaded) return;
+        const op = { type: "edit-math" as const, id: `edit-math:${nodeId}:${k}`, nodeId, k, tex: next };
+        if (!validMark(op)) {
+          setEditNote("That formula is too long to send at once");
+          return;
+        }
+        setPending((old) => [...old.filter((p) => p.id !== op.id), op]);
+        latest.current.send("annotate", { questionId: latest.current.s.questionId, op });
+      };
+      host.addEventListener(
+        "keydown",
+        (e) => {
+          if (e.key !== "Enter" && e.key !== "Escape") return;
+          // Esc only cancels the edit; the tool stays selected.
+          e.preventDefault();
+          e.stopPropagation();
+          close(e.key === "Enter");
+        },
+        true,
+      );
+      // MathQuill keeps focus on clicks in the field; the editor's padding must not take it either.
+      host.addEventListener("mousedown", (e) => e.preventDefault());
+      host.addEventListener("focusout", (e) => {
+        if (!host.contains(e.relatedTarget as Node | null)) close(true);
+      });
+      formula = close;
+      field.focus();
+    };
     const click = (e: MouseEvent) => {
-      const el = (e.target as Element).closest<HTMLElement>("[data-ann-node]");
-      if (!el || el === block || !card.contains(el) || (e.target as Element).closest(".badge, .fv-bar"))
+      const target = e.target as Element;
+      const el = target.closest<HTMLElement>("[data-ann-node]");
+      let math = target.closest<HTMLElement>(".katex");
+      while (math?.parentElement?.closest(".katex")) math = math.parentElement.closest<HTMLElement>(".katex");
+      // A click between a formula's glyphs lands on the block; anywhere in the formula's box counts.
+      math ||=
+        (el &&
+          (Ink.formulas(el) as HTMLElement[]).find((m) => {
+            const r = m.getBoundingClientRect();
+            return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+          })) ||
+        null;
+      if (el && math && card.contains(el)) {
+        e.preventDefault();
+        const k = Ink.formulas(el).indexOf(math);
+        end(true);
+        formula?.(true);
+        openFormula(el, k);
+        return;
+      }
+      if (!el || el === block || !card.contains(el) || target.closest(".badge, .fv-bar"))
         return;
       e.preventDefault();
       end(true);
+      formula?.(true);
       start(el, e.clientX, e.clientY);
     };
     card.addEventListener("click", click, true);
     return () => {
       card.removeEventListener("click", click, true);
       end(false);
+      formula?.(false);
       for (const b of buttons) b.disabled = true;
     };
   }, [card, tool, annotating, s.questionId]);
+  // Text tool: a floating editor at the click. On a math question a new box types math the Desmos way
+  // (mathField.ts); `"` as the first key in an empty math box turns it into a plain-text box, like a Desmos note.
+  // A plain-text box is a textarea: Enter commits (Shift+Enter is a newline). In both, Esc cancels and leaving
+  // the editor commits when something was typed. The place is resolved at the click, like a pen point. While
+  // the editor is open the box goes to the room as a `draft` under its final id, at most about every 100 ms
+  // (the room shows it to students once revealed, and never stores it); the commit replaces it, and a cancel
+  // puts the committed box back for everyone, or removes a new one. Editing a box keeps its id.
+  // The editor outlives phase changes, so a box being typed at the reveal reaches students then.
+  const openBox = useRef<((cx: number, cy: number, boxId: string | null) => void) | null>(null);
+  const draftAgain = useRef<(() => void) | null>(null);
+  const colorNow = useRef(color);
+  colorNow.current = color;
+  useEffect(() => {
+    if (!card || !annotating || tool !== "text") return;
+    let close: ((commit: boolean) => void) | null = null;
+    openBox.current = (cx, cy, boxId) => {
+      close?.(false);
+      const { s: room } = latest.current;
+      const questionId = room.questionId;
+      const old = boxId
+        ? room.annotations?.find((m) => m.id === boxId && m.type === "text")
+        : undefined;
+      const place = old
+        ? { a: old.a, x: old.x as number, y: old.y as number }
+        : (Ink.locate(card, cx, cy) as { a?: string; x: number; y: number });
+      const id = old?.id || crypto.randomUUID(),
+        boxColor = old?.color || colorNow.current;
+      const box = (content: { text: string } | { tex: string }): Mark => ({
+        type: "text",
+        id,
+        ...(place.a ? { a: place.a } : {}),
+        x: place.x,
+        y: place.y,
+        ...content,
+        color: boxColor,
+      });
+      let input: HTMLTextAreaElement | null = null,
+        field: MathField | null = null,
+        el: HTMLElement | null = null,
+        done = false;
+      const content = () => {
+        if (field) {
+          const tex = field.latex().trim();
+          return tex ? { tex } : null;
+        }
+        const text = (input?.value || "").replace(/\r\n?/g, "\n").trim();
+        return text ? { text } : null;
+      };
+      const before = JSON.stringify(old ?? null);
+      let draft: Mark | null = old ?? null,
+        sent = before,
+        sentAt = 0,
+        timer: ReturnType<typeof setTimeout> | undefined;
+      const sendDraft = (op: Mark) => latest.current.send("draft", { questionId, op });
+      const push = () => {
+        timer = undefined;
+        sentAt = performance.now();
+        const key = JSON.stringify(draft);
+        if (key === sent) return;
+        sent = key;
+        sendDraft(draft || { type: "erase", id });
+      };
+      const changed = () => {
+        const now = content(),
+          op = now && box(now);
+        // Past the size a frame can carry, the last draft stays until the box is short enough again.
+        if (op && !validMark(op)) return;
+        draft = op;
+        timer ??= setTimeout(push, Math.max(0, 100 - (performance.now() - sentAt)));
+      };
+      draftAgain.current = () => {
+        if (!timer && sent !== before) sendDraft(draft || { type: "erase", id });
+      };
+      const finish = (commit: boolean) => {
+        if (done) return;
+        done = true;
+        close = null;
+        draftAgain.current = null;
+        clearTimeout(timer);
+        const now = content(),
+          op = now && box(now);
+        el?.remove();
+        const same = !op || (old?.text === op.text && old?.tex === op.tex);
+        if (commit && op && !same && validMark(op))
+          latest.current.send("annotate", { questionId, op });
+        else {
+          if (commit && op && !same) setEditNote("That box is too long to send at once");
+          if (sent !== before) sendDraft({ type: "erase", id });
+        }
+      };
+      close = finish;
+      const position = (node: HTMLElement) => {
+        node.style.left = `${Math.max(8, Math.min(cx, innerWidth - node.offsetWidth - 8))}px`;
+        node.style.top = `${Math.max(8, Math.min(cy, innerHeight - node.offsetHeight - 8))}px`;
+      };
+      const openText = (value: string) => {
+        const ta = document.createElement("textarea");
+        ta.className = "lesson-textbox-input";
+        ta.maxLength = 280;
+        ta.rows = 2;
+        ta.value = value;
+        ta.setAttribute("aria-label", "Text box");
+        document.body.append(ta);
+        position(ta);
+        input = ta;
+        el = ta;
+        ta.focus();
+        if (value) ta.select();
+        ta.addEventListener("keydown", (e) => {
+          e.stopPropagation();
+          if (e.key === "Escape") finish(false);
+          else if (e.key === "Enter") {
+            e.preventDefault();
+            if (!e.shiftKey) finish(true);
+            else if (ta.value.split("\n").length < 6) {
+              ta.setRangeText("\n", ta.selectionStart, ta.selectionEnd, "end");
+              changed();
+            }
+          }
+        });
+        ta.addEventListener("input", () => {
+          const lines = ta.value.split("\n");
+          if (lines.length > 6) ta.value = lines.slice(0, 6).join("\n");
+          changed();
+        });
+        ta.addEventListener("blur", () => finish(true));
+      };
+      const openMath = (tex: string) => {
+        const host = document.createElement("div");
+        host.className = "lesson-textbox-input lesson-mathbox-input";
+        host.setAttribute("aria-label", "Math box");
+        const span = document.createElement("span");
+        host.append(span);
+        document.body.append(host);
+        el = host;
+        field = mathField(span, tex, changed);
+        position(host);
+        host.addEventListener(
+          "keydown",
+          (e) => {
+            if (e.key === "Enter" || e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              finish(e.key === "Enter");
+            } else if (e.key === '"' && !field?.latex()) {
+              // A Desmos note: the empty math box becomes a plain-text box.
+              e.preventDefault();
+              e.stopPropagation();
+              field = null;
+              el = null;
+              host.remove();
+              openText("");
+            }
+          },
+          true,
+        );
+        // Like the textarea's blur: focus leaving the editor commits. MathQuill keeps focus on clicks in the
+        // field, and the editor's padding must not take it either.
+        host.addEventListener("mousedown", (e) => e.preventDefault());
+        host.addEventListener("focusout", (e) => {
+          if (el === host && !host.contains(e.relatedTarget as Node | null)) finish(true);
+        });
+        field.focus();
+      };
+      if (old ? old.tex !== undefined : room.question?.section === "Math") openMath(old?.tex || "");
+      else openText(old?.text || "");
+    };
+    return () => {
+      close?.(false);
+      openBox.current = null;
+    };
+  }, [card, tool, annotating]);
+  // The reveal (and a reconnect) sends the box being typed again: a room that dropped its memory meanwhile
+  // still shows students what is on the presenter's screen.
+  useEffect(() => {
+    draftAgain.current?.();
+  }, [s.phase, connected]);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape") setTool("");
@@ -1326,64 +1594,6 @@ function InstructorStage({
         });
       raw = drawing ? [chunk[chunk.length - 1]] : [];
     };
-    // Text tool: a floating textarea at the click. Enter commits (Shift+Enter is a newline), Esc cancels, and
-    // leaving the field commits when something was typed. The place is resolved at the click, like a pen point.
-    // Editing a box erases it and sends a new one in its place, so every frame stays one small mark.
-    let closeEditor: (() => void) | null = null;
-    const openEditor = (cx: number, cy: number, boxId: string | null) => {
-      closeEditor?.();
-      const old = boxId
-        ? latest.current.s.annotations?.find((m) => m.id === boxId && m.type === "text")
-        : undefined;
-      const place = old
-        ? { a: old.a, x: old.x as number, y: old.y as number }
-        : (Ink.locate(card, cx, cy) as { a?: string; x: number; y: number });
-      const ta = document.createElement("textarea");
-      ta.className = "lesson-textbox-input";
-      ta.maxLength = 280;
-      ta.rows = 2;
-      ta.value = old?.text || "";
-      ta.setAttribute("aria-label", "Text box");
-      document.body.append(ta);
-      ta.style.left = `${Math.max(8, Math.min(cx, innerWidth - ta.offsetWidth - 8))}px`;
-      ta.style.top = `${Math.max(8, Math.min(cy, innerHeight - ta.offsetHeight - 8))}px`;
-      ta.focus();
-      if (old) ta.select();
-      let done = false;
-      const finish = (commit: boolean) => {
-        if (done) return;
-        done = true;
-        closeEditor = null;
-        const text = ta.value.replace(/\r\n?/g, "\n").trim();
-        ta.remove();
-        if (!commit || !text || text === old?.text) return;
-        if (old) mark({ type: "erase", id: old.id });
-        mark({
-          type: "text",
-          id: crypto.randomUUID(),
-          ...(place.a ? { a: place.a } : {}),
-          x: place.x,
-          y: place.y,
-          text,
-          color: old?.color || color,
-        });
-      };
-      closeEditor = () => finish(false);
-      ta.addEventListener("keydown", (e) => {
-        e.stopPropagation();
-        if (e.key === "Escape") finish(false);
-        else if (e.key === "Enter") {
-          e.preventDefault();
-          if (!e.shiftKey) finish(true);
-          else if (ta.value.split("\n").length < 6) ta.setRangeText("\n", ta.selectionStart, ta.selectionEnd, "end");
-        }
-      });
-      ta.addEventListener("input", () => {
-        const lines = ta.value.split("\n");
-        if (lines.length > 6) ta.value = lines.slice(0, 6).join("\n");
-      });
-      ta.addEventListener("blur", () => finish(true));
-    };
     const down = (e: PointerEvent) => {
       // The figure toolbar keeps working while the pen is out (capturing here would swallow its clicks).
       if (tool !== "pen" || (e.target as Element).closest(".fv-bar")) return;
@@ -1434,7 +1644,7 @@ function InstructorStage({
         e.type === "pointerup" &&
         !(e.target as Element).closest(".fv-bar")
       ) {
-        openEditor(e.clientX, e.clientY, Ink.textBoxAt(e.target));
+        openBox.current?.(e.clientX, e.clientY, Ink.textBoxAt(e.target));
       } else if (tool === "erase") {
         const id =
           Ink.textBoxAt(e.target) ||
@@ -1472,7 +1682,6 @@ function InstructorStage({
       frame = requestAnimationFrame(pump);
     }
     return () => {
-      closeEditor?.();
       clearInterval(interval);
       clearInterval(heartbeat);
       laserOff();

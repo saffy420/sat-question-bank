@@ -1,5 +1,5 @@
 import { targetOf } from "../public/shared/stats.js";
-import type { Question } from "../lesson-ui/types";
+import type { Mark, Question } from "../lesson-ui/types";
 export type BankQuestion = Question & {
   domain: string;
   skill: string;
@@ -86,6 +86,11 @@ export async function api<T>(
     );
   return r.json();
 }
+// A mark arriving under an id the layer already has (a text box typed or edited live) replaces it in place.
+export const upsert = (layer: Mark[], op: Mark) =>
+  layer.some((x) => x.id === op.id)
+    ? layer.map((x) => (x.id === op.id ? op : x))
+    : [...layer, op];
 export function mathify(root: HTMLElement) {
   const render = (
     window as Window & {

@@ -9,13 +9,16 @@ export type Question = {
 };
 export type Mark = {
   // `eliminate` marks only appear in a saved review layer (My Lessons): the instructor's crossed-out choices.
-  // `edit` replaces text node `i` of block `nodeId` with `text` for this session only (live text fix).
-  type: 'stroke' | 'highlight' | 'strike' | 'text' | 'edit' | 'erase' | 'clear' | 'eliminate';
+  // `edit` replaces text node `i` of block `nodeId` with `text` for this session only (live text fix);
+  // `edit-math` redraws formula `k` of block `nodeId` from `tex` (live math fix).
+  type: 'stroke' | 'highlight' | 'strike' | 'text' | 'edit' | 'edit-math' | 'erase' | 'clear' | 'eliminate';
   id: string;
   color?: string;
   points?: number[][];
-  // `text` marks: a typed box at (x, y) of anchor `a`, like one pen point.
+  // `text` marks: a typed box at (x, y) of anchor `a`, like one pen point, holding `text` or math (`tex`).
   text?: string;
+  tex?: string;
+  k?: number;
   x?: number;
   y?: number;
   a?: string;

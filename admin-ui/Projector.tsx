@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Expand, Users } from "lucide-react";
 import { mountLesson } from "../lesson-ui/index";
 import type { Bridge, Laser, Mark, Snapshot } from "../lesson-ui/types";
-import { formatTime, mathify } from "./helpers";
+import { formatTime, mathify, upsert } from "./helpers";
 
 // The classroom projector window (opened from the live room's Projector button). It holds its own
 // read-only socket (`?view=projector`, src/lesson-room.js): the student projection with nobody's
@@ -90,7 +90,7 @@ export function Projector({ id }: { id: string }) {
                       ? []
                       : m.op.type === "erase"
                         ? (old.annotations || []).filter((x) => x.id !== m.op.id)
-                        : [...(old.annotations || []), m.op],
+                        : upsert(old.annotations || [], m.op),
                 },
           );
           pending.current.annotate = m.op;

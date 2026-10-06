@@ -4,8 +4,9 @@ import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
 import { MATH, INSTRUCTOR, lesson, join, openLive } from '../lessons-11-ui-polish/helpers.js';
 
 // Edit text: during ANSWERING the presenter fixes the wording of the stem and of a choice in place. Students
-// see the new text at once (edits are never hidden), the inline KaTeX stays as it was and cannot be edited,
-// a highlight on the edited block goes, a student's selection survives, and My Lessons shows the fix.
+// see the new text at once (edits are never hidden), the inline KaTeX stays as it was and prose typing can't
+// touch it (a click opens it in the math editor instead: tests/e2e/live-mathtype), a highlight on the edited
+// block goes, a student's selection survives, and My Lessons shows the fix.
 test.use({ actionTimeout: 15000 });
 const artifacts = '.omp/pipeline/live-edit/e2e';
 const shot = (page, name) => page.screenshot({ path: `${artifacts}/${name}.png` });
@@ -39,7 +40,7 @@ const stemText = (page, card = '#lesson-card') => page.locator(`${card} .lesson-
 });
 const tex = (page, card) => page.locator(`${card} .lesson-stem .katex annotation`).allTextContents();
 
-test('live edit: stem and choice text fixed during ANSWERING reach students at once; math is locked; history keeps it', async ({ browser }) => {
+test('live edit: stem and choice text fixed during ANSWERING reach students at once; math is locked to prose typing; history keeps it', async ({ browser }) => {
   test.setTimeout(180000);
   mkdirSync(artifacts, { recursive: true });
   const admin = await newUserContext(browser, 'e2e-admin', INSTRUCTOR);
@@ -73,7 +74,7 @@ test('live edit: stem and choice text fixed during ANSWERING reach students at o
     await expect(editing).toHaveAttribute('data-ann-node', 's:0');
     await expect(editing).toHaveAttribute('contenteditable', /^(plaintext-only|true)$/);
     await expect(editing.locator('.katex')).toHaveAttribute('contenteditable', 'false');
-    await expect(editing.locator('.katex')).toHaveAttribute('title', "Math can't be edited");
+    await expect(editing.locator('.katex')).toHaveAttribute('title', 'Click to edit the math');
     expect(await editing.locator('.katex').evaluate(k => getComputedStyle(k).backgroundColor)).toBe('rgb(230, 230, 230)');
     // The highlight is lifted off the block while it is edited.
     await expect(teacher.locator('#live-card [data-ann-mark]')).toHaveCount(0);

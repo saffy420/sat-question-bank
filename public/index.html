@@ -4358,6 +4358,8 @@ function lessonConnect() {
       const layer = lessonState.annotations ||= [];
       if (data.op.type === 'clear') layer.length = 0;
       else if (data.op.type === 'erase') lessonState.annotations = layer.filter(x => x.id !== data.op.id);
+      // A box being typed (or edited) arrives again under the same id: it replaces the one on screen.
+      else if (layer.some(x => x.id === data.op.id)) lessonState.annotations = layer.map(x => x.id === data.op.id ? data.op : x);
       else layer.push(data.op);
       lessonState.annotations = [...lessonState.annotations];
       lessonDraw(); lessonUI.annotate(data.op);
