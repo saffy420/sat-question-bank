@@ -69,3 +69,6 @@ data/
 # Generated role-gated React admin bundle
 /public/admin.js
 !tools/budget_*.cjs
+
+# Local Chromebook screenshots.
+desmos-photo-gitignore/

@@ -47,6 +47,7 @@ export type Snapshot = {
   hasMath?: boolean;
   desmosKey?: string | null;
   desmos?: object | null;
+  desmosVisible?: boolean;
   // Presenter fit (live-fit): the presenter's stage width, --fs, --u and viewport width in CSS px. Once a
   // question is revealed the student stage is laid out at these and scaled to fit, so line breaks match.
   view?: View | null;

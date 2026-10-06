@@ -88,7 +88,7 @@ async function fixture(opts = {}) {
   return { db, env, ctx, store, sockets, room, log, sync, fault, counts, LessonRoom };
 }
 async function withClock(fn) {
-  const real = Date.now; let now = real();
+  const real = Date.now; let now = Date.UTC(2026, 8, 28, 12);
   Date.now = () => now;
   try { return await fn(ms => { now += ms; }, () => now); } finally { Date.now = real; }
 }

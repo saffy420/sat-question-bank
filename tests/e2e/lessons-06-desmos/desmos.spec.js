@@ -58,6 +58,8 @@ async function lesson(admin, questionId) {
 
 // Types into a new expression row of the instructor's calculator like a person would.
 async function typeExpression(teacher, latex) {
+  const notice = teacher.locator('#live-desmos .dcg-api-trial-notice-close');
+  if (await notice.isVisible()) await notice.click();
   await teacher.locator('#live-desmos .dcg-new-expression').click();
   await teacher.keyboard.type(latex);
   await expect(teacherList(teacher)).toContainText(latex.replace(/^y=/, ''));
@@ -245,4 +247,53 @@ test('task06 non-math lesson never loads the Desmos API', async ({ browser }) =>
   } finally {
     await Promise.all([admin.close(), context.close()]);
   }
+});
+
+test('lesson graph keypad, trial dismissal, close/reopen and Chromebook question width', async ({ browser }) => {
+  const admin = await newUserContext(browser, 'e2e-admin');
+  const learner = await newUserContext(browser, 'e2e-student-3', { viewport: { width: 1366, height: 600 } });
+  try {
+    const { sessionId, joinCode } = await lesson(admin, 'e2e-core-math');
+    const teacher = await admin.newPage(), student = await learner.newPage();
+    await teacher.goto(`/admin/live/${sessionId}`);
+    await expect(teacher.locator('#live-link')).toHaveText('Connected');
+    await join(student, joinCode);
+    await teacher.locator('[data-live="start"]').click();
+    await teacher.locator('[data-live="endNow"]').click();
+    await expect(student.locator('#lesson-content')).toContainText('REVEALED');
+    await teacher.locator('#live-desmos-toggle').click();
+    await expect(teacher.locator('#live-desmos .live-desmos-calc[data-ready]')).toBeVisible();
+    await typeExpression(teacher, 'y=4321x');
+    await expect(studentList(student)).toContainText('4321');
+    await expect(teacher.locator('#live-desmos .dcg-show-keypad')).toHaveCount(0);
+    await expect(student.locator('#lesson-desmos .dcg-show-keypad')).toHaveCount(0);
+    const before = await studentList(student).textContent();
+    const dismiss = student.locator('#lesson-desmos .dcg-api-trial-notice-close');
+    await expect(dismiss).toBeVisible();
+    await dismiss.focus();
+    await student.keyboard.press('Enter');
+    await expect(dismiss).toHaveCount(0);
+    await student.locator('#lesson-desmos .dcg-new-expression').click();
+    await student.keyboard.type('y=9999');
+    await expect(studentList(student)).toHaveText(before);
+    await student.locator('#lesson-calc-toggle').click();
+    await expect(student.locator('#lesson-calc')).toBeVisible();
+    await expect(student.locator('#lesson-calc .dcg-show-keypad')).toHaveCount(0);
+    const columnWidth = () => student.locator('.stage-fit-box').evaluate(el => el.getBoundingClientRect().width);
+    const bothDocks = await columnWidth();
+    await teacher.locator('#live-desmos-toggle').click();
+    await expect(student.locator('#lesson-desmos')).toHaveCount(0);
+    await expect(student.locator('.lesson-main')).not.toHaveClass(/with-desmos/);
+    await expect.poll(columnWidth).toBeGreaterThan(bothDocks);
+    await expect(student.locator('#lesson-calc')).toBeVisible();
+    await join(student, joinCode);
+    await expect(student.locator('#lesson-desmos')).toHaveCount(0);
+    await teacher.reload();
+    await expect(teacher.locator('#live-link')).toHaveText('Connected');
+    await expect(teacher.locator('#live-desmos-toggle')).toHaveAttribute('aria-pressed', 'false');
+    await teacher.locator('#live-desmos-toggle').click();
+    await expect(studentList(student)).toContainText('4321');
+    await student.locator('#lesson-desmos .dcg-api-trial-notice-close').click();
+    await expect(student.locator('#lesson-desmos .dcg-api-trial-notice-close')).toHaveCount(0);
+  } finally { await Promise.all([admin.close(), learner.close()]); }
 });

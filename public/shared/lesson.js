@@ -21,7 +21,7 @@ export function validAction(m, role) {
   // Explicit hide (tool off, pointer left the stage, presenter gone); otherwise a position.
   if (m.type === 'laser') return validId(m.questionId) && (m.hide === true ? !('x' in m) && !('y' in m) && !('a' in m) : !('hide' in m) && anchored(m.a, [m.x, m.y]));
   if (m.type === 'annotate') return validId(m.questionId) && validMark(m.op);
-  if (m.type === 'desmos') return validId(m.questionId) && validDesmos(m.state);
+  if (m.type === 'desmos') return validId(m.questionId) && (m.state === null || validDesmos(m.state));
   // The instructor crosses a choice out (on: true) or restores it (on: false) for the whole class.
   if (m.type === 'eliminate') return validId(m.questionId) && typeof m.letter === 'string' && /^[A-D]$/.test(m.letter) && typeof m.on === 'boolean';
   // Presenter fit (live-fit): the presenter's stage width, question type and chrome unit in CSS px, and its

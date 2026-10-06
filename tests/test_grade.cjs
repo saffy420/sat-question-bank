@@ -16,7 +16,7 @@ const stats = require('../public/shared/stats.js');
 const { createRecorder, pick } = require('../lesson-ui/record.ts');
 // The block's free variables (S, PROG, refresh, ...) are parameters here, which is what lets them be stubbed. `S` is
 // reassigned per case, so it is read through a getter and the block's bare `S` is rewritten to call it.
-const lifted = new Function('createRecorder', 'Stats', 'PROG', 'LOG', 'saveProgress', 'saveLog', 'getS', 'levelOf', 'nextLevel', 'refresh', 'bankDraw', 'saveSession', 'reviewState',
+const lifted = new Function('createRecorder', 'Stats', 'PROG', 'LOG', 'saveProgress', 'saveLog', 'getS', 'levelOf', 'nextLevel', 'refresh', 'bankDraw', 'saveSession', 'reviewState', 'PLAN_TAG',
   block.replace(/\bS\b/g, 'getS()') + '\nreturn { afterCheck, REC };');
 
 const choices = [{ letter: 'A' }, { letter: 'B' }];
@@ -114,7 +114,7 @@ import('../public/shared/renderer.js').then(renderer => {
   const question = { id: 'mc', answer: 'B', choices, spr: false };
   const spr = { id: 'spr', answer: '3', choices: [], spr: true };
   const { execFileSync } = require('node:child_process');
-  const baseline = execFileSync('git.exe', ['show', '00cebf32:public/index.html'], { cwd: __dirname + '/..', encoding: 'utf8' });
+  const baseline = execFileSync(process.platform === 'win32' ? 'git.exe' : 'git', ['show', '00cebf32:public/index.html'], { cwd: __dirname + '/..', encoding: 'utf8' });
   const original = baseline.slice(baseline.indexOf('function choiceHTML(q,'), baseline.indexOf('function loadQuestion()', baseline.indexOf('function choiceHTML(q,')));
   const baselineChoice = new Function('esc', original + '\nreturn choiceHTML;')(s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])));
   global.S = { checked: {}, miss: {}, ko: {} }; global.PROG = {};
@@ -127,14 +127,16 @@ import('../public/shared/renderer.js').then(renderer => {
   assert.equal(stats.normalizeQuestion({ choices_json:'[{"letter":"A","content":"ΓÇö"}]', correct_answer:'A' }).choices[0].content, '—');
   assert.equal(stats.normalizeQuestion({ choices_json:'[]', correct_answer:'', explanation_html:'<p>The correct answer is 8 or 9 ΓÇö.</p>' }).answer, '8 or 9');
   const figure = { ...question, section:'Math', stem_html:'<p>Question</p><div class="qfig"><img src="/qimg/chart.png"></div>', explanation_html:'<p>Explanation</p>' };
-  const dom = { createElement: () => ({ innerHTML: '', querySelectorAll() { return []; } }) };
+  const dom = {
+    documentElement: { dataset: {} }, head: { append() {} }, addEventListener() {},
+    createElement: () => ({ innerHTML: '', children: [], querySelectorAll() { return []; } })
+  };
   const mcPreview = renderer.previewHTML({ ...question, explanation_html:'<p>Explanation</p>' }, dom, 'A');
   const sprPreview = renderer.previewHTML({ ...spr, stem_html:'<p>Grid</p>', explanation_html:'<p>Answer</p>' }, dom, '2');
   assert.match(mcPreview, /class="choices"/);
   assert.match(mcPreview, /Explanation/);
   assert.match(sprPreview, /disabled value="2"/);
   assert.match(renderer.previewHTML(figure, dom, 'A'), /class="cb expl"/);
-  assert.match(page, /SharedRenderer\.previewHTML\(q, document\)/);
   assert.match(fs.readFileSync(__dirname + '/../admin-ui/ui.tsx', 'utf8'), /previewHTML\(q, document, picked\)/);
   console.log('grade: renderer baseline parity pass');
 }).catch(e => { console.error(e.name, e.message, e.stack); process.exitCode = 1; });

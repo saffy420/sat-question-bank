@@ -56,7 +56,8 @@ class Room {
       classResults: !!s.classResults, annotations: item ? (s.annotations?.[item.question_id] || []).filter(x => revealed || a.role === 'admin' || x.type === 'edit') : [],
       eliminations: item ? this.sharedEliminations(s, item.question_id, a.role) : [],
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null,
-      desmos: revealed && item && s.desmos?.questionId === item.question_id ? s.desmos.state : null,
+      desmos: revealed && item && s.desmos?.questionId === item.question_id && (a.role === 'admin' || s.desmos.visible !== false) ? s.desmos.state : null,
+      desmosVisible: s.desmos?.visible !== false,
       view: s.view || null,
       ...(revealed && item && (a.role === 'admin' || s.classResults) ? { distribution: responseGroups(s.questions[item.question_id], Object.fromEntries(Object.entries(s.responses).map(([id, answers]) => [id, answers[item.question_id]])))
         .map(g => a.role === 'admin' ? { ...g, users: g.users.map(u => ({ name: s.roster[u.userId], ms: u.ms })) } : { label: g.label, count: g.count, correct: g.correct }) } : {}),
@@ -186,7 +187,7 @@ class Room {
     const groups = s.classResults || a.role === 'admin' ? responseGroups(q, Object.fromEntries(takers.map(userId => [userId, s.responses[userId][id] || {}]))) : null;
     // Review is untimed: the finished set's clock must not keep counting on screen.
     const common = { questionId: id, index: s.index, total: s.items.length, question: lessonQuestion(q, true), reviewMode: true, endsAt: null,
-      annotations: s.annotations?.[id] || [], eliminations: this.sharedEliminations(s, id, a.role), desmos: s.desmos?.questionId === id ? s.desmos.state : null, view: s.view || null, classResults: !!s.classResults,
+      annotations: s.annotations?.[id] || [], eliminations: this.sharedEliminations(s, id, a.role), desmos: s.desmos?.questionId === id && (a.role === 'admin' || s.desmos.visible !== false) ? s.desmos.state : null, desmosVisible: s.desmos?.visible !== false, view: s.view || null, classResults: !!s.classResults,
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null };
     if (a.role === 'admin') return { ...common, notes: item.notes || '',
       responses: Object.fromEntries(takers.map(userId => [userId, { [id]: { answer: s.responses[userId][id]?.answer, locked: true } }])),
@@ -525,8 +526,14 @@ class Room {
     if (m.type === 'desmos') {
       // Same gate as annotations: a graph can give the answer away before reveal.
       if (a.role !== 'admin' || s.phase !== 'REVEALED' || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
-      if (s.desmos?.questionId === m.questionId && JSON.stringify(s.desmos.state) === JSON.stringify(m.state)) return;
-      await this.ctx.storage.put('desmos', { questionId: m.questionId, state: m.state });
+      // Closing hides the live panel while keeping the graph for reopening and lesson history.
+      if (m.state === null) {
+        if (s.desmos?.questionId !== m.questionId || s.desmos.visible === false) return;
+        await this.ctx.storage.put('desmos', { ...s.desmos, visible: false });
+      } else {
+        if (s.desmos?.questionId === m.questionId && s.desmos.visible !== false && JSON.stringify(s.desmos.state) === JSON.stringify(m.state)) return;
+        await this.ctx.storage.put('desmos', { questionId: m.questionId, state: m.state });
+      }
       for (const peer of this.sockets()) if (peer !== ws) try { this.send(peer, { type:'desmos', questionId:m.questionId, state:m.state }); } catch { /* disconnected */ }
       return;
     }

@@ -3,9 +3,9 @@ export const DESMOS_SRC = 'https://www.desmos.com/api/v1.11/calculator.js';
 export const SYNC_MS = 150;
 
 // Students follow the instructor: no expression editing, no pan/zoom, no menus.
-// The follower panel also swallows pointer/keyboard/focus input (wheel scroll still works).
+// The follower blocks graph input; scrolling and the trial notice dismiss button still work.
 export const FOLLOW_OPTIONS = Object.freeze({ keypad: false, expressionsTopbar: false, settingsMenu: false, zoomButtons: false, lockViewport: true, pointsOfInterest: false, trace: false, border: false });
-export const EDIT_OPTIONS = Object.freeze({ keypad: true, expressionsTopbar: true, settingsMenu: false, zoomButtons: true, lockViewport: false, pointsOfInterest: true, trace: true, border: false });
+export const EDIT_OPTIONS = Object.freeze({ keypad: false, expressionsTopbar: true, settingsMenu: false, zoomButtons: true, lockViewport: false, pointsOfInterest: true, trace: true, border: false });
 
 let loading = null;
 export function loadDesmos(key) {
