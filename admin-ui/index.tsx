@@ -24,9 +24,10 @@ import { Suggestions } from "./Suggestions";
 import { api } from "./helpers";
 import lessonStyles from "../lesson-ui/lesson.css?inline";
 import adminStyles from "./admin.css?inline";
+import { mathFieldStyles } from "./mathField";
 
 const style = document.createElement("style");
-style.textContent = lessonStyles + "\n" + adminStyles;
+style.textContent = mathFieldStyles + "\n" + lessonStyles + "\n" + adminStyles;
 document.head.append(style);
 function App() {
   const [path, setPath] = useState(location.pathname + location.search);

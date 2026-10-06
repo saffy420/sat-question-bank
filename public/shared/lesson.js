@@ -3,7 +3,7 @@ import { isRight } from './stats.js';
 // Shared lesson protocol.
 export const GRACE_MS = 750;
 export const CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
-export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults', 'annotate', 'laser', 'desmos', 'startPoll', 'goto', 'eliminate', 'view'];
+export const ADMIN_ACTIONS = ['start', 'startQuestion', 'addTime', 'endNow', 'next', 'endSession', 'kick', 'lockJoin', 'classResults', 'annotate', 'laser', 'desmos', 'startPoll', 'goto', 'eliminate', 'view', 'draft'];
 export const STUDENT_ACTIONS = ['select', 'lock', 'navigate', 'time', 'submitAll', 'vote'];
 // Review polls (§8.7): 30 s to vote, then the result stays on screen for 3 s.
 export const POLL_MS = 30000;
@@ -14,13 +14,16 @@ export const MAX_DESMOS_BYTES = 48 * 1024;
 export const MAX_DESMOS_FRAME = MAX_DESMOS_BYTES + 256;
 export function validAction(m, role) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return false;
-  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y', 'a', 'hide'], desmos: ['type', 'questionId', 'state'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'], navigate: ['type', 'questionId'], time: ['type', 'questionId', 'deltaMs', 'seq'], submitAll: ['type'], startPoll: ['type'], goto: ['type', 'questionId'], vote: ['type', 'option', 'questionId'], eliminate: ['type', 'questionId', 'letter', 'on'], view: ['type', 'w', 'fs', 'u', 'vw'] };
+  const fields = { ping: ['type', 'sentAt'], start: ['type'], startQuestion: ['type'], addTime: ['type', 'sec'], endNow: ['type'], next: ['type'], endSession: ['type'], kick: ['type', 'userId'], lockJoin: ['type', 'bool'], classResults: ['type', 'bool'], annotate: ['type', 'questionId', 'op'], laser: ['type', 'questionId', 'x', 'y', 'a', 'hide'], desmos: ['type', 'questionId', 'state'], select: ['type', 'questionId', 'answer'], lock: ['type', 'questionId'], navigate: ['type', 'questionId'], time: ['type', 'questionId', 'deltaMs', 'seq'], submitAll: ['type'], startPoll: ['type'], goto: ['type', 'questionId'], vote: ['type', 'option', 'questionId'], eliminate: ['type', 'questionId', 'letter', 'on'], view: ['type', 'w', 'fs', 'u', 'vw'], draft: ['type', 'questionId', 'op'] };
   if (!Object.hasOwn(fields, m.type) || Object.keys(m).some(k => !fields[m.type].includes(k))) return false;
   if (m.type !== 'ping' && !(role === 'admin' ? ADMIN_ACTIONS : STUDENT_ACTIONS).includes(m.type)) return false;
   if (m.type === 'ping') return Number.isSafeInteger(m.sentAt) && m.sentAt >= 0;
   // Explicit hide (tool off, pointer left the stage, presenter gone); otherwise a position.
   if (m.type === 'laser') return validId(m.questionId) && (m.hide === true ? !('x' in m) && !('y' in m) && !('a' in m) : !('hide' in m) && anchored(m.a, [m.x, m.y]));
   if (m.type === 'annotate') return validId(m.questionId) && validMark(m.op);
+  // A text box being typed (live-mathtype): the box so far under its final id, or an erase of that id when the
+  // editor closes without committing. Drafts live in the room's memory only, never in storage or D1.
+  if (m.type === 'draft') return validId(m.questionId) && validMark(m.op) && (m.op.type === 'text' || m.op.type === 'erase');
   if (m.type === 'desmos') return validId(m.questionId) && validDesmos(m.state);
   // The instructor crosses a choice out (on: true) or restores it (on: false) for the whole class.
   if (m.type === 'eliminate') return validId(m.questionId) && typeof m.letter === 'string' && /^[A-D]$/.test(m.letter) && typeof m.on === 'boolean';
@@ -59,9 +62,12 @@ function anchored(a, values) {
   if (glyph) return NODE.test(glyph[1]) && values.every(glyph[2] === '~' ? within(-400, 400) : within(-4000, 4000));
   return (NODE.test(a) || /^(?:i:\d{1,2}|P|Q)$/.test(a)) && values.every(within(-4, 5));
 }
+// TeX in a math box or a math edit: one line, at most MAX_TEX bytes as JSON, so its frame stays under MAX_FRAME.
+export const MAX_TEX = 1400;
+const validTex = tex => typeof tex === 'string' && tex.trim().length > 0 && !/[\u0000-\u001f]/.test(tex) && new TextEncoder().encode(JSON.stringify(tex)).length <= MAX_TEX;
 export function validMark(op) {
-  if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','erase','clear','text','edit'].includes(op.type)) return false;
-  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color','a'], erase:['type','id'], clear:['type'], text:['type','id','a','x','y','text','color'], edit:['type','id','nodeId','i','text'] };
+  if (!op || typeof op !== 'object' || Array.isArray(op) || !['highlight','strike','stroke','erase','clear','text','edit','edit-math'].includes(op.type)) return false;
+  const fields = { highlight:['type','id','nodeId','startOffset','endOffset','color'], strike:['type','id','nodeId','startOffset','endOffset','color'], stroke:['type','id','points','color','a'], erase:['type','id'], clear:['type'], text:['type','id','a','x','y','text','tex','color'], edit:['type','id','nodeId','i','text'], 'edit-math':['type','id','nodeId','k','tex'] };
   if (Object.keys(op).some(k => !fields[op.type].includes(k))) return false;
   if (op.type === 'clear') return true;
   if (!validId(op.id)) return false;
@@ -70,9 +76,14 @@ export function validMark(op) {
   // One mark per text node, so the id names it; 1500 chars keeps the frame under MAX_FRAME.
   if (op.type === 'edit') return typeof op.nodeId === 'string' && NODE.test(op.nodeId) && Number.isSafeInteger(op.i) && op.i >= 0 && op.i <= 999
     && typeof op.text === 'string' && op.text.length <= 1500 && op.id === `edit:${op.nodeId}:${op.i}`;
+  // Live math fix: formula `k` of a block (its k-th top-level .katex) is re-rendered from `tex`.
+  if (op.type === 'edit-math') return typeof op.nodeId === 'string' && NODE.test(op.nodeId) && Number.isSafeInteger(op.k) && op.k >= 0 && op.k <= 99
+    && validTex(op.tex) && op.id === `edit-math:${op.nodeId}:${op.k}`;
   if (!['#ffe066','#ff7676','#75dbaa'].includes(op.color)) return false;
-  // A typed box: 1-280 characters on at most 6 lines, placed like one pen point (em or fraction anchor).
-  if (op.type === 'text') return typeof op.text === 'string' && op.text.trim().length > 0 && op.text.length <= 280 && op.text.split('\n').length <= 6 && anchored(op.a, [op.x, op.y]);
+  // A typed box, placed like one pen point (em or fraction anchor): either text (1-280 characters on at most
+  // 6 lines) or math (`tex`, drawn with KaTeX), never both.
+  if (op.type === 'text') return anchored(op.a, [op.x, op.y]) && ('tex' in op ? !('text' in op) && validTex(op.tex)
+    : typeof op.text === 'string' && op.text.trim().length > 0 && op.text.length <= 280 && op.text.split('\n').length <= 6);
   if (op.type === 'stroke') return Array.isArray(op.points) && op.points.length >= 1 && op.points.length <= 32 && op.points.every(p => Array.isArray(p) && p.length === 2 && anchored(op.a, p));
   return /^([ps]:\d+|c:[A-D])$/.test(op.nodeId) && Number.isSafeInteger(op.startOffset) && Number.isSafeInteger(op.endOffset) && op.startOffset >= 0 && op.endOffset > op.startOffset && op.endOffset <= 20000;
 }

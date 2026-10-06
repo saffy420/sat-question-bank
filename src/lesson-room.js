@@ -17,6 +17,8 @@ const reviewRow = (s, item) => {
   const desmos = review(s, item).desmos || null;
   return annotations.length || desmos ? { questionId: id, annotations: annotations.length ? annotations : null, desmos } : null;
 };
+// Text edits never wait for the reveal: `edit` (prose) and `edit-math` (a formula) marks.
+const isEdit = x => x.type === 'edit' || x.type === 'edit-math';
 // Session results timing: s.timing[questionId] = { explainMs, answerMs }, kept in room storage and
 // written once with the ended UPDATE. `revealedAt` stamps the current REVEALED interval; leaving
 // REVEALED (any path) adds it to the question being left, so revisits accumulate.
@@ -32,6 +34,16 @@ class Room {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
+    // live-mathtype: the text box the presenter is typing, by mark id ({ questionId, op }). Memory only: a
+    // draft is never saved or written to D1; the commit is an ordinary `text` annotate. Students and the
+    // projector see drafts over the committed layer once the question is revealed (hidden() rules).
+    this.drafts = new Map();
+  }
+  // The committed layer with this question's drafts laid over it (same id replaces, a new box is added).
+  drafted(layer, questionId) {
+    const drafts = [...this.drafts.values()].filter(d => d.questionId === questionId).map(d => d.op);
+    if (!drafts.length) return layer;
+    return [...layer.map(x => drafts.find(d => d.id === x.id) || x), ...drafts.filter(d => !layer.some(x => x.id === d.id))];
   }
   // The latest Desmos state lives under its own key so frequent room saves stay small.
   async state() { const s = await this.ctx.storage.get('room'); return s && { ...s, desmos: await this.ctx.storage.get('desmos') || null }; }
@@ -53,7 +65,7 @@ class Room {
       assignedQuestionIds: a.role === 'student' ? s.items.map(x => x.question_id) : undefined,
       question: item ? lessonQuestion(s.questions[item.question_id], revealed || a.role === 'admin') : null,
       ownSelection: r?.answer || null, locked: !!r?.locked, count: Object.keys(s.responses).length,
-      classResults: !!s.classResults, annotations: item ? (s.annotations?.[item.question_id] || []).filter(x => revealed || a.role === 'admin' || x.type === 'edit') : [],
+      classResults: !!s.classResults, annotations: item ? (a.role === 'admin' || !revealed ? s.annotations?.[item.question_id] || [] : this.drafted(s.annotations?.[item.question_id] || [], item.question_id)).filter(x => revealed || a.role === 'admin' || isEdit(x)) : [],
       eliminations: item ? this.sharedEliminations(s, item.question_id, a.role) : [],
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null,
       desmos: revealed && item && s.desmos?.questionId === item.question_id ? s.desmos.state : null,
@@ -79,6 +91,7 @@ class Room {
     if (!Number.isInteger(to) || to < 0 || to >= s.items.length || to === s.index || to > played) return 'question not reachable';
     // A laser frame held by the rate floor belongs to the question being left (and may be headed for students).
     clearTimeout(this.laserHeld); this.laserHeld = null;
+    this.drafts.clear();
     // Leaving a revealed question lands its shared layer, as Next always has.
     const row = s.phase === 'REVEALED' ? reviewRow(s, item) : null;
     if (row) await this.queue({ questionId: item.question_id, rows: [], end: false, reviews: [row] });
@@ -186,7 +199,7 @@ class Room {
     const groups = s.classResults || a.role === 'admin' ? responseGroups(q, Object.fromEntries(takers.map(userId => [userId, s.responses[userId][id] || {}]))) : null;
     // Review is untimed: the finished set's clock must not keep counting on screen.
     const common = { questionId: id, index: s.index, total: s.items.length, question: lessonQuestion(q, true), reviewMode: true, endsAt: null,
-      annotations: s.annotations?.[id] || [], eliminations: this.sharedEliminations(s, id, a.role), desmos: s.desmos?.questionId === id ? s.desmos.state : null, view: s.view || null, classResults: !!s.classResults,
+      annotations: a.role === 'admin' ? s.annotations?.[id] || [] : this.drafted(s.annotations?.[id] || [], id), eliminations: this.sharedEliminations(s, id, a.role), desmos: s.desmos?.questionId === id ? s.desmos.state : null, view: s.view || null, classResults: !!s.classResults,
       hasMath: s.items.some(x => s.questions[x.question_id]?.section === 'Math'), desmosKey: a.desmosKey || null };
     if (a.role === 'admin') return { ...common, notes: item.notes || '',
       responses: Object.fromEntries(takers.map(userId => [userId, { [id]: { answer: s.responses[userId][id]?.answer, locked: true } }])),
@@ -542,7 +555,7 @@ class Room {
       this.broadcastEliminations(s, m.questionId);
       return;
     }
-    if (m.type === 'annotate' || m.type === 'laser') {
+    if (m.type === 'annotate' || m.type === 'laser' || m.type === 'draft') {
       // Revealed (live), or a live instructor-paced question before the reveal (instructor only, 11d).
       const open = s.phase === 'REVEALED' || (s.status === 'live' && this.hidden(s)), to = this.hidden(s) ? 'admin' : undefined;
       if (a.role !== 'admin' || !open || item.question_id !== m.questionId) { this.send(ws,{ type:'error',error:'invalid phase' }); return; }
@@ -559,34 +572,56 @@ class Room {
         if (wait > 0) this.laserHeld = setTimeout(() => { this.laserHeld = null; relay(frame); }, wait);
         else relay(frame);
         return;
+      } else if (m.type === 'draft') {
+        // A box being typed: relayed as an ordinary annotate under its final id (clients replace by id), only
+        // to the audience and only once revealed. Closing the editor without a commit (erase) puts the
+        // committed box back, or removes a new one. The presenter keeps its own editor, so it gets nothing.
+        const layer = s.annotations?.[m.questionId] || [], op = m.op;
+        const committed = layer.find(x => x.id === op.id);
+        if (committed && committed.type !== 'text') { this.send(ws,{ type:'error',error:'layer full or duplicate mark' }); return; }
+        if (op.type === 'text') this.drafts.set(op.id, { questionId: m.questionId, op });
+        else this.drafts.delete(op.id);
+        if (to) return;
+        const shown = op.type === 'text' ? op : committed || op;
+        for (const peer of this.audience()) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:shown }); } catch { /* disconnected */ }
+        return;
       } else {
         const layer = s.annotations?.[m.questionId] || [];
         const op = m.op;
-        if (op.type === 'highlight' || op.type === 'strike' || op.type === 'edit') {
+        if (op.type === 'highlight' || op.type === 'strike' || isEdit(op)) {
           const q = s.questions[item.question_id];
           const choice = op.nodeId.startsWith('c:') && q.choices.find(c => c.letter === op.nodeId.slice(2));
           const index = Number(op.nodeId.slice(2));
           const blocks = (q.stem_html.match(/<(?:p|li|h[1-4]|blockquote)\b/gi) || []).length;
           const source = choice ? choice.content : /^(?:p|s):/.test(op.nodeId) && Number.isInteger(index) && index < Math.max(1,blocks) ? q.stem_html : null;
-          if (!source || (op.type !== 'edit' && op.endOffset > source.length)) { this.send(ws,{ type:'error',error:'invalid anchor' }); return; }
+          // A math edit names one of the formulas (\( or \[) the block's source can hold.
+          const formulas = (source?.match(/\\[([]/g) || []).length;
+          if (!source || (op.type === 'edit-math' ? op.k >= formulas : op.type !== 'edit' && op.endOffset > source.length)) { this.send(ws,{ type:'error',error:'invalid anchor' }); return; }
         }
         // An edit replaces the block's earlier edit of the same text node (same id). Its block's highlights,
         // strikes and glyph-anchored ink pointed at the old text, so they go with it. Clients learn both as
         // erase ops, which every client already applies, ahead of the edit itself.
-        const stale = op.type === 'edit' ? layer.filter(x => x.id === op.id || (x.type !== 'edit' && ((x.type === 'highlight' || x.type === 'strike') ? x.nodeId === op.nodeId : typeof x.a === 'string' && (x.a.startsWith(`${op.nodeId}~`) || x.a.startsWith(`${op.nodeId}@`))))) : [];
+        // A math edit leaves the text offsets alone (KaTeX never counts), so it only replaces its own earlier edit.
+        const stale = op.type === 'edit-math' ? layer.filter(x => x.id === op.id) : op.type === 'edit' ? layer.filter(x => x.id === op.id || (!isEdit(x) && ((x.type === 'highlight' || x.type === 'strike') ? x.nodeId === op.nodeId : typeof x.a === 'string' && (x.a.startsWith(`${op.nodeId}~`) || x.a.startsWith(`${op.nodeId}@`))))) : [];
         // Clear all leaves text fixes standing: with edits in the layer it goes out as erases of the rest.
-        const keep = op.type === 'clear' ? layer.filter(x => x.type === 'edit') : [];
+        const keep = op.type === 'clear' ? layer.filter(isEdit) : [];
+        // A committed box (text) under an id it already has is that box edited: it replaces the old one in place.
+        const replaces = op.type === 'text' && layer.find(x => x.id === op.id);
+        if (replaces && replaces.type !== 'text') { this.send(ws,{ type:'error',error:'layer full or duplicate mark' }); return; }
         if (op.type === 'erase') {
           if (!layer.some(mark => mark.id === op.id)) { this.send(ws,{ type:'error',error:'unknown mark' }); return; }
-        } else if (op.type !== 'clear' && (layer.length - stale.length >= 512 || (op.type !== 'edit' && layer.some(mark => mark.id === op.id)))) { this.send(ws,{ type:'error',error:'layer full or duplicate mark' }); return; }
-        const next = op.type === 'clear' ? keep : op.type === 'erase' ? layer.filter(mark => mark.id !== op.id) : [...layer.filter(x => !stale.includes(x)), op];
+        } else if (op.type !== 'clear' && !replaces && (layer.length - stale.length >= 512 || (!isEdit(op) && layer.some(mark => mark.id === op.id)))) { this.send(ws,{ type:'error',error:'layer full or duplicate mark' }); return; }
+        const next = op.type === 'clear' ? keep : op.type === 'erase' ? layer.filter(mark => mark.id !== op.id) : replaces ? layer.map(x => x === replaces ? op : x) : [...layer.filter(x => !stale.includes(x)), op];
         if (JSON.stringify(next).length > 64000) { this.send(ws,{ type:'error',error:'layer full' }); return; }
         (s.annotations ||= {})[m.questionId] = next;
+        // The commit (or erase) of a box ends its draft; Clear all ends every draft on the question.
+        if (op.type === 'clear') { for (const [id, d] of this.drafts) if (d.questionId === m.questionId) this.drafts.delete(id); }
+        else this.drafts.delete(op.id);
         await this.save(s);
         // Edits are never hidden: a typo fix reaches students in every phase, while the rest of the layer keeps
         // the hidden-until-reveal rule (11d).
-        const ops = op.type === 'clear' && keep.length ? layer.filter(x => x.type !== 'edit').map(x => ({ type:'erase', id:x.id })) : [...stale.map(x => ({ type:'erase', id:x.id })), op];
-        const edit = x => x.type === 'edit' || (x.type === 'erase' && layer.find(y => y.id === x.id)?.type === 'edit');
+        const ops = op.type === 'clear' && keep.length ? layer.filter(x => !isEdit(x)).map(x => ({ type:'erase', id:x.id })) : [...stale.map(x => ({ type:'erase', id:x.id })), op];
+        const edit = x => isEdit(x) || (x.type === 'erase' && isEdit(layer.find(y => y.id === x.id) || {}));
         for (const peer of [...this.sockets('admin'), ...this.audience()]) {
           const shown = !to || peer.deserializeAttachment()?.role === to ? ops : ops.filter(edit);
           for (const x of shown) try { this.send(peer, { type:'annotate', questionId:m.questionId, op:x }); } catch { /* disconnected */ }

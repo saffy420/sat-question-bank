@@ -155,16 +155,42 @@ export function unpaint(card) {
     }
   }
 }
-// Live text fixes (`edit` marks): text node `i` of a clean block shows `text`. Each block's rendered text
-// is kept on first sight, so a replaced or cleared edit puts the original back.
-const originals = new WeakMap();
+// A block's formulas in order: its top-level KaTeX renders (`edit-math` mark `k` is an index into these).
+export const formulas = block => [...block.querySelectorAll('.katex')].filter(n => !n.parentElement.closest('.katex'));
+// The TeX a rendered formula was drawn from.
+export const texOf = el => el.querySelector('annotation[encoding="application/x-tex"]')?.textContent ?? null;
+// One formula drawn from `tex` as a .katex element (inside a display wrapper's style when `display`); null on a
+// KaTeX error or without KaTeX on the page.
+function renderFormula(tex, display) {
+  const katex = globalThis.katex, holder = document.createElement('span');
+  if (!katex) return null;
+  try { katex.render(tex, holder, { displayMode: display, throwOnError: true }); } catch { return null; }
+  return holder.querySelector('.katex');
+}
+// Live text fixes (`edit` marks): text node `i` of a clean block shows `text`; live math fixes (`edit-math`
+// marks): formula `k` is drawn from `tex`. Each block's rendered text and formulas are kept on first sight, so a
+// replaced or cleared edit puts the original back. A formula already showing its mark is left alone.
+const originals = new WeakMap(), originalMath = new WeakMap();
 export function applyEdits(card, layer) {
   unpaint(card);
+  const math = new Map(layer.filter(m => m.type === 'edit-math').map(m => [`${m.nodeId}:${m.k}`, m.tex]));
   for (const block of card.querySelectorAll('[data-ann-node]')) {
     if (editing(block)) continue;
     const nodes = textNodes(block), was = originals.get(block);
-    if (!was) { originals.set(block, nodes.map(n => n.data)); continue; }
-    if (was.length === nodes.length) nodes.forEach((n, i) => { if (n.data !== was[i]) n.data = was[i]; });
+    if (!was) originals.set(block, nodes.map(n => n.data));
+    else if (was.length === nodes.length) nodes.forEach((n, i) => { if (n.data !== was[i]) n.data = was[i]; });
+    const shown = formulas(block);
+    if (!originalMath.has(block)) originalMath.set(block, shown.map(n => n.cloneNode(true)));
+    const first = originalMath.get(block);
+    shown.forEach((n, k) => {
+      const tex = math.get(`${block.dataset.annNode}:${k}`);
+      if (tex === undefined) { if (n.dataset.editMath !== undefined && first[k]) n.replaceWith(first[k].cloneNode(true)); return; }
+      if (n.dataset.editMath === tex) return;
+      const next = renderFormula(tex, !!n.parentElement.closest('.katex-display'));
+      if (!next) return;
+      next.dataset.editMath = tex;
+      n.replaceWith(next);
+    });
   }
   for (const mark of layer) {
     if (mark.type !== 'edit') continue;
@@ -262,7 +288,20 @@ export function refreshLaser(card) { lasers.get(card)?.refresh(); }
 // Typed boxes: one absolutely positioned element per 'text' mark, keyed by mark id and placed with the
 // same frame as pen points, so a box stays over its words at any width and zoom. Type size follows the
 // anchor block's font size (em anchors); a box on a figure this client zoomed out of its frame is hidden.
+// A math box (`tex`) is drawn with KaTeX; TeX that KaTeX can't draw is shown as it is.
 const BOX_EM = 0.8;
+function boxContent(box, mark) {
+  if (mark.tex === undefined) {
+    if (box.dataset.tex !== undefined) { delete box.dataset.tex; box.classList.remove('lesson-textbox-math'); box.textContent = ''; }
+    if (box.textContent !== mark.text) box.textContent = mark.text;
+    return;
+  }
+  if (box.dataset.tex === mark.tex) return;
+  box.dataset.tex = mark.tex;
+  box.classList.add('lesson-textbox-math');
+  const math = renderFormula(mark.tex, false);
+  if (math) box.replaceChildren(math); else box.textContent = mark.tex;
+}
 export function textBoxes(card, layer) {
   const marks = layer.filter(m => m.type === 'text');
   const have = new Map([...card.querySelectorAll(':scope > .lesson-textbox')].map(n => [n.dataset.textMark, n]));
@@ -274,7 +313,7 @@ export function textBoxes(card, layer) {
       box.className = 'lesson-textbox'; box.dataset.textMark = mark.id;
       card.append(box);
     }
-    if (box.textContent !== mark.text) box.textContent = mark.text;
+    boxContent(box, mark);
     box.style.backgroundColor = mark.color;
     const f = frame(card, mark.a), at = f?.toCard([mark.x, mark.y]);
     if (!at || !inClip(f.clip, at)) { box.hidden = true; continue; }

@@ -984,7 +984,11 @@ test('text marks: stored, erased, cleared, counted toward the layer limit, instr
   assert.deepEqual(alice.sent.filter(m => m.type === 'annotate'), [], 'nothing reaches a student before the reveal');
   assert.deepEqual(room.snapshot(await room.state(), { role: 'student', userId: 'alice' }).annotations, []);
   assert.deepEqual(room.snapshot(await room.state(), { role: 'admin', userId: 'teacher' }).annotations.map(m => m.id), ['t1']);
-  await send(box('t1')); assert.equal(teacher.sent.at(-1).error, 'layer full or duplicate mark');
+  // The same box id again is that box edited (live-mathtype): it replaces the stored box in place.
+  await send({ ...box('t1'), text: 'edited' });
+  assert.deepEqual((await room.state()).annotations.q.map(m => [m.id, m.text]), [['t1', 'edited']]);
+  await send({ type: 'stroke', id: 't1', points: [[0, 0]], color: '#ff7676', a: 's:0~3' });
+  assert.equal(teacher.sent.at(-1).error, 'layer full or duplicate mark', 'a box id never goes to another kind of mark');
   await send({ type: 'erase', id: 't1' }); assert.deepEqual((await room.state()).annotations.q, []);
   await send(box('t2')); await send({ type: 'clear' }); assert.deepEqual((await room.state()).annotations.q, []);
   const state = await room.state(); state.annotations.q = Array.from({ length: 512 }, (_, i) => ({ ...box('f' + i), text: 'x' })); await room.save(state);
