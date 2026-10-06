@@ -367,7 +367,8 @@ test('desmos protocol: admin only, bounded size, exact fields', async () => {
   assert.equal(validAction(msg,'admin'),true); assert.equal(validAction(msg,'student'),false);
   assert.equal(validAction({...msg,extra:1},'admin'),false);
   assert.equal(validAction({...msg,state:[1]},'admin'),false);
-  assert.equal(validAction({...msg,state:null},'admin'),false);
+  assert.equal(validAction({...msg,state:null},'admin'),true);
+  assert.equal(validAction({...msg,state:null},'student'),false);
   assert.equal(validAction({...msg,state:{ big:'x'.repeat(MAX_DESMOS_BYTES) }},'admin'),false);
 });
 test('desmos state gated to REVEALED, stored in DO, sent to others once, hidden before reveal, flushed at boundary', async () => {
@@ -398,6 +399,17 @@ test('desmos state gated to REVEALED, stored in DO, sent to others once, hidden 
   assert.equal((await f.storage.get('room')).desmos, undefined, 'room object stays small');
   const snap = new LessonRoom(f.ctx,f.env).snapshot(await room.state(), { role:'student', userId:'alice', desmosKey:'dcb31709b452b1cf9dc26972add0fda6' });
   assert.deepEqual(snap.desmos, state); assert.equal(snap.hasMath, true); assert.equal(snap.desmosKey, 'dcb31709b452b1cf9dc26972add0fda6');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type:'desmos', questionId:'q', state:null }));
+  assert.equal(student.sent.at(-1).state, null, 'closing clears the follower');
+  const closed = await room.state();
+  assert.deepEqual(closed.desmos.state, state, 'graph retained for history and reopening');
+  assert.equal(room.snapshot(closed, { role:'student', userId:'alice' }).desmos, null, 'reconnect stays closed');
+  assert.deepEqual(room.snapshot(closed, { role:'admin', userId:'teacher' }).desmos, state);
+  assert.equal(room.snapshot(closed, { role:'admin', userId:'teacher' }).desmosVisible, false);
+  assert.equal(room.reviewPayload({ ...closed, assigned:{} }, { role:'student', userId:'alice' }).desmos, null, 'review uses visibility too');
+  await room.webSocketMessage(teacher.ws, msg);
+  assert.deepEqual(student.sent.at(-1).state, state, 'same graph reopens');
+  await room.webSocketMessage(teacher.ws, JSON.stringify({ type:'desmos', questionId:'q', state:null }));
   f.s.items.push({ question_id:'q2', time_limit_sec:60 }); const s = await room.state(); s.items = f.s.items; await room.save(s);
   await room.webSocketMessage(teacher.ws, JSON.stringify({ type:'next' }));
   const review = f.writes.filter(([sql]) => sql.includes('session_question_review'));

@@ -38,13 +38,19 @@ export function DesmosFollower({ apiKey, state, readOnly = false, onTry }: { api
     calc.setState(state, { allowUndo: false });
     applied.current = text;
   }, [calc, state]);
-  // Following is read-only but still scrollable: block every input except the wheel.
+  // Following is read-only but still allows scrolling and trial notice dismissal.
   useEffect(() => {
     const el = host.current;
     if (!el) return;
     // Touch only stops propagation so touchscreen scrolling still works.
-    const block = (e: Event) => { if (e.type !== 'touchstart') e.preventDefault(); e.stopPropagation(); };
-    const unfocus = (e: FocusEvent) => { (e.target as HTMLElement).blur?.(); };
+    const dismiss = (target: EventTarget | null) => target instanceof Element && !!target.closest('.dcg-api-trial-notice-close');
+    const block = (e: Event) => {
+      // Only the notice's own dismiss button is interactive; expression inputs stay blocked.
+      if (dismiss(e.target)) return;
+      if (e.type !== 'touchstart') e.preventDefault();
+      e.stopPropagation();
+    };
+    const unfocus = (e: FocusEvent) => { if (!dismiss(e.target)) (e.target as HTMLElement).blur?.(); };
     const types = ['pointerdown', 'mousedown', 'click', 'dblclick', 'touchstart', 'keydown', 'keypress', 'beforeinput', 'input', 'paste', 'drop', 'contextmenu'];
     for (const type of types) el.addEventListener(type, block, { capture: true, passive: false });
     el.addEventListener('focusin', unfocus, { capture: true });
@@ -64,30 +70,38 @@ export function DesmosFollower({ apiKey, state, readOnly = false, onTry }: { api
 // Instructor panel: editable; changes go out throttled and de-duplicated while `live`. `resize` (admin only) adds a
 // drag handle on the panel's left edge: it reports the wanted width in px and the parent clamps and stores it.
 export type PanelResize = { width: number; min: number; max: number; onChange: (width: number) => void };
-export function DesmosLeader({ apiKey, initial, live, send, resize }: { apiKey?: string | null; initial: DesmosState; live: boolean; send: (state: object) => void; resize?: PanelResize }) {
+export function DesmosLeader({ apiKey, initial, live, shown = true, send, resize }: { apiKey?: string | null; initial: DesmosState; live: boolean; shown?: boolean; send: (state: object | null) => void; resize?: PanelResize }) {
   const { host, calc, error } = useCalculator(apiKey, EDIT_OPTIONS);
+  const wasShown = useRef(shown);
   const liveRef = useRef(live);
-  liveRef.current = live;
-  const dirty = useRef(false);
+  liveRef.current = live && shown;
   const sync = useRef<ReturnType<typeof syncOut> | null>(null);
   useEffect(() => {
     if (!calc) return;
     if (initial) calc.setState(initial, { allowUndo: false });
     const out = syncOut(calc, (state: object) => {
-      dirty.current = true;
       if (!liveRef.current) return false;
       send(state);
       return true;
     });
-    // A restored state is already on the server; do not echo it back.
     out.mark(initial ? calc.getState() : null);
     sync.current = out;
     return () => { out.stop(); sync.current = null; };
   }, [calc]);
-  // Work done before the reveal goes out once the question is revealed.
-  useEffect(() => { if (live && dirty.current) sync.current?.flush(); }, [live]);
+  // Opening publishes even an unchanged graph; closing retains the local calculator.
+  useEffect(() => {
+    if (live && calc) {
+      if (shown) { sync.current?.mark(null); sync.current?.flush(); }
+      else if (wasShown.current) {
+        // Persist the final keystroke before hiding, even inside the throttle window.
+        send(calc.getState());
+        send(null);
+      }
+    }
+    wasShown.current = shown;
+  }, [calc, live, shown]);
   // Desmos only re-measures itself on window resize, so tell it when the panel's own width changes.
-  useLayoutEffect(() => { (calc as unknown as { resize?: () => void } | null)?.resize?.(); }, [calc, resize?.width]);
+  useLayoutEffect(() => { if (shown) (calc as unknown as { resize?: () => void } | null)?.resize?.(); }, [calc, resize?.width, shown]);
   const drag = (down: ReactPointerEvent<HTMLElement>) => {
     if (!resize || down.button !== 0) return;
     down.preventDefault();
@@ -108,7 +122,7 @@ export function DesmosLeader({ apiKey, initial, live, send, resize }: { apiKey?:
     else return;
     e.preventDefault();
   };
-  return <aside className="live-desmos" id="live-desmos" aria-label="Desmos graphing calculator" style={resize ? { width: resize.width } : undefined}>
+  return <aside hidden={!shown} className="live-desmos" id="live-desmos" aria-label="Desmos graphing calculator" style={resize ? { width: resize.width } : undefined}>
     {resize && <div className="live-desmos-handle" id="live-desmos-handle" role="separator" aria-orientation="vertical" aria-label="Resize Desmos panel" aria-valuemin={resize.min} aria-valuemax={resize.max} aria-valuenow={resize.width} tabIndex={0} title="Drag to resize" onPointerDown={drag} onKeyDown={key}/>}
     {error ? <p role="alert">{error}</p> : null}
     {!live && !error ? <p className="live-desmos-note">Students see your graph after the reveal.</p> : null}

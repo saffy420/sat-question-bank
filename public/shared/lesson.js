@@ -24,7 +24,7 @@ export function validAction(m, role) {
   // A text box being typed (live-mathtype): the box so far under its final id, or an erase of that id when the
   // editor closes without committing. Drafts live in the room's memory only, never in storage or D1.
   if (m.type === 'draft') return validId(m.questionId) && validMark(m.op) && (m.op.type === 'text' || m.op.type === 'erase');
-  if (m.type === 'desmos') return validId(m.questionId) && validDesmos(m.state);
+  if (m.type === 'desmos') return validId(m.questionId) && (m.state === null || validDesmos(m.state));
   // The instructor crosses a choice out (on: true) or restores it (on: false) for the whole class.
   if (m.type === 'eliminate') return validId(m.questionId) && typeof m.letter === 'string' && /^[A-D]$/.test(m.letter) && typeof m.on === 'boolean';
   // Presenter fit (live-fit): the presenter's stage width, question type and chrome unit in CSS px, and its

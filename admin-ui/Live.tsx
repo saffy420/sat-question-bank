@@ -947,7 +947,8 @@ function InstructorStage({
   const [color, setColor] = useState(colors[0]);
   const [clear, setClear] = useState(false);
   const [card, setCard] = useState<HTMLDivElement | null>(null);
-  const [desmos, setDesmos] = useState(!!s.desmos);
+  const [desmos, setDesmos] = useState(!!s.desmos && s.desmosVisible !== false);
+  const [desmosMade, setDesmosMade] = useState(!!s.desmos);
   // Chosen width is kept as asked; what is drawn is clamped so the question keeps DESMOS_READABLE px.
   const [desmosWidth, setDesmosWidth] = useState(storedDesmosWidth);
   const [bodyWidth, setBodyWidth] = useState(0);
@@ -1726,7 +1727,10 @@ function InstructorStage({
             id="live-desmos-toggle"
             title="Desmos"
             aria-pressed={desmos}
-            onClick={() => setDesmos(!desmos)}
+            onClick={() => {
+              setDesmosMade(true);
+              setDesmos(!desmos);
+            }}
           >
             <Calculator />
             <span>Desmos</span>
@@ -1776,14 +1780,13 @@ function InstructorStage({
             onStrike={onStrike}
           />
         </div>
-        {desmos && (
+        {desmosMade && (
           <DesmosLeader
             apiKey={s.desmosKey}
             initial={s.desmos}
+            shown={desmos}
             live={s.phase === "REVEALED"}
-            send={(state) =>
-              send("desmos", { questionId: s.questionId, state })
-            }
+            send={(state) => send("desmos", { questionId: s.questionId, state })}
             resize={{
               width: desmosShown,
               min: DESMOS_MIN,
