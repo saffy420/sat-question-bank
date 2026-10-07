@@ -116,7 +116,7 @@ export default {
       if (req.headers.get('Origin') !== url.origin || req.headers.get('Sec-Fetch-Site') === 'cross-site') return reply({ error: 'forbidden origin' }, 403);
       let body; try { body = await req.json(); } catch { return reply({ error: 'invalid body' }, 400); }
       if (!['reset', 'fixture', 'cleanup'].includes(body?.action)) return reply({ error: 'invalid body' }, 400);
-      const statements = [env.DB.prepare('DELETE FROM question_reports'), env.DB.prepare('DELETE FROM question_triage'), env.DB.prepare('DELETE FROM feature_suggestions')];
+      const statements = [env.DB.prepare('DELETE FROM question_reports'), env.DB.prepare('DELETE FROM question_triage'), env.DB.prepare('DELETE FROM feature_suggestions'), env.DB.prepare('DELETE FROM feature_suggestion_daily_limits'), env.DB.prepare('DELETE FROM feature_suggestion_session_limits')];
       if (Number.isInteger(body.calls) && body.calls > 0 && body.calls <= 1000) statements.push(env.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<?)
         INSERT INTO question_triage (question_id, kind, reason, called, status) SELECT 'cap-fill-' || i, 'escalation', 'fill', 1, 'dismissed' FROM n`).bind(body.calls));
       if (body.action === 'fixture') statements.push(env.DB.prepare(`INSERT OR REPLACE INTO questions (id,external_id,section,domain,difficulty,skill,stem_html,choices_json,correct_answer,explanation_html,source)

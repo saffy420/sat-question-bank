@@ -5,7 +5,8 @@ import { Badge, Empty, ErrorText, Pending, useResource } from "./ui";
 
 type Suggestion = {
   id: number;
-  user_id: string;
+  user_id: string | null;
+  is_anonymous: number;
   name: string | null;
   email: string | null;
   area: string | null;
@@ -83,10 +84,10 @@ export function Suggestions() {
                 <div className="suggestion-meta">
                   <Badge tone="blue">{CATEGORY[s.category]}</Badge>
                   {s.area && <span className="suggestion-area">{AREA[s.area] || s.area}</span>}
-                  {s.session_id != null && <span className="muted">Lesson {String(s.session_id).padStart(5, "0")}</span>}
+                  {!s.is_anonymous && s.session_id != null && <span className="muted">Lesson {String(s.session_id).padStart(5, "0")}</span>}
                   {s.status !== "new" && <Badge tone={s.status === "done" ? "green" : ""}>{s.status === "done" ? "Done" : "Dismissed"}</Badge>}
                   <span className="muted">
-                    {s.name || s.email || s.user_id} · {s.created_at}
+                    {s.is_anonymous ? "Anonymous" : s.name || s.email || s.user_id} · {/^\d{4}-\d{2}-\d{2}$/.test(s.created_at) ? new Date(`${s.created_at}T00:00:00`).toLocaleDateString() : s.created_at}
                   </span>
                 </div>
                 <p className="suggestion-body">{s.body}</p>

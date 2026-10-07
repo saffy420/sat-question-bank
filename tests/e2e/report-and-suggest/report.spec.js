@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { newUserContext, ORIGIN } from '../lessons-00b-e2e-harness/auth.js';
 import { FIXTURE, FIX, mock, reset, openInPlayer, reportFromDialog, groups, group, post } from './support.js';
 import { dismissEnded } from '../lessons-11-ui-polish/helpers.js';
@@ -271,18 +272,39 @@ test('R6 suggestion round trip: bank and lesson menus, newest first, done and di
   const admin = await newUserContext(browser, 'e2e-admin', { viewport: { width: 1920, height: 1080 } });
   const student = await newUserContext(browser, 'e2e-student-2');
   try {
+    const prefix = `Suggestion ${randomUUID()}`;
+    const bankBody = `${prefix} Add a dark mode timer`;
+    const lessonBody = `${prefix} Let me revisit the last poll`;
+    const idea = n => `${prefix} Idea ${n}`;
+    const rows = async () => {
+      const response = await admin.request.get('/api/admin/suggestions?status=all');
+      expect(response.status()).toBe(200);
+      return (await response.json()).suggestions.filter(row => row.body.startsWith(prefix));
+    };
     const page = await student.newPage();
     await openInPlayer(page, MATH);
     await page.locator('#bank-live .lesson-more summary').click();
     await page.locator('#bank-suggest').click();
     await expect(page.locator('#sug-dialog')).toBeVisible();
     await expect(page.locator('#sug-send')).toBeDisabled();
+    await expect(page.locator('#sug-privacy')).toBeVisible();
+    await expect(page.locator('#sug-privacy')).toHaveText('Anonymous feedback. Your name, email, and account are not attached. Honest feedback is welcome! Please avoid identifying details.');
+    await expect(page.locator('#sug-body')).toHaveAttribute('aria-describedby', 'sug-privacy');
     await expect(page.locator('#sug-area option')).toHaveText(['Not sure', 'Question bank', 'Lessons', 'Study plan', 'Other']);
-    await page.locator('#sug-body').fill('Add a dark mode timer');
+    await page.locator('#sug-body').fill(bankBody);
     await page.locator('#sug-area').selectOption('bank');
     await shot(page, 'R6-modal');
+    await page.route('**/api/suggestions', route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"suggestion unavailable"}' }));
+    await page.locator('#sug-send').click();
+    await expect(page.locator('#sug-dialog .rpt-status')).toHaveText('Could not send that. Check your connection and try again.');
+    await expect(page.locator('#sug-body')).toHaveValue(bankBody);
+    await expect(page.locator('#sug-send')).toBeEnabled();
+    expect(await rows()).toEqual([]);
+    await page.unroute('**/api/suggestions');
+    const request = page.waitForRequest(r => new URL(r.url()).pathname === '/api/suggestions' && r.method() === 'POST');
     const sent = page.waitForResponse(r => new URL(r.url()).pathname === '/api/suggestions');
     await page.locator('#sug-send').click();
+    expect((await request).postDataJSON()).toEqual({ body: bankBody, area: 'bank' });
     expect((await sent).status()).toBe(200);
     await expect(page.locator('.rpt-thanks')).toContainText('Thanks');
     await page.locator('#sug-done').click();
@@ -299,37 +321,67 @@ test('R6 suggestion round trip: bank and lesson menus, newest first, done and di
     await expect(lessonPage.locator('#lesson-connection')).toHaveText('Connected');
     await lessonPage.locator('.lesson-more summary').click();
     await lessonPage.locator('#lesson-suggest').click();
-    await lessonPage.locator('#sug-body').fill('Let me revisit the last poll');
+    await expect(lessonPage.locator('#sug-privacy')).toBeVisible();
+    await expect(lessonPage.locator('#sug-privacy')).toHaveText('Anonymous feedback. Your name, email, and account are not attached. Honest feedback is welcome! Please avoid identifying details.');
+    await expect(lessonPage.locator('#sug-body')).toHaveAttribute('aria-describedby', 'sug-privacy');
+    await lessonPage.locator('#sug-body').fill(lessonBody);
     await lessonPage.locator('#sug-area').selectOption('lessons');
+    const lessonRequest = lessonPage.waitForRequest(r => new URL(r.url()).pathname === '/api/suggestions' && r.method() === 'POST');
     await lessonPage.locator('#sug-send').click();
+    expect((await lessonRequest).postDataJSON()).toEqual({ body: lessonBody, area: 'lessons' });
     await expect(lessonPage.locator('.rpt-thanks')).toContainText('Thanks');
     await lessonPage.locator('#sug-done').click();
     // Three more by API reach the limit of five; the sixth is refused.
     for (const n of [3, 4, 5]) {
-      const r = await post(student, '/api/suggestions', { body: `Idea ${n}` });
+      const r = await post(student, '/api/suggestions', { body: idea(n) });
       expect([r.status(), await r.json()]).toEqual([200, { ok: true }]);
     }
-    const sixth = await post(student, '/api/suggestions', { body: 'Idea 6' });
+    const sixth = await post(student, '/api/suggestions', { body: idea(6) });
     expect([sixth.status(), (await sixth.json()).error]).toEqual([429, 'daily suggestion limit reached']);
+    const saved = await rows();
+    expect(saved.map(row => row.body)).toEqual([idea(5), idea(4), idea(3), lessonBody, bankBody]);
+    expect(saved.map(row => row.area)).toEqual([null, null, null, 'lessons', 'bank']);
+    for (const row of saved) {
+      expect(row).toMatchObject({ is_anonymous: 1, user_id: null, name: null, email: null, session_id: null, category: 'app', status: 'new' });
+      expect(row.created_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
     // Admin tab: newest first.
     const tab = await admin.newPage();
     await tab.goto('/admin');
     await tab.locator('[data-section="Suggestions"]').click();
     await tab.locator('[data-tab="app"]').click();
     await expect(tab.locator('[data-tab="app"]')).toHaveAttribute('aria-selected', 'true');
-    const items = tab.locator('[data-suggestion][data-category="app"] .suggestion-body');
-    await expect(items).toHaveText(['Idea 5', 'Idea 4', 'Idea 3', 'Let me revisit the last poll', 'Add a dark mode timer']);
-    await expect(tab.locator('.suggestion').nth(3)).toContainText('Lessons');
-    await expect(tab.locator('.suggestion').nth(4)).toContainText('Question bank');
+    const own = tab.locator('[data-suggestion][data-category="app"]').filter({ hasText: prefix });
+    const items = own.locator('.suggestion-body');
+    await expect(items).toHaveText([idea(5), idea(4), idea(3), lessonBody, bankBody]);
+    await expect(tab.locator('[data-suggestion]:not([data-category="app"])')).toHaveCount(0);
+    await expect(own.nth(3)).toContainText('Lessons');
+    await expect(own.nth(4)).toContainText('Question bank');
+    for (const row of saved) {
+      const card = own.filter({ hasText: row.body });
+      const day = await tab.evaluate(value => new Date(`${value}T00:00:00`).toLocaleDateString(), row.created_at);
+      await expect(card.locator('.suggestion-meta .muted')).toHaveText(`Anonymous · ${day}`);
+      await expect(card).not.toContainText(/E2E Student|e2e-student|@e2e\.test|Lesson \d|Session \d/);
+    }
     await shot(tab, 'R6-suggestions');
     // Mark done / dismiss: they leave the default list and show in "Show done and dismissed".
-    await tab.locator('.suggestion').first().locator('[data-done]').click();
-    await tab.locator('.suggestion').first().locator('[data-dismiss]').click();
-    await expect(items).toHaveText(['Idea 3', 'Let me revisit the last poll', 'Add a dark mode timer']);
+    const done = own.filter({ hasText: idea(5) });
+    const dismissed = own.filter({ hasText: idea(4) });
+    await done.locator('[data-done]').click();
+    await expect(done).toHaveCount(0);
+    await dismissed.locator('[data-dismiss]').click();
+    await expect(dismissed).toHaveCount(0);
+    await expect(items).toHaveText([idea(3), lessonBody, bankBody]);
     await tab.locator('#show-handled').check();
-    await expect(items).toHaveCount(5);
-    await expect(tab.locator('.suggestion').nth(0)).toHaveAttribute('data-status', 'done');
-    await expect(tab.locator('.suggestion').nth(1)).toHaveAttribute('data-status', 'dismissed');
+    await expect(items).toHaveText([idea(5), idea(4), idea(3), lessonBody, bankBody]);
+    await expect(done).toHaveAttribute('data-status', 'done');
+    await expect(dismissed).toHaveAttribute('data-status', 'dismissed');
+    const handled = await rows();
+    expect(handled.map(row => [row.body, row.status])).toEqual([[idea(5), 'done'], [idea(4), 'dismissed'], [idea(3), 'new'], [lessonBody, 'new'], [bankBody, 'new']]);
+    for (const row of handled) {
+      expect(row).toMatchObject({ is_anonymous: 1, user_id: null, name: null, email: null, session_id: null });
+      expect(row.created_at).toBe(saved.find(original => original.id === row.id).created_at);
+    }
     // A student cannot read or change the list.
     expect((await student.request.get('/api/admin/suggestions')).status()).toBe(403);
     // Leave no live room behind: end the lesson the student joined.

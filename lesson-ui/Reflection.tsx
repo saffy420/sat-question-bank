@@ -52,7 +52,8 @@ export function Reflection({ sessionId, headers, close }: ReflectionOptions) {
     <header><h2 id="reflection-title">Session reflection</h2><button id="reflection-close" type="button" aria-label="Close reflection" onClick={dismiss}><X aria-hidden="true"/></button></header>
     {thanks ? <p id="reflection-thanks" role="status">Thanks! We read every suggestion.</p> : <form onSubmit={event => { event.preventDefault(); send(); }}>
       <fieldset disabled={sending}><legend>What would you like to share?</legend>{[['teaching', 'Teaching'], ['app', 'App'], ['other', 'Other']].map(([value, text]) => <label key={value}><input type="radio" name="reflection-category" value={value} checked={category === value} onChange={() => setCategory(value)}/>{text}</label>)}</fieldset>
-      <label htmlFor="reflection-body">Your feedback</label><textarea id="reflection-body" maxLength={2000} value={body} disabled={sending} onChange={event => setBody(event.target.value)} placeholder="What worked well? What could be better?"/>
+      <p id="reflection-privacy">Anonymous feedback. Your name, email, and account are not attached. Honest feedback is welcome! Please avoid identifying details.</p>
+      <label htmlFor="reflection-body">Your feedback</label><textarea id="reflection-body" aria-describedby="reflection-privacy" maxLength={2000} value={body} disabled={sending} onChange={event => setBody(event.target.value)} placeholder="What worked well? What could be better?"/>
       <p id="reflection-error" role="alert">{error}</p>
       <button id="reflection-send" className="lesson-submit" type="submit" disabled={sending || !category || !body.trim()}>{sending ? 'Sending…' : 'Send'}</button>
     </form>}

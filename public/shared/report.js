@@ -94,7 +94,8 @@ export function openReport(opts) {
 // opts: { send }
 export function openSuggest(opts) {
   const { dialog, close, status } = shell('Suggest a feature', 'sug-dialog', `
-    <label for="sug-body">What would make this better?</label><textarea id="sug-body" maxlength="2000" placeholder="Describe your idea"></textarea>
+    <p id="sug-privacy">Anonymous feedback. Your name, email, and account are not attached. Honest feedback is welcome! Please avoid identifying details.</p>
+    <label for="sug-body">What would make this better?</label><textarea id="sug-body" aria-describedby="sug-privacy" maxlength="2000" placeholder="Describe your idea"></textarea>
     <label for="sug-area">Area (optional)</label><select id="sug-area"><option value="">Not sure</option>${AREAS.map(([value, label]) => `<option value="${value}">${esc(label)}</option>`).join('')}</select>
     <div class="rpt-row"><button type="button" id="sug-cancel">Cancel</button><button type="button" class="rpt-go" id="sug-send" disabled>Send suggestion</button></div>`);
   const text = dialog.querySelector('#sug-body'), send = dialog.querySelector('#sug-send');

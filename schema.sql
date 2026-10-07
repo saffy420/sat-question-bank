@@ -245,7 +245,19 @@ CREATE TABLE feature_suggestions (
   status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','done','dismissed')),
   created_at TEXT NOT NULL DEFAULT(datetime('now')),
   category TEXT CHECK(category IN ('teaching','app','other')),
-  session_id INTEGER
+  session_id INTEGER,
+  is_anonymous INTEGER NOT NULL DEFAULT 0 CHECK(is_anonymous IN (0,1))
 );
 CREATE INDEX feature_suggestions_user ON feature_suggestions(user_id, created_at);
 CREATE UNIQUE INDEX feature_suggestions_session ON feature_suggestions(user_id, session_id, category) WHERE session_id IS NOT NULL;
+CREATE TABLE feature_suggestion_daily_limits (
+  user_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT(datetime('now'))
+);
+CREATE INDEX feature_suggestion_daily_limits_user ON feature_suggestion_daily_limits(user_id, created_at);
+CREATE TABLE feature_suggestion_session_limits (
+  user_id TEXT NOT NULL,
+  session_id INTEGER NOT NULL,
+  category TEXT NOT NULL CHECK(category IN ('teaching','app','other')),
+  PRIMARY KEY(user_id, session_id, category)
+);

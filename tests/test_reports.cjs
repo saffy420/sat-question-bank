@@ -7,6 +7,7 @@ const { readFileSync } = require('node:fs');
 const root = __dirname + '/../';
 const schema = readFileSync(root + 'schema.sql', 'utf8'), aiSchema = readFileSync(root + 'schema_ai.sql', 'utf8'), migration = readFileSync(root + 'migrations/0011_reports.sql', 'utf8');
 const suggestionMigration = readFileSync(root + 'migrations/0016_suggestion_categories.sql', 'utf8');
+const anonymousMigration = readFileSync(root + 'migrations/0017_anonymous_suggestions.sql', 'utf8');
 const origin = 'https://roadto1600.org';
 const reports = () => import('../src/reports.js');
 
@@ -14,7 +15,12 @@ function d1(db) {
   const sql = (query, args = []) => ({ bind: (...values) => sql(query, values), first: async () => db.prepare(query).get(...args) || null,
     all: async () => ({ results: db.prepare(query).all(...args) }),
     run: async () => { const stmt = db.prepare(query); if (stmt.columns().length) return { results: stmt.all(...args), meta: { changes: 0 } }; const r = stmt.run(...args); return { results: [], meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } }; } });
-  return { prepare: sql, batch: async statements => { db.exec('BEGIN'); try { const out = []; for (const s of statements) out.push(await s.run()); db.exec('COMMIT'); return out; } catch (e) { db.exec('ROLLBACK'); throw e; } } };
+  let pending = Promise.resolve();
+  return { prepare: sql, batch: statements => {
+    const batch = pending.then(async () => { db.exec('BEGIN'); try { const out = []; for (const s of statements) out.push(await s.run()); db.exec('COMMIT'); return out; } catch (e) { db.exec('ROLLBACK'); throw e; } });
+    pending = batch.catch(() => {});
+    return batch;
+  } };
 }
 const CHOICES = '[{"letter":"A","content":"5"},{"letter":"B","content":"6"},{"letter":"C","content":"7"},{"letter":"D","content":"8"}]';
 const MATH = { id: 'mq', stem_html: '<p>What is $3 + 4$?</p>', choices_json: CHOICES, correct_answer: 'C', explanation_html: '<p>3 + 4 = 7</p>', section: 'Math' };
@@ -348,6 +354,27 @@ test('AUTO_APPLY_FORMATTING_FIXES is off, and when on applies only validated fix
 });
 
 // ---------------------------------------------------------------- suggestions
+test('future suggestions are anonymous; admin masks injected identity while preserving legacy authors', async t => {
+  const a = await app(t);
+  a.db.exec(`UPDATE users SET name='Alice' WHERE id='alice';
+    INSERT INTO feature_suggestions(user_id,area,body,category,session_id,created_at)
+      VALUES('alice','lessons','Legacy authored','teaching',7,'2026-01-02 12:34:56');`);
+  const legacy = { ...a.db.prepare('SELECT * FROM feature_suggestions').get() };
+  const res = await a.request('/api/suggestions', 'bob', 'POST', { body: 'Future', user_id: 'alice', session_id: 7, is_anonymous: 0, created_at: 'exact timestamp' });
+  assert.equal(res.status, 200);
+  const future = a.db.prepare("SELECT * FROM feature_suggestions WHERE body='Future'").get();
+  assert.deepEqual([future.user_id, future.session_id, future.is_anonymous, future.created_at], ['', null, 1, a.db.prepare("SELECT date('now') day").get().day]);
+  assert.deepEqual({ ...a.db.prepare("SELECT * FROM feature_suggestions WHERE body='Legacy authored'").get() }, legacy);
+  const limit = a.db.prepare('SELECT * FROM feature_suggestion_daily_limits').get();
+  assert.equal(limit.user_id, 'bob');
+  assert.match(limit.created_at, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  a.db.exec("UPDATE feature_suggestions SET user_id='alice', session_id=7 WHERE body='Future'");
+  const list = (await (await a.request('/api/admin/suggestions?status=all', 'admin')).json()).suggestions;
+  assert.deepEqual(list.map(s => [s.body, s.is_anonymous, s.user_id, s.name, s.email, s.session_id, s.created_at]), [
+    ['Future', 1, null, null, null, null, future.created_at],
+    ['Legacy authored', 0, 'alice', 'Alice', 'a@ccs.us', 7, '2026-01-02 12:34:56']
+  ]);
+});
 test('suggestion round trip: 5 per user per day, newest first, mark done or dismiss', async t => {
   const a = await app(t);
   const send = (token, data) => a.request('/api/suggestions', token, 'POST', data);
@@ -390,7 +417,7 @@ test('suggestion categories default to app, validate input and filter admin list
   assert.deepEqual(all.map(s => [s.body, s.category, s.session_id]), [['Other', 'other', null], ['App', 'app', null], ['Teaching', 'teaching', null], ['Legacy', 'app', null]]);
   const teaching = await list('?category=teaching');
   assert.equal(teaching.length, 1);
-  assert.equal(teaching[0].email, 'a@ccs.us');
+  assert.deepEqual([teaching[0].is_anonymous, teaching[0].user_id, teaching[0].name, teaching[0].email, teaching[0].session_id], [1, null, null, null, null]);
   assert.equal((await a.request(`/api/admin/suggestions/${teaching[0].id}`, 'admin', 'POST', { status: 'done' })).status, 200);
   assert.deepEqual(await list('?category=teaching'), []);
   assert.deepEqual((await list('?status=all&category=teaching')).map(s => [s.body, s.status]), [['Teaching', 'done']]);
@@ -418,10 +445,11 @@ test('session feedback requires positive integer sessionId, ended session and to
   assert.equal(a.db.prepare('SELECT COUNT(*) n FROM feature_suggestions').get().n, 0);
   const res = await send('alice', { sessionId: 7, user_id: 'bob', userId: 'bob' });
   assert.deepEqual([res.status, await res.json()], [200, { ok: true }]);
-  const saved = a.db.prepare('SELECT user_id, category, session_id FROM feature_suggestions').get();
-  assert.deepEqual({ ...saved }, { user_id: 'alice', category: 'teaching', session_id: 7 });
+  const saved = a.db.prepare('SELECT user_id, category, session_id, is_anonymous, created_at FROM feature_suggestions').get();
+  assert.deepEqual({ ...saved }, { user_id: '', category: 'teaching', session_id: null, is_anonymous: 1, created_at: a.db.prepare("SELECT date('now') AS day").get().day });
   const list = (await (await a.request('/api/admin/suggestions?category=teaching', 'admin')).json()).suggestions;
-  assert.deepEqual(list.map(s => [s.user_id, s.category, s.session_id]), [['alice', 'teaching', 7]]);
+  assert.deepEqual(list.map(s => [s.user_id, s.category, s.session_id, s.is_anonymous]), [[null, 'teaching', null, 1]]);
+  assert.deepEqual({ ...a.db.prepare('SELECT * FROM feature_suggestion_session_limits').get() }, { user_id: 'alice', session_id: 7, category: 'teaching' });
 });
 
 test('session feedback bypasses and does not consume daily cap; uniqueness spans status, not other users, sessions or categories', async t => {
@@ -439,7 +467,7 @@ test('session feedback bypasses and does not consume daily cap; uniqueness spans
   assert.equal((await send('alice', { sessionId: 7, category: 'other' })).status, 200);
   assert.equal((await send('alice', { sessionId: 8, category: 'teaching' })).status, 200);
   assert.equal((await send('bob', { sessionId: 7, category: 'teaching' })).status, 200);
-  const id = db.prepare("SELECT id FROM feature_suggestions WHERE user_id='alice' AND session_id=7 AND category='teaching'").get().id;
+  const id = db.prepare("SELECT id FROM feature_suggestions WHERE category='teaching' ORDER BY id LIMIT 1").get().id;
   for (const status of ['new', 'done', 'dismissed']) {
     assert.equal((await setSuggestion(env, id, JSON.stringify({ status }))).status, 200);
     const duplicate = await send('alice', { sessionId: 7, category: 'teaching' });
@@ -447,25 +475,145 @@ test('session feedback bypasses and does not consume daily cap; uniqueness spans
   }
   const concurrent = await Promise.all([send('bob', { sessionId: 7, category: 'other' }), send('bob', { sessionId: 7, category: 'other' })]);
   assert.deepEqual(concurrent.map(r => r.status).sort(), [200, 409]);
-  db.exec("UPDATE feature_suggestions SET created_at=datetime('now','-2 days') WHERE user_id='alice' AND session_id IS NULL");
+  db.exec("UPDATE feature_suggestion_daily_limits SET created_at=datetime('now','-2 days') WHERE user_id='alice'");
   assert.equal((await send('alice', {})).status, 200);
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM feature_suggestions WHERE user_id='alice' AND session_id=7 AND category='teaching'").get().n, 1);
-  const broken = { DB: { prepare: () => ({ bind: () => ({ first: async () => ({ n: 0 }), run: async () => { throw new Error('database unavailable'); } }) }) } };
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM feature_suggestion_session_limits WHERE user_id='alice' AND session_id=7 AND category='teaching'").get().n, 1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM feature_suggestions WHERE user_id<>'' OR session_id IS NOT NULL OR is_anonymous<>1").get().n, 0);
+  const broken = { DB: { prepare: () => ({ bind: () => ({}) }), batch: async () => { throw new Error('database unavailable'); } } };
   await assert.rejects(submitSuggestion(broken, { id: 'alice' }, '{"body":"x"}'), /database unavailable/);
 });
 
-test('0011 and 0016 upgrades match snapshot, preserve legacy suggestions and enforce category and session uniqueness', () => {
+test('parallel general submissions claim only remaining rolling-24-hour slots', async t => {
+  const { db, env } = world(t);
+  const { submitSuggestion } = await reports();
+  db.exec(`INSERT INTO feature_suggestion_daily_limits(user_id,created_at) VALUES
+    ('alice',datetime('now','-23 hours')),('alice',datetime('now','-25 hours'));`);
+  const send = () => submitSuggestion(env, { id: 'alice' }, '{"body":"Parallel"}', { cfg: { suggestionsPerDay: 2 } });
+  const concurrent = await Promise.all(Array.from({ length: 8 }, send));
+  assert.deepEqual(concurrent.map(r => r.status).sort(), [200, 429, 429, 429, 429, 429, 429, 429]);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM feature_suggestions').get().n, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM feature_suggestion_daily_limits').get().n, 3);
+  assert.deepEqual((await send()).body, { error: 'daily suggestion limit reached' });
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM feature_suggestions').get().n, 1, 'changes()=0 prevents feedback insert even after an earlier successful claim');
+});
+
+test('failed feedback writes roll back general and session claims; retries succeed', async t => {
+  const { db, env } = world(t);
+  const { submitSuggestion } = await reports();
+  db.exec(`INSERT INTO lessons(id,title,mode,created_by) VALUES(1,'Lesson','self','admin');
+    INSERT INTO lesson_sessions(id,lesson_id,join_code,status,snapshot_json) VALUES(7,1,'END007','ended','{}');
+    INSERT INTO session_participants(session_id,user_id,assigned_question_ids_json) VALUES(7,'alice','[]');`);
+  const send = data => submitSuggestion(env, { id: 'alice' }, JSON.stringify({ body: 'Retry', ...data }));
+  for (const data of [{}, { sessionId: 7, category: 'teaching' }]) {
+    db.exec("CREATE TRIGGER reject_feedback BEFORE INSERT ON feature_suggestions BEGIN SELECT RAISE(ABORT,'feedback unavailable'); END");
+    const before = ['feature_suggestions', 'feature_suggestion_daily_limits', 'feature_suggestion_session_limits'].map(table => db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n);
+    await assert.rejects(send(data), /feedback unavailable/);
+    assert.deepEqual(['feature_suggestions', 'feature_suggestion_daily_limits', 'feature_suggestion_session_limits'].map(table => db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n), before);
+    db.exec('DROP TRIGGER reject_feedback');
+    assert.equal((await send(data)).status, 200);
+  }
+  assert.deepEqual(['feature_suggestions', 'feature_suggestion_daily_limits', 'feature_suggestion_session_limits'].map(table => db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n), [2, 1, 1]);
+});
+
+test('0017 backfills both limit stores without changing legacy rows or timestamps', async t => {
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec(schema.slice(0, schema.indexOf('-- Question reports, their AI triage')));
+  db.exec(migration); db.exec(suggestionMigration);
+  db.exec(`INSERT INTO users(id,name,email) VALUES('alice','Alice','a@ccs.us');
+    INSERT INTO lessons(id,title,mode,created_by) VALUES(1,'Lesson','self','admin');
+    INSERT INTO lesson_sessions(id,lesson_id,join_code,status,snapshot_json) VALUES(7,1,'END007','ended','{}');
+    INSERT INTO session_participants(session_id,user_id,assigned_question_ids_json) VALUES(7,'alice','[]');
+    INSERT INTO feature_suggestions(user_id,body,category,session_id,status,created_at) VALUES
+      ('alice','General new','app',NULL,'new',datetime('now','-1 hour')),
+      ('alice','General done','other',NULL,'done',datetime('now','-23 hours')),
+      ('alice','General expired','app',NULL,'dismissed',datetime('now','-25 hours')),
+      ('alice','Session done','teaching',7,'done','2026-01-02 12:34:56'),
+      ('alice','Session null',NULL,7,'new','2026-01-02 12:34:57'),
+      ('alice','Session null duplicate',NULL,7,'dismissed','2026-01-02 12:34:58');`);
+  const old = db.prepare('SELECT * FROM feature_suggestions ORDER BY id').all().map(r => ({ ...r }));
+  db.exec(anonymousMigration);
+  const now = db.prepare('SELECT * FROM feature_suggestions ORDER BY id').all().map(({ is_anonymous, ...r }) => { assert.equal(is_anonymous, 0); return r; });
+  assert.deepEqual(now, old);
+  assert.deepEqual(db.prepare('SELECT * FROM feature_suggestion_daily_limits ORDER BY created_at').all().map(r => ({ ...r })),
+    old.filter(r => r.session_id === null).map(r => ({ user_id: r.user_id, created_at: r.created_at })).sort((a, b) => a.created_at.localeCompare(b.created_at)));
+  assert.deepEqual(db.prepare('SELECT * FROM feature_suggestion_session_limits ORDER BY category').all().map(r => ({ ...r })), [
+    { user_id: 'alice', session_id: 7, category: 'teaching' }
+  ]);
+  assert.deepEqual(db.prepare('PRAGMA table_info(feature_suggestion_daily_limits)').all().map(c => c.name), ['user_id', 'created_at']);
+  assert.deepEqual(db.prepare('PRAGMA table_info(feature_suggestion_session_limits)').all().map(c => c.name), ['user_id', 'session_id', 'category']);
+  const env = { DB: d1(db) }, { submitSuggestion, listSuggestions } = await reports();
+  const send = data => submitSuggestion(env, { id: 'alice' }, JSON.stringify({ body: 'After upgrade', ...data }), { cfg: { suggestionsPerDay: 2 } });
+  assert.equal((await send({})).status, 429);
+  assert.equal((await send({ sessionId: 7, category: 'teaching' })).status, 409);
+  assert.equal((await send({ sessionId: 7, category: 'app' })).status, 200, 'legacy NULL categories did not block app feedback');
+  assert.equal((await send({ sessionId: 7, category: 'app' })).status, 409);
+  assert.equal((await send({ sessionId: 7, category: 'other' })).status, 200);
+  const listed = (await listSuggestions(env, true)).body.suggestions;
+  assert.equal(listed.find(r => r.body === 'Session done').email, 'a@ccs.us');
+  assert.equal(listed.find(r => r.body === 'Session done').created_at, '2026-01-02 12:34:56');
+});
+
+test('E2E seed applies 0017 only to old state; fresh and upgraded state skip replay and partial state stops', async () => {
+  const { runInNewContext } = require('node:vm'), { EventEmitter } = require('node:events');
+  const source = readFileSync(root + 'tools/e2e_seed.cjs', 'utf8');
+  const seed = async (hasUsers, hasAnonymous, objects) => {
+    const files = [], errors = [], process = { argv: ['node', 'e2e_seed.cjs'], env: {}, execPath: 'node', exitCode: 0 };
+    const spawnSync = (_exe, args) => {
+      if (args.includes('--file')) { files.push(args[args.indexOf('--file') + 1]); return { status: 0 }; }
+      const query = args[args.indexOf('--command') + 1];
+      let results;
+      if (query.includes("name='users'")) results = hasUsers ? [{ name: 'users' }] : [];
+      else if (query === 'PRAGMA table_info(users)') results = [{ name: 'role' }];
+      else if (query === 'PRAGMA table_info(attempts)') results = ['answer_history_json', 'lesson_session_id', 'plan_step'].map(name => ({ name }));
+      else if (query === 'PRAGMA table_info(lessons)') results = [{ name: 'archived' }];
+      else if (query === 'PRAGMA table_info(lesson_sessions)') results = [{ name: 'timing_json' }];
+      else if (query === 'PRAGMA table_info(feature_suggestions)') results = ['category', 'session_id', ...(hasAnonymous ? ['is_anonymous'] : [])].map(name => ({ name }));
+      else if (query.includes('feature_suggestion_daily_limits')) results = Array.from({ length: objects }, (_, i) => ({ name: 'object' + i }));
+      else if (query.includes('question_reports')) results = ['question_reports', 'question_triage', 'feature_suggestions'].map(name => ({ name }));
+      else if (query.includes('question_lesson_usage')) results = ['lessons', 'lesson_questions', 'lesson_sessions', 'question_lesson_usage'].map(name => ({ name }));
+      else throw new Error('Unexpected query: ' + query);
+      return { status: 0, stdout: JSON.stringify([{ results }]) };
+    };
+    await runInNewContext(source, { __dirname: root + 'tools', process, console: { error: error => errors.push(String(error)) }, require: name => {
+      if (name === 'node:child_process') return { spawnSync };
+      if (name === 'node:net') return { connect: () => { const socket = new EventEmitter(); socket.destroy = () => {}; queueMicrotask(() => socket.emit('error', { code: 'ECONNREFUSED' })); return socket; } };
+      return require(name);
+    } });
+    return { files, errors, exitCode: process.exitCode };
+  };
+  const old = await seed(true, false, 0);
+  assert.equal(old.exitCode, 0); assert.deepEqual(old.errors, []);
+  assert.equal(old.files.filter(file => file === 'migrations/0017_anonymous_suggestions.sql').length, 1);
+  assert.equal(old.files.includes('schema.sql'), false);
+  const upgraded = await seed(true, true, 3);
+  assert.equal(upgraded.exitCode, 0);
+  assert.equal(upgraded.files.includes('migrations/0017_anonymous_suggestions.sql'), false);
+  const fresh = await seed(false, false, 0);
+  assert.equal(fresh.exitCode, 0); assert.equal(fresh.files.includes('schema.sql'), true);
+  assert.equal(fresh.files.includes('migrations/0017_anonymous_suggestions.sql'), false);
+  for (const [flag, count] of [[true, 0], [true, 1], [true, 2], [false, 1], [false, 2], [false, 3]]) {
+    const partial = await seed(true, flag, count);
+    assert.equal(partial.exitCode, 1);
+    assert.match(partial.errors[0], /Partial 0017 schema/);
+    assert.equal(partial.files.includes('migrations/0017_anonymous_suggestions.sql'), false);
+    assert.equal(partial.files.includes('tools/e2e_core.sql'), false);
+  }
+});
+
+test('0011, 0016 and 0017 upgrades match snapshot, preserve legacy suggestions and enforce constraints', () => {
   const base = new DatabaseSync(':memory:'), upgraded = new DatabaseSync(':memory:');
   try {
     base.exec(schema);
     upgraded.exec(schema.slice(0, schema.indexOf('-- Question reports, their AI triage'))); upgraded.exec(migration);
     upgraded.exec("INSERT INTO feature_suggestions(user_id,area,body,status) VALUES('alice','lessons','Legacy','done')");
     upgraded.exec(suggestionMigration);
-    assert.deepEqual({ ...upgraded.prepare('SELECT user_id,area,body,status,category,session_id FROM feature_suggestions').get() },
-      { user_id: 'alice', area: 'lessons', body: 'Legacy', status: 'done', category: 'app', session_id: null });
-    const shape = db => db.prepare("SELECT name, sql FROM sqlite_master WHERE name LIKE 'question_reports%' OR name LIKE 'question_triage%' OR name LIKE 'feature_suggestions%' ORDER BY name").all()
-      .map(r => ({ name: r.name, sql: r.name === 'feature_suggestions' ? db.prepare('PRAGMA table_info(feature_suggestions)').all().map(c => ({ ...c })) : r.sql }));
-    assert.equal(shape(base).length, 11);
+    upgraded.exec(anonymousMigration);
+    assert.deepEqual({ ...upgraded.prepare('SELECT user_id,area,body,status,category,session_id,is_anonymous FROM feature_suggestions').get() },
+      { user_id: 'alice', area: 'lessons', body: 'Legacy', status: 'done', category: 'app', session_id: null, is_anonymous: 0 });
+    const shape = db => db.prepare("SELECT name, sql FROM sqlite_master WHERE name LIKE 'question_reports%' OR name LIKE 'question_triage%' OR name LIKE 'feature_suggestion%' ORDER BY name").all()
+      .map(r => ({ name: r.name, sql: r.name === 'feature_suggestions' ? db.prepare('PRAGMA table_info(feature_suggestions)').all().map(c => ({ ...c })) : r.sql.replace(/\r\n/g, '\n') }));
+    assert.equal(shape(base).length, 14);
     assert.deepEqual(shape(upgraded), shape(base));
     for (const db of [base, upgraded]) {
       db.exec("INSERT INTO feature_suggestions(user_id,body) VALUES('u','Default'),('u','Another')");
@@ -476,7 +624,10 @@ test('0011 and 0016 upgrades match snapshot, preserve legacy suggestions and enf
       db.exec("INSERT INTO feature_suggestions(user_id,body,category,session_id) VALUES('u','Feedback','teaching',7)");
       assert.throws(() => db.exec("INSERT INTO feature_suggestions(user_id,body,category,session_id) VALUES('u','Duplicate','teaching',7)"), /UNIQUE/);
       db.exec("INSERT INTO feature_suggestions(user_id,body,category,session_id) VALUES('v','Other user','teaching',7),('u','Other category','app',7),('u','Other session','teaching',8)");
+      assert.throws(() => db.exec("INSERT INTO feature_suggestions(user_id,body,is_anonymous) VALUES('u','Bad flag',2)"), /CHECK/);
+      assert.throws(() => db.exec("INSERT INTO feature_suggestions(user_id,body,is_anonymous) VALUES('u','Null flag',NULL)"), /NOT NULL/);
       assert.throws(() => db.exec(suggestionMigration), /duplicate column/);
+      assert.throws(() => db.exec(anonymousMigration), /duplicate column/);
     }
   } finally { base.close(); upgraded.close(); }
 });

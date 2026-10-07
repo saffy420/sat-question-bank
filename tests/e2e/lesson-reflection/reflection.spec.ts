@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
+import { randomUUID } from 'node:crypto';
+import { newUserContext, ORIGIN } from '../lessons-00b-e2e-harness/auth.js';
 import { INSTRUCTOR, RW, SPR, lesson, join, openLive } from '../lessons-11-ui-polish/helpers.js';
 
 for (const mode of ['self', 'instructor']) {
@@ -15,10 +16,11 @@ for (const mode of ['self', 'instructor']) {
       student.on('request', request => {
         if (new URL(request.url()).pathname === '/api/suggestions' && request.method() === 'POST') submissions.push(request.postDataJSON());
       });
+      const body = `Cancelled feedback ${randomUUID()}`;
       const rows = async () => {
         const response = await admin.request.get('/api/admin/suggestions?status=all');
         expect(response.status()).toBe(200);
-        return (await response.json()).suggestions.filter((row: { session_id: number }) => row.session_id === sessionId);
+        return (await response.json()).suggestions.filter((row: { body: string }) => row.body.startsWith(body));
       };
       await join(student, joinCode);
       await teacher.locator('[data-live="start"]').click();
@@ -77,8 +79,11 @@ for (const mode of ['self', 'instructor']) {
       await expect(student.locator('#lesson-live')).toBeVisible();
       await expect(student.locator('#history-summary')).toBeVisible();
       await expect(student.locator('#reflection-send')).toBeDisabled();
+      await expect(student.locator('#reflection-privacy')).toBeVisible();
+      await expect(student.locator('#reflection-privacy')).toHaveText('Anonymous feedback. Your name, email, and account are not attached. Honest feedback is welcome! Please avoid identifying details.');
+      await expect(student.locator('#reflection-body')).toHaveAttribute('aria-describedby', 'reflection-privacy');
       await student.locator('[name="reflection-category"][value="other"]').click();
-      await student.locator('#reflection-body').fill('Cancelled feedback must not be saved');
+      await student.locator('#reflection-body').fill(body);
       await expect(student.locator('#reflection-send')).toBeEnabled();
       if (mode === 'self') await student.locator('#reflection-close').click();
       else await student.keyboard.press('Escape');
@@ -153,6 +158,53 @@ for (const mode of ['self', 'instructor']) {
   });
 }
 
+test('interrupted reflection send writes no anonymous feedback', async ({ browser }) => {
+  test.setTimeout(120000);
+  const admin = await newUserContext(browser, 'e2e-admin', INSTRUCTOR);
+  const context = await newUserContext(browser, 'e2e-student-6');
+  try {
+    const { sessionId, joinCode } = await lesson(admin, 'Interrupted reflection', [RW], 'instructor', 90);
+    const teacher = await openLive(admin, sessionId);
+    const student = await context.newPage();
+    const body = `Interrupted reflection ${randomUUID()}`;
+    await join(student, joinCode);
+    await teacher.locator('[data-live="start"]').click();
+    await expect(student.locator('.lesson-phase')).toHaveText('ANSWERING');
+    await teacher.locator('[data-live="endNow"]').click();
+    await expect(student.locator('.lesson-phase')).toHaveText('REVEALED');
+    await teacher.locator('[data-live="endSession"]').click();
+    await expect(student.locator('#lesson-reflection')).toBeVisible({ timeout: 35000 });
+    await student.locator('[name="reflection-category"][value="other"]').click();
+    await student.locator('#reflection-body').fill(body);
+    let interrupt!: () => void;
+    const interrupted = new Promise<void>(resolve => { interrupt = resolve; });
+    let finish!: () => void;
+    const finished = new Promise<void>(resolve => { finish = resolve; });
+    await student.route('**/api/suggestions', async route => {
+      await interrupted;
+      await route.abort('failed');
+      finish();
+    });
+    const sent = student.waitForRequest(r => new URL(r.url()).pathname === '/api/suggestions' && r.method() === 'POST');
+    await student.locator('#reflection-send').click();
+    expect((await sent).postDataJSON()).toEqual({ body, category: 'other', sessionId });
+    await expect(student.locator('#reflection-send')).toBeDisabled();
+    const failed = student.waitForEvent('requestfailed', r => new URL(r.url()).pathname === '/api/suggestions' && r.method() === 'POST');
+    await student.locator('#reflection-close').click();
+    interrupt();
+    await finished;
+    await failed;
+    await expect(student.locator('#lesson-reflection')).toBeHidden();
+    await expect(student.locator('#history-summary')).toBeVisible();
+    const response = await admin.request.get('/api/admin/suggestions?status=all');
+    expect(response.status()).toBe(200);
+    expect((await response.json()).suggestions.filter((row: { body: string }) => row.body.startsWith(body))).toEqual([]);
+  } finally {
+    await context.close();
+    await admin.close();
+  }
+});
+
 test('reflection categories submit once, retry failure, Thanks, and admin category/handled filters', async ({ browser }) => {
   test.setTimeout(120000);
   const admin = await newUserContext(browser, 'e2e-admin', INSTRUCTOR);
@@ -177,7 +229,13 @@ test('reflection categories submit once, retry failure, Thanks, and admin catego
     await expect(teacher.locator('[data-live="endSession"]')).toBeDisabled();
     await expect(teacher.getByRole('dialog', { name: /^Reflection categories .* results$/ })).toBeVisible();
     await expect(teacher.locator('#results-facts')).toContainText(`Session ${String(sessionId).padStart(5, '0')}`);
-    const bodies = ['teaching', 'app', 'other'].map(category => `Reflection ${sessionId} ${category}`);
+    const prefix = `Reflection ${randomUUID()}`;
+    const bodies = ['teaching', 'app', 'other'].map(category => `${prefix} ${category}`);
+    const rows = async () => {
+      const response = await admin.request.get('/api/admin/suggestions?status=all');
+      expect(response.status()).toBe(200);
+      return (await response.json()).suggestions.filter((row: { body: string }) => row.body.startsWith(prefix));
+    };
     for (const [i, category] of ['teaching', 'app', 'other'].entries()) {
       const page = pages[i];
       await expect(page.locator('#lesson-reflection')).toBeVisible({ timeout: 35000 });
@@ -193,6 +251,7 @@ test('reflection categories submit once, retry failure, Thanks, and admin catego
         await expect(page.locator('#reflection-error')).toHaveText('reflection unavailable');
         await expect(page.locator('#reflection-body')).toHaveValue(bodies[i]);
         await expect(page.locator('#reflection-send')).toBeEnabled();
+        expect(await rows()).toEqual([]);
         await page.unroute('**/api/suggestions');
       }
       const request = page.waitForRequest(r => new URL(r.url()).pathname === '/api/suggestions' && r.method() === 'POST');
@@ -209,13 +268,24 @@ test('reflection categories submit once, retry failure, Thanks, and admin catego
       await expect(page).toHaveURL(/\/app$/);
       await expect(page.locator('#lesson-live')).toBeHidden();
     }
-    const response = await admin.request.get('/api/admin/suggestions?status=all');
-    expect(response.status()).toBe(200);
-    const rows = (await response.json()).suggestions.filter((row: { session_id: number }) => row.session_id === sessionId);
-    expect(rows).toHaveLength(3);
-    expect(rows.map((row: { category: string; body: string; user_id: string }) => [row.category, row.body, row.user_id]).sort()).toEqual([
-      ['teaching', bodies[0], 'e2e-student-2'], ['app', bodies[1], 'e2e-student-3'], ['other', bodies[2], 'e2e-student-4']
+    const saved = await rows();
+    expect(saved).toHaveLength(3);
+    expect(saved.map((row: { category: string; body: string }) => [row.category, row.body]).sort()).toEqual([
+      ['teaching', bodies[0]], ['app', bodies[1]], ['other', bodies[2]]
     ].sort());
+    for (const row of saved) {
+      expect(row).toMatchObject({ is_anonymous: 1, user_id: null, name: null, email: null, session_id: null, status: 'new' });
+      expect(row.created_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    for (const [i, category] of ['teaching', 'app', 'other'].entries()) {
+      const duplicate = await contexts[i].request.post('/api/suggestions', { headers: { Origin: ORIGIN }, data: { body: `${bodies[i]} duplicate`, category, sessionId } });
+      expect([duplicate.status(), await duplicate.json()]).toEqual([409, { error: 'you already sent feedback in this category for this session' }]);
+    }
+    const invalid = await contexts[0].request.post('/api/suggestions', { headers: { Origin: ORIGIN }, data: { body: `${prefix} invalid`, sessionId: 0 } });
+    expect([invalid.status(), await invalid.json()]).toEqual([400, { error: 'invalid suggestion' }]);
+    const unattended = await admin.request.post('/api/suggestions', { headers: { Origin: ORIGIN }, data: { body: `${prefix} unattended`, sessionId } });
+    expect([unattended.status(), await unattended.json()]).toEqual([400, { error: 'feedback requires an ended session you attended' }]);
+    expect(await rows()).toEqual(saved);
     const tab = await admin.newPage();
     await tab.goto('/admin');
     await tab.locator('[data-section="Suggestions"]').click();
@@ -226,7 +296,10 @@ test('reflection categories submit once, retry failure, Thanks, and admin catego
       const own = tab.locator('[data-suggestion]').filter({ hasText: bodies[i] });
       await expect(own).toHaveCount(1);
       await expect(own).toHaveAttribute('data-category', category);
-      await expect(own).toContainText(`Lesson ${String(sessionId).padStart(5, '0')}`);
+      const createdAt = saved.find((row: { body: string }) => row.body === bodies[i]).created_at;
+      const day = await tab.evaluate(value => new Date(`${value}T00:00:00`).toLocaleDateString(), createdAt);
+      await expect(own.locator('.suggestion-meta .muted')).toHaveText(`Anonymous · ${day}`);
+      await expect(own).not.toContainText(/E2E Student|e2e-student|@e2e\.test|Lesson \d|Session \d/);
       await expect(tab.locator(`[data-suggestion]:not([data-category="${category}"])`)).toHaveCount(0);
       for (const body of bodies.filter(body => body !== bodies[i])) await expect(tab.locator('[data-suggestion]').filter({ hasText: body })).toHaveCount(0);
     }

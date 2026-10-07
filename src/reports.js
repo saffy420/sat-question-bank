@@ -329,24 +329,31 @@ export async function submitSuggestion(env, user, text, deps = {}) {
     const session = await env.DB.prepare(`SELECT s.id FROM lesson_sessions s JOIN session_participants p ON p.session_id=s.id
       WHERE s.id=? AND p.user_id=? AND s.status='ended'`).bind(b.sessionId, user.id).first();
     if (!session) return { status: 400, body: { error: 'feedback requires an ended session you attended' } };
-  } else {
-    const today = await env.DB.prepare("SELECT COUNT(*) AS n FROM feature_suggestions WHERE user_id=? AND session_id IS NULL AND created_at >= datetime('now','-1 day')").bind(user.id).first();
-    if ((today?.n || 0) >= (deps.cfg?.suggestionsPerDay ?? SUGGESTIONS_PER_USER_PER_DAY)) return { status: 429, body: { error: 'daily suggestion limit reached' } };
   }
-  try {
-    await env.DB.prepare('INSERT INTO feature_suggestions (user_id, area, body, category, session_id) VALUES (?,?,?,?,?)')
-      .bind(user.id, b.area ?? null, body, category, b.sessionId ?? null).run();
-  } catch (e) {
-    if (/UNIQUE constraint failed/i.test(String(e))) return { status: 409, body: { error: 'you already sent feedback in this category for this session' } };
-    throw e;
-  }
+  const limiter = b.sessionId !== undefined
+    ? env.DB.prepare(`INSERT INTO feature_suggestion_session_limits (user_id, session_id, category) VALUES (?,?,?)
+        ON CONFLICT(user_id, session_id, category) DO NOTHING`).bind(user.id, b.sessionId, category)
+    : env.DB.prepare(`INSERT INTO feature_suggestion_daily_limits (user_id, created_at)
+        SELECT ?, datetime('now') WHERE (SELECT COUNT(*) FROM feature_suggestion_daily_limits
+        WHERE user_id=? AND created_at >= datetime('now','-1 day')) < ?`)
+      .bind(user.id, user.id, deps.cfg?.suggestionsPerDay ?? SUGGESTIONS_PER_USER_PER_DAY);
+  const [claim] = await env.DB.batch([
+    limiter,
+    env.DB.prepare(`INSERT INTO feature_suggestions (user_id, area, body, category, session_id, is_anonymous, created_at)
+      SELECT '', ?, ?, ?, NULL, 1, date('now') WHERE changes()=1`).bind(b.area ?? null, body, category)
+  ]);
+  if (!claim.meta.changes) return b.sessionId !== undefined
+    ? { status: 409, body: { error: 'you already sent feedback in this category for this session' } }
+    : { status: 429, body: { error: 'daily suggestion limit reached' } };
   return { status: 200, body: { ok: true } };
 }
 export async function listSuggestions(env, all, category = null) {
   if (category !== null && !SUGGESTION_CATEGORIES.includes(category)) return { status: 400, body: { error: 'invalid suggestion category' } };
   const filters = [...(all ? [] : ["s.status='new'"]), ...(category === null ? [] : ['s.category=?'])];
-  const statement = env.DB.prepare(`SELECT s.id, s.user_id, s.area, s.body, s.category, s.session_id, s.status, s.created_at, u.name, u.email FROM feature_suggestions s
-    LEFT JOIN users u ON u.id=s.user_id ${filters.length ? 'WHERE ' + filters.join(' AND ') : ''} ORDER BY s.id DESC LIMIT ${LIST_LIMIT}`);
+  const statement = env.DB.prepare(`SELECT s.id, CASE WHEN s.is_anonymous=1 THEN NULL ELSE s.user_id END AS user_id,
+    s.area, s.body, s.category, CASE WHEN s.is_anonymous=1 THEN NULL ELSE s.session_id END AS session_id,
+    s.is_anonymous, s.status, s.created_at, u.name, u.email FROM feature_suggestions s
+    LEFT JOIN users u ON u.id=s.user_id AND s.is_anonymous=0 ${filters.length ? 'WHERE ' + filters.join(' AND ') : ''} ORDER BY s.id DESC LIMIT ${LIST_LIMIT}`);
   const rows = (await (category === null ? statement : statement.bind(category)).all()).results || [];
   return { status: 200, body: { suggestions: rows } };
 }

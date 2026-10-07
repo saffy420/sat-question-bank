@@ -304,6 +304,7 @@
 #lesson-live .lesson-reflection fieldset label { display:flex; align-items:center; gap:8px; }
 #lesson-live .lesson-reflection textarea { width:100%; min-height:120px; max-height:40vh; resize:vertical; border:1px solid #777; border-radius:12px; padding:12px; font:inherit; color:inherit; background:#fff; }
 #lesson-live .lesson-reflection textarea:focus-visible { outline:3px solid #156fd1; outline-offset:4px; }
+#lesson-live #reflection-privacy { margin:0; }
 #lesson-live #reflection-error { margin:0; color:#bd2424; }
 #lesson-live #reflection-thanks { color:#26783d; }
 @media(max-width:750px) { #lesson-live .history-footer { --foot:92px; height:92px; } #lesson-live .history-footer-left { display:grid; gap:4px; } #lesson-live .history-show { font-size:11px; } #lesson-live .history-footer #history-prev { justify-self:start; } #lesson-live:has(.history-footer) { --foot:92px; } }

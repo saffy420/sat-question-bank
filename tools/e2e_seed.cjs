@@ -105,6 +105,21 @@ async function free(port) {
         { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
       if (upgrade.status !== 0) throw new Error('0016 isolated E2E upgrade failed');
     }
+    const anonymous = spawnSync(process.execPath, [...base, '--command', `SELECT name FROM sqlite_master WHERE
+      (type='table' AND name IN ('feature_suggestion_daily_limits','feature_suggestion_session_limits'))
+      OR (type='index' AND name='feature_suggestion_daily_limits_user')`, '--json'],
+      { cwd: root, encoding: 'utf8', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+    if (anonymous.status !== 0) throw new Error('Cannot inspect anonymous suggestion limits: ' + anonymous.stderr);
+    const anonymousObjects = JSON.parse(anonymous.stdout)[0]?.results?.length || 0;
+    const hasAnonymous = suggestionNames.includes('is_anonymous');
+    if ((hasAnonymous && anonymousObjects !== 3) || (!hasAnonymous && anonymousObjects !== 0)) {
+      throw new Error('Partial 0017 schema; inspect isolated E2E state before reseeding');
+    }
+    if (!hasAnonymous) {
+      const upgrade = spawnSync(process.execPath, [...base, '--file', 'migrations/0017_anonymous_suggestions.sql'],
+        { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+      if (upgrade.status !== 0) throw new Error('0017 isolated E2E upgrade failed');
+    }
   }
   for (const [binding, file] of [['DB', 'schema.sql'], ['AI_DB', 'schema_ai.sql'], ['DB', 'tools/e2e_core.sql'], ['AI_DB', 'tools/e2e_ai.sql']]) {
     if (hasUsers && file === 'schema.sql') continue; // Snapshot has non-idempotent lesson DDL; upgrades ran above.
