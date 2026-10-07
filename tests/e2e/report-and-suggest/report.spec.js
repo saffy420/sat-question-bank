@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { newUserContext, ORIGIN } from '../lessons-00b-e2e-harness/auth.js';
 import { FIXTURE, FIX, mock, reset, openInPlayer, reportFromDialog, groups, group, post } from './support.js';
+import { dismissEnded } from '../lessons-11-ui-polish/helpers.js';
 
 const artifacts = '.omp/pipeline/report-and-suggest/e2e';
 const shot = (page, name) => page.screenshot({ path: `${artifacts}/${name}.png` });
@@ -94,9 +95,15 @@ test('R2 report from a lesson and from lesson history', async ({ browser }) => {
     await teacher.locator('[data-live="startQuestion"]').click();
     await teacher.locator('[data-live="endNow"]').click();
     await teacher.locator('[data-live="endSession"]').click();
+    await dismissEnded(page);
     await expect(page.locator('#lesson-live')).toBeHidden();
     await page.locator('.nav-i[data-tab="lessons"]').click();
     await page.locator(`#lessons-table tr[data-session="${sessionId}"]`).click();
+    await expect(page.locator('#history-summary')).toBeVisible();
+    await page.locator(`[data-history-open="${MATH}"]`).click();
+    await expect(page.locator('#history-show')).not.toBeChecked();
+    await expect(page.locator('#history-reveal')).toHaveCount(0);
+    await page.locator('#history-show').check();
     await expect(page.locator('#lesson-card[data-ready]')).toBeVisible();
     await page.locator('#history-next').click();
     await expect(page.locator('#history-correct')).toHaveText('Correct answer: A');
@@ -308,7 +315,9 @@ test('R6 suggestion round trip: bank and lesson menus, newest first, done and di
     const tab = await admin.newPage();
     await tab.goto('/admin');
     await tab.locator('[data-section="Suggestions"]').click();
-    const items = tab.locator('.suggestion .suggestion-body');
+    await tab.locator('[data-tab="app"]').click();
+    await expect(tab.locator('[data-tab="app"]')).toHaveAttribute('aria-selected', 'true');
+    const items = tab.locator('[data-suggestion][data-category="app"] .suggestion-body');
     await expect(items).toHaveText(['Idea 5', 'Idea 4', 'Idea 3', 'Let me revisit the last poll', 'Add a dark mode timer']);
     await expect(tab.locator('.suggestion').nth(3)).toContainText('Lessons');
     await expect(tab.locator('.suggestion').nth(4)).toContainText('Question bank');

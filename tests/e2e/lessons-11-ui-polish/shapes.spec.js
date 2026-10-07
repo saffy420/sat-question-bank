@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
-import { INSTRUCTOR, MATH, RW, SPR, lesson, join, openLive, shot, shapeReport, noBoxReport } from './helpers.js';
+import { INSTRUCTOR, MATH, RW, SPR, lesson, join, openLive, shot, shapeReport, noBoxReport, dismissEnded } from './helpers.js';
 
 // lessons-11-ui-polish, item 2: every control of every student screen uses Bluebook shapes. helpers.shapeReport
 // flags any visible button/input/select/summary (and the row, popup and dialog boxes around them) with a visible
@@ -153,9 +153,17 @@ test('shape rule on every screen of an instructor-paced lesson: lobby, answering
     // End of session: My Lessons history.
     await teacher.locator('[data-live="endSession"]').click();
     await expect.poll(async () => (await context.request.get(`/api/lesson-history/${sessionId}`)).status()).toBe(200);
+    await dismissEnded(page);
     await expect(page.locator('#lesson-live')).toBeHidden();
     await page.locator('.nav-i[data-tab="lessons"]').click();
     await page.locator(`#lessons-table tr[data-session="${sessionId}"]`).click({ timeout: 10000 });
+    await expect(page.locator('#history-summary')).toBeVisible();
+    await check(page, 'My Lessons summary', 3);
+    await page.locator(`[data-history-open="${MATH}"]`).click();
+    await expect(page.locator('#history-show')).not.toBeChecked();
+    await expect(page.locator('#history-reveal')).toHaveCount(0);
+    await check(page, 'My Lessons answers hidden', 8);
+    await page.locator('#history-show').check();
     await expect(page.locator('#lesson-card[data-ready]')).toBeVisible();
     await expect(page.locator('#history-reveal')).toBeVisible();
     await check(page, 'My Lessons history', 8);

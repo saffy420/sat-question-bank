@@ -43,6 +43,16 @@ export async function join(page, code) {
   await expect(page.locator('#lesson-connection')).toContainText('Connected');
 }
 
+export async function dismissEnded(page) {
+  await expect(page.locator('#lesson-reflection')).toBeVisible({ timeout: 35000 });
+  await page.locator('#reflection-close').click();
+  await expect(page.locator('#lesson-reflection')).toBeHidden();
+  await expect(page.locator('#history-summary')).toBeVisible();
+  await page.locator('#history-close').click();
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(page.locator('#lesson-live')).toBeHidden();
+}
+
 export async function openLive(admin, sessionId) {
   const teacher = await admin.newPage();
   await teacher.goto(`/admin/live/${sessionId}`);
@@ -103,7 +113,7 @@ export function shapeReport(page) {
       const radius = Math.min(...['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map(c => corner(cs[`border${c}Radius`])));
       const round = radius >= 8 || radius >= Math.min(r.width, r.height) / 2 - 0.5;
       const label = `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''} "${(el.textContent || '').trim().slice(0, 24)}" radius ${radius}px sides ${sides.join('+')}`;
-      if (sides.length === 1 && sides[0] === 'Bottom' && el.closest('.lesson-tools, .stage-strike-toggle, .self-grid, .history-nav')) { underlined.push(label); continue; }
+      if (sides.length === 1 && sides[0] === 'Bottom' && el.closest('.lesson-tools, .stage-strike-toggle, .self-grid, .history-footer')) { underlined.push(label); continue; }
       if (!round) violations.push(label);
     }
     return { checked, violations, underlined };
@@ -215,7 +225,7 @@ export function noBoxReport(page) {
       const bottom = width('Bottom');
       if (bottom > 0) {
         if (bottom > 3) problems.push(`${name}: border-bottom ${bottom}px is thicker than an underline`);
-        else if (!el.closest('.lesson-tools, .stage-strike-toggle, .self-grid, .history-nav') && !el.matches('.stage-strike-toggle')) problems.push(`${name}: border-bottom on something that is not a tool, toggle or number cell`);
+        else if (!el.closest('.lesson-tools, .stage-strike-toggle, .self-grid, .history-footer') && !el.matches('.stage-strike-toggle')) problems.push(`${name}: border-bottom on something that is not a tool, toggle or number cell`);
       }
       if (alpha(cs.backgroundColor) > 0.02 && !el.matches(solid)) problems.push(`${name}: filled background ${cs.backgroundColor}`);
       const radius = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map(c => cs[`border${c}Radius`].split(' ')[0]);

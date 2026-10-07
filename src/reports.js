@@ -15,6 +15,7 @@ const API_URL = 'https://api.anthropic.com/v1/messages';
 export const CATEGORIES = ['formatting', 'wrong_answer', 'typo', 'other'];
 export const SEEN_IN = ['bank', 'lesson', 'history'];
 export const AREAS = ['bank', 'lessons', 'plan', 'other'];
+export const SUGGESTION_CATEGORIES = ['teaching', 'app', 'other'];
 export const MAX_REPORT_BODY = 150000;
 const MAX_NOTE = 1000, MAX_HTML = 100000, MAX_HTML_TO_MODEL = 30000, MAX_BODY = MAX_REPORT_BODY, MAX_SUGGESTION = 2000;
 const PATCHABLE = ['stem_html', 'choices_json', 'explanation_html'];
@@ -320,15 +321,33 @@ export async function decideReports(env, text) {
 export async function submitSuggestion(env, user, text, deps = {}) {
   let b; try { b = JSON.parse(text); } catch { return { status: 400, body: { error: 'invalid suggestion' } }; }
   const body = typeof b?.body === 'string' ? b.body.trim() : '';
-  if (!body || body.length > MAX_SUGGESTION || (b.area != null && !AREAS.includes(b.area))) return { status: 400, body: { error: 'invalid suggestion' } };
-  const today = await env.DB.prepare("SELECT COUNT(*) AS n FROM feature_suggestions WHERE user_id=? AND created_at >= datetime('now','-1 day')").bind(user.id).first();
-  if ((today?.n || 0) >= (deps.cfg?.suggestionsPerDay ?? SUGGESTIONS_PER_USER_PER_DAY)) return { status: 429, body: { error: 'daily suggestion limit reached' } };
-  await env.DB.prepare('INSERT INTO feature_suggestions (user_id, area, body) VALUES (?,?,?)').bind(user.id, b.area ?? null, body).run();
+  const category = b?.category === undefined ? 'app' : b.category;
+  if (!b || typeof b !== 'object' || Array.isArray(b) || !body || body.length > MAX_SUGGESTION ||
+      (b.area != null && !AREAS.includes(b.area)) || !SUGGESTION_CATEGORIES.includes(category) ||
+      (b.sessionId !== undefined && (!Number.isSafeInteger(b.sessionId) || b.sessionId <= 0))) return { status: 400, body: { error: 'invalid suggestion' } };
+  if (b.sessionId !== undefined) {
+    const session = await env.DB.prepare(`SELECT s.id FROM lesson_sessions s JOIN session_participants p ON p.session_id=s.id
+      WHERE s.id=? AND p.user_id=? AND s.status='ended'`).bind(b.sessionId, user.id).first();
+    if (!session) return { status: 400, body: { error: 'feedback requires an ended session you attended' } };
+  } else {
+    const today = await env.DB.prepare("SELECT COUNT(*) AS n FROM feature_suggestions WHERE user_id=? AND session_id IS NULL AND created_at >= datetime('now','-1 day')").bind(user.id).first();
+    if ((today?.n || 0) >= (deps.cfg?.suggestionsPerDay ?? SUGGESTIONS_PER_USER_PER_DAY)) return { status: 429, body: { error: 'daily suggestion limit reached' } };
+  }
+  try {
+    await env.DB.prepare('INSERT INTO feature_suggestions (user_id, area, body, category, session_id) VALUES (?,?,?,?,?)')
+      .bind(user.id, b.area ?? null, body, category, b.sessionId ?? null).run();
+  } catch (e) {
+    if (/UNIQUE constraint failed/i.test(String(e))) return { status: 409, body: { error: 'you already sent feedback in this category for this session' } };
+    throw e;
+  }
   return { status: 200, body: { ok: true } };
 }
-export async function listSuggestions(env, all) {
-  const rows = (await env.DB.prepare(`SELECT s.id, s.user_id, s.area, s.body, s.status, s.created_at, u.name, u.email FROM feature_suggestions s
-    LEFT JOIN users u ON u.id=s.user_id ${all ? '' : "WHERE s.status='new'"} ORDER BY s.id DESC LIMIT ${LIST_LIMIT}`).all()).results || [];
+export async function listSuggestions(env, all, category = null) {
+  if (category !== null && !SUGGESTION_CATEGORIES.includes(category)) return { status: 400, body: { error: 'invalid suggestion category' } };
+  const filters = [...(all ? [] : ["s.status='new'"]), ...(category === null ? [] : ['s.category=?'])];
+  const statement = env.DB.prepare(`SELECT s.id, s.user_id, s.area, s.body, s.category, s.session_id, s.status, s.created_at, u.name, u.email FROM feature_suggestions s
+    LEFT JOIN users u ON u.id=s.user_id ${filters.length ? 'WHERE ' + filters.join(' AND ') : ''} ORDER BY s.id DESC LIMIT ${LIST_LIMIT}`);
+  const rows = (await (category === null ? statement : statement.bind(category)).all()).results || [];
   return { status: 200, body: { suggestions: rows } };
 }
 export async function setSuggestion(env, id, text) {
@@ -344,7 +363,7 @@ export async function adminReportRoute(env, req, p, url) {
   if (p === '/api/admin/reports/decision' && req.method === 'POST') return decideReports(env, await req.text());
   const html = /^\/api\/admin\/reports\/([1-9]\d{0,9})\/html$/.exec(p);
   if (html && req.method === 'GET') return reportHtml(env, Number(html[1]));
-  if (p === '/api/admin/suggestions' && req.method === 'GET') return listSuggestions(env, url.searchParams.get('status') === 'all');
+  if (p === '/api/admin/suggestions' && req.method === 'GET') return listSuggestions(env, url.searchParams.get('status') === 'all', url.searchParams.get('category'));
   const one = /^\/api\/admin\/suggestions\/([1-9]\d{0,9})$/.exec(p);
   if (one && req.method === 'POST') return setSuggestion(env, Number(one[1]), await req.text());
   return null;

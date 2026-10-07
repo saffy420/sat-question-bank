@@ -6,6 +6,7 @@ const { DatabaseSync } = require('node:sqlite');
 const { readFileSync } = require('node:fs');
 const root = __dirname + '/../';
 const schema = readFileSync(root + 'schema.sql', 'utf8'), aiSchema = readFileSync(root + 'schema_ai.sql', 'utf8'), migration = readFileSync(root + 'migrations/0011_reports.sql', 'utf8');
+const suggestionMigration = readFileSync(root + 'migrations/0016_suggestion_categories.sql', 'utf8');
 const origin = 'https://roadto1600.org';
 const reports = () => import('../src/reports.js');
 
@@ -370,11 +371,112 @@ test('suggestion round trip: 5 per user per day, newest first, mark done or dism
   assert.equal((await (await a.request('/api/admin/suggestions?status=all', 'admin')).json()).suggestions.length, 6);
 });
 
-test('0011 upgrade creates the same tables and indexes as the snapshot', () => {
+test('suggestion categories default to app, validate input and filter admin lists with status all', async t => {
+  const a = await app(t);
+  const send = data => a.request('/api/suggestions', 'alice', 'POST', data);
+  for (const data of [null, [], {}, { body: 'x', category: null }, { body: 'x', category: '' }, { body: 'x', category: 'spam' }]) {
+    assert.equal((await send(data)).status, 400, JSON.stringify(data));
+  }
+  assert.equal((await send('{')).status, 400);
+  for (const data of [{ body: ' Legacy ' }, { body: 'Teaching', category: 'teaching' }, { body: 'App', category: 'app' }, { body: 'Other', category: 'other' }]) {
+    assert.equal((await send(data)).status, 200);
+  }
+  const list = async query => {
+    const res = await a.request('/api/admin/suggestions' + query, 'admin');
+    assert.equal(res.status, 200);
+    return (await res.json()).suggestions;
+  };
+  const all = await list('');
+  assert.deepEqual(all.map(s => [s.body, s.category, s.session_id]), [['Other', 'other', null], ['App', 'app', null], ['Teaching', 'teaching', null], ['Legacy', 'app', null]]);
+  const teaching = await list('?category=teaching');
+  assert.equal(teaching.length, 1);
+  assert.equal(teaching[0].email, 'a@ccs.us');
+  assert.equal((await a.request(`/api/admin/suggestions/${teaching[0].id}`, 'admin', 'POST', { status: 'done' })).status, 200);
+  assert.deepEqual(await list('?category=teaching'), []);
+  assert.deepEqual((await list('?status=all&category=teaching')).map(s => [s.body, s.status]), [['Teaching', 'done']]);
+  assert.equal((await list('?category=app')).length, 2);
+  assert.equal((await list('?status=all')).length, 4);
+  for (const category of ['spam', '']) assert.equal((await a.request('/api/admin/suggestions?category=' + category, 'admin')).status, 400);
+  assert.equal((await a.request('/api/admin/suggestions?status=all&category=teaching', 'bob')).status, 403);
+  assert.equal((await a.request('/api/admin/suggestions?category=app', null)).status, 401);
+});
+
+test('session feedback requires positive integer sessionId, ended session and token user participation', async t => {
+  const a = await app(t);
+  a.db.exec(`INSERT INTO lessons(id,title,mode,created_by) VALUES(1,'Lesson','self','admin');
+    INSERT INTO lesson_sessions(id,lesson_id,join_code,status,snapshot_json) VALUES
+      (7,1,'END007','ended','{}'),(8,1,'LIVE08','live','{}'),(9,1,'REV009','review','{}'),(10,1,'LOB010','lobby','{}');
+    INSERT INTO session_participants(session_id,user_id,assigned_question_ids_json) VALUES
+      (7,'alice','[]'),(8,'alice','[]'),(9,'alice','[]'),(10,'alice','[]');`);
+  const send = (token, data) => a.request('/api/suggestions', token, 'POST', { body: 'Feedback', category: 'teaching', ...data });
+  for (const sessionId of [null, 0, -1, 1.5, '7', true, {}, [], Number.MAX_SAFE_INTEGER + 1, 8, 9, 10, 999]) {
+    assert.equal((await send('alice', { sessionId })).status, 400, JSON.stringify(sessionId));
+  }
+  assert.equal((await send(null, { sessionId: 7 })).status, 401);
+  assert.equal((await send('invalid', { sessionId: 7, user_id: 'alice' })).status, 401);
+  assert.equal((await send('bob', { sessionId: 7, user_id: 'alice', userId: 'alice' })).status, 400);
+  assert.equal(a.db.prepare('SELECT COUNT(*) n FROM feature_suggestions').get().n, 0);
+  const res = await send('alice', { sessionId: 7, user_id: 'bob', userId: 'bob' });
+  assert.deepEqual([res.status, await res.json()], [200, { ok: true }]);
+  const saved = a.db.prepare('SELECT user_id, category, session_id FROM feature_suggestions').get();
+  assert.deepEqual({ ...saved }, { user_id: 'alice', category: 'teaching', session_id: 7 });
+  const list = (await (await a.request('/api/admin/suggestions?category=teaching', 'admin')).json()).suggestions;
+  assert.deepEqual(list.map(s => [s.user_id, s.category, s.session_id]), [['alice', 'teaching', 7]]);
+});
+
+test('session feedback bypasses and does not consume daily cap; uniqueness spans status, not other users, sessions or categories', async t => {
+  const { db, env } = world(t);
+  const { submitSuggestion, setSuggestion } = await reports();
+  db.exec(`INSERT INTO lessons(id,title,mode,created_by) VALUES(1,'Lesson','self','admin');
+    INSERT INTO lesson_sessions(id,lesson_id,join_code,status,snapshot_json) VALUES(7,1,'END007','ended','{}'),(8,1,'END008','ended','{}');
+    INSERT INTO session_participants(session_id,user_id,assigned_question_ids_json) VALUES(7,'alice','[]'),(7,'bob','[]'),(8,'alice','[]');`);
+  const send = (user, data) => submitSuggestion(env, { id: user }, JSON.stringify({ body: 'Feedback', ...data }), { cfg: { suggestionsPerDay: 2 } });
+  assert.equal((await send('alice', { sessionId: 7, category: 'teaching' })).status, 200);
+  assert.equal((await send('alice', {})).status, 200);
+  assert.equal((await send('alice', {})).status, 200);
+  assert.equal((await send('alice', {})).status, 429);
+  assert.equal((await send('alice', { sessionId: 7 })).status, 200);
+  assert.equal((await send('alice', { sessionId: 7, category: 'other' })).status, 200);
+  assert.equal((await send('alice', { sessionId: 8, category: 'teaching' })).status, 200);
+  assert.equal((await send('bob', { sessionId: 7, category: 'teaching' })).status, 200);
+  const id = db.prepare("SELECT id FROM feature_suggestions WHERE user_id='alice' AND session_id=7 AND category='teaching'").get().id;
+  for (const status of ['new', 'done', 'dismissed']) {
+    assert.equal((await setSuggestion(env, id, JSON.stringify({ status }))).status, 200);
+    const duplicate = await send('alice', { sessionId: 7, category: 'teaching' });
+    assert.deepEqual([duplicate.status, duplicate.body.error], [409, 'you already sent feedback in this category for this session']);
+  }
+  const concurrent = await Promise.all([send('bob', { sessionId: 7, category: 'other' }), send('bob', { sessionId: 7, category: 'other' })]);
+  assert.deepEqual(concurrent.map(r => r.status).sort(), [200, 409]);
+  db.exec("UPDATE feature_suggestions SET created_at=datetime('now','-2 days') WHERE user_id='alice' AND session_id IS NULL");
+  assert.equal((await send('alice', {})).status, 200);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM feature_suggestions WHERE user_id='alice' AND session_id=7 AND category='teaching'").get().n, 1);
+  const broken = { DB: { prepare: () => ({ bind: () => ({ first: async () => ({ n: 0 }), run: async () => { throw new Error('database unavailable'); } }) }) } };
+  await assert.rejects(submitSuggestion(broken, { id: 'alice' }, '{"body":"x"}'), /database unavailable/);
+});
+
+test('0011 and 0016 upgrades match snapshot, preserve legacy suggestions and enforce category and session uniqueness', () => {
   const base = new DatabaseSync(':memory:'), upgraded = new DatabaseSync(':memory:');
-  base.exec(schema);
-  upgraded.exec(schema.slice(0, schema.indexOf('-- Question reports, their AI triage'))); upgraded.exec(migration);
-  const shape = db => db.prepare("SELECT name, sql FROM sqlite_master WHERE name LIKE 'question_reports%' OR name LIKE 'question_triage%' OR name LIKE 'feature_suggestions%' ORDER BY name").all().map(r => ({ ...r }));
-  assert.equal(shape(base).length, 10);
-  assert.deepEqual(shape(upgraded), shape(base));
+  try {
+    base.exec(schema);
+    upgraded.exec(schema.slice(0, schema.indexOf('-- Question reports, their AI triage'))); upgraded.exec(migration);
+    upgraded.exec("INSERT INTO feature_suggestions(user_id,area,body,status) VALUES('alice','lessons','Legacy','done')");
+    upgraded.exec(suggestionMigration);
+    assert.deepEqual({ ...upgraded.prepare('SELECT user_id,area,body,status,category,session_id FROM feature_suggestions').get() },
+      { user_id: 'alice', area: 'lessons', body: 'Legacy', status: 'done', category: 'app', session_id: null });
+    const shape = db => db.prepare("SELECT name, sql FROM sqlite_master WHERE name LIKE 'question_reports%' OR name LIKE 'question_triage%' OR name LIKE 'feature_suggestions%' ORDER BY name").all()
+      .map(r => ({ name: r.name, sql: r.name === 'feature_suggestions' ? db.prepare('PRAGMA table_info(feature_suggestions)').all().map(c => ({ ...c })) : r.sql }));
+    assert.equal(shape(base).length, 11);
+    assert.deepEqual(shape(upgraded), shape(base));
+    for (const db of [base, upgraded]) {
+      db.exec("INSERT INTO feature_suggestions(user_id,body) VALUES('u','Default'),('u','Another')");
+      assert.equal(db.prepare("SELECT category FROM feature_suggestions WHERE body='Default'").get().category, null);
+      assert.throws(() => db.exec("INSERT INTO feature_suggestions(user_id,body,category) VALUES('u','Bad','spam')"), /CHECK/);
+      db.exec("INSERT INTO feature_suggestions(user_id,body,category) VALUES('u','Nullable',NULL)");
+      assert.equal(db.prepare("SELECT category FROM feature_suggestions WHERE body='Nullable'").get().category, null);
+      db.exec("INSERT INTO feature_suggestions(user_id,body,category,session_id) VALUES('u','Feedback','teaching',7)");
+      assert.throws(() => db.exec("INSERT INTO feature_suggestions(user_id,body,category,session_id) VALUES('u','Duplicate','teaching',7)"), /UNIQUE/);
+      db.exec("INSERT INTO feature_suggestions(user_id,body,category,session_id) VALUES('v','Other user','teaching',7),('u','Other category','app',7),('u','Other session','teaching',8)");
+      assert.throws(() => db.exec(suggestionMigration), /duplicate column/);
+    }
+  } finally { base.close(); upgraded.close(); }
 });

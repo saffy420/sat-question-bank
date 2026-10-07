@@ -1,6 +1,7 @@
 export type Question = {
   id: string;
   section: string;
+  skill?: string;
   stem_html: string;
   choices: { letter: string; content?: string; img?: string }[];
   spr: boolean;
@@ -120,9 +121,21 @@ export type LessonHistory = {
     recorded: boolean;
     answer: string | null;
     correct: 0 | 1 | null;
+    timeMs?: number | null;
     annotations: Mark[];
     desmos: object | null;
   }[];
+};
+
+export type LessonAuthHeaders = () => HeadersInit | Promise<HeadersInit>;
+export type HistoryOptions = {
+  headers?: LessonAuthHeaders;
+  onReady?: (history: LessonHistory) => void;
+};
+export type ReflectionOptions = {
+  sessionId: number;
+  headers: LessonAuthHeaders;
+  close: () => void;
 };
 
 // Practice bank screen (Bank.tsx). `public/index.html` owns the session state and draws this model from it.

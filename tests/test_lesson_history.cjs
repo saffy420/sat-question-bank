@@ -204,7 +204,7 @@ test('history API: ended only, participants only; list, bank usage, source tags 
   const s = await selfState(env);
   await r.save(s); await r.completeSet(s);
   db.exec(`INSERT INTO session_question_review VALUES(7,'q1','[{"type":"highlight","id":"m1","nodeId":"p:0","startOffset":0,"endOffset":2,"color":"#ffe066"}]','{"expressions":{"list":[]}}');
-    INSERT INTO session_responses(session_id,user_id,question_id,final_answer,is_correct) VALUES(8,'alice','q1','A',0);`);
+    INSERT INTO session_responses(session_id,user_id,question_id,final_answer,is_correct,time_spent_ms) VALUES(8,'alice','q1','A',0,9000);`);
   assert.equal((await get('/api/lesson-history/7', 'alice')).status, 404, 'in review: notes not unlocked yet (G6)');
   const listed = await json(await get('/api/lesson-history', 'alice'));
   assert.deepEqual(listed.attended, ['00008', '00007']);
@@ -220,13 +220,18 @@ test('history API: ended only, participants only; list, bank usage, source tags 
   assert.deepEqual(mine.sessions.map(x => [x.paddedId, x.mode, x.score]), [['00008', 'instructor', { right: 0, scorable: 1 }], ['00007', 'self', { right: 1, scorable: 3 }]]);
   const detail = await json(await get('/api/lesson-history/7', 'alice'));
   assert.deepEqual(detail.questions.map(x => [x.number, x.question.id, x.answer, x.correct, x.inSet]), [[1, 'q1', 'B', 1, true], [2, 'q2', null, 0, true], [3, 'q3', 'A', null, true], [4, 'q4', null, 0, true]]);
+  assert.deepEqual(detail.questions.map(x => [x.question.id, x.timeMs]), [['q1', 17000], ['q2', 4000], ['q3', 2000], ['q4', 0]]);
   assert.equal(detail.questions[0].notes, 'NOTE_q1 **why**');
   assert.equal(detail.questions[0].question.explanation_html, '<p>EXPL_q1</p>');
   assert.equal(detail.questions[0].annotations[0].id, 'm1');
   assert.deepEqual(detail.questions[0].desmos, { expressions: { list: [] } });
   const late = await json(await get('/api/lesson-history/7', 'bob'));
   assert.deepEqual(late.questions.map(x => [x.question.id, x.inSet]), [['q1', true], ['q2', false], ['q3', false], ['q4', true]]);
-  assert.deepEqual((await json(await get('/api/lesson-history/8', 'alice'))).questions.map(x => x.question.id), ['q1'], 'instructor-paced: shown questions only');
+  assert.deepEqual(late.questions.map(x => [x.question.id, Object.hasOwn(x, 'timeMs'), x.recorded, x.timeMs]),
+    [['q1', true, true, 5000], ['q2', true, false, null], ['q3', true, false, null], ['q4', true, true, 0]], 'self: own timing, missing response null, recorded zero preserved');
+  const paced = await json(await get('/api/lesson-history/8', 'alice'));
+  assert.deepEqual(paced.questions.map(x => x.question.id), ['q1'], 'instructor-paced: shown questions only');
+  for (const question of paced.questions) assert.equal(Object.hasOwn(question, 'timeMs'), false, 'instructor timing absent');
   const bank = await json(await get('/api/questions', 'alice'));
   assert.deepEqual(bank.find(q => q.id === 'q1').usedInLesson, ['00007', '00008']);
   assert.deepEqual(bank.find(q => q.id === 'q2').usedInLesson, ['00007']);

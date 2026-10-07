@@ -10,8 +10,9 @@ import { DesmosFollower } from './Desmos';
 import { CalculatorShell, useCalculator } from './Calculator';
 import { SelfPlayer } from './Self';
 import { PollScreen } from './Poll';
-import { HistoryView } from './History';
-import type { Bridge, PlayerModel, Mark, Laser, LessonHistory, View } from './types';
+import { HistoryScreen } from './History';
+import { Reflection } from './Reflection';
+import type { Bridge, PlayerModel, Mark, Laser, LessonHistory, HistoryOptions, ReflectionOptions, View } from './types';
 import type { StageProps } from './Stage';
 import './lesson.css';
 export { Stage } from './Stage';
@@ -172,10 +173,17 @@ export function mountStage(root: HTMLElement, props: StageProps) {
   return () => react.unmount();
 }
 
-// §9.1 My Lessons: a read-only view of one ended session.
-export function mountHistory(root: HTMLElement, history: LessonHistory, mathify: (el: HTMLElement) => void, close: () => void, report: (r: { questionId: string; element: HTMLElement }) => void) {
+export function mountHistory(root: HTMLElement, source: LessonHistory | number, mathify: (el: HTMLElement) => void, close: () => void, report: (r: { questionId: string; element: HTMLElement }) => void, options?: HistoryOptions) {
   const react = createRoot(root);
-  flushSync(() => react.render(<HistoryView history={history} mathify={mathify} close={close} report={report}/>));
+  let resolve: (history: LessonHistory | null) => void;
+  const ready = new Promise<LessonHistory | null>(done => { resolve = done; });
+  flushSync(() => react.render(<HistoryScreen source={source} options={options} mathify={mathify} close={close} report={report} ready={history => resolve(history)}/>));
+  return Object.assign(() => { resolve(null); react.unmount(); }, { ready });
+}
+
+export function mountReflection(root: HTMLElement, options: ReflectionOptions) {
+  const react = createRoot(root);
+  flushSync(() => react.render(<Reflection {...options}/>));
   return () => react.unmount();
 }
 

@@ -95,6 +95,16 @@ async function free(port) {
     const desmos = spawnSync(process.execPath, [...base, '--file', 'migrations/0015_desmos_solutions.sql'],
       { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
     if (desmos.status !== 0) throw new Error('0015 isolated E2E upgrade failed');
+    const suggestionColumns = spawnSync(process.execPath, [...base, '--command', 'PRAGMA table_info(feature_suggestions)', '--json'],
+      { cwd: root, encoding: 'utf8', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+    if (suggestionColumns.status !== 0) throw new Error('Cannot inspect suggestion columns: ' + suggestionColumns.stderr);
+    const suggestionNames = JSON.parse(suggestionColumns.stdout)[0]?.results?.map(c => c.name) || [];
+    if (suggestionNames.includes('category') !== suggestionNames.includes('session_id')) throw new Error('Partial 0016 schema; inspect isolated E2E state before reseeding');
+    if (!suggestionNames.includes('category')) {
+      const upgrade = spawnSync(process.execPath, [...base, '--file', 'migrations/0016_suggestion_categories.sql'],
+        { cwd: root, stdio: 'inherit', env: { ...process.env, CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false' } });
+      if (upgrade.status !== 0) throw new Error('0016 isolated E2E upgrade failed');
+    }
   }
   for (const [binding, file] of [['DB', 'schema.sql'], ['AI_DB', 'schema_ai.sql'], ['DB', 'tools/e2e_core.sql'], ['AI_DB', 'tools/e2e_ai.sql']]) {
     if (hasUsers && file === 'schema.sql') continue; // Snapshot has non-idempotent lesson DDL; upgrades ran above.

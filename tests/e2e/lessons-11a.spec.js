@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { newUserContext, ORIGIN } from './lessons-00b-e2e-harness/auth.js';
+import { dismissEnded } from './lessons-11-ui-polish/helpers.js';
 
 const artifacts = '.omp/pipeline/lessons-11a-bugfixes/e2e';
 const INSTRUCTOR = { viewport: { width: 1920, height: 1080 } };
@@ -230,9 +231,15 @@ test('A1 instructor eliminations reach every student at the reveal, stay live af
     await teacher.locator('[data-live="next"]').click();
     await teacher.locator('[data-live="endSession"]').click();
     await expect.poll(async () => (await oneContext.request.get(`/api/lesson-history/${sessionId}`)).status()).toBe(200);
+    await dismissEnded(one);
     await expect(one.locator('#lesson-live')).toBeHidden();
     await one.locator('.nav-i[data-tab="lessons"]').click();
     await one.locator(`#lessons-table tr[data-session="${sessionId}"]`).click({ timeout: 10000 });
+    await expect(one.locator('#history-summary')).toBeVisible();
+    await one.locator(`[data-history-open="${RW}"]`).click();
+    await expect(one.locator('#history-show')).not.toBeChecked();
+    await expect(one.locator('#history-reveal')).toHaveCount(0);
+    await one.locator('#history-show').check();
     await expect(one.locator('#lesson-card[data-ready]')).toBeVisible();
     await expect.poll(() => struckFor(one)).toEqual(['D']);
     await expect(one.locator('#lesson-card [data-ann-node="c:C"] [data-ann-mark]')).toHaveText('vague');
@@ -383,6 +390,7 @@ test('A5 End session sends connected and offline students to /app (instructor-pa
     await teacher.locator('[data-live="endSession"]').click();
     await expect(teacher.locator('#live-timer')).toHaveText('Session ended');
     // Connected: back on /app with the lesson view closed.
+    await dismissEnded(on);
     await expect(on.locator('#lesson-live')).toBeHidden();
     expect(new URL(on.url()).pathname).toBe('/app');
     await expect(on.locator('#join-lesson')).toBeVisible();
@@ -390,6 +398,7 @@ test('A5 End session sends connected and offline students to /app (instructor-pa
     // Offline through the end: released as soon as the reconnect reaches the ended room.
     await expect(off.locator('#lesson-live')).toBeVisible();
     await offContext.setOffline(false);
+    await dismissEnded(off);
     await expect(off.locator('#lesson-live')).toBeHidden({ timeout: 20000 });
     expect(new URL(off.url()).pathname).toBe('/app');
     await off.screenshot({ path: `${artifacts}/A5-offline-student-released.png` });
@@ -425,13 +434,18 @@ test('A5 End session sends self-paced students to /app, including one reconnecti
     await teacher.locator('[data-live="endSession"]').click();
     await expect(teacher.locator('.live-top')).toContainText('SET FINISHED');
     await expect(on.locator('#self-status')).toContainText('Your answers were submitted');
+    await expect(on.locator('#lesson-live')).toBeVisible();
+    await expect(on.locator('#lesson-reflection')).toHaveCount(0);
+    await expect(on.locator('#history-summary')).toHaveCount(0);
     await outage(offContext, off, link);
     // Second End session ends it: everyone goes to /app.
     await teacher.locator('[data-live="endSession"]').click();
     await expect(teacher.locator('.live-top')).toContainText('SESSION ENDED');
+    await dismissEnded(on);
     await expect(on.locator('#lesson-live')).toBeHidden();
     expect(new URL(on.url()).pathname).toBe('/app');
     await offContext.setOffline(false);
+    await dismissEnded(off);
     await expect(off.locator('#lesson-live')).toBeHidden({ timeout: 20000 });
     expect(new URL(off.url()).pathname).toBe('/app');
     for (const [context, answer] of [[onContext, 'A'], [offContext, 'B']]) {

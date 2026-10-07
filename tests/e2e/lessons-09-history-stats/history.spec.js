@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { newUserContext, ORIGIN } from '../lessons-00b-e2e-harness/auth.js';
 import { captureLeaks } from '../lessons-00b-e2e-harness/leaks.js';
+import { dismissEnded } from '../lessons-11-ui-polish/helpers.js';
 
 const artifacts = '.omp/pipeline/lessons-09-history-stats/e2e';
 const RW = 'e2e-core-rw', MATH = 'e2e-core-math', SPR = 'e2e-core-spr';
@@ -107,6 +108,7 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     expect((await history(six, paced.sessionId)).status()).toBe(404);
     await teacher.locator('[data-live="endSession"]').click();
     await expect.poll(async () => (await history(six, paced.sessionId)).status()).toBe(200);
+    await dismissEnded(student);
     // 5. An instructor-paced wrong answer changes no practice record.
     expect(await record(six)).toEqual(before);
     await teacher.close();
@@ -133,6 +135,7 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     await teacher.locator('[data-live="endSession"]').click();
     await expect(teacher.locator('.live-top')).toContainText('SESSION ENDED');
     // Ending the session sends the student back to /app (11a A5).
+    await dismissEnded(student);
     await expect(student.locator('#lesson-live')).toBeHidden();
     await leaks.flush();
     expect(leaks.frames.length).toBeGreaterThan(0);
@@ -163,6 +166,14 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     await student.locator(`#lessons-table tr[data-session="${paced.sessionId}"]`).click();
     await expect(student.locator('#lesson-live')).toBeVisible();
     await expect(student.locator('.history-header h1')).toHaveText(`Lesson ${pad(paced.sessionId)} · ${(await (await six.request.get(`/api/lesson-history/${paced.sessionId}`)).json()).title}`);
+    await expect(student.locator('#history-summary')).toBeVisible();
+    await expect(student.locator('#history-score')).toHaveText('Score 0 / 2');
+    await expect(student.locator('#history-summary-table [data-fact="time"]')).toHaveCount(0);
+    await student.locator(`[data-history-open="${MATH}"]`).click();
+    await expect(student.locator('#history-show')).not.toBeChecked();
+    await expect(student.locator('#history-reveal')).toHaveCount(0);
+    await expect(student.locator('#lesson-card [data-ann-mark]')).toHaveCount(0);
+    await student.locator('#history-show').check();
     await expect(student.locator('#lesson-card[data-ready]')).toBeVisible();
     // On screen, not just in the DOM: header and question sit at the top of the overlay.
     await expect(student.locator('.history-header h1')).toBeInViewport();
@@ -180,10 +191,10 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     await expect(student.locator('#lesson-desmos-fork')).toHaveCount(0);
     await shot(student, '03-history-math-annotation-desmos');
     await student.locator('#history-breakdown').scrollIntoViewIfNeeded();
-    await expect(student.locator('.history-nav')).not.toBeInViewport();
+    await expect(student.locator('.history-footer')).toBeInViewport();
     await student.locator('#history-next').click();
-    await expect(student.locator('.history-nav')).toBeInViewport();
-    await expect(student.locator('.lesson-position')).toHaveText('Question 2 · 2 of 2');
+    await expect(student.locator('.history-footer')).toBeInViewport();
+    await expect(student.locator('#history-position')).toHaveText('Question 2 of 2');
     await expect(student.locator('#history-verdict')).toHaveText('Your answer: B');
     await expect(student.locator('#history-correct')).toHaveText('Correct answer: A');
     await expect(student.locator('.history-breakdown')).toContainText('No breakdown for this question.');
@@ -195,10 +206,15 @@ test('task09 My Lessons, usage badges and filter, self-paced write-back, instruc
     const failing = `**/api/lesson-history/${self.sessionId}`;
     await student.route(failing, route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"history unavailable"}' }));
     await student.locator(`#lessons-table tr[data-session="${self.sessionId}"]`).click();
-    await expect(student.locator('#lessons-error')).toHaveText('Could not load this lesson.');
-    await expect(student.locator('#lesson-live')).toBeHidden();
+    await expect(student.locator('#history-loading')).toContainText('Could not load lesson results.');
+    await expect(student.locator('#history-retry')).toBeVisible();
     await expect(student.locator('#sync-bar')).toHaveCount(0);
     await student.unroute(failing);
+    await student.locator('#history-retry').click();
+    await expect(student.locator('#history-summary')).toBeVisible();
+    await student.locator('#history-close').click();
+    await expect(student).toHaveURL(/\/app$/);
+    await expect(student.locator('#lesson-live')).toBeHidden();
 
     // 2. Badges list the padded session IDs, oldest first.
     const bank = await (await six.request.get('/api/questions')).json();

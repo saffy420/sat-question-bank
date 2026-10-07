@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
-import { INSTRUCTOR, lesson, join, openLive, inkProbe } from '../lessons-11-ui-polish/helpers.js';
+import { INSTRUCTOR, lesson, join, openLive, inkProbe, dismissEnded } from '../lessons-11-ui-polish/helpers.js';
 
 // figure-viewer: one viewer for every math figure (bank practice, lesson student, instructor and history).
 // Checkpoints A–D follow the Bluebook screenshots: A 100 % in its frame, B 125 % clipped and draggable,
@@ -379,9 +379,15 @@ test('lessons: student A–D, instructor and history viewers, no socket traffic,
 
     // History/review: the session's question opens in My Lessons with the viewer and the saved stroke at 100 %.
     await teacher.locator('[data-live="endSession"]').click();
+    await dismissEnded(s1);
     await expect(s1.locator('#lesson-live')).toBeHidden();
     await s1.locator('.nav-i[data-tab="lessons"]').click();
     await s1.locator(`#lessons-table tr[data-session="${sessionId}"]`).click();
+    await expect(s1.locator('#history-summary')).toBeVisible();
+    await s1.locator(`[data-history-open="${FIG}"]`).click();
+    await expect(s1.locator('#history-show')).not.toBeChecked();
+    await expect(s1.locator('#history-reveal')).toHaveCount(0);
+    await s1.locator('#history-show').check();
     await expect(s1.locator('#lesson-card[data-ready="true"]')).toBeVisible();
     await expect(s1.locator(scope)).toHaveCount(1);
     const historyImg = await imgOf(s1);

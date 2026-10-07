@@ -268,15 +268,44 @@
 :is(#lesson-live, #bank-live) .lesson-poll #poll-vote:disabled { opacity:.5; }
 #poll-status { min-height:1.4em; color:var(--dim); text-align:right; }
 #lesson-not-in-set { font-weight:500; }
-/* §9.1 My Lessons history */
-.history-score { justify-self:center; font-size:16px; color:#444; }
-.history-nav { display:flex; flex-wrap:wrap; gap:8px; padding:8px var(--gutter); }
-:is(#lesson-live, #bank-live) .history-nav button { min-width:40px; padding:4px 12px; }
-:is(#lesson-live, #bank-live) .history-nav button[aria-current=true] { background:none; color:#171717; font-weight:700; text-decoration:underline; text-underline-offset:5px; text-decoration-thickness:2px; }
-.history-breakdown { padding:16px 0; border-top:1px solid #bbb; }
-.history-breakdown h2 { font-size:17px; font-weight:500; margin:0 0 12px; }
-.history-breakdown>div { font:19px/1.5 'Lesson Serif',serif; }
-:is(#lesson-live, #bank-live) .lesson-footer #history-prev, :is(#lesson-live, #bank-live) .lesson-footer #history-next { display:flex; align-items:center; gap:6px; }
-:is(#lesson-live, #bank-live) .lesson-footer #history-prev { justify-self:start; }
+#lesson-live .history-header { grid-template-columns:minmax(0,1fr) auto; }
+#lesson-live .history-summary { max-width:1100px; margin:0 auto; }
+#lesson-live .history-summary h2 { margin:0; font-size:26px; font-weight:500; }
+#lesson-live .history-score { font-size:22px; margin:16px 0 28px; }
+#lesson-live .history-score strong { font-size:32px; margin-left:12px; }
+#lesson-live .history-table-wrap { overflow-x:auto; }
+#lesson-live #history-summary-table { width:100%; border-collapse:collapse; text-align:left; }
+#lesson-live #history-summary-table th, #lesson-live #history-summary-table td { padding:12px; border-bottom:1px solid #ddd; }
+#lesson-live #history-summary-table tbody tr { cursor:pointer; }
+#lesson-live #history-summary-table tbody tr:hover { background:#f4f4f4; }
+#lesson-live #history-summary-table tr[data-state=wrong] { background:#fff0ef; }
+#lesson-live #history-summary-table tr[data-state=wrong] th { border-left:4px solid #bd2424; }
+#lesson-live .history-result { font-weight:700; white-space:nowrap; }
+#lesson-live .history-result svg { width:18px; height:18px; vertical-align:middle; margin-right:6px; }
+#lesson-live [data-state=wrong] .history-result { color:#a51f1f; }
+#lesson-live [data-state=correct] .history-result { color:#26783d; }
+#lesson-live .self-grid button[data-state=correct] { color:#26783d; border-bottom-color:#26783d; font-weight:700; }
+#lesson-live .self-grid button[data-state=wrong] { color:#bd2424; border-bottom-color:#bd2424; font-weight:700; }
+#lesson-live .history-breakdown { padding:16px 0; border-top:1px solid #bbb; }
+#lesson-live .history-breakdown h2 { font-size:17px; font-weight:500; margin:0 0 12px; }
+#lesson-live .history-breakdown>div { font:19px/1.5 'Lesson Serif',serif; }
+#lesson-live #history-prev, #lesson-live #history-next { display:flex; align-items:center; gap:6px; }
+#lesson-live .history-footer-left { display:flex; align-items:center; gap:12px; min-width:0; }
+#lesson-live .history-show { display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer; }
+#lesson-live .history-show input { width:18px; height:18px; flex:none; accent-color:#304fc5; }
+#lesson-live .lesson-reflection { color-scheme:light; color:#171717; background:#fff; border:1px solid #aaa; border-radius:20px; width:min(520px,92vw); padding:24px; font:16px/1.5 'Lesson Sans',sans-serif; }
+#lesson-live .lesson-reflection::backdrop { background:#0006; }
+#lesson-live .lesson-reflection header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+#lesson-live .lesson-reflection h2 { margin:0; font-size:22px; font-weight:500; }
+#lesson-live #reflection-close { display:flex; padding:8px; }
+#lesson-live .lesson-reflection form { display:grid; gap:12px; margin-top:20px; }
+#lesson-live .lesson-reflection fieldset { display:grid; gap:8px; border:0; padding:0; margin:0 0 8px; }
+#lesson-live .lesson-reflection legend { margin-bottom:8px; font-weight:500; }
+#lesson-live .lesson-reflection fieldset label { display:flex; align-items:center; gap:8px; }
+#lesson-live .lesson-reflection textarea { width:100%; min-height:120px; max-height:40vh; resize:vertical; border:1px solid #777; border-radius:12px; padding:12px; font:inherit; color:inherit; background:#fff; }
+#lesson-live .lesson-reflection textarea:focus-visible { outline:3px solid #156fd1; outline-offset:4px; }
+#lesson-live #reflection-error { margin:0; color:#bd2424; }
+#lesson-live #reflection-thanks { color:#26783d; }
+@media(max-width:750px) { #lesson-live .history-footer { --foot:92px; height:92px; } #lesson-live .history-footer-left { display:grid; gap:4px; } #lesson-live .history-show { font-size:11px; } #lesson-live .history-footer #history-prev { justify-self:start; } #lesson-live:has(.history-footer) { --foot:92px; } }
 
-:is(#lesson-live, #bank-live) .self-grid button:hover, :is(#lesson-live, #bank-live) .history-nav button:hover, :is(#lesson-live, #bank-live) .lesson-calc-resize:hover { background:none; }
+:is(#lesson-live, #bank-live) .self-grid button:hover, :is(#lesson-live, #bank-live) .lesson-calc-resize:hover { background:none; }

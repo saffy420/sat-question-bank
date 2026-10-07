@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
-import { MATH, INSTRUCTOR, lesson, join, openLive } from '../lessons-11-ui-polish/helpers.js';
+import { MATH, INSTRUCTOR, lesson, join, openLive, dismissEnded } from '../lessons-11-ui-polish/helpers.js';
 
 // Edit text: during ANSWERING the presenter fixes the wording of the stem and of a choice in place. Students
 // see the new text at once (edits are never hidden), the inline KaTeX stays as it was and prose typing can't
@@ -142,10 +142,16 @@ test('live edit: stem and choice text fixed during ANSWERING reach students at o
     await teacher.locator('[data-live="endNow"]').click();
     await expect(student.locator('.lesson-phase')).toHaveText('REVEALED');
     await teacher.locator('[data-live="endSession"]').click();
+    await dismissEnded(student);
     await expect(student.locator('#lesson-live')).toBeHidden();
     await expect.poll(async () => (await studentContext.request.get(`/api/lesson-history/${sessionId}`)).status()).toBe(200);
     await student.locator('.nav-i[data-tab="lessons"]').click();
     await student.locator(`#lessons-table tr[data-session="${sessionId}"]`).click();
+    await expect(student.locator('#history-summary')).toBeVisible();
+    await student.locator(`[data-history-open="${MATH}"]`).click();
+    await expect(student.locator('#history-show')).not.toBeChecked();
+    await expect(student.locator('#history-reveal')).toHaveCount(0);
+    await student.locator('#history-show').check();
     await expect(student.locator('#lesson-card')).toHaveAttribute('data-ready', 'true');
     expect(await stemText(student)).toBe('What equals [math]?');
     expect(await tex(student, '#lesson-card')).toEqual(mathBefore);

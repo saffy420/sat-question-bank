@@ -1115,7 +1115,7 @@ body:has(#bank-live:not(.hide)) #sync-bar { bottom: calc(clamp(52px, 7vh, 85px) 
 </div>
 
 <link rel="stylesheet" href="/lesson-ui/lesson.css">
-<div id="lesson-live" class="hide"><div id="lesson-content"></div><div id="lesson-history"></div></div>
+<div id="lesson-live" class="hide"><div id="lesson-content"></div><div id="lesson-history"></div><div id="lesson-reflection-root"></div></div>
 <div id="bank-live" class="hide"><div id="bank-content"></div></div>
 <div id="modal-root"></div>
 <div id="overlay-root"></div>
@@ -1126,7 +1126,7 @@ import * as SharedRenderer from '/shared/renderer.js';
 import * as Report from '/shared/report.js';
 import * as Figure from '/shared/figure.js';
 import { CODE, USAGE_MODES, lessonUsageVisible } from '/shared/lesson.js';
-import { mountLesson, mountHistory, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome, Plan } from '/lesson-ui/lesson.js';
+import { mountLesson, mountHistory, mountReflection, mountBank, createRecorder, pick as pickAnswer, commit as commitAnswer, firstTry, outcome, Plan } from '/lesson-ui/lesson.js';
 import { mountBankHome, applyExtraFilters, EXTRA_FILTERS, migrateSection } from '/lesson-ui/lesson.js';
 import { loadSaved, setSaved, savedIds, subscribeSaved } from '/lesson-ui/lesson.js';
 import { mountHome } from '/lesson-ui/lesson.js';
@@ -4087,20 +4087,23 @@ function drawLessons() {
       <td>${x.mode === 'self' ? 'Self-paced' : 'Instructor-paced'}</td><td class="mono">${x.score.scorable ? `${x.score.right} / ${x.score.scorable}` : '&mdash;'}</td></tr>`).join('')}</tbody></table>`);
   $('lessons-body').querySelectorAll('tr[data-session]').forEach(tr => tr.onclick = () => openLessonHistory(tr.dataset.session));
 }
-let closeHistory = null;
-async function openLessonHistory(id) {
+let closeHistory = null, closeReflection = null;
+function openLessonHistory(id, ended = false) {
   if (lessonId) return;
-  $('lessons-error').textContent = '';
-  try {
-    const r = await fetch('/api/lesson-history/' + encodeURIComponent(id), { headers: await sbHeaders() });
-    if (!r.ok) throw new Error(r.status === 404 ? 'This lesson is not available yet.' : 'Could not load this lesson.');
-    const history = await r.json();
-    // The live lesson root keeps a full-height box even when empty; hide it under the history.
-    $('lesson-content').classList.add('hide'); $('lesson-live').classList.remove('hide');
-    closeHistory = mountHistory($('lesson-history'), history, mathify, () => {
-      closeHistory?.(); closeHistory = null; $('lesson-live').classList.add('hide'); $('lesson-content').classList.remove('hide');
-    }, ({ questionId, element }) => Report.openReport({ questionId, seenIn: 'history', sessionId: history.sessionId, element, send: postJSON }));
-  } catch (e) { $('lessons-error').textContent = e.message; }
+  closeReflection?.(); closeReflection = null; closeHistory?.();
+  if ($('lessons-error')) $('lessons-error').textContent = '';
+  $('lesson-content').classList.add('hide'); $('lesson-live').classList.remove('hide');
+  const view = mountHistory($('lesson-history'), Number(id), mathify, () => {
+    closeReflection?.(); closeReflection = null; closeHistory?.(); closeHistory = null;
+    $('lesson-content').classList.remove('hide');
+    lessonLeave(ended);
+    history.replaceState(null, '', '/app');
+  }, ({ questionId, element }) => Report.openReport({ questionId, seenIn: 'history', sessionId: Number(id), element, send: postJSON }), { headers: sbHeaders });
+  closeHistory = view;
+  if (ended) view.ready.then(saved => {
+    if (!saved || closeHistory !== view) return;
+    closeReflection = mountReflection($('lesson-reflection-root'), { sessionId: saved.sessionId, headers: sbHeaders, close: () => { closeReflection?.(); closeReflection = null; } });
+  });
 }
 
 function drawHistory() {
@@ -4247,22 +4250,22 @@ const lessonUI = mountLesson(lessonRoot, {
   report({ questionId, element }) { Report.openReport({ questionId, seenIn: 'lesson', sessionId: lessonId, element, send: postJSON }); },
   suggest() { document.querySelector('.lesson-more')?.removeAttribute('open'); Report.openSuggest({ send: postJSON }); }
 });
-function lessonLeave(ended) {
+function lessonLeave(ended, summary = false) {
   const finished = ended || lessonState && (lessonState.status === 'review' || lessonState.status === 'ended' || lessonState.phase === 'ENDED');
   lessonId = null; lessonState = null; lessonPending = null; lessonLockPending = false; lessonSelf = null; clearTimeout(lessonSelfDeadline);
   clearTimeout(lessonRetry); clearInterval(lessonClock); lessonSocket?.close(1000);
-  lessonUI.reset(); $('lesson-live').classList.add('hide');
+  lessonUI.reset();
+  if (summary) return;
+  $('lesson-live').classList.add('hide');
   // §10: a finished self-paced set wrote to this account's record on the server; reload it
   // (and My Lessons) unless local answers are still waiting to save.
   if (finished && !Object.values(PENDING).some(q => q.length) && !Object.keys(inflight).length) loadProgress();
 }
-// The instructor ended the session: every student goes back to /app, whether the room told them
-// (ENDED snapshot) or they were offline or reconnecting and the room now answers 410. The room
-// saved their answers when it ended; this only closes the lesson view.
 function lessonEnded() {
   if (!lessonId) return;
-  lessonLeave(true);
-  if (location.pathname + location.search !== '/app') history.replaceState(null, '', '/app');
+  const id = lessonId;
+  lessonLeave(true, true);
+  openLessonHistory(id, true);
 }
 function lessonDraw() {
   if (!lessonState) return;

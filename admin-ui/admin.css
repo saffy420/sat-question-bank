@@ -2242,6 +2242,9 @@ body {
 :where(#admin-root) .report-diff > div { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; min-width: 0; }
 :where(#admin-root) .report-diff h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 :where(#admin-root) .report-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+:where(#admin-root) .suggestion-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+:where(#admin-root) .suggestion-controls .tabs { margin-bottom: 0; }
+:where(#admin-root) .suggestion-area { color: var(--muted); font-size: 12px; }
 :where(#admin-root) .suggestion-filter { display: inline-flex; align-items: center; gap: 8px; }
 @media (max-width: 1100px) { :where(#admin-root) .report-diff { grid-template-columns: 1fr; } }
 

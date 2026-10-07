@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { newUserContext, ORIGIN } from '../lessons-00b-e2e-harness/auth.js';
 import { captureLeaks } from '../lessons-00b-e2e-harness/leaks.js';
 import { lateJoinSet } from '../../../public/shared/lesson.js';
+import { dismissEnded } from '../lessons-11-ui-polish/helpers.js';
 
 const artifacts = '.omp/pipeline/lessons-07-self-paced/e2e';
 const roomSocket = /\/api\/lessons\/\d+\/ws/;
@@ -220,6 +221,7 @@ test('task07 self-paced run: navigation, flags, review, submit all, auto-submit,
     await teacher.locator('[data-live="endSession"]').click();
     await expect(teacher.locator('.live-top')).toContainText('SESSION ENDED');
     // Ending the session sends students back to /app (11a A5).
+    await dismissEnded(one);
     await expect(one.locator('#lesson-live')).toBeHidden();
   } finally { for (const context of students.reverse()) await context.close().catch(() => {}); await admin.close().catch(() => {}); }
 });

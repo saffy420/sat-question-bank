@@ -243,6 +243,9 @@ CREATE TABLE feature_suggestions (
   area TEXT CHECK(area IN ('bank','lessons','plan','other')),
   body TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','done','dismissed')),
-  created_at TEXT NOT NULL DEFAULT(datetime('now'))
+  created_at TEXT NOT NULL DEFAULT(datetime('now')),
+  category TEXT CHECK(category IN ('teaching','app','other')),
+  session_id INTEGER
 );
 CREATE INDEX feature_suggestions_user ON feature_suggestions(user_id, created_at);
+CREATE UNIQUE INDEX feature_suggestions_session ON feature_suggestions(user_id, session_id, category) WHERE session_id IS NOT NULL;

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { newUserContext } from '../lessons-00b-e2e-harness/auth.js';
-import { MATH, RW, INSTRUCTOR, zoomOpts, lesson, join, openLive } from '../lessons-11-ui-polish/helpers.js';
+import { MATH, RW, INSTRUCTOR, zoomOpts, lesson, join, openLive, dismissEnded } from '../lessons-11-ui-polish/helpers.js';
 
 // live-mathtype: on a math question the presenter's Text tool types math the Desmos way (MathQuill), `"` first
 // makes a plain-text note, Reading & Writing keeps the plain box. A box being typed reaches students live once
@@ -308,10 +308,16 @@ test('edit math: a formula opens in the math editor; 3 + 4 → 3 + 5 reaches stu
     await expect(student.locator('.lesson-phase')).toHaveText('REVEALED');
     expect(await tex(student, '#lesson-card')).toEqual(['3+5']);
     await teacher.locator('[data-live="endSession"]').click();
+    await dismissEnded(student);
     await expect(student.locator('#lesson-live')).toBeHidden();
     await expect.poll(async () => (await studentContext.request.get(`/api/lesson-history/${sessionId}`)).status()).toBe(200);
     await student.locator('.nav-i[data-tab="lessons"]').click();
     await student.locator(`#lessons-table tr[data-session="${sessionId}"]`).click();
+    await expect(student.locator('#history-summary')).toBeVisible();
+    await student.locator(`[data-history-open="${MATH}"]`).click();
+    await expect(student.locator('#history-show')).not.toBeChecked();
+    await expect(student.locator('#history-reveal')).toHaveCount(0);
+    await student.locator('#history-show').check();
     await expect(student.locator('#lesson-card')).toHaveAttribute('data-ready', 'true');
     expect(await tex(student, '#lesson-card')).toEqual(['3+5']);
   } finally {

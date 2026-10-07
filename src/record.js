@@ -75,7 +75,7 @@ export async function lessonHistory(db, aiDb, userId, sessionId) {
   const frozen = JSON.parse(s.snapshot_json);
   const [shown, responses, reviews] = await Promise.all([
     db.prepare('SELECT question_id FROM question_lesson_usage WHERE session_id = ?').bind(sessionId).all(),
-    db.prepare('SELECT question_id, final_answer, is_correct FROM session_responses WHERE session_id = ? AND user_id = ?').bind(sessionId, userId).all(),
+    db.prepare('SELECT question_id, final_answer, is_correct, time_spent_ms FROM session_responses WHERE session_id = ? AND user_id = ?').bind(sessionId, userId).all(),
     db.prepare('SELECT question_id, annotations_json, desmos_state_json FROM session_question_review WHERE session_id = ?').bind(sessionId).all()]);
   const shownIds = new Set((shown.results || []).map(r => r.question_id));
   const own = new Map((responses.results || []).map(r => [r.question_id, r]));
@@ -92,7 +92,8 @@ export async function lessonHistory(db, aiDb, userId, sessionId) {
     const r = own.get(item.question_id), saved = review.get(item.question_id);
     questions.push({ number: position + 1, question: lessonQuestion(normalizeQuestion(row), true), notes: item.notes || '',
       inSet: !assigned || assigned.includes(item.question_id), recorded: !!r, answer: r?.final_answer || null,
-      correct: r ? r.is_correct : null, annotations: parse(saved?.annotations_json) || [], desmos: parse(saved?.desmos_state_json) });
+      correct: r ? r.is_correct : null, ...(frozen.mode === 'self' ? { timeMs: r?.time_spent_ms ?? null } : {}),
+      annotations: parse(saved?.annotations_json) || [], desmos: parse(saved?.desmos_state_json) });
   }
   const score = lessonScore(responses.results || []);
   return { sessionId: s.id, paddedId: padSessionId(s.id), title: frozen.title || '', mode: frozen.mode, date: s.started_at || s.created_at, score, questions };
